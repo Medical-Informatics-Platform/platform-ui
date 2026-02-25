@@ -32,6 +32,7 @@ export class ExperimentsDashboardService {
       page: page.toString(),
       size: size.toString(),
       mine: onlyMine.toString(),
+      notMine: (!onlyMine).toString(),
       includeShared: (!onlyMine).toString()
     };
 

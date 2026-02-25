@@ -144,7 +144,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         result: {
           ...response.result,
           variable_based: (response?.result?.variable_based ?? []).filter(
-            (r: any) => r.variable === v.code
+            (r: any) => r.variable === v.code && r.dataset !== 'all datasets'
           )
         }
       };
