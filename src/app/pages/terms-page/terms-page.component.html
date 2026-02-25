@@ -1,0 +1,34 @@
+<section class="tos-page">
+  <div class="tos-card">
+    <div class="tos-intro">
+      <h1>EBRAINS Medical Informatics Platform (MIP)</h1>
+      <h2>General Terms and Conditions</h2>
+    </div>
+    @if (!loading && !loadError) {
+    <div class="tos-content" [innerHTML]="tosHtml"></div>
+    }
+
+    @if (loading) {
+    <div class="tos-loading">Loading terms...</div>
+    }
+
+    @if (loadError) {
+    <div class="tos-error">Unable to load the Terms &amp; Conditions.</div>
+    }
+
+    <div class="tos-actions">
+      <label class="tos-checkbox">
+        <input type="checkbox" [(ngModel)]="accepted" />
+        <span>I accept the Terms of Use.</span>
+      </label>
+      <div class="tos-action-right">
+        @if (acceptError) {
+        <div class="tos-accept-error">Unable to save acceptance. Please try again.</div>
+        }
+        <button class="tos-proceed" [disabled]="!accepted || submitting" (click)="onProceed()">
+          Proceed
+        </button>
+      </div>
+    </div>
+  </div>
+</section>

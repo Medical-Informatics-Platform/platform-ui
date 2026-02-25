@@ -1,0 +1,496 @@
+/* Layout wrapper */
+.account-page {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+  background: #f3f5f9;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Main card */
+.account-card {
+  width: 100%;
+  max-width: 900px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow:
+    0 10px 30px rgba(15, 23, 42, 0.08),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 24px 28px 28px;
+  box-sizing: border-box;
+}
+
+/* Header */
+.account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.1s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+
+.back-btn:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.back-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+}
+
+.title-group h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Sign out button */
+.sign-out-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #18a2b8;
+  color: #ffffff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 10px rgba(24, 162, 184, 0.35);
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.1s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+
+.sign-out-btn i {
+  font-size: 14px;
+}
+
+.sign-out-btn:hover {
+  background-color: #14889a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(24, 162, 184, 0.45);
+}
+
+.sign-out-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(24, 162, 184, 0.3);
+}
+
+/* Main content inside card */
+.account-main {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 20px 20px 18px;
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+}
+
+/* Top profile row */
+.profile-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.profile-picture {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+  background: #e5f6f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-info h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.user-email {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Divider */
+.divider {
+  margin: 18px 0;
+  border-top: 1px dashed #e5e7eb;
+}
+
+/* Info sections */
+.info-section + .info-section {
+  margin-top: 16px;
+}
+
+.info-section h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Grid for fields */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 20px;
+}
+
+.info-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  word-break: break-all;
+}
+
+/* ===== Layout wrapper ===== */
+.account-page {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+
+  padding: clamp(20px, 4vw, 40px) clamp(10px, 3vw, 16px);
+  background: #f3f5f9;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* ===== Main card ===== */
+.account-card {
+  width: min(900px, 100%);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow:
+    0 10px 30px rgba(15, 23, 42, 0.08),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+
+  padding: clamp(16px, 3vw, 28px);
+  box-sizing: border-box;
+
+  /* prevents weird overflow on tiny screens */
+  overflow: hidden;
+}
+
+/* ===== Header ===== */
+.account-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+
+  margin-bottom: clamp(16px, 2.5vw, 24px);
+
+  /* allow wrapping cleanly */
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #d1d5db;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.1s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+}
+
+.back-btn:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.back-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+}
+
+.title-group {
+  min-width: 220px;
+  flex: 1 1 auto;
+}
+
+.title-group h1 {
+  margin: 0;
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 600;
+  color: #111827;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: clamp(12px, 1.6vw, 14px);
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+/* ===== Sign out button ===== */
+.sign-out-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  background-color: #18a2b8;
+  color: #ffffff;
+  border: none;
+
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  box-shadow: 0 4px 10px rgba(24, 162, 184, 0.35);
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.1s ease-in-out,
+    box-shadow 0.15s ease-in-out;
+
+  /* don't shrink too small */
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.sign-out-btn i {
+  font-size: 14px;
+}
+
+.sign-out-btn:hover {
+  background-color: #14889a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(24, 162, 184, 0.45);
+}
+
+.sign-out-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(24, 162, 184, 0.3);
+}
+
+/* ===== Main content inside card ===== */
+.account-main {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: clamp(14px, 2.4vw, 20px);
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+}
+
+/* ===== Top profile row ===== */
+.profile-section {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2.5vw, 20px);
+
+  /* allow wrap instead of overflow */
+  flex-wrap: wrap;
+}
+
+.profile-picture {
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+  background: #e5f6f9;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 auto;
+}
+
+.profile-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-info {
+  min-width: 220px;
+  flex: 1 1 auto;
+}
+
+.user-info h2 {
+  margin: 0;
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 600;
+  color: #111827;
+}
+
+.user-email {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+
+  /* safe for very long emails */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ===== Divider ===== */
+.divider {
+  margin: clamp(14px, 2vw, 18px) 0;
+  border-top: 1px dashed #e5e7eb;
+}
+
+/* ===== Info sections ===== */
+.info-section + .info-section {
+  margin-top: 16px;
+}
+
+.info-section h3 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* ===== Grid for fields ===== */
+.info-grid {
+  display: grid;
+
+  /* elastic grid that doesn't collapse weirdly */
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+
+  gap: 12px 16px;
+}
+
+.info-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+
+  /* prevents overflow from children */
+  min-width: 0;
+}
+
+.label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ===== Responsive tweaks ===== */
+@media (max-width: 640px) {
+  .sign-out-btn {
+    /* makes header feel nicer on narrow screens */
+    width: 100%;
+  }
+
+  .account-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-picture {
+    width: 72px;
+    height: 72px;
+  }
+
+  .user-info,
+  .title-group {
+    min-width: 0;
+  }
+}

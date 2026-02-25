@@ -1,0 +1,65 @@
+<div class="search-container">
+  <div class="search-input-container">
+    <input type="text" id="search-bar" placeholder="Search variables or groups" aria-label="Search variables or groups"
+      [(ngModel)]="searchQuery" (focus)="onSearchFocus()" (input)="handleSearch(searchQuery)" />
+
+    @if (searchQuery) {
+    <button class="clear-btn" (click)="closeSearch()">×</button>
+    }
+
+    <div class="inline-filters">
+      <select [(ngModel)]="filterType" (change)="applyFilter(filterType)">
+        <option value="variables">Variables</option>
+        <option value="groups">Groups</option>
+      </select>
+
+      @if (filterType === 'variables') {
+      <div class="additional-filter">
+        <select [(ngModel)]="variableTypeFilter" (change)="applyVariableTypeFilter(variableTypeFilter)">
+          <option value="">All Types</option>
+          @for (type of variableTypes; track type) {
+          <option [value]="type">{{ type }}</option>
+          }
+        </select>
+      </div>
+      }
+    </div>
+  </div>
+
+  <!-- Suggestions Results -->
+  @if (searchSuggestionsVisible) {
+  <div class="suggestions-container">
+    @if (filteredItems.length > 0) {
+    <div class="section-header">
+      {{ filterType === 'variables' ? 'Variables' : 'Groups' }}
+    </div>
+    <ul>
+      @for (item of filteredItems; track item.code || item.label) {
+      <li class="variable-item" (click)="onItemClick(item)" [title]="generateTooltip(item)">
+        <div class="item-top">
+          <span class="result-name" [innerHTML]="highlight(item.label)"></span>
+          @if (item.path && filterType === 'variables') {
+          <span class="result-group">
+            {{ item.path.split(" > ").slice(-2, -1)[0] }}
+          </span>
+          }
+        </div>
+        <div class="item-bottom">
+          <span class="result-type">
+            @if (filterType === 'variables') {
+            <span class="type-icon">ⓘ</span>
+            type: {{ item.type }}
+            } @else {
+            Group
+            }
+          </span>
+        </div>
+      </li>
+      }
+    </ul>
+    } @else {
+    <div class="no-results">No results found for "{{ searchQuery }}"</div>
+    }
+  </div>
+  }
+</div>

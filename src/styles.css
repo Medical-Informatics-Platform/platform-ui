@@ -1,0 +1,643 @@
+:root {
+  /* MIP Brand Color Palette */
+  --primary-color: #2b33e9;
+  /* Brand Blue */
+  --primary-dark: #1b21a3;
+  --primary-light: #7f9ce8;
+  /* Secondary Light Blue */
+  --accent-color: #ffba08;
+  /* Accent Orange/Yellow */
+  --bg-color: #f3f8ff;
+  /* Very light blue central background */
+  --bg-neutral: #f8fafc;
+  --card-bg: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --danger: #ef4444;
+  --success: #10b981;
+  --border-color: rgba(43, 51, 233, 0.1);
+  /* Softer brand-tinted border */
+  --studio-card-bg: #ffffff;
+  --studio-card-border: rgba(43, 51, 233, 0.1);
+  --studio-card-shadow: 0 8px 32px rgba(15, 23, 42, 0.06);
+  --studio-card-header-bg: #f8fbff;
+  --studio-card-header-border: rgba(43, 51, 233, 0.08);
+
+  /* Low Profile Semantic Colors */
+  --covariate-color: #ccb692;
+  /* Desaturated Sand */
+  --filter-color: #94a3b8;
+  /* Muted Slate */
+  --variable-color: #2b33e9;
+  /* Brand Blue */
+
+  --chart-label-color: #334155;
+  /* Darker for better visibility */
+
+  /* Arctic Precision (Glassmorphism) */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --glass-blur: blur(12px);
+
+  /* Typography - Alaska Aesthetic */
+  --line-height-config: 1.6;
+  --letter-spacing-config: 0.015em;
+
+  /* Spacing & Borders - Charter standard */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --header-height: 64px;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) {
+    --bg-color: #0b0f1a;
+    --card-bg: #151b2b;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border-color: rgba(148, 163, 184, 0.15);
+    --studio-card-bg: #151b2b;
+    --studio-card-border: rgba(148, 163, 184, 0.2);
+    --studio-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    --studio-card-header-bg: #1c253d;
+    --studio-card-header-border: rgba(148, 163, 184, 0.2);
+    --glass-bg: rgba(21, 27, 43, 0.8);
+    --glass-border: rgba(148, 163, 184, 0.1);
+
+    /* MIP Brand colors for dark mode */
+    --primary-color: #7f9ce8;
+    --primary-dark: #5a73c9;
+    --primary-light: #2b33e9;
+    --accent-color: #ffba08;
+  }
+}
+
+/* Manual dark mode via class */
+body.theme-dark {
+  --bg-color: #0b0f1a;
+  --card-bg: #151b2b;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: rgba(148, 163, 184, 0.15);
+  --studio-card-bg: #151b2b;
+  --studio-card-border: rgba(148, 163, 184, 0.2);
+  --studio-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  --studio-card-header-bg: #1c253d;
+  --studio-card-header-border: rgba(148, 163, 184, 0.2);
+  --glass-bg: rgba(21, 27, 43, 0.8);
+  --glass-border: rgba(148, 163, 184, 0.1);
+
+  /* MIP Brand colors for dark mode */
+  --primary-color: #7f9ce8;
+  --primary-dark: #5a73c9;
+  --primary-light: #2b33e9;
+  /* Low Profile Semantic Colors - Dark mode adjustments */
+  --covariate-color: #a48f68;
+  --filter-color: #64748b;
+  --variable-color: #7f9ce8;
+  --accent-color: var(--covariate-color);
+  --chart-label-color: #cbd5e1;
+}
+
+/* Colorblind Mode Overrides (matches portal-frontend colors) */
+body.colorblind-mode {
+  --variable-color: #ffba08;
+  /* MIP golden yellow */
+  --covariate-color: #bba66f;
+  /* MIP tan/beige */
+  --filter-color: #483300;
+  /* MIP dark brown */
+}
+
+body.colorblind-mode.theme-dark {
+  --variable-color: #ffba08;
+  --covariate-color: #bba66f;
+  --filter-color: #5a4420;
+  /* Slightly lighter for dark mode visibility */
+}
+
+/* Global Transition for Theme Switching */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar Theming */
+body.theme-dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+body.theme-dark ::-webkit-scrollbar-track {
+  background: #0b0f1a;
+}
+
+body.theme-dark ::-webkit-scrollbar-thumb {
+  background: #1c253d;
+  border-radius: 10px;
+  border: 2px solid #0b0f1a;
+}
+
+body.theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: #2b33e9;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Scientific Precision: Tabular numbers by default for tabular/data elements */
+  font-variant-numeric: tabular-nums;
+
+  /* Removed radial pattern for cleaner workspace as requested */
+}
+
+/* Style all required fields */
+input:required,
+textarea:required,
+select:required {
+  border-color: #ccc;
+  /* Neutral border color for required fields */
+  background-color: #fafafa;
+  /* Light background color */
+  box-shadow: none;
+  /* Remove any default shadow */
+}
+
+/* Style for invalid fields (unfilled required fields) */
+input:required:invalid,
+textarea:required:invalid,
+select:required:invalid {
+  border-color: #d32f2f;
+  /* Red border for invalid fields */
+  background-color: #ffe6e6;
+  /* Light red background for visibility */
+}
+
+
+@keyframes glacialPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(43, 51, 233, 0.2);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(43, 51, 233, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(43, 51, 233, 0);
+  }
+}
+
+/* Glassmorphism Utility */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Style for valid fields (when required fields are filled) */
+input:required:valid,
+textarea:required:valid,
+select:required:valid {
+  border-color: #4caf50;
+  /* Green border for valid fields */
+  background-color: #e8f5e9;
+  /* Light green background */
+}
+
+.btn-cancel,
+.btn-create {
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-cancel {
+  background-color: var(--border-color);
+  color: var(--text-muted);
+}
+
+.btn-cancel:hover {
+  background-color: #cbd5e1;
+  color: var(--text-main);
+}
+
+.btn-create {
+  background-color: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(43, 51, 233, 0.2);
+}
+
+.btn-create:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 12px rgba(43, 51, 233, 0.25);
+}
+
+/* Primary Action Buttons (Harsh Fixes) */
+.primary-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.2);
+}
+
+.primary-action-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(43, 51, 233, 0.3);
+}
+
+.primary-action-btn:disabled {
+  background: #cbd5e1;
+  color: #f1f5f9;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.custom-validation-tooltip {
+  position: absolute;
+  background-color: #d32f2f;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+
+.tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  color: #111;
+  font-family: system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  max-width: 260px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 200000;
+  backdrop-filter: blur(3px);
+}
+
+.tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip .title {
+  font-weight: 600;
+  color: #000;
+  margin-bottom: 4px;
+}
+
+.tooltip .desc {
+  font-size: 12px;
+  color: #333;
+  line-height: 1.4;
+}
+
+/* GLOBAL MOBILE HEADER OVERRIDES */
+@media (max-width: 768px) {
+
+  header.topbar,
+  .topbar,
+  .topbar-inner,
+  .brand,
+  .account-pill,
+  .header-logo,
+  .header-account,
+  .user-icon,
+  .login-icon {
+    display: none !important;
+  }
+}
+
+/* Query Builder Theming - Global */
+
+/* AND / OR row layout */
+.q-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* AND / OR switch labels */
+.q-switch-group .q-switch-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  padding: 4px 14px;
+  margin: 0 3px;
+  border-radius: 999px;
+  border: 1px solid var(--primary-color) !important;
+  background: linear-gradient(135deg, rgba(43, 51, 233, 0), rgba(43, 51, 233, 0.24)) !important;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: none !important;
+  color: var(--primary-color) !important;
+  transition: background 0.15s ease-in-out, color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out, transform 0.08s ease-in-out;
+}
+
+/* Active state (when radio is checked) */
+input.q-switch-radio:checked+.q-switch-label {
+  background: linear-gradient(135deg, #2b33e9, #1b21a3) !important;
+  color: white !important;
+  box-shadow: 0 0 6px rgba(43, 51, 233, 0.45);
+  border-color: var(--primary-dark) !important;
+}
+
+.q-switch-group:hover .q-switch-label:hover {
+  background: var(--primary-color) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-dark) !important;
+}
+
+
+/* "+ Rule" / "+ Ruleset" buttons */
+.q-button-group button,
+.q-button-group .q-button,
+.q-button-group .btn {
+  background: #ffffff !important;
+  color: var(--primary-color) !important;
+  font-weight: 500;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid var(--primary-color) !important;
+  box-shadow: none;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease-in-out, color 0.15s ease-in-out,
+    transform 0.08s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.q-button-group button:hover,
+.q-button-group .q-button:hover,
+.q-button-group .btn:hover {
+  background: var(--primary-color) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-dark) !important;
+}
+
+/* Rule row layout */
+.rule-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  justify-content: flex-start;
+  margin: 6px 0;
+}
+
+/* Field inputs */
+.rule-container select,
+.rule-container input[type="text"],
+.rule-container input[type="number"],
+.rule-container input[type="date"],
+.rule-container input[type="email"] {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #111827;
+  min-width: 150px;
+  max-width: 240px;
+  box-shadow: none;
+}
+
+/* Rule actions container */
+.rule-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Delete Button as Icon */
+.rule-actions .btn-danger {
+  background: transparent !important;
+  border: none !important;
+  color: #dc2626 !important;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease-in-out, transform 0.08s ease-in-out;
+}
+
+.rule-actions .btn-danger:hover {
+  color: #b91c1c !important;
+  transform: scale(1.08);
+}
+
+.rule-actions .btn-danger i {
+  font-size: 16px;
+}
+
+
+/* Delete Button Redesign */
+.query-builder .btn-danger {
+  background: #ffe8e8 !important;
+  border-radius: 50% !important;
+  border: 1px solid #ffb7b7 !important;
+  width: 26px;
+  height: 26px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px !important;
+  color: #c62828 !important;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.query-builder .btn-danger:hover {
+  background: #ffb7b7 !important;
+  transform: scale(1.15);
+}
+
+/* Make the X icon aligned */
+.query-builder .btn-danger i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+
+/* Card around rules */
+.query-builder .q-row.q-connector {
+  border: 1px solid #d6e7e7 !important;
+  background: #f8fcfc !important;
+  border-radius: 10px !important;
+  padding: 8px 12px !important;
+  margin: 8px 0 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* Wrapper of X (align right) */
+.query-builder .q-rule-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* X (delete button) */
+.query-builder .q-row.q-connector .q-rule-actions>button.q-button.q-remove-button {
+  background: #ffe8e8 !important;
+  border-radius: 50% !important;
+  border: 1px solid #ffb7b7 !important;
+  width: 26px;
+  height: 26px;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px !important;
+  color: #c62828 !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.query-builder .q-row.q-connector .q-rule-actions>button.q-button.q-remove-button:hover {
+  background: #ffb7b7 !important;
+  color: #7f1d1d !important;
+  transform: scale(1.12);
+}
+
+/* Icon X in the button */
+.query-builder .q-row.q-connector .q-rule-actions>button.q-button.q-remove-button i.q-remove-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+button.q-button.q-remove-button {
+  background: #ffe8e8 !important;
+  border-radius: 50% !important;
+  border: 1px solid #ffb7b7 !important;
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: #c62828 !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
+  transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease !important;
+}
+
+button.q-button.q-remove-button:hover {
+  background: #ffb7b7 !important;
+  color: #7f1d1d !important;
+  transform: scale(1.12) !important;
+}
+
+button.q-button.q-remove-button i.q-remove-icon {
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+/* Rule row compact card */
+
+li.q-row.q-connector {
+  padding: 6px 10px !important;
+  margin: 6px 0 !important;
+  border-radius: 10px !important;
+  border: 1px solid #d6e7e7 !important;
+  background: #f8fcfc !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+/* rule flex & centered */
+li.q-row.q-connector>div.q-rule {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: none;
+}
+
+/* Left side: field / operator / value */
+li.q-row.q-connector .q-rule-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+/* Remove margins around controls */
+li.q-row.q-connector .q-rule-content .q-control-size {
+  margin: 0 !important;
+}
+
+/* X align */
+li.q-row.q-connector .q-rule-actions {
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+li.q-row.q-connector select,
+li.q-row.q-connector input[type="text"],
+li.q-row.q-connector input[type="number"],
+li.q-row.q-connector input[type="date"],
+li.q-row.q-connector input[type="email"] {
+  height: 30px;
+  padding: 4px 8px;
+  font-size: 13px;
+}

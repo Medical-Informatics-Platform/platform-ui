@@ -1,0 +1,477 @@
+<div class="panel-header">
+  <p>Algorithm Selection and Configuration</p>
+</div>
+
+<div class="experiment-container">
+  <aside class="algorithm-panel">
+    <h5>Available Algorithms</h5>
+
+    <div class="algo-toolbar">
+      <button type="button" class="pill-toggle" [class.on]="showOnlyActive()" (click)="toggleActiveOnly()" [title]="
+            showOnlyActive()
+              ? 'Showing only active algorithms'
+              : 'Showing all algorithms'
+          ">
+        <span class="pill-dot" aria-hidden="true"></span>
+        {{ showOnlyActive() ? "Active only" : "All" }}
+        <span class="pill-count">
+          {{ algoCounts().active }}/{{ algoCounts().all }}
+        </span>
+      </button>
+    </div>
+    @if (hasAnyVisibleAlgorithms()) {
+    <div class="category">
+      @for (category of filteredAlgorithmCategories(); track category.name) {
+      <h6 (click)="toggleCategory(category.name)">
+        <span class="expand-icon" [class.expanded]="isCategoryOpen(category.name)">›</span>
+        {{ category.name }}
+      </h6>
+      @if (isCategoryOpen(category.name)) {
+      <ul>
+        @for (algorithm of category.algorithms; track algorithm) {
+        <li (click)="onAlgorithmClick(algorithm)" [class.disabled-algo]="algorithm.isDisabled"
+          (mouseenter)="showTooltip(algorithm, $event)" (mouseleave)="hideTooltip()"
+          [class.selected]="algorithm.name === selectedAlgorithm()?.name">
+          <div class="algo-item-content">
+            <span class="algo-label">{{ algorithm.label }}</span>
+            <div class="algo-badges">
+              @if (algorithm.isDisabled) {
+              @if (getVariableRequirement(algorithm)) {
+              <span class="algo-badge algo-badge--req" title="Variable Requirement">
+                <i class="fas fa-database"></i>
+              </span>
+              }
+              @if (getCovariateRequirement(algorithm)) {
+              <span class="algo-badge algo-badge--req" title="Covariate Requirement">
+                <i class="fas fa-sliders-h"></i>
+              </span>
+              }
+              } @else {
+              <span class="algo-badge algo-badge--active">
+                <i class="fas fa-check"></i>
+              </span>
+              }
+            </div>
+          </div>
+        </li>
+        }
+      </ul>
+      } }
+    </div>
+    } @else {
+    <div class="no-algos-empty">
+      <div class="no-algos-title">No available algorithms.</div>
+      <div class="no-algos-subtitle">Select variables to get started.</div>
+    </div>
+    }
+
+    <!-- Legend for requirement icons -->
+    <div class="algo-legend">
+      <div class="legend-item" title="Data requirements (e.g. types, count)">
+        <span class="algo-badge algo-badge--req legend-icon">
+          <i class="fas fa-database"></i>
+        </span>
+        <span class="legend-label">Variable Req.</span>
+      </div>
+      <div class="legend-item" title="Covariate requirements">
+        <span class="algo-badge algo-badge--req legend-icon">
+          <i class="fas fa-sliders-h"></i>
+        </span>
+        <span class="legend-label">Covariate Req.</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Tooltip for Algorithm Details (Moved outside to avoid backdrop-filter coordinate issues) -->
+  @if (tooltipVisible) {
+  <div class="tooltip" [style.top.px]="tooltipPosition.y" [style.left.px]="tooltipPosition.x">
+    <h5 class="tooltip-title">{{ tooltipData?.label }}</h5>
+    <div class="tooltip-description" [innerHTML]="tooltipData?.description"></div>
+
+    @if (getVariableRequirement() || getCovariateRequirement()) {
+    <div class="tooltip-requirements">
+      <div class="tooltip-requirements-header">Requirements</div>
+      @if (getVariableRequirement()) {
+      <div class="req-item">
+        <i class="fas fa-database req-icon"></i>
+        <span class="req-text">{{ getVariableRequirement() }}</span>
+      </div>
+      }
+      @if (getCovariateRequirement()) {
+      <div class="req-item">
+        <i class="fas fa-sliders-h req-icon"></i>
+        <span class="req-text">{{ getCovariateRequirement() }}</span>
+      </div>
+      }
+    </div>
+    }
+  </div>
+  }
+
+  <main class="experiment-panel">
+    <header>
+      <div class="experiment-header">
+        <div class="header-title-group">
+          <span class="icon-pill" aria-hidden="true">
+            <i class="fas fa-microchip"></i>
+          </span>
+          <div class="header-text">
+            <h4 class="experiment-title">
+              {{ result() ? "Experiment Result" : (selectedAlgorithm()?.label || "Algorithm Configuration") }}
+            </h4>
+            <p class="experiment-subtitle">
+              {{ result() ? "Review analysis output" : "Configure parameters and run" }}
+            </p>
+          </div>
+        </div>
+
+        <div class="header-actions-group">
+          @if (result() && !saveAsMode()) {
+          <button class="secondary-action-btn back-btn" (click)="backToParameters()" title="Edit Parameters">
+            <i class="fas fa-chevron-left"></i>
+            <span>Edit Parameters</span>
+          </button>
+          <button class="primary-action-btn run-button save-as" (click)="toggleSaveAsMode()">
+            Save As
+          </button>
+          } @else if (saveAsMode()) {
+          <div class="save-as-container">
+            <input type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
+              placeholder="Experiment name" class="save-as-input" />
+            <button class="primary-action-btn run-button" (click)="onSaveAs()"
+              [disabled]="!saveAsName().trim() || isRunning()">
+              {{ isRunning() ? "Saving..." : "Save" }}
+            </button>
+            <button class="secondary-action-btn cancel-btn" (click)="cancelSaveAs()">
+              ✕
+            </button>
+          </div>
+          } @else {
+          <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
+            [title]="isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'">
+            {{ isRunning() ? "Running..." : "Run Experiment" }}
+          </button>
+          }
+
+          <div class="floating-group">
+            <button class="floating-info-button" type="button" (click)="toggleInfoPanel()">
+              i
+            </button>
+
+            <aside id="info-panel" class="experiment-info-panel" [class.open]="infoPanelOpen">
+              <header class="info-panel-header">
+                <div class="info-title-block">
+                  <h3>Experiment summary</h3>
+                  <p class="info-subtitle">
+                    Quick overview of your inputs &amp; configuration.
+                  </p>
+                </div>
+
+                <button class="info-close-btn" type="button" (click)="toggleInfoPanel()" aria-label="Close">
+                  ✕
+                </button>
+              </header>
+
+              <div class="info-panel-body">
+
+                <!-- DATASETS -->
+                <div class="info-row">
+                  <div class="info-label">Datasets</div>
+                  <div class="info-value">
+                    @if (experimentInfo().datasets.length) {
+                    <div class="info-chips">
+                      @for (d of experimentInfo().datasets; track d) {
+                      <span class="info-chip">{{ d }}</span>
+                      }
+                    </div>
+                    } @else {
+                    <span class="info-empty-pill">None selected</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- VARIABLES -->
+                <div class="info-row">
+                  <div class="info-label">Variables</div>
+                  <div class="info-value">
+                    @if (experimentInfo().variables.length) {
+                    <div class="info-chips">
+                      @for (v of experimentInfo().variables; track v.code) {
+                      <span class="info-chip">
+                        {{ v.label || v.name || v.code }}
+                      </span>
+                      }
+                    </div>
+                    } @else {
+                    <span class="info-empty-pill">None selected</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- COVARIATES -->
+                <div class="info-row">
+                  <div class="info-label">Covariates</div>
+                  <div class="info-value">
+                    @if (experimentInfo().covariates.length) {
+                    <div class="info-chips">
+                      @for (c of experimentInfo().covariates; track c.code) {
+                      <span class="info-chip info-chip--soft">
+                        {{ c.label || c.name || c.code }}
+                      </span>
+                      }
+                    </div>
+                    } @else {
+                    <span class="info-empty-pill">None selected</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- FILTERS -->
+                <div class="info-row">
+                  <div class="info-label">Filters</div>
+                  <div class="info-value">
+                    @if (experimentInfo().filters.length) {
+                    <div class="info-chips">
+                      @for (f of experimentInfo().filters; track f.code) {
+                      <span class="info-chip info-chip--outline">
+                        {{ f.label || f.name || f.code }}
+                      </span>
+                      }
+                    </div>
+                    } @else {
+                    <span class="info-empty-pill">No filters</span>
+                    }
+                  </div>
+                </div>
+
+                <!-- ALGORITHM CONFIGS -->
+                <div class="info-row info-row--stacked">
+                  <div class="info-label">Algorithm configs</div>
+                  <div class="info-value">
+                    @if (objectKeys(experimentInfo().algorithmConfigs).length) {
+                    <dl class="info-config-list">
+                      @for (k of objectKeys(experimentInfo().algorithmConfigs);
+                      track k) {
+                      <div class="info-config-item">
+                        <dt>{{ prettifyKey(k) }}</dt>
+                        <dd>{{ experimentInfo().algorithmConfigs[k] }}</dd>
+                      </div>
+                      }
+                    </dl>
+                    } @else {
+                    <span class="info-empty-pill">No custom configs</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    @if (isRunning()) {
+    <div class="panel-loader">
+      <app-spinner [overlay]="false"></app-spinner>
+      <p>{{ loadingText() }}</p>
+    </div>
+    } @else if (result()) {
+    <section class="result-section" #resultSection>
+      <div class="result-header">
+        <div class="header-spacer"></div>
+        <h5>{{ resultDisplayTitle() }}</h5>
+
+        <!-- Export as PDF button -->
+        <button class="icon-button export-button" type="button" (click)="onExportResult(resultSection)"
+          title="Export as PDF">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 20h14v-2H5v2zm7-16v9.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V4h2z" />
+          </svg>
+          <span>Export PDF</span>
+        </button>
+      </div>
+
+      <app-algorithm-result [result]="result()" [schema]="lastUsedSchema()" [algorithm]="lastUsedAlgorithm"
+        [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
+        [algorithmLabel]="resultAlgorithmLabel()" />
+
+      <div class="mip-version-bar">
+        <span class="mip-version-label">MIP Version:</span>
+        <span class="mip-version-value">{{ mipVersion }}</span>
+      </div>
+    </section>
+    } @else if (selectedAlgorithm()) {
+    <section class="experiment-settings">
+      <h5 class="config-title">
+        {{ selectedAlgorithm()?.label }} Configuration
+      </h5>
+      <p class="config-description">{{ selectedAlgorithm()?.description }}</p>
+
+      @if (canToggleCrossValidation()) {
+      <div class="cross-validation-toggle">
+        <label class="checkbox-wrapper">
+          <input type="checkbox" [checked]="crossValidationEnabled()" (change)="toggleCrossValidation($event)" />
+          <span>Enable cross-validation</span>
+        </label>
+        <div class="cross-validation-hint">
+          Optional. Enable to run the cross-validation variant (default: 5 folds).
+        </div>
+      </div>
+      }
+
+      @if (isCrossValidationOnly()) {
+      <div class="cross-validation-toggle">
+        <div class="cross-validation-hint">
+          Cross-validation is enabled for this algorithm.
+        </div>
+      </div>
+      }
+
+      @if (canToggleTransformation()) {
+      <div class="transformation-toggle">
+        <label class="checkbox-wrapper">
+          <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
+          <span>Enable data transformations</span>
+        </label>
+        <div class="transformation-hint">
+          Optional. Pick a single transformation per variable.
+        </div>
+
+        @if (!selectedVariables.length) {
+        <div class="transformation-empty">
+          Select variables to configure transformations.
+        </div>
+        } @else {
+        <div class="transformation-grid" [class.disabled]="!transformationEnabled()">
+          <div class="transformation-header">Variable</div>
+          <div class="transformation-header">None</div>
+          <div class="transformation-header">Standardize</div>
+          <div class="transformation-header">Center</div>
+          <div class="transformation-header">Exp</div>
+
+          @for (v of selectedVariables; track v.code) {
+          <div class="transformation-cell transformation-label">
+            {{ v.label || v.name || v.code }}
+          </div>
+          <div class="transformation-cell">
+            <input type="radio" [name]="'transform-' + v.code" [value]="'none'"
+              [checked]="getTransformationAssignment(v.code) === 'none'"
+              (change)="setTransformationAssignment(v.code, 'none')" [disabled]="!transformationEnabled()" />
+          </div>
+          <div class="transformation-cell">
+            <input type="radio" [name]="'transform-' + v.code" [value]="'standardize'"
+              [checked]="getTransformationAssignment(v.code) === 'standardize'"
+              (change)="setTransformationAssignment(v.code, 'standardize')" [disabled]="!transformationEnabled()" />
+          </div>
+          <div class="transformation-cell">
+            <input type="radio" [name]="'transform-' + v.code" [value]="'center'"
+              [checked]="getTransformationAssignment(v.code) === 'center'"
+              (change)="setTransformationAssignment(v.code, 'center')" [disabled]="!transformationEnabled()" />
+          </div>
+          <div class="transformation-cell">
+            <input type="radio" [name]="'transform-' + v.code" [value]="'exp'"
+              [checked]="getTransformationAssignment(v.code) === 'exp'"
+              (change)="setTransformationAssignment(v.code, 'exp')" [disabled]="!transformationEnabled()" />
+          </div>
+          }
+        </div>
+        }
+      </div>
+      }
+
+      @if (errorMsg()) {
+      <div class="backend-error-banner">
+        <strong>Backend error: </strong>
+        <span>{{ errorMsg() }}</span>
+      </div>
+
+      } @if (enrichedConfigSchema().length) {
+      <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
+        @for (field of enrichedConfigSchema(); track field.key) { @if
+        (configForm().get(field.key)) {
+        <div class="config-field">
+          <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
+            {{ prettyFieldLabel(field) }}
+            @if (field.required) {
+            <span class="required-tag">Required</span>
+            }
+          </label>
+
+          @if (field.type === 'number') {
+          <input type="number" [formControlName]="field.key" class="config-input" [min]="field.min" [max]="field.max"
+            [step]="
+                field.types?.includes('real') ||
+                field.key === 'alpha' ||
+                field.key === 'tol' ||
+                field.key === 'mu'
+                  ? 'any'
+                  : 1
+              " [placeholder]="
+                field.default !== undefined ? field.default : 'Enter value...'
+              " />
+
+          } @else if (field.type === 'select') {
+          <select [formControlName]="field.key" class="config-select">
+            <option [ngValue]="null" [selected]="!configForm().get(field.key)?.value" disabled value="">
+              -- Select --
+            </option>
+
+            @for (opt of field.options; track opt) {
+            <option [ngValue]="opt.code ?? opt">
+              {{ opt.label ?? opt.name ?? opt }}
+            </option>
+            }
+          </select>
+          } @else if (field.type === 'checkbox') {
+          <label class="checkbox-wrapper">
+            <input type="checkbox" [formControlName]="field.key" />
+            <span>Enable</span>
+          </label>
+          } @else {
+          <input type="text" [formControlName]="field.key" class="config-input" placeholder="Enter value..." />
+          }
+          <!-- Extra info section under each field -->
+          <div class="field-meta">
+            @if (field.desc) {
+            <div class="desc-text">{{ field.desc }}</div>
+            } @if ( field.min !== null && field.min !== undefined && field.max
+            !== null && field.max !== undefined) {
+            <div class="range-hint">
+              Range: {{ field.min }} to {{ field.max }}
+            </div>
+            } @if (field.default !== null && field.default !== undefined) {
+            <div class="default-hint">Default: {{ field.default }}</div>
+            }
+          </div>
+
+          @if (configForm().get(field.key)?.invalid &&
+          configForm().get(field.key)?.touched) {
+          <div class="validation-message config-error">
+            @if (configForm().get(field.key)?.hasError('required')) {
+            <small>This field is required.</small>
+            } @if (configForm().get(field.key)?.hasError('min')) {
+            <small>Value too small.</small>
+            } @if (configForm().get(field.key)?.hasError('max')) {
+            <small>Value too large.</small>
+            } @if (configForm().get(field.key)?.hasError('pattern')) {
+            <small>Invalid value.</small>
+            }
+          </div>
+          }
+        </div>
+        } }
+      </form>
+      }
+    </section>
+    }
+  </main>
+</div>
+
+@if (showSuccessNotification()) {
+<div class="success-notification" role="status" aria-live="polite">
+  <div class="notification-content">
+    <i class="fas fa-check-circle"></i>
+    <span>Experiment saved successfully!</span>
+  </div>
+</div>
+}

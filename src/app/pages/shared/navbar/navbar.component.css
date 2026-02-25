@@ -1,0 +1,126 @@
+/* BASE */
+.navbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+  background: transparent;
+}
+
+/* Desktop menu only */
+.nav-burger,
+.nav-logo,
+.nav-account {
+  display: none;
+}
+
+.nav-list {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  list-style: none;
+  margin: 25px;
+  padding: 0;
+  gap: 14px;
+}
+
+.nav-list li a {
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 0.85em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "Roboto", sans-serif;
+  font-weight: 300;
+  opacity: 0.75;
+  transition: opacity 0.25s ease, transform 0.2s ease;
+}
+
+.nav-list li a i {
+  font-size: 1.6em;
+  margin-bottom: 2px;
+  opacity: 0.85;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .navbar {
+    height: 52px;
+    padding: 0 12px;
+    background: transparent;
+    display: grid;
+    grid-template-columns: 44px 1fr minmax(44px, 56px);
+    align-items: center;
+    grid-auto-rows: min-content;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  }
+
+  .nav-burger,
+  .nav-logo,
+  .nav-account {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav-burger,
+  .nav-account {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  .nav-burger i,
+  .nav-account i {
+    font-size: 1.35em;
+  }
+
+  .nav-account {
+    margin-right: 15px;
+    justify-self: end;
+    opacity: 0.95;
+  }
+
+  .nav-logo img {
+    height: 30px;
+    width: auto;
+    display: block;
+  }
+
+  .nav-list {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 10px 12px 12px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    background: linear-gradient(180deg, #006d77 0%, #005c66 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .navbar.is-open .nav-list {
+    display: flex;
+  }
+
+  .nav-list li a {
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.95em;
+    opacity: 0.95;
+    transform: none;
+  }
+
+  .nav-list li a i {
+    margin: 0;
+    font-size: 1.15em;
+    width: 22px;
+    text-align: center;
+  }
+}

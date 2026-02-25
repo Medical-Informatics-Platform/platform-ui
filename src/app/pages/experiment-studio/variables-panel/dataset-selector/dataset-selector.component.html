@@ -1,0 +1,27 @@
+<div class="dataset-selector">
+  <label class="control-label">Datasets</label>
+  <div class="dataset-control">
+    <button class="dataset-btn" (click)="toggleDropdown()">
+      <span class="dataset-btn-label">Datasets</span>
+      <span class="dataset-count">{{ selectedDatasets.size }}</span>
+    </button>
+  </div>
+
+  <!-- Dropdown menu -->
+  @if (isDropdownOpen) {
+    <ul class="dataset-dropdown-menu">
+      @for (dataset of datasets; track dataset) {
+        <li>
+          <label>
+            <input
+              type="checkbox"
+              [checked]="isDatasetSelected(dataset.code)"
+              (change)="toggleDataset(dataset.code)"
+            />
+            {{ dataset.label }}
+          </label>
+        </li>
+      }
+    </ul>
+  }
+</div>

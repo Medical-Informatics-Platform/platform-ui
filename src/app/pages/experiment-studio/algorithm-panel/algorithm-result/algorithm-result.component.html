@@ -1,0 +1,32 @@
+<div class="p-4 space-y-6">
+
+  @if (errorMessage()) {
+  <div class="algorithm-error">
+    <strong>Algorithm error:</strong>
+    <span>{{ errorMessage() }}</span>
+  </div>
+  }
+
+  <!-- Custom structured renderer -->
+  @if (isRenderable()) {
+  <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
+    [yVar]="yVar()" [fallbackTitle]="fallbackResultTitle()" />
+  }
+
+  <!-- Charts -->
+  @if (renderedCharts().length > 0) {
+  <section class="space-y-6 gen-charts">
+    <h3>Generated Charts</h3>
+    <app-chart-renderer [charts]="renderedCharts()" />
+  </section>
+  }
+
+  <!-- Raw fallback -->
+  <!-- <details class="text-xs text-gray-500 mt-4">
+    <summary class="cursor-pointer">View Raw JSON</summary>
+    <pre class="bg-gray-100 rounded p-2 overflow-auto">
+      {{ result() | json }}
+    </pre>
+  </details> -->
+
+</div>

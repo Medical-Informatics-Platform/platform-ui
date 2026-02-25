@@ -1,0 +1,14 @@
+node_modules
+.angular
+dist
+.git
+.gitignore
+.editorconfig
+.idea
+.vscode
+Dockerfile
+.dockerignore
+npm-debug.log
+README.md
+AGENTS.md
+DESIGN_SYSTEM.yaml

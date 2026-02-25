@@ -1,0 +1,48 @@
+<div class="account-page">
+  <div class="account-card">
+    <header class="account-header">
+      <div class="title-group">
+        <h1>Profile and account details</h1>
+        <p class="subtitle">Manage your profile and account details</p>
+      </div>
+      <div class="header-actions">
+        <button class="back-btn" type="button" (click)="goBack()">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back</span>
+        </button>
+        <button class="sign-out-btn" (click)="signOut()">
+          <i class="fas fa-sign-out-alt"></i>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="account-main">
+      <div class="profile-section">
+        <div class="profile-picture">
+          <img src="assets/user-icon.png" alt="User Profile" />
+        </div>
+        <div class="user-info">
+          <h2>{{ userName() || 'User' }}</h2>
+          <p class="user-email">{{ userEmail() }}</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <section class="info-section">
+        <h3>Profile Information</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">Full name</span>
+            <span class="value">{{ userName() || '—' }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">Email</span>
+            <span class="value">{{ userEmail() || '—' }}</span>
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+</div>

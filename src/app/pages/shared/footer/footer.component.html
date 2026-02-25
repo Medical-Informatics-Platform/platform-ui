@@ -1,0 +1,40 @@
+<footer class="main-footer">
+  <div class="footer-container">
+    <div class="footer-left">
+      <div class="footer-logos">
+        <a href="https://www.athenarc.gr/" target="_blank" class="logo-link">
+          <img src="assets/athenarc.png" alt="Athena" class="footer-logo athena-logo">
+        </a>
+        <a href="https://www.ebrains.eu/" target="_blank" class="logo-link">
+          <img src="assets/logo_ebrains.png" alt="EBRAINS" class="footer-logo ebrains-logo">
+        </a>
+        <a href="https://www.chuv.ch/" target="_blank" class="logo-link">
+          <img src="assets/logo_chuv.png" alt="CHUV" class="footer-logo chuv-logo">
+        </a>
+      </div>
+    </div>
+
+    <div class="footer-center">
+      <div class="footer-copyright-group">
+        <p class="copyright-text">
+          <span class="copyright-symbol">© 2015-{{ currentYear }}</span>
+          <a href="https://www.humanbrainproject.eu/" target="_blank" class="hbp-link">Human Brain Project</a>/
+          <a href="https://www.ebrains.eu/" target="_blank" class="ebrains-link">EBRAINS</a>.
+          All right reserved
+        </p>
+        <div class="footer-legal">
+          <a routerLink="/terms" class="legal-link">Terms of Use</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-right">
+      <div class="footer-versions">
+        <span>Frontend: {{ versions.frontend }}, </span>
+        <span>Backend: {{ versions.backend }}, </span>
+        <span>Exaflow: {{ versions.exaflow }}, </span>
+        <span>MIP: {{ versions.mip }}</span>
+      </div>
+    </div>
+  </div>
+</footer>

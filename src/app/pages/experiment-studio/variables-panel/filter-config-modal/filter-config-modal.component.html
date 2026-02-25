@@ -1,0 +1,77 @@
+<div class="modal-wrapper">
+  <div class="modal-overlay" (click)="cancel()"></div>
+
+  <div class="filter-modal">
+    <div class="filter-modal-header">
+      <div class="header-left">
+        <i class="fas fa-filter header-icon"></i>
+        <h3>Filters & Formula</h3>
+      </div>
+      <button class="close-top-btn" (click)="cancel()" aria-label="Close modal">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="filter-helper">
+      <div class="helper-content">
+        <i class="fas fa-info-circle info-icon"></i>
+        <p>Define rules to filter your dataset before running the experiment. Combined rules form the final Cohort
+          Selection.</p>
+      </div>
+    </div>
+
+    <div class="filter-modal-body">
+      @if(config().fields && Object.keys(config().fields).length) {
+      <ngx-query-builder [config]="config()" [ngModel]="filterLogicModel()"
+        (ngModelChange)="filterLogicModel.set($event)" [attr.key]="configKey()">
+        <ng-container *queryOperator="let rule; let operators=operators">
+          <select [(ngModel)]="rule.operator" (ngModelChange)="filterLogicModel.set(filterLogicModel())"
+            [class.q-control]="true" [style.min-width.px]="120">
+            <option *ngFor="let value of operators" [value]="value">
+              {{ getOperatorLabel(value) }}
+            </option>
+          </select>
+        </ng-container>
+
+        <ng-container *queryInput="let rule; type: 'number'">
+          <div class="numeric-input-container">
+            @if (rule.operator === 'between' || rule.operator === 'not_between') {
+            <div class="between-inputs">
+              <input type="number" [(ngModel)]="rule.value[0]"
+                (ngModelChange)="filterLogicModel.set(filterLogicModel())">
+              <span class="and-separator">and</span>
+              <input type="number" [(ngModel)]="rule.value[1]"
+                (ngModelChange)="filterLogicModel.set(filterLogicModel())">
+            </div>
+            } @else {
+            <input type="number" [(ngModel)]="rule.value" (ngModelChange)="filterLogicModel.set(filterLogicModel())">
+            }
+          </div>
+        </ng-container>
+      </ngx-query-builder>
+
+      }
+    </div>
+
+    <div class="filter-modal-footer">
+      <div class="footer-left">
+        @if (activeRulesCount() > 0) {
+        <div class="status-badge">
+          <span class="pulse-dot"></span>
+          {{ activeRulesCount() }} Active Rule{{ activeRulesCount() === 1 ? "" : "s" }}
+        </div>
+        } @else {
+        <span class="status-text muted">No filters applied</span>
+        }
+      </div>
+
+      <div class="filter-actions">
+        <button class="btn-secondary" (click)="cancel()">Cancel</button>
+        <button class="btn-primary-gradient" (click)="saveFilters()">
+          <i class="fas fa-check icon-left"></i>
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

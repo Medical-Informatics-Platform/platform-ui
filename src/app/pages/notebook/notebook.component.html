@@ -1,0 +1,24 @@
+<div class="notebook-container">
+    <div *ngIf="isLoading" class="loading-overlay">
+        <p>Loading Notebook Environment...</p>
+    </div>
+
+    <div *ngIf="needsHubLogin" class="notebook-login-gate">
+        <div class="notebook-login-card">
+            <h2>Sign in to Notebook</h2>
+            <p>
+                Your notebook session is not authenticated yet. We need to complete the login in the main window
+                (identity providers typically block login flows inside iframes).
+            </p>
+            <div class="notebook-login-actions">
+                <button type="button" class="notebook-login-btn" (click)="continueToHubLogin()">
+                    Continue to Notebook Login
+                </button>
+                <a *ngIf="hubLoginUrl" class="notebook-login-link" [href]="hubLoginUrl">Open login link</a>
+            </div>
+        </div>
+    </div>
+
+    <iframe *ngIf="jupyterUrl" [src]="jupyterUrl" (load)="onLoad()" title="Jupyter Notebook" class="jupyter-iframe">
+    </iframe>
+</div>

@@ -1,0 +1,28 @@
+<div class="list-search">
+  <i class="fas fa-search"></i>
+  <input
+    type="text"
+    [ngModel]="filters.query"
+    (ngModelChange)="onQueryInput($event)"
+    placeholder="Search…"
+    [title]="
+      filters.query ? '' : 'Search by name, description, author, algorithm…'
+    "
+  />
+
+  <select
+    class="pill-select"
+    [ngModel]="filters.datePreset"
+    (ngModelChange)="onDatePresetChange($event)"
+    title="Date range"
+  >
+    <option value="any">Any time</option>
+    <option value="today">Today</option>
+    <option value="7d">Last 7 days</option>
+    <option value="30d">Last 30 days</option>
+  </select>
+
+  <button type="button" class="clear-btn" (click)="onClear()" title="Clear">
+    <i class="fas fa-times"></i>
+  </button>
+</div>

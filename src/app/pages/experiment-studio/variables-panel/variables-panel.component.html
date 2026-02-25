@@ -1,0 +1,179 @@
+<div id="variables-top">
+  <div class="selectors-row" id="dataset-selection"></div>
+
+  <!-- Main area -->
+  <div class="variables-main">
+    <div class="visualization-parameters-row">
+      <div class="bubble-column">
+        <div class="visualization-header">
+          <div class="visualization-header-left">
+            <div class="bubble-selectors">
+              <app-data-model-selector [crossSectionalModels]="crossSectionalModels"
+                [longitudinalModels]="longitudinalModels" [defaultModel]="selectedDataModel()"
+                (dataModelChange)="onSelectedDataModelChange($event)">
+              </app-data-model-selector>
+
+              <app-dataset-selector [datasets]="availableDatasets">
+              </app-dataset-selector>
+            </div>
+          </div>
+          <div class="visualization-header-right">
+            @if (d3Data) {
+            <app-search-bar [dataModelHierarchy]="d3Data" (searchResultSelected)="onSearchSelected($event)">
+            </app-search-bar>
+            }
+          </div>
+        </div>
+
+        <!-- Data model visualization -->
+        <section class="bubble-chart-section" id="data-model-visualization">
+          @if (selectedDataModel()) {
+          <app-bubble-chart [d3Data]="d3Data" [highlightNode]="highlightNode" [selectedVariables]="selectedVariables"
+            [selectedCovariates]="selectedCovariates" [selectedFilters]="selectedFilters"
+            (selectedNodeChange)="onSelectedNodeChange($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+          </app-bubble-chart>
+          }
+        </section>
+      </div>
+
+      <aside class="right-column">
+        <!-- Parameters listing -->
+        <section class="panel-block variable-filter-container parameters-panel" id="parameters-listing">
+          <app-variable-filter-selection #variableFilterSelection [selectedNode]="selectedNode"
+            (filtersChange)="onFilterChange($event)"
+            (variableClicked)="onVariableClicked($event)"></app-variable-filter-selection>
+        </section>
+
+        <!-- Distribution graph -->
+        <section class="panel-block distribution-panel" id="distribution-graph">
+          <div class="distribution-header">
+            {{ groupHistogramData() ? 'Group Information' : 'Distribution graph' }}
+          </div>
+          <!-- Distribution Actions Bar -->
+          <div class="distribution-actions-bar">
+            <div class="distribution-actions-group">
+              @if (showBinSelector()) {
+              <div class="bin-selector">
+                <label for="bins-input">Bins:</label>
+                <input id="bins-input" type="number" min="1" max="100" [class.disabled]="isLoadingHistogram()"
+                  [disabled]="isLoadingHistogram()" [value]="histogramBins() || ''" (change)="onBinsChange($event)"
+                  placeholder="Auto">
+              </div>
+              }
+              @if (!groupHistogramData() && histogramVariants().length > 1) {
+              <div class="bin-selector">
+                <label for="histogram-variant-select">View:</label>
+                <select id="histogram-variant-select" [value]="selectedHistogramVariantKey() || ''"
+                  (change)="onHistogramVariantChange($event)">
+                  @for (variant of histogramVariants(); track variant.key) {
+                  <option [value]="variant.key">{{ variant.label }}</option>
+                  }
+                </select>
+              </div>
+              }
+              <button class="distribution-action-btn csv-btn" [disabled]="isExportDisabled() || isExporting()"
+                (click)="exportDistributionCsv()" title="Export CSV">
+                <i class="fas fa-file-csv"></i>
+              </button>
+              <button class="distribution-action-btn pdf-btn" [disabled]="isExportDisabled() || isExporting()"
+                (click)="exportDistributionPdf()" title="Export PDF">
+                <i class="fas fa-file-pdf"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="distribution-graph" #distributionExport>
+            @if (isLoadingHistogram()) {
+            <div class="distribution-loader">
+              <app-spinner text="Loading Histogram" [overlay]="false" />
+            </div>
+            } @else if (errorMessage()) {
+            <div class="message-container error">
+              <p>{{ errorMessage() }}</p>
+            </div>
+            } @else if (!selectedNode) {
+            <div class="message-container empty-state-welcome">
+              <div class="empty-state-icon">
+                <i class="fas fa-magic"></i>
+              </div>
+              <h3>Welcome to Experiment Studio</h3>
+              <p>Explore your data model by clicking the bubbles in the chart or use the search bar to find specific
+                variables.</p>
+              <div class="empty-state-actions">
+                <div class="hint-item">
+                  <i class="fas fa-mouse-pointer"></i>
+                  <span><b>Single-click</b> to view details & distribution</span>
+                </div>
+                <div class="hint-item">
+                  <i class="fas fa-bolt"></i>
+                  <span><b>Double-click</b> to add to Variables list</span>
+                </div>
+              </div>
+            </div>
+            } @else if (groupHistogramData()) {
+            <div class="group-summary">
+              <div class="group-summary-header">
+                <p class="group-summary-path">
+                  <span class="group-summary-label">Path</span>
+                  <span class="group-summary-value">
+                    @for (node of groupHistogramMeta()?.pathNodes; track node.code; let i = $index) {
+                    <button type="button" class="group-summary-link group-summary-path-link"
+                      (click)="onGroupSummaryClick(node)">
+                      @if (i === 0) { <i class="fas fa-home" style="font-size: 0.75rem; opacity: 0.7;"></i> }
+                      {{ node.label }}
+                    </button>
+                    }
+                  </span>
+                </p>
+                <p class="group-summary-count-row">
+                  <span class="group-summary-label">
+                    {{ groupHistogramMeta()?.hasGroups ? 'Number of groups in' : 'Number of variables in' }}
+                  </span>
+                  <span class="group-summary-value">{{ selectedNode?.label }}</span>
+                  <span class="group-summary-count">{{ groupHistogramMeta()?.groupCount }}</span>
+                </p>
+              </div>
+            </div>
+            <app-distribution-graph [data]="groupHistogramData()"></app-distribution-graph>
+            } @else if (distributionData()) {
+            <div class="group-summary">
+              <div class="group-summary-header">
+                @if (selectedNode?.description) {
+                <div class="group-summary-path" style="margin-bottom: 8px;">
+                  <span class="group-summary-label">Description</span>
+                  <span class="group-summary-value" style="font-weight: 400;">
+                    {{ selectedNode?.description }}
+                  </span>
+                </div>
+                }
+                <p class="group-summary-path">
+                  <span class="group-summary-label">Path</span>
+                  <span class="group-summary-value">
+                    @for (node of getPathNodes(selectedNode); track node.code; let i = $index) {
+                    <button type="button" class="group-summary-link group-summary-path-link"
+                      (click)="onGroupSummaryClick(node)">
+                      @if (i === 0) { <i class="fas fa-home" style="font-size: 0.75rem; opacity: 0.7;"></i> }
+                      {{ node.label }}
+                    </button>
+                    }
+                  </span>
+                </p>
+              </div>
+            </div>
+            <app-distribution-graph [data]="distributionData()"></app-distribution-graph>
+            }
+          </div>
+
+
+
+          @if (isExporting()) {
+          <div class="pdf-export-overlay">
+            <app-spinner text="Generating PDF..." [overlay]="false" />
+          </div>
+          }
+        </section>
+      </aside>
+    </div>
+
+  </div>
+</div>

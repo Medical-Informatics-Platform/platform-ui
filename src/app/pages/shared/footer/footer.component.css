@@ -1,0 +1,181 @@
+.main-footer {
+  background: rgba(15, 23, 42, 0.85);
+  /* Sophisticated Slate-900 with glassmorphism */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #ffffff;
+  padding: 16px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  /* Sleek slate-400 border */
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  position: relative;
+  z-index: 1000;
+  width: 100%;
+  margin: 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Subtle gradient top border for premium feel */
+.main-footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(51, 102, 255, 0.5), transparent);
+}
+
+.footer-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-left,
+.footer-center,
+.footer-right {
+  display: flex;
+  align-items: center;
+}
+
+/* Logos Section */
+.footer-logos {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.footer-logo {
+  height: 26px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.athena-logo {
+  background-color: white;
+  padding: 1px;
+  border-radius: 2px;
+  box-sizing: border-box;
+  height: 20px;
+}
+
+
+
+.logo-link:hover .footer-logo {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* Copyright & Legal Section */
+.footer-center {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.copyright-text {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.copyright-symbol {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.hbp-link,
+.ebrains-link {
+  color: #5d8aff;
+  text-decoration: none;
+  font-weight: 500;
+  position: relative;
+  padding: 2px 0;
+}
+
+.hbp-link::after,
+.ebrains-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 0.3s ease;
+}
+
+.hbp-link:hover::after,
+.ebrains-link:hover::after {
+  width: 100%;
+}
+
+.footer-legal .legal-link {
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  font-size: 11px;
+  transition: color 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.footer-legal .legal-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Versions Section */
+.footer-versions {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.footer-versions:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.footer-versions span {
+  display: flex;
+  align-items: center;
+}
+
+.footer-versions span:not(:last-child)::after {
+  content: '•';
+  margin-left: 12px;
+  opacity: 0.3;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .footer-container {
+    flex-direction: column;
+    gap: 20px;
+    padding: 30px 24px;
+  }
+}

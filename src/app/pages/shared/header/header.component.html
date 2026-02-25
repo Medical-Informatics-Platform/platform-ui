@@ -1,0 +1,25 @@
+<header class="header header--transparent">
+  <!-- Logo -->
+  <a class="branding" routerLink="/experiments-dashboard" (click)="goHome($event)" aria-label="Go to home">
+    <img src="assets/mip-logo-short.png" alt="MIP Logo" class="logo" />
+  </a>
+  <!-- Navbar (Removed to maximize space) -->
+
+  <!-- Theme Toggle + User Icon -->
+  <div class="header-actions">
+
+    <div class="user-icon">
+      @if (isLoggedIn()) {
+      <!-- LOGGED IN: go to account -->
+      <a class="sign-in-btn" routerLink="/account">
+        <img src="assets/user-icon.png" alt="User Picture" class="account-picture" />
+      </a>
+      } @else {
+      <!-- LOGGED OUT: trigger login -->
+      <button class="sign-in-btn" (click)="login()">
+        <img src="assets/grey-avatar.png" alt="Sign In" class="account-picture" />
+      </button>
+      }
+    </div>
+  </div>
+</header>

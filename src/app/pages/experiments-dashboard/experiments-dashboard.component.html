@@ -1,0 +1,114 @@
+<div class="experiments-dashboard full-bleed">
+  @if (errorMessage()) {
+  <div class="dashboard-error-banner" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="banner-content">
+      <i class="fas fa-exclamation-triangle"></i>
+      <span>{{ errorMessage() }}</span>
+    </div>
+    <button type="button" class="banner-close" (click)="dismissError()">
+      &times;
+    </button>
+  </div>
+  }
+
+  <div class="studio-main full-width">
+    <!-- TOP: Greeting Header -->
+    <header class="dashboard-greeting">
+      <div class="greeting-content">
+        <h1>Welcome back, {{ greetingName() }}!</h1>
+        <p>You have {{ experimentsService.experiments().length }} experiments in your history.</p>
+      </div>
+    </header>
+
+    <!-- MAIN TRIPLE PANE CONTENT (now integrated actions) -->
+    <div class="command-center-layout">
+      <!-- LEFT: NAVIGATION & SELECTION -->
+      <aside class="side-pane experiments-pane">
+        <div class="pane-header workspace-pane-header">
+          <div class="workspace-label-group">
+            <h2>Research Workspace</h2>
+          </div>
+
+          <div class="pane-actions">
+            <!-- Compare Toggle -->
+            <button class="compare-mode-btn" [class.active]="compareMode()"
+              [class.has-selections]="compareIds().length >= 1" (click)="toggleCompareMode()" title="Comparison Mode">
+              <i class="fas fa-columns"></i>
+              <span class="btn-label">{{ compareMode() ? 'Exit' : 'Compare' }}</span>
+              @if (compareIds().length > 0) {
+              <span class="count-badge">{{ compareIds().length }}</span>
+              }
+            </button>
+
+            <!-- New Experiment -->
+            <button class="btn-new-experiment primary" (click)="goToNewExperiment()" title="New Experiment">
+              <i class="fas fa-plus"></i>
+              New
+            </button>
+          </div>
+        </div>
+        <div class="pane-content">
+          <app-experiments-list [selectedExperimentId]="selectedExperiment()?.id ?? null"
+            [currentUserEmail]="currentUserEmail()" [compareIds]="compareIds()" [compareMode]="compareMode()"
+            [initialOnlyMine]="!hasDeepLink()" (experimentSelected)="onExperimentSelected($event)"
+            (editRequested)="onEditExperiment($event)" (deleteRequested)="onDeleteFromList($event)" />
+        </div>
+      </aside>
+
+      <!-- CENTER: MAIN WORKSPACE -->
+      <main class="main-pane">
+        @if (!compareMode()) {
+        <app-experiment-details [selectedExperiment]="selectedExperiment()" [currentUserEmail]="currentUserEmail()"
+          (run)="onRunExperiment($event)" (deleteExperiment)="onDeleteRequested()"
+          (nameUpdated)="onNameUpdated($event)" />
+        } @else {
+        <div class="compare-workspace">
+          @if (experimentsForCompare().length < 2) { <div class="compare-placeholder">
+            <div class="placeholder-icon">
+              <i class="fas fa-layer-group"></i>
+            </div>
+            <h3>Comparison Workspace</h3>
+            <p>Select at least two experiments from the left panel to compare their results side by side.</p>
+        </div>
+        } @else {
+        <app-experiments-compare [experiments]="experimentsForCompare()" />
+        }
+    </div>
+    }
+    </main>
+
+  </div>
+
+  <!-- Delete Modal -->
+  <!-- Delete Confirmation Modal -->
+  @if (isConfirmingDelete) {
+  <div class="modal-overlay" (click)="cancelDelete()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete experiment?</h3>
+        <button class="close-btn" type="button" (click)="cancelDelete()">
+          &times;
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p>
+          Permanently delete this experiment?
+        </p>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn-cancel" (click)="cancelDelete()">
+          Cancel
+        </button>
+        <button type="button" class="btn-create danger" (click)="
+                  confirmDelete(experimentToDeleteId ?? '')
+                ">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>
+</div>

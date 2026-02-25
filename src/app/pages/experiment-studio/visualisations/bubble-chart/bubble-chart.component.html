@@ -1,0 +1,31 @@
+<div id="chart">
+  <div class="chart-body">
+    <div id="chart-canvas" #chartCanvas></div>
+    <div class="chart-settings">
+      <button class="settings-btn" (click)="toggleSettings()" title="Customize Colors">
+        <i class="fas fa-cog"></i>
+      </button>
+
+      @if (showSettings) {
+      <div class="settings-dropdown">
+        <div class="dropdown-header">
+          <span>Color Settings</span>
+          <button class="close-dropdown" (click)="toggleSettings()">&times;</button>
+        </div>
+
+        <div class="mode-selector">
+          <button class="mode-btn" [class.active]="colorMode === 'default'"
+            (click)="applyColorMode('default')">Default</button>
+          <button class="mode-btn" [class.active]="colorMode === 'colorBlind'"
+            (click)="applyColorMode('colorBlind')">Color Blind</button>
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+  @if (error) {
+  <div class="error-message">
+    {{ error }}
+  </div>
+  }
+</div>
