@@ -78,7 +78,7 @@ Use this as a fast orientation to the codebase.
   - `models/`: frontend/backend DTOs and interfaces (user, algorithms, experiments, filters, data-models).
   - `core/`: algorithm mapping and constants.
   - `pages/experiment-studio/`:
-    - `variables-panel/`: model/dataset selection, search, variable actions, filters UI, distribution graph.
+    - `variables-panel/`: model/dataset selection, search, variable actions, filters UI, histogram
     - `algorithm-panel/`: algorithm selection/configuration, run/save-as, result rendering.
     - `statistic-analysis-panel/`: descriptive stats/model tables/charts.
     - `visualisations/`: chart registry/builders, histogram, auto-renderer, bubble chart.

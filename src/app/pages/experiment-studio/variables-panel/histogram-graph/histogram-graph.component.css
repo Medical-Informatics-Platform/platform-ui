@@ -4,7 +4,7 @@
   min-height: 500px;
 }
 
-.distribution-graph-expanded {
+.histogram-graph-expanded {
   position: relative;
   flex-grow: 1;
   height: 100%;
@@ -13,7 +13,7 @@
   overflow-y: auto;
 }
 
-.distribution-graph-full {
+.histogram-graph-full {
   display: flex;
   flex-direction: column;
   justify-content: center;

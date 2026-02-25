@@ -185,7 +185,7 @@
   font-weight: 700;
 }
 
-/* Right column: parameters + distribution */
+/* Right column: parameters + histogram */
 /* Common block styling */
 .panel-block {
   background: var(--studio-card-bg, rgba(255, 255, 255, 0.88));
@@ -222,8 +222,8 @@
   }
 }
 
-/* Distribution graph card */
-.distribution-graph {
+/* Histogram graph card */
+.histogram-graph {
   position: relative;
   min-height: 240px;
   margin: 0;
@@ -234,7 +234,7 @@
   min-width: 0;
 }
 
-.distribution-panel {
+.histogram-panel {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -244,7 +244,7 @@
   overflow-y: auto;
 }
 
-.distribution-header {
+.histogram-header {
   font-size: 0.92rem;
   color: var(--primary-color);
   margin: -16px -20px 10px;
@@ -276,7 +276,7 @@
   }
 }
 
-.distribution-loader {
+.histogram-loader {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -311,9 +311,9 @@
   display: flex;
 }
 
-/* ---------- DISTRIBUTION ACTIONS BAR ---------- */
+/* ---------- HISTOGRAM ACTIONS BAR ---------- */
 
-.distribution-actions-bar {
+.histogram-actions-bar {
   position: absolute;
   top: 16px;
   right: 20px;
@@ -322,12 +322,12 @@
   justify-content: flex-end;
 }
 
-.distribution-actions-group {
+.histogram-actions-group {
   display: flex;
   gap: 10px;
 }
 
-.distribution-action-btn {
+.histogram-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -345,7 +345,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.distribution-action-btn i {
+.histogram-action-btn i {
   font-size: 1.15rem;
 }
 
@@ -373,7 +373,7 @@
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
 }
 
-.distribution-action-btn:disabled {
+.histogram-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   filter: grayscale(1);
@@ -461,7 +461,7 @@
   -moz-appearance: textfield;
 }
 
-.pdf-exporting .distribution-actions-bar {
+.pdf-exporting .histogram-actions-bar {
   display: none;
 }
 
@@ -477,7 +477,7 @@
   backdrop-filter: blur(1px);
 }
 
-#distribution-graph,
+#histogram-graph,
 #parameters-listing,
 #variables-top,
 #dataset-selection {
@@ -792,7 +792,7 @@
     padding-top: 12px;
   }
 
-  .distribution-graph {
+  .histogram-graph {
     min-height: 210px;
   }
 }

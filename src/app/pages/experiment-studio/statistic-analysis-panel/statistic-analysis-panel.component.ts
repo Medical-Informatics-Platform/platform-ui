@@ -61,6 +61,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   activeBoxPlotIndex = 0;
   activeNominalIndex = 0;
   modelTables: ModelTableBlock[] = [];
+  emptyDatasetWarnings: string[] = [];
 
   modelData: Array<{
     name: string;
@@ -79,6 +80,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.modelData = [];
         this.showBoxPlots = false;
         this.isLoading = false;
+        this.emptyDatasetWarnings = [];
         return;
       }
 
@@ -165,6 +167,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   fetchDescriptiveStatistics(): void {
     this.isLoading = true;
+    this.emptyDatasetWarnings = [];
 
     const variables = this.expStudioService.selectedVariables();
     const covariates = this.expStudioService.selectedCovariates();
@@ -188,8 +191,43 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.expStudioService.loadDescriptiveOverview(variableCodes).subscribe({
       next: (response) => {
         const res = response?.result ?? response ?? {};
-        const variable_based = res.variable_based ?? [];
-        const model_based = res.model_based ?? [];
+        let variable_based = res.variable_based ?? [];
+        let model_based = res.model_based ?? [];
+
+        // Identify and collect completely empty datasets
+        const emptyDatasetsForVar: Record<string, string[]> = {};
+
+        variable_based.forEach((item: any) => {
+          if (item.dataset && item.dataset !== 'all datasets') {
+            const dataCounts = item.data?.num_dtps;
+            if (!dataCounts) { // 0, null, or undefined
+              if (!emptyDatasetsForVar[item.dataset]) {
+                emptyDatasetsForVar[item.dataset] = [];
+              }
+              const matchedVar = items.find(v => v.code === item.variable);
+              const varName = matchedVar ? (matchedVar.name ?? matchedVar.label ?? matchedVar.code) : item.variable;
+              if (!emptyDatasetsForVar[item.dataset].includes(varName)) {
+                emptyDatasetsForVar[item.dataset].push(varName);
+              }
+            }
+          }
+        });
+
+        // Generate warnings and get the list of dataset names to exclude
+        const excludedDatasets = Object.keys(emptyDatasetsForVar);
+
+        for (const ds of excludedDatasets) {
+          const varNames = emptyDatasetsForVar[ds].join(', ');
+          this.emptyDatasetWarnings.push(
+            `Dataset '${ds}' is empty for variable(s): ${varNames}. It has been excluded from the descriptive statistics.`
+          );
+        }
+
+        // Filter out the excluded datasets
+        if (excludedDatasets.length > 0) {
+          variable_based = variable_based.filter((item: any) => !excludedDatasets.includes(item.dataset));
+          model_based = model_based.filter((item: any) => !excludedDatasets.includes(item.dataset));
+        }
 
         const dsFromPayload = Array.from(
           new Set((variable_based ?? []).map((x: any) => String(x.dataset)))

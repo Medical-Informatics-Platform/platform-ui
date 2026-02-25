@@ -35,7 +35,7 @@ export class PdfExportService {
 
     constructor() { }
 
-    async exportDistributionPdf(
+    async exportHistogramPdf(
         element: HTMLElement,
         options: PdfExportOptions
     ): Promise<void> {
@@ -167,9 +167,9 @@ export class PdfExportService {
 
             const renderX = (pageWidth - renderWidth) / 2;
             doc.addImage(imgData, 'PNG', renderX, startY, renderWidth, renderHeight);
-            doc.save(`${nodeLabel ? nodeLabel.replace(/[^\w\s-]/g, '').trim() : 'distribution'}_summary.pdf`);
+            doc.save(`${nodeLabel ? nodeLabel.replace(/[^\w\s-]/g, '').trim() : 'histogram'}_summary.pdf`);
         } catch (err) {
-            console.error('Distribution PDF export failed:', err);
+            console.error('Histogram PDF export failed:', err);
             throw err;
         } finally {
             document.body.classList.remove('pdf-exporting');
