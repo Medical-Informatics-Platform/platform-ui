@@ -134,7 +134,14 @@
                 </p>
               </div>
             </div>
+            @if (showGroupVariableSelectionMessage()) {
+            <div class="message-container info">
+              <p>Please select one of the variables in the representation on the left to see its histogram in the
+                selected centers</p>
+            </div>
+            } @else {
             <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
+            }
             } @else if (histogramData()) {
             <div class="group-summary">
               <div class="group-summary-header">

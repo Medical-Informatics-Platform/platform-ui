@@ -600,7 +600,12 @@ export class VariablesPanelComponent implements OnDestroy {
     if (this.isLoadingHistogram()) return true;
     if (this.errorMessage()) return true;
     if (!this.selectedNode) return true;
+    if (this.showGroupVariableSelectionMessage()) return true;
     return !this.histogramData() && !this.groupHistogramData();
+  }
+
+  showGroupVariableSelectionMessage(): boolean {
+    return !!this.groupHistogramData() && this.groupHistogramMeta()?.hasGroups === false;
   }
 
   showBinSelector(): boolean {
