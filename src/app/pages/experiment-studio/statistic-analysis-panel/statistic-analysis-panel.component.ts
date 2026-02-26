@@ -61,7 +61,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   activeBoxPlotIndex = 0;
   activeNominalIndex = 0;
   modelTables: ModelTableBlock[] = [];
-  emptyDatasetWarnings: string[] = [];
 
   modelData: Array<{
     name: string;
@@ -80,7 +79,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.modelData = [];
         this.showBoxPlots = false;
         this.isLoading = false;
-        this.emptyDatasetWarnings = [];
+        this.expStudioService.clearDataExclusionWarnings();
         return;
       }
 
@@ -167,7 +166,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   fetchDescriptiveStatistics(): void {
     this.isLoading = true;
-    this.emptyDatasetWarnings = [];
+    this.expStudioService.clearDataExclusionWarnings();
 
     const variables = this.expStudioService.selectedVariables();
     const covariates = this.expStudioService.selectedCovariates();
@@ -184,7 +183,11 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     ];
 
     const items = Array.from(new Map(merged.map(v => [v.code, v])).values());
-    if (!items.length) { this.isLoading = false; return; }
+    if (!items.length) {
+      this.expStudioService.clearDataExclusionWarnings();
+      this.isLoading = false;
+      return;
+    }
 
     const variableCodes = items.map(i => i.code);
 
@@ -193,6 +196,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         const res = response?.result ?? response ?? {};
         let variable_based = res.variable_based ?? [];
         let model_based = res.model_based ?? [];
+        const emptyDatasetWarnings: string[] = [];
 
         // Identify and collect completely empty datasets
         const emptyDatasetsForVar: Record<string, string[]> = {};
@@ -218,10 +222,11 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
         for (const ds of excludedDatasets) {
           const varNames = emptyDatasetsForVar[ds].join(', ');
-          this.emptyDatasetWarnings.push(
-            `Dataset '${ds}' is empty for variable(s): ${varNames}. It has been excluded from the descriptive statistics.`
+          emptyDatasetWarnings.push(
+            `Dataset '${ds}' is empty for variable(s): ${varNames}. It has been excluded from descriptive statistics and from any experiment execution.`
           );
         }
+        this.expStudioService.setDataExclusionWarnings(emptyDatasetWarnings);
 
         // Filter out the excluded datasets
         if (excludedDatasets.length > 0) {
@@ -254,7 +259,11 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         if (this.nominalVariables.length > 0) this.buildNominalCharts(response);
         this.isLoading = false;
       },
-      error: (err) => { console.error(err); this.isLoading = false; }
+      error: (err) => {
+        console.error(err);
+        this.expStudioService.clearDataExclusionWarnings();
+        this.isLoading = false;
+      }
     });
   }
 

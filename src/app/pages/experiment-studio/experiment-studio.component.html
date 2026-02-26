@@ -11,8 +11,6 @@
   </div>
   }
 
-
-
   <div class="studio-inner studio-layout">
     <nav class="studio-sidenav" [class.is-collapsed]="sidebarCollapsed()" aria-label="Studio navigation">
       <div class="studio-rail-context">
@@ -71,6 +69,27 @@
       <section class="studio-section studio-section--statistics" id="statistics-section">
         <app-statistic-analysis-panel></app-statistic-analysis-panel>
       </section>
+
+      @if (dataExclusionWarnings().length > 0) {
+      <section class="studio-section studio-section--warning" role="status" aria-live="polite" aria-atomic="true">
+        <div class="section-warning-banner">
+          <div class="banner-content">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div class="warning-content">
+              <div class="warning-title">Data Exclusion Warning</div>
+              <ul>
+                @for (warning of dataExclusionWarnings(); track warning) {
+                <li>{{ warning }}</li>
+                }
+              </ul>
+            </div>
+          </div>
+          <button type="button" class="banner-close" (click)="dismissDataExclusionWarnings()">
+            &times;
+          </button>
+        </div>
+      </section>
+      }
 
       <!-- BOTTOM: Algorithm -->
       <section class="studio-section studio-section--algorithm" id="algorithm-section">

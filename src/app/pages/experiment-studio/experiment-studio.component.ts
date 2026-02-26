@@ -41,6 +41,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   readonly selectedDataModel = this.expStudioService.selectedDataModel;
   readonly selectedDatasets = this.expStudioService.selectedDatasets;
   readonly selectedAlgorithm = this.expStudioService.selectedAlgorithm;
+  readonly dataExclusionWarnings = this.expStudioService.dataExclusionWarnings;
   @ViewChild(AlgorithmPanelComponent) algorithmPanel?: AlgorithmPanelComponent;
 
   onRunClick() {
@@ -82,6 +83,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     this.checkSidebarCollapse();
     // Reset any lingering global errors when arriving on the studio
     this.errorService.clearError();
+    this.expStudioService.clearDataExclusionWarnings();
     this.expStudioService.loadAndCategorizeModels().subscribe();
 
     this.errorService.error$
@@ -125,6 +127,10 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     this.errorService.clearError();
     this.expStudioService.loadAndCategorizeModels().subscribe();
     this.errorMessage.set('');
+  }
+
+  dismissDataExclusionWarnings(): void {
+    this.expStudioService.clearDataExclusionWarnings();
   }
 
   private setupSectionObserver(): void {

@@ -24,19 +24,6 @@
       <app-spinner text="Descriptive statistics Loading" [overlay]="false" />
       }
 
-      @if (emptyDatasetWarnings.length > 0) {
-      <div class="warning-banner"
-        style="background-color: #fff3cd; color: #856404; padding: 10px; margin-bottom: 15px; border: 1px solid #ffeeba; border-radius: 4px;">
-        <div style="font-weight: bold; margin-bottom: 5px;">
-          <i class="fa fa-exclamation-triangle" style="margin-right: 5px;"></i> Data Exclusion Warning
-        </div>
-        <ul style="margin: 0; padding-left: 20px;">
-          @for (warning of emptyDatasetWarnings; track warning) {
-          <li>{{ warning }}</li>
-          }
-        </ul>
-      </div>
-      }
       @if (!isLoading) {
       <!-- VARIABLES / MODEL TAB -->
       @if (activeTab === 'Variables' || activeTab === 'Model') {

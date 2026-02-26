@@ -14,7 +14,11 @@ describe('StatisticAnalysisPanelComponent', () => {
     let mockPdfService: jasmine.SpyObj<PdfExportService>;
 
     beforeEach(async () => {
-        mockExpService = jasmine.createSpyObj('ExperimentStudioService', ['loadDescriptiveOverview'], {
+        mockExpService = jasmine.createSpyObj('ExperimentStudioService', [
+            'loadDescriptiveOverview',
+            'setDataExclusionWarnings',
+            'clearDataExclusionWarnings'
+        ], {
             selectedVariables: signal([]),
             selectedCovariates: signal([]),
             selectedFilters: signal([]),

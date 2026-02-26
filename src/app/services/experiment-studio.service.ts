@@ -89,6 +89,8 @@ export class ExperimentStudioService {
   private readonly _isRunning = signal(false);
   readonly isRunning = this._isRunning.asReadonly();
   readonly isFilterConfigOpen = signal<boolean>(false);
+  private dataExclusionWarningsSignal = signal<string[]>([]);
+  readonly dataExclusionWarnings = this.dataExclusionWarningsSignal.asReadonly();
 
   // teardown for transient requests
   private destroy$ = new Subject<void>();
@@ -195,6 +197,7 @@ export class ExperimentStudioService {
 
   setSelectedDataModel(model: DataModel | null): void {
     this.selectedDataModel.set(model);
+    this.clearDataExclusionWarnings();
   }
 
   getActiveDataModelCode(): string {
@@ -234,6 +237,7 @@ export class ExperimentStudioService {
 
   setSelectedDatasets(datasets: string[]) {
     this.selectedDatasetsSignal.set(datasets);
+    this.clearDataExclusionWarnings();
   }
 
   algorithmEnabled(variableType: string): string[] {
@@ -308,15 +312,31 @@ export class ExperimentStudioService {
 
   setVariables(vars: D3HierarchyNode[]) {
     this.selectedVariablesSignal.set(vars);
+    this.clearDataExclusionWarnings();
   }
 
 
   setCovariates(covs: D3HierarchyNode[]): void {
     this.selectedCovariatesSignal.set(covs);
+    this.clearDataExclusionWarnings();
   }
 
   setFilters(filters: D3HierarchyNode[]): void {
     this.selectedFiltersSignal.set(filters);
+    this.clearDataExclusionWarnings();
+  }
+
+  setDataExclusionWarnings(warnings: string[]): void {
+    const sanitized = Array.from(
+      new Set((warnings ?? [])
+        .map((warning) => String(warning ?? '').trim())
+        .filter((warning) => warning.length > 0))
+    );
+    this.dataExclusionWarningsSignal.set(sanitized);
+  }
+
+  clearDataExclusionWarnings(): void {
+    this.dataExclusionWarningsSignal.set([]);
   }
 
   selectedAlgorithm = signal<AlgorithmConfig | null>(
@@ -1090,6 +1110,7 @@ export class ExperimentStudioService {
 
     this._filterLogic.set(null);
     this.errorService.clearError();
+    this.clearDataExclusionWarnings();
 
     // algorithm state
     this.selectedAlgorithm.set(null);
