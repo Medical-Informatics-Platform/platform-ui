@@ -30,9 +30,11 @@
       <section class="pivot-section">
         @if ((activeTab === 'Variables' ? processedData : modelData).length > 0) {
         @if (activeTab === 'Model') {
-        <p class="tab-description">Descriptive statistics for complete dataset only, based on the variables and
-          covariates
-          you selected.</p>
+        <p class="tab-description">
+          Descriptive statistics for complete dataset only, based on the variables and covariates you selected.
+          <strong>Note: Any records containing N/A values in these selected variables and covariates are
+            excluded.</strong>
+        </p>
         }
         <div class="accordion-controls">
           <div class="toolbar-segmented">

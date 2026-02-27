@@ -184,10 +184,19 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       : [];
 
     const normalizeStat = (value: any): { mean: number | null; std: number | null } => {
-      if (!value || typeof value !== 'object') return { mean: null, std: null };
-      const mean = typeof value.mean === 'number' && !isNaN(value.mean) ? value.mean : null;
-      const std = typeof value.std === 'number' && !isNaN(value.std) ? value.std : null;
-      return { mean, std };
+      if (!value) return { mean: null, std: null };
+      if (Array.isArray(value)) {
+        return {
+          mean: typeof value[0] === 'number' && !isNaN(value[0]) ? value[0] : null,
+          std: typeof value[1] === 'number' && !isNaN(value[1]) ? value[1] : null
+        };
+      }
+      if (typeof value === 'object') {
+        const mean = typeof value.mean === 'number' && !isNaN(value.mean) ? value.mean : null;
+        const std = typeof value.std === 'number' && !isNaN(value.std) ? value.std : null;
+        return { mean, std };
+      }
+      return { mean: null, std: null };
     };
 
     const candidates: Array<{ label: string; stat: { mean: number | null; std: number | null } }> = [

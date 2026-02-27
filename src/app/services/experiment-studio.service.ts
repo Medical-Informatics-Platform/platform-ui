@@ -91,6 +91,8 @@ export class ExperimentStudioService {
   readonly isFilterConfigOpen = signal<boolean>(false);
   private dataExclusionWarningsSignal = signal<string[]>([]);
   readonly dataExclusionWarnings = this.dataExclusionWarningsSignal.asReadonly();
+  private excludedDatasetsSignal = signal<string[]>([]);
+  readonly excludedDatasets = this.excludedDatasetsSignal.asReadonly();
 
   // teardown for transient requests
   private destroy$ = new Subject<void>();
@@ -326,17 +328,19 @@ export class ExperimentStudioService {
     this.clearDataExclusionWarnings();
   }
 
-  setDataExclusionWarnings(warnings: string[]): void {
+  setDataExclusionWarnings(warnings: string[], excludedDatasets: string[] = []): void {
     const sanitized = Array.from(
       new Set((warnings ?? [])
         .map((warning) => String(warning ?? '').trim())
         .filter((warning) => warning.length > 0))
     );
     this.dataExclusionWarningsSignal.set(sanitized);
+    this.excludedDatasetsSignal.set(excludedDatasets);
   }
 
   clearDataExclusionWarnings(): void {
     this.dataExclusionWarningsSignal.set([]);
+    this.excludedDatasetsSignal.set([]);
   }
 
   selectedAlgorithm = signal<AlgorithmConfig | null>(
@@ -571,7 +575,7 @@ export class ExperimentStudioService {
           inputdata: {
             data_model: this.getActiveDataModelCode(),
             y: yVariables ?? null,
-            datasets: this.selectedDatasetsSignal(),
+            datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
             filters: null,
           },
           parameters: bins ? { bins } : {},
@@ -590,7 +594,7 @@ export class ExperimentStudioService {
           data_model: this.getActiveDataModelCode(),
           y: yPayload,
           x: xPayload,
-          datasets: this.selectedDatasetsSignal(),
+          datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
           filters: hasFilters ? filterLogic : null,
         },
         parameters: config,

@@ -198,11 +198,25 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         let model_based = res.model_based ?? [];
         const emptyDatasetWarnings: string[] = [];
 
-        // Identify and collect completely empty datasets
+        // Identify completely empty datasets using model_based (complete dataset)
+        const excludedDatasets: string[] = [];
+
+        model_based.forEach((item: any) => {
+          if (item.dataset && item.dataset !== 'all datasets') {
+            const dataCounts = item.data?.num_dtps;
+            if (!dataCounts) { // 0, null, or undefined
+              if (!excludedDatasets.includes(item.dataset)) {
+                excludedDatasets.push(item.dataset);
+              }
+            }
+          }
+        });
+
+        // Find which specific variables were empty in those excluded datasets
         const emptyDatasetsForVar: Record<string, string[]> = {};
 
         variable_based.forEach((item: any) => {
-          if (item.dataset && item.dataset !== 'all datasets') {
+          if (item.dataset && excludedDatasets.includes(item.dataset)) {
             const dataCounts = item.data?.num_dtps;
             if (!dataCounts) { // 0, null, or undefined
               if (!emptyDatasetsForVar[item.dataset]) {
@@ -217,22 +231,13 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
           }
         });
 
-        // Generate warnings and get the list of dataset names to exclude
-        const excludedDatasets = Object.keys(emptyDatasetsForVar);
-
+        // Generate warnings
         for (const ds of excludedDatasets) {
-          const varNames = emptyDatasetsForVar[ds].join(', ');
           emptyDatasetWarnings.push(
-            `Dataset '${ds}' is empty for variable(s): ${varNames}. It has been excluded from descriptive statistics and from any experiment execution.`
+            `Dataset '${ds}' has been excluded from the analysis. The selected variables don't have enough overlapping data points to proceed, as records with missing values are dropped during preprocessing.`
           );
         }
-        this.expStudioService.setDataExclusionWarnings(emptyDatasetWarnings);
-
-        // Filter out the excluded datasets
-        if (excludedDatasets.length > 0) {
-          variable_based = variable_based.filter((item: any) => !excludedDatasets.includes(item.dataset));
-          model_based = model_based.filter((item: any) => !excludedDatasets.includes(item.dataset));
-        }
+        this.expStudioService.setDataExclusionWarnings(emptyDatasetWarnings, excludedDatasets);
 
         const dsFromPayload = Array.from(
           new Set((variable_based ?? []).map((x: any) => String(x.dataset)))
