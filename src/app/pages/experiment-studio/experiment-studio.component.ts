@@ -67,7 +67,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
 
   private checkSidebarCollapse() {
     const width = window.innerWidth;
-    if (width >= 1440) {
+    if (width >= 1650) {
       // Large Desktop: User can toggle, default to expanded
       this.sidebarCollapsed.set(false);
     } else if (width >= 1200) {
