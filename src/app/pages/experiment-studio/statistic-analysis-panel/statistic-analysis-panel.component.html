@@ -23,15 +23,18 @@
       @if (isLoading) {
       <app-spinner text="Descriptive statistics Loading" [overlay]="false" />
       }
+
       @if (!isLoading) {
       <!-- VARIABLES / MODEL TAB -->
       @if (activeTab === 'Variables' || activeTab === 'Model') {
       <section class="pivot-section">
         @if ((activeTab === 'Variables' ? processedData : modelData).length > 0) {
         @if (activeTab === 'Model') {
-        <p class="tab-description">Descriptive statistics for complete dataset only, based on the variables and
-          covariates
-          you selected.</p>
+        <p class="tab-description">
+          Descriptive statistics for complete dataset only, based on the variables and covariates you selected.
+          <strong>Note: Any records containing N/A values in these selected variables and covariates are
+            excluded.</strong>
+        </p>
         }
         <div class="accordion-controls">
           <div class="toolbar-segmented">
@@ -110,6 +113,12 @@
         <!-- Numeric Variables Sheet (Box Plots) -->
         @if (distributionSubTab === 'Numeric' && nonNominalVariables.length > 0) {
         <div class="distribution-sheet">
+          <div class="federated-info-note"
+            style="background-color: #e9ecef; color: #495057; padding: 10px; margin-bottom: 15px; border-left: 4px solid #0056b3; border-radius: 4px; font-size: 0.9em; display: flex; align-items: center; gap: 8px;">
+            <i class="fa fa-info-circle" style="color: #0056b3;"></i>
+            <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled
+              metrics (Q1, median, Q3) is not possible in federated analytics.</span>
+          </div>
           @if (nonNominalVariables.length > 1) {
           <div class="mini-tabs">
             @for (v of nonNominalVariables; track v; let i = $index) {

@@ -132,10 +132,10 @@ export interface LinearRegressionCVResult {
     f_stat: BasicStats;
 }
 
-export interface BasicStats {
+export type BasicStats = {
     mean: number;
     std: number;
-}
+} | number[];
 
 export interface SVMResult {
     title: string;

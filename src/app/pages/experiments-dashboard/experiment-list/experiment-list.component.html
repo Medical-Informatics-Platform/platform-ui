@@ -4,22 +4,14 @@
     <app-experiment-search [filters]="filters()" (filtersChange)="patchFilters($event)"></app-experiment-search>
   </div>
 
-  <!-- My experiments toggle -->
-  <div class="filter-row">
-    <div class="filter-label">
-      <i class="far fa-user"></i>
-      <span>My experiments</span>
-    </div>
-
-    <div class="filter-right">
-      <span class="count-label">
-        {{ totalExperiments() }} / {{ experimentsService.globalTotalExperiments() }} experiments
-      </span>
-
-      <span class="filter-label" style="margin-right: 8px;">all</span>
-
-      <button type="button" class="toggle-switch" [class.on]="onlyMine()" (click)="toggleOnlyMine()">
-        <span class="toggle-thumb"></span>
+  <!-- Experiments Tabs -->
+  <div class="filter-row experiments-tabs-row">
+    <div class="experiments-tabs">
+      <button type="button" class="tab-btn" [class.active]="onlyMine()" (click)="setTab(true)">
+        <i class="far fa-user"></i> My Experiments
+      </button>
+      <button type="button" class="tab-btn" [class.active]="!onlyMine()" (click)="setTab(false)">
+        <i class="fas fa-users"></i> Shared
       </button>
     </div>
   </div>

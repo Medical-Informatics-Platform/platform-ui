@@ -140,6 +140,8 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(override?.x).toContain('exactly 2');
+    expect(override?.x).toContain('types: nominal');
+    expect(override?.x).not.toContain('types: text');
     expect(override?.y).toContain('exactly 1');
   });
 });

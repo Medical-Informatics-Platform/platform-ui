@@ -13,7 +13,6 @@ This document describes what the frontend currently renders for each algorithm a
 ### ANOVA One-Way (`anova_oneway`)
 
 - Charts:
-  - ANOVA Sum of Squares bar chart.
   - Mean plot with confidence intervals.
 - Tables:
   - ANOVA summary table.
@@ -22,7 +21,7 @@ This document describes what the frontend currently renders for each algorithm a
 ### ANOVA Two-Way (`anova_twoway`)
 
 - Charts:
-  - Sum of Squares bar chart across terms.
+  - None (table only).
 - Tables:
   - Two-way ANOVA table (term, sum sq, df, F, p-value).
 
@@ -39,7 +38,7 @@ Notes:
 ### Linear Regression (`linear_regression`)
 
 - Charts:
-  - Forest plot for coefficients with 95% CI.
+  - Regression line chart (single-predictor models only).
 - Tables:
   - Coefficients table.
   - Model summary table (R², adjusted R², AIC/BIC, etc.).
@@ -56,7 +55,7 @@ Notes:
 ### Logistic Regression (`logistic_regression`)
 
 - Charts:
-  - Forest plot for coefficients with 95% CI.
+  - Logistic regression curve (single-predictor models only).
 - Tables:
   - Coefficients table.
   - Model summary table.

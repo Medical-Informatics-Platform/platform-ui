@@ -1,7 +1,7 @@
 import { EChartsOption } from 'echarts';
 import { buildRocCurveChart } from './renderers/roc-curve-chart';
 import { buildMatrixChart } from './renderers/matrix-chart';
-import { buildBarChart } from './renderers/bar-chart';
+
 import { buildPCAHeatmapChart } from './renderers/pca-heatmap-chart';
 import { buildNaiveBayesConfusionChart } from './renderers/naive-bayes-confusion-matrix-chart';
 import { buildLogRegConfusionChart } from './renderers/log-reg-confusion-matrix-chart';
@@ -11,9 +11,9 @@ import { buildBoxPlotChart } from './renderers/box-plot-chart';
 import { buildSVMChart } from './renderers/svm-chart';
 
 // New Renderers
-import { buildForestPlotChart } from './renderers/forest-plot-chart';
+import { buildRegressionLineChart } from './renderers/regression-line-chart';
 import { buildTTestChart } from './renderers/t-test-chart';
-import { buildTwoWayAnovaChart } from './renderers/anova-twoway-chart';
+
 import { buildCVMetricsChart } from './renderers/cv-metrics-chart';
 import { buildHistogramChart } from './renderers/histogram-chart';
 import { buildNaiveBayesPriorsChart } from './renderers/naive-bayes-priors-chart';
@@ -34,7 +34,7 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   },
 
   linear_regression: {
-    build: buildForestPlotChart,
+    build: buildRegressionLineChart,
     inputPath: '',
   },
 
@@ -45,7 +45,7 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
 
   // Logistic Regression (Standard)
   logistic_regression: {
-    build: buildForestPlotChart,
+    build: buildRegressionLineChart,
     inputPath: '',
   },
 
@@ -96,12 +96,12 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   },
 
   anova_oneway: {
-    build: composeCharts(buildBarChart, buildMeanPlotChart),
+    build: buildMeanPlotChart,
     inputPath: '',
   },
 
   anova_twoway: {
-    build: buildTwoWayAnovaChart,
+    build: () => [],
     inputPath: '',
   },
 

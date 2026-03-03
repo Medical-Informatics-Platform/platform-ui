@@ -10,7 +10,7 @@ import { DataModelSelectorComponent } from './data-model-selector/data-model-sel
 import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.component';
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { VariableFilterSelectionComponent } from './variable-filter-selection/variable-filter-selection.component';
-import { DistributionGraphComponent } from './distribution-graph/distribution-graph.component';
+import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
@@ -26,7 +26,7 @@ import { CsvExportService } from '../../../services/csv-export.service';
     MatChipsModule,
     MatIconModule,
     BubbleChartComponent,
-    DistributionGraphComponent,
+    HistogramGraphComponent,
     DataModelSelectorComponent,
     DatasetSelectorComponent,
     SearchBarComponent,
@@ -37,7 +37,7 @@ import { CsvExportService } from '../../../services/csv-export.service';
 export class VariablesPanelComponent implements OnDestroy {
   @Input() defaultModel: DataModel | null = null;
   @Input() dataModelHierarchy: any;
-  @ViewChild('distributionExport') distributionExport?: ElementRef<HTMLElement>;
+  @ViewChild('histogramExport') histogramExport?: ElementRef<HTMLElement>;
   @ViewChild(VariableFilterSelectionComponent) variableFilterSelection?: VariableFilterSelectionComponent;
   highlightNode: any = null;
 
@@ -49,7 +49,7 @@ export class VariablesPanelComponent implements OnDestroy {
   errorService = inject(ErrorService);
   filteredVariables: WritableSignal<any[]> = signal([]);
   filteredGroups: WritableSignal<any[]> = signal([]);
-  distributionData = signal<any | null>(null);
+  histogramData = signal<any | null>(null);
   groupHistogramData = signal<{ bins: string[]; counts: number[]; variableName: string } | null>(null);
   histogramVariants = signal<Array<{ key: string; label: string; data: any }>>([]);
   selectedHistogramVariantKey = signal<string | null>(null);
@@ -312,7 +312,7 @@ export class VariablesPanelComponent implements OnDestroy {
 
     this.filteredVariables.set([]);
     this.filteredGroups.set([]);
-    this.distributionData.set(null);
+    this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
 
@@ -365,7 +365,7 @@ export class VariablesPanelComponent implements OnDestroy {
       this.selectedNode = null;
       this.cdr.detectChanges();
       this.errorMessage.set(null);
-      this.distributionData.set(null);
+      this.histogramData.set(null);
       this.groupHistogramData.set(null);
       this.histogramVariants.set([]);
       this.selectedHistogramVariantKey.set(null);
@@ -383,7 +383,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.selectedNode = { ...node };
     this.cdr.detectChanges();
     this.errorMessage.set(null);
-    this.distributionData.set(null); // clear previous histogram
+    this.histogramData.set(null); // clear previous histogram
     this.groupHistogramData.set(null);
     this.histogramVariants.set([]);
     this.selectedHistogramVariantKey.set(null);
@@ -512,7 +512,7 @@ export class VariablesPanelComponent implements OnDestroy {
           this.histogramVariants.set(sortedVariants);
           const selectedKey = sortedVariants[0]?.key ?? null;
           this.selectedHistogramVariantKey.set(selectedKey);
-          this.distributionData.set(sortedVariants[0]?.data ?? null);
+          this.histogramData.set(sortedVariants[0]?.data ?? null);
           this.errorMessage.set(null);
         } else {
           this.histogramVariants.set([]);
@@ -530,7 +530,7 @@ export class VariablesPanelComponent implements OnDestroy {
   private queueHistogramRequest(codes: string[], label?: string, bins: number | null = null) {
     this.isLoadingHistogram.set(true);
     this.errorMessage.set(null);
-    this.distributionData.set(null);
+    this.histogramData.set(null);
     this.histogramVariants.set([]);
     this.selectedHistogramVariantKey.set(null);
     this.histogramRequest$.next({ codes, label, bins });
@@ -541,7 +541,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.selectedHistogramVariantKey.set(key);
     const variant = this.histogramVariants().find((item) => item.key === key);
     if (variant) {
-      this.distributionData.set(variant.data);
+      this.histogramData.set(variant.data);
     }
   }
 
@@ -600,7 +600,12 @@ export class VariablesPanelComponent implements OnDestroy {
     if (this.isLoadingHistogram()) return true;
     if (this.errorMessage()) return true;
     if (!this.selectedNode) return true;
-    return !this.distributionData() && !this.groupHistogramData();
+    if (this.showGroupVariableSelectionMessage()) return true;
+    return !this.histogramData() && !this.groupHistogramData();
+  }
+
+  showGroupVariableSelectionMessage(): boolean {
+    return !!this.groupHistogramData() && this.groupHistogramMeta()?.hasGroups === false;
   }
 
   showBinSelector(): boolean {
@@ -609,20 +614,20 @@ export class VariablesPanelComponent implements OnDestroy {
     return ['real', 'integer', 'int'].includes(type);
   }
 
-  async exportDistributionPdf(): Promise<void> {
+  async exportHistogramPdf(): Promise<void> {
     if (this.isExportDisabled()) return;
     this.isExporting.set(true);
 
     try {
-      const exportTarget = this.distributionExport?.nativeElement;
+      const exportTarget = this.histogramExport?.nativeElement;
       if (!exportTarget) {
-        console.warn('Distribution export target not found.');
+        console.warn('Histogram export target not found.');
         return;
       }
 
-      await this.pdfExportService.exportDistributionPdf(exportTarget, {
-        title: this.groupHistogramData() ? 'Group Description' : 'Distribution Graph',
-        nodeLabel: String(this.selectedNode?.label ?? this.distributionData()?.variableName ?? ''),
+      await this.pdfExportService.exportHistogramPdf(exportTarget, {
+        title: this.groupHistogramData() ? 'Group Description' : 'Histogram',
+        nodeLabel: String(this.selectedNode?.label ?? this.histogramData()?.variableName ?? ''),
         modelLabel: String(this.selectedDataModel()?.label ?? this.selectedDataModel()?.code ?? ''),
         datasetLabels: this.experimentStudioService.selectedDatasets()
           .map(code => this.availableDatasets.find(d => d.code === code)?.label ?? code)
@@ -633,25 +638,25 @@ export class VariablesPanelComponent implements OnDestroy {
       });
 
     } catch (err) {
-      console.error('Distribution PDF export failed:', err);
+      console.error('Histogram PDF export failed:', err);
     } finally {
       this.isExporting.set(false);
     }
   }
 
-  exportDistributionCsv(): void {
+  exportHistogramCsv(): void {
     if (this.isExportDisabled()) return;
 
-    const data = this.groupHistogramData() || this.distributionData();
+    const data = this.groupHistogramData() || this.histogramData();
     if (!data) return;
 
     try {
-      this.csvExportService.exportDistributionCsv(
+      this.csvExportService.exportHistogramCsv(
         { bins: data.bins, counts: data.counts },
-        String(this.selectedNode?.label ?? data.variableName ?? 'distribution')
+        String(this.selectedNode?.label ?? data.variableName ?? 'histogram')
       );
     } catch (err) {
-      console.error('Distribution CSV export failed:', err);
+      console.error('Histogram CSV export failed:', err);
     }
   }
 
