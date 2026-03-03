@@ -49,45 +49,51 @@
   white-space: nowrap;
 }
 
-/* toggle */
-.toggle-switch {
-  position: relative;
-  width: 38px;
-  height: 20px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.9);
-  background: #f8fafc;
-  padding: 0;
-  cursor: pointer;
-  display: inline-flex;
+/* EXPERIMENTS TABS */
+.experiments-tabs-row {
+  margin-top: 6px;
+  display: flex;
   align-items: center;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  justify-content: space-between;
 }
 
-.toggle-thumb {
-  position: relative;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #cbd5f5;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2);
-  transform: translateX(2px);
-  transition: transform 0.15s ease, background 0.15s ease;
+.experiments-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--glass-bg);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
 }
 
-.toggle-switch.on {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-  border-color: transparent;
+.tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
 }
 
-.toggle-switch.on .toggle-thumb {
-  background: #ecfeff;
-  transform: translateX(18px);
+.tab-btn i {
+  font-size: 0.95rem;
 }
 
-.toggle-switch:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
+.tab-btn:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: #334155;
+}
+
+.tab-btn.active {
+  background: white;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
 }
 
 /* SCROLLABLE LIST */

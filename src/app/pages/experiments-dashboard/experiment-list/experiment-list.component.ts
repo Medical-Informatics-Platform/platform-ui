@@ -91,8 +91,9 @@ export class ExperimentsListComponent implements OnInit {
     return this.compareIds.includes(id);
   }
 
-  toggleOnlyMine() {
-    this.onlyMine.update(v => !v);
+  setTab(isMine: boolean) {
+    if (this.onlyMine() === isMine) return;
+    this.onlyMine.set(isMine);
     this.pageIndex.set(0);
   }
 

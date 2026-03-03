@@ -11,9 +11,9 @@ import { RouterModule } from '@angular/router';
 export class FooterComponent {
   currentYear = new Date().getFullYear();
   versions = {
-    frontend: (window as any).__env?.FRONTEND_VERSION || '10.0.1',
-    backend: (window as any).__env?.BACKEND_VERSION || '8.2.0',
-    exaflow: (window as any).__env?.EXAFLOW_VERSION || '0.28.0',
+    frontend: (window as any).__env?.FRONTEND_VERSION || '1.0.0',
+    backend: (window as any).__env?.BACKEND_VERSION || '9.0.0',
+    exaflow: (window as any).__env?.EXAFLOW_VERSION || '1.0.0',
     mip: (window as any).__env?.MIP_VERSION || '9.0.0'
   };
 }

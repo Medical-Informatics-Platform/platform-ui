@@ -10,7 +10,7 @@ export class CsvExportService {
     /**
      * Export distribution data (bins and counts) to CSV.
      */
-    exportDistributionCsv(data: { bins: string[]; counts: number[] }, variableName: string): void {
+    exportHistogramCsv(data: { bins: string[]; counts: number[] }, variableName: string): void {
         if (!data.bins || !data.counts || data.bins.length !== data.counts.length) {
             console.warn('Invalid data for CSV export');
             return;

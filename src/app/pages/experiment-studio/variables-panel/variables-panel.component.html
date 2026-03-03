@@ -44,14 +44,14 @@
             (variableClicked)="onVariableClicked($event)"></app-variable-filter-selection>
         </section>
 
-        <!-- Distribution graph -->
-        <section class="panel-block distribution-panel" id="distribution-graph">
-          <div class="distribution-header">
-            {{ groupHistogramData() ? 'Group Information' : 'Distribution graph' }}
+        <!-- Histogram graph -->
+        <section class="panel-block histogram-panel" id="histogram-graph">
+          <div class="histogram-header">
+            {{ groupHistogramData() ? 'Group Information' : 'Histogram' }}
           </div>
-          <!-- Distribution Actions Bar -->
-          <div class="distribution-actions-bar">
-            <div class="distribution-actions-group">
+          <!-- Histogram Actions Bar -->
+          <div class="histogram-actions-bar">
+            <div class="histogram-actions-group">
               @if (showBinSelector()) {
               <div class="bin-selector">
                 <label for="bins-input">Bins:</label>
@@ -71,20 +71,20 @@
                 </select>
               </div>
               }
-              <button class="distribution-action-btn csv-btn" [disabled]="isExportDisabled() || isExporting()"
-                (click)="exportDistributionCsv()" title="Export CSV">
+              <button class="histogram-action-btn csv-btn" [disabled]="isExportDisabled() || isExporting()"
+                (click)="exportHistogramCsv()" title="Export CSV">
                 <i class="fas fa-file-csv"></i>
               </button>
-              <button class="distribution-action-btn pdf-btn" [disabled]="isExportDisabled() || isExporting()"
-                (click)="exportDistributionPdf()" title="Export PDF">
+              <button class="histogram-action-btn pdf-btn" [disabled]="isExportDisabled() || isExporting()"
+                (click)="exportHistogramPdf()" title="Export PDF">
                 <i class="fas fa-file-pdf"></i>
               </button>
             </div>
           </div>
 
-          <div class="distribution-graph" #distributionExport>
+          <div class="histogram-graph" #histogramExport>
             @if (isLoadingHistogram()) {
-            <div class="distribution-loader">
+            <div class="histogram-loader">
               <app-spinner text="Loading Histogram" [overlay]="false" />
             </div>
             } @else if (errorMessage()) {
@@ -102,7 +102,7 @@
               <div class="empty-state-actions">
                 <div class="hint-item">
                   <i class="fas fa-mouse-pointer"></i>
-                  <span><b>Single-click</b> to view details & distribution</span>
+                  <span><b>Single-click</b> to view details & histogram</span>
                 </div>
                 <div class="hint-item">
                   <i class="fas fa-bolt"></i>
@@ -134,8 +134,15 @@
                 </p>
               </div>
             </div>
-            <app-distribution-graph [data]="groupHistogramData()"></app-distribution-graph>
-            } @else if (distributionData()) {
+            @if (showGroupVariableSelectionMessage()) {
+            <div class="message-container info">
+              <p>Please select one of the variables in the representation on the left to see its histogram in the
+                selected centers</p>
+            </div>
+            } @else {
+            <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
+            }
+            } @else if (histogramData()) {
             <div class="group-summary">
               <div class="group-summary-header">
                 @if (selectedNode?.description) {
@@ -160,7 +167,7 @@
                 </p>
               </div>
             </div>
-            <app-distribution-graph [data]="distributionData()"></app-distribution-graph>
+            <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
             }
           </div>
 

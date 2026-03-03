@@ -79,6 +79,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.modelData = [];
         this.showBoxPlots = false;
         this.isLoading = false;
+        this.expStudioService.clearDataExclusionWarnings();
         return;
       }
 
@@ -142,7 +143,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         result: {
           ...response.result,
           variable_based: (response?.result?.variable_based ?? []).filter(
-            (r: any) => r.variable === v.code
+            (r: any) => r.variable === v.code && r.dataset !== 'all datasets'
           )
         }
       };
@@ -165,6 +166,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   fetchDescriptiveStatistics(): void {
     this.isLoading = true;
+    this.expStudioService.clearDataExclusionWarnings();
 
     const variables = this.expStudioService.selectedVariables();
     const covariates = this.expStudioService.selectedCovariates();
@@ -181,15 +183,61 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     ];
 
     const items = Array.from(new Map(merged.map(v => [v.code, v])).values());
-    if (!items.length) { this.isLoading = false; return; }
+    if (!items.length) {
+      this.expStudioService.clearDataExclusionWarnings();
+      this.isLoading = false;
+      return;
+    }
 
     const variableCodes = items.map(i => i.code);
 
     this.expStudioService.loadDescriptiveOverview(variableCodes).subscribe({
       next: (response) => {
         const res = response?.result ?? response ?? {};
-        const variable_based = res.variable_based ?? [];
-        const model_based = res.model_based ?? [];
+        let variable_based = res.variable_based ?? [];
+        let model_based = res.model_based ?? [];
+        const emptyDatasetWarnings: string[] = [];
+
+        // Identify completely empty datasets using model_based (complete dataset)
+        const excludedDatasets: string[] = [];
+
+        model_based.forEach((item: any) => {
+          if (item.dataset && item.dataset !== 'all datasets') {
+            const dataCounts = item.data?.num_dtps;
+            if (!dataCounts) { // 0, null, or undefined
+              if (!excludedDatasets.includes(item.dataset)) {
+                excludedDatasets.push(item.dataset);
+              }
+            }
+          }
+        });
+
+        // Find which specific variables were empty in those excluded datasets
+        const emptyDatasetsForVar: Record<string, string[]> = {};
+
+        variable_based.forEach((item: any) => {
+          if (item.dataset && excludedDatasets.includes(item.dataset)) {
+            const dataCounts = item.data?.num_dtps;
+            if (!dataCounts) { // 0, null, or undefined
+              if (!emptyDatasetsForVar[item.dataset]) {
+                emptyDatasetsForVar[item.dataset] = [];
+              }
+              const matchedVar = items.find(v => v.code === item.variable);
+              const varName = matchedVar ? (matchedVar.name ?? matchedVar.label ?? matchedVar.code) : item.variable;
+              if (!emptyDatasetsForVar[item.dataset].includes(varName)) {
+                emptyDatasetsForVar[item.dataset].push(varName);
+              }
+            }
+          }
+        });
+
+        // Generate warnings
+        for (const ds of excludedDatasets) {
+          emptyDatasetWarnings.push(
+            `Dataset '${ds}' has been excluded from the analysis. The selected variables don't have enough overlapping data points to proceed, as records with missing values are dropped during preprocessing.`
+          );
+        }
+        this.expStudioService.setDataExclusionWarnings(emptyDatasetWarnings, excludedDatasets);
 
         const dsFromPayload = Array.from(
           new Set((variable_based ?? []).map((x: any) => String(x.dataset)))
@@ -216,7 +264,11 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         if (this.nominalVariables.length > 0) this.buildNominalCharts(response);
         this.isLoading = false;
       },
-      error: (err) => { console.error(err); this.isLoading = false; }
+      error: (err) => {
+        console.error(err);
+        this.expStudioService.clearDataExclusionWarnings();
+        this.isLoading = false;
+      }
     });
   }
 

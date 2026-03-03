@@ -156,8 +156,17 @@ export class AlgorithmRulesService {
 
     getAlgorithmRequirementOverrides(algo: { name?: string; inputdata?: any } | null | undefined): { y?: string; x?: string; filters?: string } | null {
         const name = algo?.name;
-        const formatTypes = (types?: string[] | null) =>
-            Array.isArray(types) && types.length ? ` • types: ${types.join(',')}` : '';
+        const formatTypes = (types?: string[] | null) => {
+            if (!Array.isArray(types) || !types.length) return '';
+            const normalized = Array.from(
+                new Set(
+                    types
+                        .map((type) => this.normalizeRequirementTypeForDisplay(type))
+                        .filter((type): type is string => !!type)
+                )
+            );
+            return normalized.length ? ` • types: ${normalized.join(',')}` : '';
+        };
         const yTypes = Array.isArray(algo?.inputdata?.y?.types) ? algo?.inputdata?.y?.types : null;
         const xTypes = Array.isArray(algo?.inputdata?.x?.types) ? algo?.inputdata?.x?.types : null;
 
@@ -196,6 +205,19 @@ export class AlgorithmRulesService {
             case 'polynominal': return VariableTypes.TEXT;
             case 'ordinal': return VariableTypes.TEXT;
             default: return t; // real, text, binary...
+        }
+    }
+
+    // helper: normalize backend requirement labels for UI display
+    private normalizeRequirementTypeForDisplay(t: string | undefined | null): string | undefined {
+        if (!t) return undefined;
+        const normalized = String(t).trim().toLowerCase();
+        switch (normalized) {
+            case VariableTypes.TEXT: return VariableTypes.NOMINAL;
+            case VariableTypes.INTEGER: return VariableTypes.INT;
+            case 'polynominal': return VariableTypes.NOMINAL;
+            case 'ordinal': return VariableTypes.NOMINAL;
+            default: return normalized;
         }
     }
 
