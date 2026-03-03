@@ -12,6 +12,7 @@ import { ResultsPdfExportService } from '../../../services/export-results-pdf.se
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { VariableTypes } from '../../../core/constants/algorithm.constants';
 
 
 @Component({
@@ -828,6 +829,35 @@ export class AlgorithmPanelComponent {
     return null;
   }
 
+  private normalizeRequirementDisplayType(type: unknown): string | null {
+    const normalized = String(type ?? '').trim().toLowerCase();
+    if (!normalized) return null;
+
+    switch (normalized) {
+      case VariableTypes.TEXT:
+      case 'polynominal':
+      case 'ordinal':
+        return VariableTypes.NOMINAL;
+      case VariableTypes.INTEGER:
+        return VariableTypes.INT;
+      default:
+        return normalized;
+    }
+  }
+
+  private formatRequirementTypes(types: unknown): string[] | null {
+    if (!Array.isArray(types) || types.length === 0) {
+      return null;
+    }
+
+    const normalized = types
+      .map((type) => this.normalizeRequirementDisplayType(type))
+      .filter((type): type is string => !!type);
+
+    const unique = Array.from(new Set(normalized));
+    return unique.length ? unique : null;
+  }
+
   getRoleRequirement(field: any, label: string): string | null {
     if (!field) return null;
 
@@ -841,13 +871,11 @@ export class AlgorithmPanelComponent {
       count = '1+';
     }
 
-    const types = Array.isArray(field.types) && field.types.length
-      ? field.types.join(',')
-      : null;
+    const types = this.formatRequirementTypes(field.types);
 
     const parts = [`${label}: ${count}`];
     if (types) {
-      parts.push(`types: ${types}`);
+      parts.push(`types: ${types.join(',')}`);
     }
 
     return parts.join(' • ');
