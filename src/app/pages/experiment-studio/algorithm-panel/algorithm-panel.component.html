@@ -109,6 +109,13 @@
   }
 
   <main class="experiment-panel">
+    @if (copyPayloadToastVisible()) {
+    <div class="copy-toast">
+      <i class="fas fa-check-circle"></i>
+      <span>{{ copyPayloadToastMessage() }}</span>
+    </div>
+    }
+
     <header>
       <div class="experiment-header">
         <div class="header-title-group">
@@ -147,10 +154,17 @@
             </button>
           </div>
           } @else {
-          <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
-            [title]="isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'">
-            {{ isRunning() ? "Running..." : "Run Experiment" }}
-          </button>
+          <div class="run-actions">
+            <button type="button" class="copy-payload-btn" [disabled]="isRunButtonDisabled()"
+              (click)="onCopyJupyterPayload()"
+              title="Copy the exact backend request JSON for this experiment configuration">
+              Copy Jupyter JSON
+            </button>
+            <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
+              [title]="isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'">
+              {{ isRunning() ? "Running..." : "Run Experiment" }}
+            </button>
+          </div>
           }
 
           <div class="floating-group">

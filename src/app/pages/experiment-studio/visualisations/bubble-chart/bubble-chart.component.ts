@@ -57,12 +57,12 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   };
 
   readonly COLORBLIND_PALETTE = {
-    variable: '#ffba08',     // MIP golden yellow (from portal-frontend)
-    covariate: '#bba66f',    // MIP tan/beige (from portal-frontend)
-    filter: '#483300',       // MIP dark brown (from portal-frontend)
-    selected: '#3f6078',     // MIP steel blue (from portal-frontend)
-    groupStart: '#c8d5f0',   // Light pale blue (from portal-frontend)
-    groupEnd: '#3340e8',     // Deep blue (from portal-frontend)
+    variable: '#ffba08',     // MIP golden yellow
+    covariate: '#bba66f',    // MIP tan/beige
+    filter: '#483300',       // MIP dark brown
+    selected: '#3f6078',     // MIP steel blue
+    groupStart: '#c8d5f0',   // Light pale blue
+    groupEnd: '#3340e8',     // Deep blue
   };
 
   colorMode: 'default' | 'colorBlind' | 'custom' = 'default';
