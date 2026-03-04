@@ -1,5 +1,5 @@
 import { SessionStorageService } from './../../../services/session-storage.service';
-import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -15,6 +15,12 @@ import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { VariableTypes } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 
+type ExecutionContext = {
+  baseAlgorithmName: string;
+  finalAlgorithmName: string;
+  shouldIncludeSplits: boolean;
+  useTransformation: boolean;
+};
 
 @Component({
   selector: 'app-algorithm-panel',
@@ -31,7 +37,7 @@ import { RuntimeEnvService } from '../../../services/runtime-env.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 
-export class AlgorithmPanelComponent {
+export class AlgorithmPanelComponent implements OnDestroy {
   pdfExport = inject(ResultsPdfExportService);
   private errorService = inject(ErrorService);
   private authService = inject(AuthService);
@@ -50,6 +56,9 @@ export class AlgorithmPanelComponent {
   saveAsName = signal('');
   loadingText = signal('Processing experiment...');
   showSuccessNotification = signal(false);
+  readonly copyPayloadToastVisible = signal(false);
+  readonly copyPayloadToastMessage = signal('Jupyter payload copied to clipboard');
+  private copyPayloadToastTimer: ReturnType<typeof setTimeout> | null = null;
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   readonly selectedAlgorithm = this.experimentStudioService.selectedAlgorithm;
@@ -530,6 +539,140 @@ export class AlgorithmPanelComponent {
     this.selectAlgorithm(algorithm);
   }
 
+  private resolveExecutionContext(): ExecutionContext | null {
+    const algo = this.experimentStudioService.selectedAlgorithm();
+    if (!algo) {
+      return null;
+    }
+
+    const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
+    const baseAlgorithmName = isCvOnly
+      ? algo.name
+      : this.experimentStudioService.getCrossValidationBase(algo.name) ??
+      this.experimentStudioService.getTransformationBase(algo.name) ??
+      algo.name;
+
+    const cvVariant = this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
+    const shouldIncludeSplits =
+      this.crossValidationEnabled() ||
+      this.experimentStudioService.isCrossValidationOnly(algo.name);
+    const useCrossValidation = shouldIncludeSplits && !!cvVariant;
+    const transformationVariant =
+      this.experimentStudioService.getTransformationVariant(baseAlgorithmName);
+    const useTransformation = this.transformationEnabled() && !!transformationVariant;
+    const effectiveAlgorithmName = useCrossValidation
+      ? cvVariant
+      : useTransformation
+        ? transformationVariant
+        : baseAlgorithmName;
+    const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
+
+    return {
+      baseAlgorithmName,
+      finalAlgorithmName,
+      shouldIncludeSplits,
+      useTransformation,
+    };
+  }
+
+  private syncExecutionConfigurations(context: ExecutionContext): void {
+    const configValues = this.configForm().getRawValue();
+    if (!context.shouldIncludeSplits && configValues['n_splits'] !== undefined) {
+      delete configValues['n_splits'];
+    }
+    if (context.useTransformation) {
+      configValues.data_transformation = this.buildTransformationPayload();
+    } else if (configValues.data_transformation) {
+      delete configValues.data_transformation;
+    }
+
+    this.experimentStudioService.algorithmConfigurations.set({
+      ...this.experimentStudioService.algorithmConfigurations(),
+      [context.baseAlgorithmName]: configValues,
+      ...(context.finalAlgorithmName !== context.baseAlgorithmName
+        ? { [context.finalAlgorithmName]: configValues }
+        : {}),
+    });
+  }
+
+  private buildCurrentBackendPayload(customName: string | null = null): { context: ExecutionContext; requestBody: any } | null {
+    const context = this.resolveExecutionContext();
+    if (!context) {
+      return null;
+    }
+
+    this.syncExecutionConfigurations(context);
+    const requestBody = this.experimentStudioService.buildRequestBody(
+      context.baseAlgorithmName,
+      null,
+      null,
+      context.finalAlgorithmName,
+      customName
+    );
+
+    return { context, requestBody };
+  }
+
+  async onCopyJupyterPayload(): Promise<void> {
+    this.errorMsg.set(null);
+    this.errorService.clearError();
+
+    if (this.configForm() && this.configForm().invalid) {
+      this.configForm().markAllAsTouched();
+      return;
+    }
+
+    const execution = this.buildCurrentBackendPayload();
+    if (!execution) {
+      this.errorMsg.set('Please choose an algorithm before copying JSON.');
+      return;
+    }
+
+    const payload = JSON.stringify(execution.requestBody, null, 2);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        this.copyPayloadWithFallback(payload);
+      }
+      this.showCopyPayloadToast('Jupyter payload copied to clipboard');
+    } catch (error) {
+      console.warn('Failed to copy Jupyter payload:', error);
+      this.showCopyPayloadToast('Could not copy payload - check console.');
+    }
+  }
+
+  private copyPayloadWithFallback(payload: string): void {
+    const textArea = document.createElement('textarea');
+    textArea.value = payload;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textArea);
+
+    if (!copied) {
+      throw new Error('Fallback clipboard copy failed.');
+    }
+  }
+
+  private showCopyPayloadToast(message: string): void {
+    if (this.copyPayloadToastTimer) {
+      clearTimeout(this.copyPayloadToastTimer);
+      this.copyPayloadToastTimer = null;
+    }
+
+    this.copyPayloadToastMessage.set(message);
+    this.copyPayloadToastVisible.set(true);
+    this.copyPayloadToastTimer = setTimeout(() => {
+      this.copyPayloadToastVisible.set(false);
+      this.copyPayloadToastTimer = null;
+    }, 2400);
+  }
+
   onClickRunExp() {
     this.errorMsg.set(null);
     this.errorService.clearError();
@@ -555,51 +698,22 @@ export class AlgorithmPanelComponent {
       return;
     }
 
-    const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const baseAlgorithmName = isCvOnly
-      ? algo.name
-      : this.experimentStudioService.getCrossValidationBase(algo.name) ??
-      this.experimentStudioService.getTransformationBase(algo.name) ??
-      algo.name;
-    const cvVariant =
-      this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
-    const shouldIncludeSplits =
-      this.crossValidationEnabled() ||
-      this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const useCrossValidation = shouldIncludeSplits && !!cvVariant;
-    const transformationVariant =
-      this.experimentStudioService.getTransformationVariant(baseAlgorithmName);
-    const useTransformation = this.transformationEnabled() && !!transformationVariant;
-    const effectiveAlgorithmName = useCrossValidation
-      ? cvVariant
-      : useTransformation
-        ? transformationVariant
-        : baseAlgorithmName;
+    const execution = this.buildCurrentBackendPayload();
+    if (!execution) {
+      const msg = 'Unable to prepare experiment payload. Check your selections.';
+      this.errorMsg.set(msg);
+      this.experimentStudioService.setRunning(false);
+      return;
+    }
 
-    const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
+    const { context } = execution;
 
-    this.experimentStudioService.lastUsedAlgorithm.set(finalAlgorithmName);
+    this.experimentStudioService.lastUsedAlgorithm.set(context.finalAlgorithmName);
     this.errorMsg.set(null);
 
-    const configValues = this.configForm().getRawValue();
-    if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
-      delete configValues['n_splits'];
-    }
-    if (useTransformation) {
-      const payload = this.buildTransformationPayload();
-      configValues.data_transformation = payload;
-    } else if (configValues.data_transformation) {
-      delete configValues.data_transformation;
-    }
-    this.experimentStudioService.algorithmConfigurations.set({
-      ...this.experimentStudioService.algorithmConfigurations(),
-      [baseAlgorithmName]: configValues,
-      ...(effectiveAlgorithmName !== baseAlgorithmName ? { [effectiveAlgorithmName]: configValues } : {})
-    });
-
     const result$ = this.experimentStudioService.runSelectedAlgorithmTransient(
-      baseAlgorithmName,
-      finalAlgorithmName
+      context.baseAlgorithmName,
+      context.finalAlgorithmName
     );
     if (!result$) {
       const msg = 'Unable to start the run. Check your selections.';
@@ -630,11 +744,11 @@ export class AlgorithmPanelComponent {
           return;
         }
 
-        const schema = getOutputSchema(finalAlgorithmName ?? '') ?? [];
+        const schema = getOutputSchema(context.finalAlgorithmName ?? '') ?? [];
         this.result.set({
           ...res?.result ?? { message: "No result returned" },
         });
-        this.lastUsedAlgorithm = finalAlgorithmName;
+        this.lastUsedAlgorithm = context.finalAlgorithmName;
         this.lastUsedSchema.set(schema);
       },
       error: () => {
@@ -911,39 +1025,21 @@ export class AlgorithmPanelComponent {
 
     this.errorMsg.set(null);
     this.errorService.clearError();
+    this.loadingText.set('Saving experiment...');
 
-    const algo = this.experimentStudioService.selectedAlgorithm();
-    if (!algo) return;
+    const execution = this.buildCurrentBackendPayload(this.saveAsName());
+    if (!execution) {
+      this.errorMsg.set('Please choose an algorithm before saving.');
+      return;
+    }
 
     this.experimentStudioService.setRunning(true);
 
-    const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const baseAlgorithmName = isCvOnly
-      ? algo.name
-      : this.experimentStudioService.getCrossValidationBase(algo.name) ??
-      this.experimentStudioService.getTransformationBase(algo.name) ??
-      algo.name;
-
-    const cvVariant = this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
-    const shouldIncludeSplits = this.crossValidationEnabled() || this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const useCrossValidation = shouldIncludeSplits && !!cvVariant;
-    const transformationVariant = this.experimentStudioService.getTransformationVariant(baseAlgorithmName);
-    const useTransformation = this.transformationEnabled() && !!transformationVariant;
-    const effectiveAlgorithmName = useCrossValidation
-      ? cvVariant
-      : useTransformation
-        ? transformationVariant
-        : baseAlgorithmName;
-
-    const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
-
     const result$ = this.experimentStudioService.runSelectedAlgorithm(
-      baseAlgorithmName,
-      finalAlgorithmName,
+      execution.context.baseAlgorithmName,
+      execution.context.finalAlgorithmName,
       this.saveAsName()
     );
-
-    this.loadingText.set('Saving experiment...');
 
     if (!result$) {
       this.errorMsg.set('Unable to start the save process.');
@@ -1072,5 +1168,12 @@ export class AlgorithmPanelComponent {
     setTimeout(() => {
       this.showSuccessNotification.set(false);
     }, 4000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.copyPayloadToastTimer) {
+      clearTimeout(this.copyPayloadToastTimer);
+      this.copyPayloadToastTimer = null;
+    }
   }
 }
