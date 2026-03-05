@@ -31,7 +31,7 @@
     "jQuery-QueryBuilder": "^3.0.0",
     "jquery-ui": "^1.14.1",
     "jquery-ui-dist": "^1.13.3",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "ngx-echarts": "^19.0.0",
     "query-builder": "^0.3.37",
