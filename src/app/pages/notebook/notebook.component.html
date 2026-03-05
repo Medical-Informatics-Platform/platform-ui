@@ -1,9 +1,12 @@
 <div class="notebook-container">
-    <div *ngIf="isLoading" class="loading-overlay">
+    @if (isLoading()) {
+    <div class="loading-overlay">
         <p>Loading Notebook Environment...</p>
     </div>
+    }
 
-    <div *ngIf="needsHubLogin" class="notebook-login-gate">
+    @if (needsHubLogin()) {
+    <div class="notebook-login-gate">
         <div class="notebook-login-card">
             <h2>Sign in to Notebook</h2>
             <p>
@@ -14,11 +17,16 @@
                 <button type="button" class="notebook-login-btn" (click)="continueToHubLogin()">
                     Continue to Notebook Login
                 </button>
-                <a *ngIf="hubLoginUrl" class="notebook-login-link" [href]="hubLoginUrl">Open login link</a>
+                @if (hubLoginUrl()) {
+                <a class="notebook-login-link" [href]="hubLoginUrl()">Open login link</a>
+                }
             </div>
         </div>
     </div>
+    }
 
-    <iframe *ngIf="jupyterUrl" [src]="jupyterUrl" (load)="onLoad()" title="Jupyter Notebook" class="jupyter-iframe">
+    @if (jupyterUrl()) {
+    <iframe [src]="jupyterUrl()" (load)="onLoad()" title="Jupyter Notebook" class="jupyter-iframe">
     </iframe>
+    }
 </div>

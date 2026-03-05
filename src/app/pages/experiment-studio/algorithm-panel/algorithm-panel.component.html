@@ -83,10 +83,10 @@
   </aside>
 
   <!-- Tooltip for Algorithm Details (Moved outside to avoid backdrop-filter coordinate issues) -->
-  @if (tooltipVisible) {
-  <div class="tooltip" [style.top.px]="tooltipPosition.y" [style.left.px]="tooltipPosition.x">
-    <h5 class="tooltip-title">{{ tooltipData?.label }}</h5>
-    <div class="tooltip-description" [innerHTML]="tooltipData?.description"></div>
+  @if (tooltipVisible()) {
+  <div class="tooltip" [style.top.px]="tooltipPosition().y" [style.left.px]="tooltipPosition().x">
+    <h5 class="tooltip-title">{{ tooltipData()?.label }}</h5>
+    <div class="tooltip-description" [innerHTML]="tooltipData()?.description"></div>
 
     @if (getVariableRequirement() || getCovariateRequirement()) {
     <div class="tooltip-requirements">
@@ -158,7 +158,7 @@
               i
             </button>
 
-            <aside id="info-panel" class="experiment-info-panel" [class.open]="infoPanelOpen">
+            <aside id="info-panel" class="experiment-info-panel" [class.open]="infoPanelOpen()">
               <header class="info-panel-header">
                 <div class="info-title-block">
                   <h3>Experiment summary</h3>

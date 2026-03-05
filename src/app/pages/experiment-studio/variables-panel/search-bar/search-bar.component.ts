@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, OnInit, ElementRef, HostListener, SimpleChanges, OnChanges, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnInit, ElementRef, SimpleChanges, OnChanges, inject, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from "@angular/forms";
 
 @Component({
@@ -8,7 +8,10 @@ import { FormsModule } from "@angular/forms";
     FormsModule,
   ],
   styleUrls: ['./search-bar.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:click)': 'onOutsideClick($event)',
+  }
 })
 export class SearchBarComponent implements OnInit, OnChanges {
   private eRef = inject(ElementRef);
@@ -65,8 +68,6 @@ export class SearchBarComponent implements OnInit, OnChanges {
     return name.replace(re, '<mark>$1</mark>');
   }
 
-
-  @HostListener('document:click', ['$event'])
   onOutsideClick(event: Event): void {
     if (!this.eRef.nativeElement.contains(event.target)) {
       this.closeSearch();

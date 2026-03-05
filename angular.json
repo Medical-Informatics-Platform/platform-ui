@@ -16,9 +16,7 @@
             "outputPath": "dist/fl-platform",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": [
-              "zone.js"
-            ],
+            "polyfills": [],
             "tsConfig": "tsconfig.app.json",
             "assets": [
               "src/assets",
@@ -93,8 +91,7 @@
           "builder": "@angular-devkit/build-angular:karma",
           "options": {
             "polyfills": [
-              "zone.js",
-              "zone.js/testing"
+              "src/test-console-filter.ts"
             ],
             "tsConfig": "tsconfig.spec.json",
             "assets": [

@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
 import { AlgorithmTableRegistry, TableSpec } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
@@ -7,7 +7,8 @@ import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
   selector: 'app-auto-renderer',
   imports: [],
   templateUrl: './auto-renderer.component.html',
-  styleUrl: './auto-renderer.component.css'
+  styleUrl: './auto-renderer.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AutoRendererComponent implements OnChanges {
   @Input() value: any = null;
