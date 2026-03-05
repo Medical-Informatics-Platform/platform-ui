@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CdkDragDrop, DragDropModule, transferArrayItem } from '@angular/cdk/drag-drop'
@@ -9,18 +9,19 @@ import { D3HierarchyNode } from '../../../../models/data-model.interface';
   selector: 'app-variable-filter-selection',
   templateUrl: './variable-filter-selection.component.html',
   styleUrls: ['./variable-filter-selection.component.css'],
-  imports: [CommonModule, DragDropModule]
+  imports: [CommonModule, DragDropModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class VariableFilterSelectionComponent implements OnInit {
+export class VariableFilterSelectionComponent {
   @Input() selectedNode: any; // Selected node from the bubble chart
   @Input() groupVariables: any[] = [];
   @Output() filtersChange = new EventEmitter<any[]>();
   @Output() variableClicked = new EventEmitter<any>();
 
   filterLogic: any;
-  variables: any[] = [];
-  covariates: any[] = [];
-  filters: any[] = [];
+  readonly variables = computed(() => this.expStudioService.selectedVariables());
+  readonly covariates = computed(() => this.expStudioService.selectedCovariates());
+  readonly filters = computed(() => this.expStudioService.selectedFilters());
 
   constructor(private expStudioService: ExperimentStudioService) {
     effect(() => {
@@ -28,22 +29,6 @@ export class VariableFilterSelectionComponent implements OnInit {
       // activates availableGroupedAlgorithms to recalculate available algorithms
       this.expStudioService.availableGroupedAlgorithms();
     });
-
-    effect(() => {
-      this.variables = this.expStudioService.selectedVariables();
-    });
-
-    effect(() => {
-      this.covariates = this.expStudioService.selectedCovariates();
-    });
-
-    effect(() => {
-      this.filters = this.expStudioService.selectedFilters();
-    });
-  }
-
-  ngOnInit(): void {
-
   }
 
   onVariableClick(node: D3HierarchyNode): void {
@@ -86,13 +71,11 @@ export class VariableFilterSelectionComponent implements OnInit {
       return;
     }
 
-    const list = this[listName];
+    const list = this.getListByName(listName);
     const updated = [
       ...list,
       ...itemsToAdd.filter(item => !list.some(existing => existing.code === item.code))
     ];
-
-    this[listName] = updated;
 
     if (listName === 'variables') {
       itemsToAdd.forEach(item => this.expStudioService.addVariableAndEnrich(item));
@@ -118,12 +101,9 @@ export class VariableFilterSelectionComponent implements OnInit {
     );
 
     // Sync all lists after move so availability recalculates correctly
-    this.variables = [...this.variables];
-    this.covariates = [...this.covariates];
-    this.filters = [...this.filters];
-    this.expStudioService.setVariables(this.variables);
-    this.expStudioService.setCovariates(this.covariates);
-    this.expStudioService.setFilters(this.filters);
+    this.expStudioService.setVariables([...this.variables()]);
+    this.expStudioService.setCovariates([...this.covariates()]);
+    this.expStudioService.setFilters([...this.filters()]);
   }
 
   addVariable(): void {
@@ -140,24 +120,20 @@ export class VariableFilterSelectionComponent implements OnInit {
 
   isNodeSelectedAndNotInList(listName: 'variables' | 'covariates' | 'filters'): boolean {
     if (!this.selectedNode || this.selectedNode.children) return false;
-    const list = this[listName];
+    const list = this.getListByName(listName);
     return !list.some(item => item.code === this.selectedNode.code);
   }
 
   removeItem(item: any, listName: string): void {
     switch (listName) {
       case 'variables':
-        this.variables = this.variables.filter((v) => v.label !== item.label);
-        this.updateService('variables', [...this.variables]);
+        this.updateService('variables', this.variables().filter((v) => v.label !== item.label));
         break;
       case 'covariates':
-        this.covariates = this.covariates.filter((c) => c.label !== item.label);
-        this.updateService('covariates', [...this.covariates]);
+        this.updateService('covariates', this.covariates().filter((c) => c.label !== item.label));
         break;
       case 'filters':
-        this.filters = this.filters.filter((f) => f.label !== item.label);
-        this.updateFilters([...this.filters]);
-        this.updateService('filters', [...this.filters]);
+        this.updateFilters(this.filters().filter((f) => f.label !== item.label));
         break;
       default:
         throw new Error(`Invalid listName: ${listName}`);
@@ -167,15 +143,12 @@ export class VariableFilterSelectionComponent implements OnInit {
   clearList(listName: string): void {
     switch (listName) {
       case 'variables':
-        this.variables = [];
         this.updateService('variables', []);
         break;
       case 'covariates':
-        this.covariates = [];
         this.updateService('covariates', []);
         break;
       case 'filters':
-        this.filters = [];
         this.updateService('filters', []);
         break;
       default:
@@ -190,15 +163,14 @@ export class VariableFilterSelectionComponent implements OnInit {
 
   // Check for redundant code
   updateFilters(updatedFilters: any[]): void {
-    this.filters = updatedFilters;
-    this.updateService('filters', updatedFilters);
+    this.updateService('filters', [...updatedFilters]);
   }
 
   onFiltersChange(updatedFilters: any[]): void {
     if (Array.isArray(updatedFilters)) {
-      this.filters = [...updatedFilters];
-      this.filtersChange.emit(this.filters); // this emits an event if a filter exists
-      this.updateService('filters', this.filters);
+      const nextFilters = [...updatedFilters];
+      this.filtersChange.emit(nextFilters); // this emits an event if a filter exists
+      this.updateService('filters', nextFilters);
     }
   }
 
@@ -218,6 +190,19 @@ export class VariableFilterSelectionComponent implements OnInit {
       case 'filters':
         this.expStudioService.setFilters(updatedList);
         break;
+    }
+  }
+
+  private getListByName(listName: 'variables' | 'covariates' | 'filters'): any[] {
+    switch (listName) {
+      case 'variables':
+        return this.variables();
+      case 'covariates':
+        return this.covariates();
+      case 'filters':
+        return this.filters();
+      default:
+        return [];
     }
   }
 }

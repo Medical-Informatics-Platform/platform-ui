@@ -1,11 +1,11 @@
-import { Component, ElementRef, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { createHistogram } from './histogram-chart';
 
 @Component({
   selector: 'app-histogram',
-  standalone: true,
   templateUrl: './histogram.component.html',
   styleUrls: ['./histogram.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HistogramComponent implements OnChanges {
   @Input() data: { bins: string[]; counts: number[]; variableName: string; variableType?: string } | null = null; // Data for histogram

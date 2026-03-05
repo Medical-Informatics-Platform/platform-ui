@@ -4,7 +4,7 @@ import { ExperimentStudioService } from '../../../services/experiment-studio.ser
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { of } from 'rxjs';
-import { signal } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 
 describe('StatisticAnalysisPanelComponent', () => {
     let component: StatisticAnalysisPanelComponent;
@@ -30,6 +30,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         await TestBed.configureTestingModule({
             imports: [StatisticAnalysisPanelComponent], // Standalone component
             providers: [
+                provideZonelessChangeDetection(),
                 { provide: ExperimentStudioService, useValue: mockExpService },
                 { provide: ChartBuilderService, useValue: mockChartBuilder },
                 { provide: PdfExportService, useValue: mockPdfService }

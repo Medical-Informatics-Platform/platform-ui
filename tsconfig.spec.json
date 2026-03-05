@@ -10,6 +10,7 @@
   },
   "include": [
     "src/**/*.spec.ts",
+    "src/test-console-filter.ts",
     "src/**/*.d.ts"
   ]
 }

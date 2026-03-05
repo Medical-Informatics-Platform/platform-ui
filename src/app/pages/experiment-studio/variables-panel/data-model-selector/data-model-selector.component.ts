@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, SimpleChanges, OnChanges, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, SimpleChanges, OnChanges, OnInit } from '@angular/core';
 import { FormsModule } from "@angular/forms";
 import { DataModel } from '../../../../models/data-model.interface';
 
@@ -6,6 +6,7 @@ import { DataModel } from '../../../../models/data-model.interface';
     selector: 'app-data-model-selector',
     templateUrl: './data-model-selector.component.html',
     styleUrls: ['./data-model-selector.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         FormsModule,
     ]

@@ -1,5 +1,20 @@
-import { Input, OnChanges, OnInit, SimpleChanges, AfterViewInit, ViewChild, OnDestroy, NgZone } from '@angular/core';
-import { Component, EventEmitter, Output, ElementRef } from '@angular/core';
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  NgZone,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  SimpleChanges,
+  ViewChild,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { createZoomableCirclePacking } from './zoomable-circle-packing';
 
@@ -7,7 +22,8 @@ import { createZoomableCirclePacking } from './zoomable-circle-packing';
   selector: 'app-bubble-chart',
   templateUrl: './bubble-chart.component.html',
   styleUrls: ['./bubble-chart.component.css'],
-  imports: [FormsModule]
+  imports: [FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 
 export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
@@ -46,7 +62,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   private isAnimating = false;
 
 
-  error: string | null = null; // Holds the current error message
+  readonly error = signal<string | null>(null); // Holds the current error message
   readonly DEFAULT_PALETTE = {
     variable: '#2b33e9',     // Brand Blue (--variable-color)
     covariate: '#ccb692',    // Muted Sand (--covariate-color)
@@ -76,10 +92,10 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     groupEnd: string;
   } = { ...this.DEFAULT_PALETTE };
 
-  showSettings = false;
+  readonly showSettings = signal(false);
 
   toggleSettings(): void {
-    this.showSettings = !this.showSettings;
+    this.showSettings.update((open) => !open);
   }
 
   applyColorMode(mode: 'default' | 'colorBlind' | 'custom'): void {
@@ -130,7 +146,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   constructor(
     private elementRef: ElementRef,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -223,10 +240,12 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     if (!container) return;
 
     if (!this.d3Data) {
-      this.error = 'No data available for visualization.';
+      this.error.set('No data available for visualization.');
+      this.cdr.markForCheck();
       return;
     }
-    this.error = null;
+    this.error.set(null);
+    this.cdr.markForCheck();
 
     // Clean up previous chart if exists (e.g. tooltip)
     this.destroyFn?.();

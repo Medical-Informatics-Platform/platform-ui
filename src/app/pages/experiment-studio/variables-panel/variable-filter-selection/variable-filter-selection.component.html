@@ -13,9 +13,9 @@
           [class.pulse-hint--variable]="isNodeSelectedAndNotInList('variables')" [disabled]="!hasSelectedDatasets"
           (click)="addVariable()">
           <span>+ Variables</span>
-          <span class="counter counter--inline counter--variable">{{ variables.length }}</span>
+          <span class="counter counter--inline counter--variable">{{ variables().length }}</span>
         </button>
-        @if (variables.length > 0) {
+        @if (variables().length > 0) {
         <button class="bin-btn" (click)="clearList('variables')">
           <i class="fa fa-trash"></i>
         </button>
@@ -24,9 +24,9 @@
 
       <div class="panel-container">
         <div class="panel">
-          <ul class="horizontal-list" cdkDropList #varList="cdkDropList" [cdkDropListData]="variables"
+          <ul class="horizontal-list" cdkDropList #varList="cdkDropList" [cdkDropListData]="variables()"
             [cdkDropListConnectedTo]="[covList, filtList]" (cdkDropListDropped)="drop($event, 'variables')">
-            @for (variable of variables; track variable) {
+            @for (variable of variables(); track variable) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable': selectedNode?.code === variable.code
               }" cdkDrag (click)="onVariableClick(variable)">
@@ -53,9 +53,9 @@
           [class.pulse-hint--covariate]="isNodeSelectedAndNotInList('covariates')" [disabled]="!hasSelectedDatasets"
           (click)="addCovariate()">
           <span>+ Covariates</span>
-          <span class="counter counter--inline counter--covariate">{{ covariates.length }}</span>
+          <span class="counter counter--inline counter--covariate">{{ covariates().length }}</span>
         </button>
-        @if (covariates.length > 0) {
+        @if (covariates().length > 0) {
         <button class="bin-btn" (click)="clearList('covariates')">
           <i class="fa fa-trash"></i>
         </button>
@@ -64,9 +64,9 @@
 
       <div class="panel-container">
         <div class="panel">
-          <ul class="horizontal-list" cdkDropList #covList="cdkDropList" [cdkDropListData]="covariates"
+          <ul class="horizontal-list" cdkDropList #covList="cdkDropList" [cdkDropListData]="covariates()"
             [cdkDropListConnectedTo]="[varList, filtList]" (cdkDropListDropped)="drop($event, 'covariates')">
-            @for (covariate of covariates; track covariate) {
+            @for (covariate of covariates(); track covariate) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable highlighted-covariate':
                   selectedNode?.code === covariate.code
@@ -94,9 +94,9 @@
           [class.pulse-hint--filter]="isNodeSelectedAndNotInList('filters')" [disabled]="!hasSelectedDatasets"
           (click)="addFilter()">
           <span>+ Filters</span>
-          <span class="counter counter--inline counter--filter">{{ filters.length }}</span>
+          <span class="counter counter--inline counter--filter">{{ filters().length }}</span>
         </button>
-        @if (filters.length > 0) {
+        @if (filters().length > 0) {
         <button class="bin-btn" (click)="clearList('filters')">
           <i class="fa fa-trash"></i>
         </button>
@@ -105,9 +105,9 @@
 
       <div class="panel-container">
         <div class="panel">
-          <ul class="horizontal-list" cdkDropList #filtList="cdkDropList" [cdkDropListData]="filters"
+          <ul class="horizontal-list" cdkDropList #filtList="cdkDropList" [cdkDropListData]="filters()"
             [cdkDropListConnectedTo]="[varList, covList]" (cdkDropListDropped)="drop($event, 'filters')">
-            @for (filter of filters; track filter) {
+            @for (filter of filters(); track filter) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable highlighted-filter':
                   selectedNode?.code === filter.code
@@ -126,8 +126,8 @@
           </ul>
         </div>
 
-        <button class="cog-btn" (click)="openFilterConfig()" [disabled]="filters.length === 0"
-          [ngClass]="{ disabled: filters.length === 0 }">
+        <button class="cog-btn" (click)="openFilterConfig()" [disabled]="filters().length === 0"
+          [ngClass]="{ disabled: filters().length === 0 }">
           <i class="fa fa-cog"></i>
         </button>
       </div>

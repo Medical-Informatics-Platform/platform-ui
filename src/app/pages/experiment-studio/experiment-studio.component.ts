@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, HostListener, inject, OnDestroy, OnInit, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, ViewChild, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { VariablesPanelComponent } from './variables-panel/variables-panel.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -52,7 +52,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     return this.algorithmPanel?.isRunButtonDisabled() ?? true;
   }
   private destroy$ = new Subject<void>();
-  errorMessage = signal('');
+  errorMessage = computed(() => this.errorService.error() ?? '');
   activeSection = signal('variables-top');
   sidebarCollapsed = signal(false);
   private sectionObserver?: IntersectionObserver;
@@ -85,10 +85,6 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     this.errorService.clearError();
     this.expStudioService.clearDataExclusionWarnings();
     this.expStudioService.loadAndCategorizeModels().subscribe();
-
-    this.errorService.error$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((msg) => this.errorMessage.set(msg ?? ''));
 
     this.route.queryParamMap
       .pipe(takeUntil(this.destroy$))
@@ -126,7 +122,6 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   dismissError(): void {
     this.errorService.clearError();
     this.expStudioService.loadAndCategorizeModels().subscribe();
-    this.errorMessage.set('');
   }
 
   dismissDataExclusionWarnings(): void {

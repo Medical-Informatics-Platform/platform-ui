@@ -91,7 +91,7 @@ export class VariablesPanelComponent implements OnDestroy {
       if (this.d3Data) {
         this.onSelectedNodeChange(this.d3Data);
       }
-    }, { allowSignalWrites: true });
+    });
   }
 
 

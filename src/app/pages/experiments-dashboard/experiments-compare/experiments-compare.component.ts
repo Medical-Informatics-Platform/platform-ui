@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
@@ -29,7 +29,8 @@ interface CompareRow {
   selector: 'app-experiments-compare',
   imports: [CommonModule, FormsModule, AlgorithmResultComponent],
   templateUrl: './experiments-compare.component.html',
-  styleUrls: ['./experiments-compare.component.css']
+  styleUrls: ['./experiments-compare.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentsCompareComponent {
   experiments = input<Experiment[]>([]);
@@ -99,8 +100,7 @@ export class ExperimentsCompareComponent {
           void this.loadLabels(domain);
           void this.loadEnumMaps(domain);
         });
-      },
-      { allowSignalWrites: true }
+      }
     );
   }
 

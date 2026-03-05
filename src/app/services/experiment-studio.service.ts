@@ -139,7 +139,7 @@ export class ExperimentStudioService {
           this._filterLogic.set(null);
         }
       }
-    }, { allowSignalWrites: true });
+    });
 
     effect(() => {
       const selected = this.selectedDatasetsSignal();
@@ -153,7 +153,7 @@ export class ExperimentStudioService {
       } else {
         this.refreshDataModel();
       }
-    }, { allowSignalWrites: true });
+    });
 
     // Auto-deselect algorithm when it becomes unavailable due to variable/covariate changes
     effect(() => {
@@ -173,7 +173,7 @@ export class ExperimentStudioService {
         );
         this.clearSelectedAlgorithm();
       }
-    }, { allowSignalWrites: true });
+    });
 
     // --- State Persistence ---
     effect(() => {
