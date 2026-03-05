@@ -1,16 +1,19 @@
 import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   Input,
   SimpleChanges,
   OnChanges,
   effect,
-  inject
+  inject,
+  QueryList,
+  ViewChildren,
 } from '@angular/core';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { EChartsOption } from 'echarts';
-import { ViewChildren, QueryList } from '@angular/core';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
@@ -31,7 +34,8 @@ interface ModelTableBlock {
   selector: 'app-statistic-analysis-panel',
   imports: [ChartRendererComponent, SpinnerComponent],
   templateUrl: './statistic-analysis-panel.component.html',
-  styleUrls: ['./statistic-analysis-panel.component.css']
+  styleUrls: ['./statistic-analysis-panel.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatisticAnalysisPanelComponent implements OnChanges {
   @Input() processedData: any[] = [];
@@ -46,6 +50,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   private expStudioService = inject(ExperimentStudioService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
+  private cdr = inject(ChangeDetectorRef);
 
   openAccordions: Record<string, boolean> = {};
   isLoading = true;
@@ -80,6 +85,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.showBoxPlots = false;
         this.isLoading = false;
         this.expStudioService.clearDataExclusionWarnings();
+        this.cdr.markForCheck();
         return;
       }
 
@@ -90,6 +96,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['processedData']) {
       this.isLoading = this.processedData.length === 0;
+      this.cdr.markForCheck();
     }
   }
 
@@ -167,6 +174,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   fetchDescriptiveStatistics(): void {
     this.isLoading = true;
     this.expStudioService.clearDataExclusionWarnings();
+    this.cdr.markForCheck();
 
     const variables = this.expStudioService.selectedVariables();
     const covariates = this.expStudioService.selectedCovariates();
@@ -186,6 +194,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     if (!items.length) {
       this.expStudioService.clearDataExclusionWarnings();
       this.isLoading = false;
+      this.cdr.markForCheck();
       return;
     }
 
@@ -263,11 +272,13 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         if (this.nonNominalVariables.length > 0) this.buildBoxPlotCharts(response);
         if (this.nominalVariables.length > 0) this.buildNominalCharts(response);
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error(err);
         this.expStudioService.clearDataExclusionWarnings();
         this.isLoading = false;
+        this.cdr.markForCheck();
       }
     });
   }
@@ -468,6 +479,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   async exportAllDescriptiveToPDF(): Promise<void> {
     this.isExporting = true;
+    this.cdr.markForCheck();
     try {
       const numericCharts = document.querySelectorAll(
         '.hidden-charts-for-export .numeric-charts-export app-chart-renderer'
@@ -494,6 +506,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       console.error('PDF export failed:', err);
     } finally {
       this.isExporting = false;
+      this.cdr.markForCheck();
     }
   }
 

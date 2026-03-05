@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Output, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { input, computed, effect, signal } from '@angular/core';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
@@ -17,7 +17,8 @@ import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
   selector: 'app-experiment-details',
   templateUrl: './experiment-detail.component.html',
   styleUrls: ['./experiment-detail.component.css'],
-  imports: [CommonModule, AlgorithmResultComponent, SpinnerComponent]
+  imports: [CommonModule, AlgorithmResultComponent, SpinnerComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentDetailsComponent {
   selectedExperiment = input<Experiment | null>(null);
@@ -110,8 +111,7 @@ export class ExperimentDetailsComponent {
       () => {
         const exp = this.selectedExperiment();
         this.isShared.set(!!exp?.isShared);
-      },
-      { allowSignalWrites: true }
+      }
     );
 
     // Load results for selected experiment
@@ -127,8 +127,7 @@ export class ExperimentDetailsComponent {
         }
 
         this.fetchResult(exp.id);
-      },
-      { allowSignalWrites: true }
+      }
     );
 
     // Load label map for domain (cached by service)
@@ -137,8 +136,7 @@ export class ExperimentDetailsComponent {
         const domain = this.selectedExperiment()?.domain ?? null;
         this.loadLabels(domain);
         this.loadEnumMaps(domain);
-      },
-      { allowSignalWrites: true }
+      }
     );
 
     effect(
@@ -147,8 +145,7 @@ export class ExperimentDetailsComponent {
         if (!this.isEditingName() && exp?.name) {
           this.nameDraft.set(exp.name);
         }
-      },
-      { allowSignalWrites: true }
+      }
     );
   }
 

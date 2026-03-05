@@ -1,11 +1,14 @@
-import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, HostListener, ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef } from '@angular/core';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 
 @Component({
   selector: 'app-dataset-selector',
-  standalone: true,
   templateUrl: './dataset-selector.component.html',
   styleUrls: ['./dataset-selector.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:click)': 'onOutsideClick($event)',
+  },
 })
 export class DatasetSelectorComponent implements OnChanges {
   @Input() datasets: { code: string; label: string }[] = [];
@@ -75,7 +78,6 @@ export class DatasetSelectorComponent implements OnChanges {
     this.isDropdownOpen = !this.isDropdownOpen;
   }
 
-  @HostListener('document:click', ['$event'])
   onOutsideClick(event: Event): void {
     if (!this.elementRef.nativeElement.contains(event.target)) {
       this.isDropdownOpen = false;

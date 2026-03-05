@@ -50,7 +50,7 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     const user = this.authService.authState().user;
     return this.deriveGreetingName(user);
   });
-  errorMessage = signal<string | null>(null);
+  errorMessage = computed(() => this.errorService.error());
   private destroy$ = new Subject<void>();
 
   constructor() { }
@@ -59,9 +59,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.errorService.clearError();
-    this.errorService.error$
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((msg) => this.errorMessage.set(msg));
 
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
       const expId = params.get('experiment');
@@ -111,8 +108,7 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
       this.compareIds.set([]);
 
       this.sharedExperimentId.set(null);
-    },
-    { allowSignalWrites: true }
+    }
   );
 
   ngOnDestroy(): void {

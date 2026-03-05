@@ -1,13 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 @Component({
     selector: 'app-notebook',
-    standalone: true,
     imports: [CommonModule],
     templateUrl: './notebook.component.html',
-    styleUrls: ['./notebook.component.css']
+    styleUrls: ['./notebook.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotebookComponent implements OnInit {
     private sanitizer = inject(DomSanitizer);
@@ -16,10 +16,10 @@ export class NotebookComponent implements OnInit {
     private jupyterLandingPath = this.normalizeSubPath(this.runtimeEnv.JUPYTER_LANDING_PATH || '/hub/spawn');
     private hubLoginBounceKey = 'mip_notebook_hub_login_bounced_ts_v2';
 
-    jupyterUrl: SafeResourceUrl | null = null;
-    isLoading = true;
-    needsHubLogin = false;
-    hubLoginUrl: string | null = null;
+    readonly jupyterUrl = signal<SafeResourceUrl | null>(null);
+    readonly isLoading = signal(true);
+    readonly needsHubLogin = signal(false);
+    readonly hubLoginUrl = signal<string | null>(null);
 
     ngOnInit() {
         // Do not try to run the OAuth/Keycloak flow inside the iframe.
@@ -50,7 +50,7 @@ export class NotebookComponent implements OnInit {
     onLoad() {
         // Iframe load can fire during initial change detection; defer state mutation.
         setTimeout(() => {
-            this.isLoading = false;
+            this.isLoading.set(false);
         });
     }
 
@@ -59,13 +59,13 @@ export class NotebookComponent implements OnInit {
         // /hub/home returns 200 when authenticated, and 302 -> /hub/login otherwise.
         const hasHubSession = await this.hasHubSession();
         if (!hasHubSession) {
-            this.hubLoginUrl = this.buildHubLoginUrl();
+            this.hubLoginUrl.set(this.buildHubLoginUrl());
             if (this.bounceToHubLoginOnce()) {
                 return;
             }
             // Don't try embedding a login flow in an iframe (blocked by most IdPs/browsers).
-            this.needsHubLogin = true;
-            this.isLoading = false;
+            this.needsHubLogin.set(true);
+            this.isLoading.set(false);
             return;
         }
 
@@ -76,10 +76,10 @@ export class NotebookComponent implements OnInit {
             // ignore storage errors
         }
 
-        this.isLoading = true;
-        this.jupyterUrl = this.sanitizer.bypassSecurityTrustResourceUrl(
+        this.isLoading.set(true);
+        this.jupyterUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(
             this.buildJupyterUrl(this.jupyterLandingPath)
-        );
+        ));
     }
 
     private async hasHubSession(): Promise<boolean> {

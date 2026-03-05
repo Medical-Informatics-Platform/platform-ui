@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, computed, signal, Input, effect, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Output, EventEmitter, computed, signal, Input, effect, OnInit } from '@angular/core';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { Experiment } from '../../../models/experiments-dashboard.model';
@@ -12,7 +12,8 @@ import { ExperimentFilters } from '../experiment-search/experiment-filter.model'
   selector: 'app-experiments-list',
   imports: [CommonModule, FormsModule, RouterModule, ExperimentSearchComponent],
   templateUrl: './experiment-list.component.html',
-  styleUrls: ['./experiment-list.component.css']
+  styleUrls: ['./experiment-list.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentsListComponent implements OnInit {
   @Output() experimentSelected = new EventEmitter<Experiment>();
@@ -47,7 +48,7 @@ export class ExperimentsListComponent implements OnInit {
         this.onlyMine(),
         this.filters()
       );
-    }, { allowSignalWrites: true });
+    });
   }
 
   ngOnInit(): void {

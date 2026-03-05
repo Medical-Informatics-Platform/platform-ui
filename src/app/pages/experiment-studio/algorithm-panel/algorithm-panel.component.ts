@@ -1,5 +1,5 @@
 import { SessionStorageService } from './../../../services/session-storage.service';
-import { Component, inject, signal, computed, effect, Input, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -26,7 +26,8 @@ import { VariableTypes } from '../../../core/constants/algorithm.constants';
     SpinnerComponent
   ],
   templateUrl: './algorithm-panel.component.html',
-  styleUrls: ['./algorithm-panel.component.css']
+  styleUrls: ['./algorithm-panel.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 
 export class AlgorithmPanelComponent {
@@ -180,7 +181,7 @@ export class AlgorithmPanelComponent {
         ? stored
         : this.experimentStudioService.isCrossValidationAlgorithm(algorithm.name);
       this.crossValidationEnabled.set(defaultValue);
-    }, { allowSignalWrites: true });
+    });
 
     effect(() => {
       const algorithm = this.selectedAlgorithm();
@@ -218,7 +219,7 @@ export class AlgorithmPanelComponent {
 
       const hasAny = Object.values(next).some(v => v && v !== 'none');
       this.transformationEnabled.set(hasAny);
-    }, { allowSignalWrites: true });
+    });
 
     effect(() => {
       // Establish dependencies
@@ -230,7 +231,7 @@ export class AlgorithmPanelComponent {
       this.result.set(null);
       this.saveAsMode.set(false);
       this.saveAsName.set('');
-    }, { allowSignalWrites: true });
+    });
 
     effect(() => {
       const groups = this.experimentStudioService.availableGroupedAlgorithms();
@@ -357,7 +358,7 @@ export class AlgorithmPanelComponent {
           return changed ? next : current;
         });
       }
-    }, { allowSignalWrites: true });
+    });
   }
 
 
@@ -503,10 +504,10 @@ export class AlgorithmPanelComponent {
   }
 
   openCategories = signal<string[]>([]);
-  infoPanelOpen = false;
-  tooltipVisible = false;
-  tooltipPosition = { x: 0, y: 0 };
-  tooltipData: any = null;
+  readonly infoPanelOpen = signal(false);
+  readonly tooltipVisible = signal(false);
+  readonly tooltipPosition = signal({ x: 0, y: 0 });
+  readonly tooltipData = signal<any | null>(null);
 
   selectAlgorithm(algorithm: AlgorithmConfig) {
     // Use service method so it enriches configSchema and persists to sessionStorage
@@ -752,7 +753,7 @@ export class AlgorithmPanelComponent {
   }
 
   toggleInfoPanel() {
-    this.infoPanelOpen = !this.infoPanelOpen;
+    this.infoPanelOpen.update((open) => !open);
   }
 
   showTooltip(algorithm: any, event: MouseEvent) {
@@ -772,11 +773,11 @@ export class AlgorithmPanelComponent {
     // Vertical: Aligned with the top of the hovered item
     let y = rect.top;
 
-    this.tooltipVisible = true;
-    this.tooltipData = algorithm;
+    this.tooltipVisible.set(true);
+    this.tooltipData.set(algorithm);
 
     // Immediate initial placement
-    this.tooltipPosition = { x, y };
+    this.tooltipPosition.set({ x, y });
 
     // Refinement after render
     setTimeout(() => {
@@ -799,19 +800,19 @@ export class AlgorithmPanelComponent {
       // Safety: don't let it go off the top
       if (y < padding) y = padding;
 
-      this.tooltipPosition = { x: Math.max(padding, x), y };
+      this.tooltipPosition.set({ x: Math.max(padding, x), y });
     }, 0);
 
     if (algorithm.isDisabled) {
-      this.tooltipData = {
+      this.tooltipData.set({
         ...algorithm,
         description: `${algorithm.description || 'No description available.'}<br><span class='unavailable-warning'> This algorithm is currently unavailable for the selected variables.</span><br>`,
-      };
+      });
     }
   }
 
   hideTooltip() {
-    this.tooltipVisible = false;
+    this.tooltipVisible.set(false);
   }
 
   hasText(value: any): boolean {
@@ -882,14 +883,14 @@ export class AlgorithmPanelComponent {
   }
 
   getVariableRequirement(algo?: any): string | null {
-    const target = algo || this.tooltipData;
+    const target = algo || this.tooltipData();
     const override = this.experimentStudioService.getAlgorithmRequirementOverrides(target);
     if (override?.y) return override.y;
     return this.getRoleRequirement(target?.inputdata?.y, 'Variable');
   }
 
   getCovariateRequirement(algo?: any): string | null {
-    const target = algo || this.tooltipData;
+    const target = algo || this.tooltipData();
     const override = this.experimentStudioService.getAlgorithmRequirementOverrides(target);
     if (override?.x) {
       if (/:\s*none$/i.test(override.x)) {

@@ -1,5 +1,5 @@
 import { EnumValue } from '../../../../models/data-model.interface';
-import { Component, Output, EventEmitter, OnInit, effect, signal, computed, Input, SimpleChanges, OnChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Output, EventEmitter, OnInit, effect, signal, computed, Input, SimpleChanges, OnChanges } from '@angular/core';
 import { QueryBuilderConfig, QueryBuilderModule } from "@kerwin612/ngx-query-builder";
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CommonModule } from '@angular/common';
@@ -11,7 +11,8 @@ type SupportedType = 'real' | 'integer' | 'nominal';
   selector: 'app-filter-config-modal',
   imports: [CommonModule, FormsModule, QueryBuilderModule],
   templateUrl: './filter-config-modal.component.html',
-  styleUrls: ['./filter-config-modal.component.css']
+  styleUrls: ['./filter-config-modal.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FilterConfigModalComponent implements OnInit, OnChanges {
   @Input() filterLogic: any | null = null;
@@ -109,7 +110,7 @@ export class FilterConfigModalComponent implements OnInit, OnChanges {
       });
 
 
-    }, { allowSignalWrites: true });
+    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {

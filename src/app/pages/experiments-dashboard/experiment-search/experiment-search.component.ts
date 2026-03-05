@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { CommonModule } from "@angular/common";
 import { ExperimentDatePreset, ExperimentFilters, } from "./experiment-filter.model";
@@ -7,7 +7,8 @@ import { ExperimentDatePreset, ExperimentFilters, } from "./experiment-filter.mo
     selector: 'app-experiment-search',
     imports: [CommonModule, FormsModule],
     templateUrl: './experiment-search.component.html',
-    styleUrls: ['./experiment-search.component.css']
+    styleUrls: ['./experiment-search.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentSearchComponent implements OnDestroy {
   @Input({ required: true }) filters!: ExperimentFilters;
