@@ -3,13 +3,19 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 # Install dependencies with cache mount for npm cache
-COPY package.json package-lock.json ./
+# Some branches intentionally do not track package-lock.json.
+# Copy whichever npm manifest files exist and install accordingly.
+COPY package*.json ./
 RUN npm config set fetch-retries 10 \
     && npm config set fetch-retry-mintimeout 30000 \
     && npm config set fetch-retry-maxtimeout 300000
 
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmjs.org/
+    if [ -f package-lock.json ]; then \
+      npm ci --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmjs.org/; \
+    else \
+      npm install --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmjs.org/; \
+    fi
 
 
 # Copy source code
