@@ -74,16 +74,8 @@ export class TermsPageComponent implements OnInit {
 
     this.http.post('/services/activeUser/agreeNDA', {}).subscribe({
       next: () => {
-        this.authService.refreshAuthState().subscribe({
-          next: () => {
-            navigateToDashboard();
-          },
-          error: () => {
-            this.submitting = false;
-            this.acceptError = true;
-            this.cdr.markForCheck();
-          }
-        });
+        this.authService.markTermsAccepted();
+        navigateToDashboard();
       },
       error: () => {
         this.submitting = false;
@@ -251,12 +243,14 @@ export class TermsPageComponent implements OnInit {
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
       .replace(/\[([^\]]+)\]\((mailto:[^)]+)\)/g, '<a href="$2">$1</a>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/_([^_]+)_/g, '<em>$1</em>');
+      .replace(/_([^_]+)_/g, '<em>$1</em>')
+      .replace(/&lt;u&gt;/gi, '<u>')
+      .replace(/&lt;\/u&gt;/gi, '</u>');
   }
 
   private escapeHtml(value: string): string {
     return value
-      .replace(/&/g, '&amp;')
+      .replace(/&(?!#?[a-zA-Z0-9]+;)/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
