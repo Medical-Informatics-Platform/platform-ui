@@ -38,9 +38,10 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     JUPYTER_LANDING_PATH=/hub/spawn \
     FRONTEND_VERSION=10.0.1 \
     BACKEND_VERSION=8.2.0 \
-    EXAFLOW_VERSION=0.28.0
+    EXAFLOW_VERSION=0.28.0 \
+    MIP_VERSION=9.0.0
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
 EXPOSE 80
-CMD ["/bin/sh", "-c", "envsubst '$$PLATFORM_BACKEND_SERVER $$PLATFORM_BACKEND_CONTEXT $$NOTEBOOK_ENABLED $$JUPYTER_SERVER $$JUPYTER_CONTEXT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && envsubst '$$FRONTEND_VERSION $$BACKEND_VERSION $$EXAFLOW_VERSION $$NOTEBOOK_ENABLED $$JUPYTER_CONTEXT $$JUPYTER_LANDING_PATH' < /usr/share/nginx/html/assets/env.template.js > /usr/share/nginx/html/assets/env.js && exec nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '$$PLATFORM_BACKEND_SERVER $$PLATFORM_BACKEND_CONTEXT $$NOTEBOOK_ENABLED $$JUPYTER_SERVER $$JUPYTER_CONTEXT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && envsubst '$$FRONTEND_VERSION $$BACKEND_VERSION $$EXAFLOW_VERSION $$MIP_VERSION $$NOTEBOOK_ENABLED $$JUPYTER_CONTEXT $$JUPYTER_LANDING_PATH' < /usr/share/nginx/html/assets/env.template.js > /usr/share/nginx/html/assets/env.js && exec nginx -g 'daemon off;'"]
