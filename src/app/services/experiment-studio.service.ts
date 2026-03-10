@@ -12,6 +12,7 @@ import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
 import { AlgorithmNames, VariableTypes } from '../core/constants/algorithm.constants';
+import { RuntimeEnvService } from './runtime-env.service';
 
 
 @Injectable({ providedIn: 'root' })
@@ -20,6 +21,7 @@ export class ExperimentStudioService {
   private sessionStorage = inject(SessionStorageService);
   private errorService = inject(ErrorService);
   private algorithmRulesService = inject(AlgorithmRulesService);
+  private runtimeEnvService = inject(RuntimeEnvService);
 
   private apiUrl = '/services/data-models';
   private experimentUrl = '/services/experiments';
@@ -586,6 +588,7 @@ export class ExperimentStudioService {
     const yPayload = this.rolePayload(algoConfig, 'y', variables);
     const xPayload = this.rolePayload(algoConfig, 'x', covariates);
     // generic build
+    const mipVersion = this.runtimeEnvService.mipVersion;
     const body = {
       name: expName,
       algorithm: {
@@ -600,7 +603,7 @@ export class ExperimentStudioService {
         parameters: config,
         preprocessing: null,
       },
-      mipVersion: (window as any).__env?.MIP_VERSION || '9.0.0'
+      ...(mipVersion ? { mipVersion } : {}),
     };
     return body;
   }

@@ -17,6 +17,7 @@ import { EChartsOption } from 'echarts';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
 
 
 type TabKey = 'Variables' | 'Model' | 'Distributions';
@@ -45,12 +46,13 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   @ViewChildren(ChartRendererComponent)
   chartRenderers!: QueryList<ChartRendererComponent>;
   isExporting = false;
-  readonly mipVersion = (window as any).__env?.MIP_VERSION || '9.0.0';
 
   private expStudioService = inject(ExperimentStudioService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
   private cdr = inject(ChangeDetectorRef);
+  private runtimeEnvService = inject(RuntimeEnvService);
+  readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   openAccordions: Record<string, boolean> = {};
   isLoading = true;

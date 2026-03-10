@@ -13,6 +13,7 @@ import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { VariableTypes } from '../../../core/constants/algorithm.constants';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
 
 
 @Component({
@@ -34,6 +35,7 @@ export class AlgorithmPanelComponent {
   pdfExport = inject(ResultsPdfExportService);
   private errorService = inject(ErrorService);
   private authService = inject(AuthService);
+  private runtimeEnvService = inject(RuntimeEnvService);
   Object = Object;
   experimentStudioService = inject(ExperimentStudioService);
   sessionStorage = inject(SessionStorageService);
@@ -48,7 +50,7 @@ export class AlgorithmPanelComponent {
   saveAsName = signal('');
   loadingText = signal('Processing experiment...');
   showSuccessNotification = signal(false);
-  mipVersion = (window as any).__env?.MIP_VERSION || '9.0.0';
+  readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   readonly selectedAlgorithm = this.experimentStudioService.selectedAlgorithm;
   readonly enumMaps = computed(() => this.experimentStudioService.getCategoricalEnumMaps());
