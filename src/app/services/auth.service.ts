@@ -89,6 +89,16 @@ export class AuthService {
     return this.authState().user ?? null;
   }
 
+  markTermsAccepted(): void {
+    const state = this.authState();
+    if (state.status === 'authenticated' && state.user) {
+      this.authStateSignal.set({
+        ...state,
+        user: { ...state.user, agreeNDA: true }
+      });
+    }
+  }
+
   onAuthResolved(): Observable<AuthState> {
     return this.authState$.pipe(filter((state) => state.status !== 'checking'));
   }

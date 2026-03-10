@@ -29,12 +29,13 @@
     </div>
 
     <div class="footer-right">
+      @if (versionEntries.length) {
       <div class="footer-versions">
-        <span>Frontend: {{ versions.frontend }}, </span>
-        <span>Backend: {{ versions.backend }}, </span>
-        <span>Exaflow: {{ versions.exaflow }}, </span>
-        <span>MIP: {{ versions.mip }}</span>
+        @for (version of versionEntries; track version.label) {
+        <span>{{ version.label }}: {{ version.value }}</span>
+        }
       </div>
+      }
     </div>
   </div>
 </footer>

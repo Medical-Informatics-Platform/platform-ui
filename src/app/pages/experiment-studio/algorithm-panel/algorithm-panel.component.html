@@ -295,10 +295,12 @@
         [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
         [algorithmLabel]="resultAlgorithmLabel()" />
 
+      @if (mipVersion) {
       <div class="mip-version-bar">
         <span class="mip-version-label">MIP Version:</span>
         <span class="mip-version-value">{{ mipVersion }}</span>
       </div>
+      }
     </section>
     } @else if (selectedAlgorithm()) {
     <section class="experiment-settings">
