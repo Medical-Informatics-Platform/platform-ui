@@ -35,11 +35,7 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     NOTEBOOK_ENABLED=0 \
     JUPYTER_SERVER=jupyterhub:8000 \
     JUPYTER_CONTEXT=notebook \
-    JUPYTER_LANDING_PATH=/hub/spawn \
-    FRONTEND_VERSION=10.0.1 \
-    BACKEND_VERSION=8.2.0 \
-    EXAFLOW_VERSION=0.28.0 \
-    MIP_VERSION=9.0.0
+    JUPYTER_LANDING_PATH=/hub/spawn
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
