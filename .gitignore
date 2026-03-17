@@ -49,6 +49,8 @@ Thumbs.db
 # Compiled source
 *.js
 *.js.map
+!src/assets/env.js
+!src/assets/env.template.js
 
 # TypeScript type definition files
 *.d.ts
