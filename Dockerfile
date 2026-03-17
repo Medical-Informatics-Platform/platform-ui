@@ -36,8 +36,10 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     JUPYTER_SERVER=jupyterhub:8000 \
     JUPYTER_CONTEXT=notebook \
     JUPYTER_LANDING_PATH=/hub/spawn
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
 EXPOSE 80
-CMD ["/bin/sh", "-c", "envsubst '$$PLATFORM_BACKEND_SERVER $$PLATFORM_BACKEND_CONTEXT $$NOTEBOOK_ENABLED $$JUPYTER_SERVER $$JUPYTER_CONTEXT' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && envsubst '$$FRONTEND_VERSION $$BACKEND_VERSION $$EXAFLOW_VERSION $$MIP_VERSION $$NOTEBOOK_ENABLED $$JUPYTER_CONTEXT $$JUPYTER_LANDING_PATH' < /usr/share/nginx/html/assets/env.template.js > /usr/share/nginx/html/assets/env.js && exec nginx -g 'daemon off;'"]
+CMD ["/docker-entrypoint.sh"]
