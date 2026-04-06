@@ -1,4 +1,22 @@
-<div class="experiment-studio-page full-bleed" id="studio-top">
+<div class="experiment-studio-page full-bleed premium-page" id="studio-top"
+  [class.has-pathology-warning]="!!visiblePathologyAccessWarning()">
+
+  @if (visiblePathologyAccessWarning(); as warning) {
+  <div class="pathology-warning-banner" role="status" aria-live="polite" aria-atomic="true">
+    <div class="banner-content">
+      <i class="fas fa-exclamation-triangle"></i>
+      <div class="warning-copy">
+        <div class="warning-title">{{ warning.title }}</div>
+        <p>
+          {{ warning.message }}
+          Please contact us at
+          <a class="warning-email" href="mailto:mip@chuv.ch">mip@chuv.ch</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+  }
+
   @if (errorMessage()) {
   <div class="global-error-banner" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="banner-content">
@@ -12,7 +30,8 @@
   }
 
   <div class="studio-inner studio-layout">
-    <nav class="studio-sidenav" [class.is-collapsed]="sidebarCollapsed()" aria-label="Studio navigation">
+    <nav class="studio-sidenav" [class.is-collapsed]="sidebarCollapsed()" aria-label="Studio navigation"
+      data-guide="studio-navigation">
       <div class="studio-rail-context">
         <div class="studio-rail-context-title">Experiment Studio</div>
         <a class="studio-rail-context-link" routerLink="/experiments-dashboard"
@@ -92,7 +111,7 @@
       }
 
       <!-- BOTTOM: Algorithm -->
-      <section class="studio-section studio-section--algorithm" id="algorithm-section">
+      <section class="studio-section studio-section--algorithm" id="algorithm-section" data-guide="experiment-section">
         <app-algorithm-panel></app-algorithm-panel>
       </section>
     </div>
@@ -102,4 +121,6 @@
   <app-filter-config-modal (closeModal)="expStudioService.toggleFilterConfigModal(false)"
     [filterLogic]="expStudioService.filterLogic()"></app-filter-config-modal>
   }
+
+  <app-experiment-studio-guide></app-experiment-studio-guide>
 </div>

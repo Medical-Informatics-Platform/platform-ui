@@ -10,6 +10,7 @@ import { ErrorService } from '../../services/error.service';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel/statistic-analysis-panel.component';
 import { Subject, takeUntil } from 'rxjs';
 import { FilterConfigModalComponent } from './variables-panel/filter-config-modal/filter-config-modal.component';
+import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
 
 @Component({
   selector: 'app-experiment-studio',
@@ -19,7 +20,8 @@ import { FilterConfigModalComponent } from './variables-panel/filter-config-moda
     AlgorithmPanelComponent,
     StatisticAnalysisPanelComponent,
     RouterLink,
-    FilterConfigModalComponent
+    FilterConfigModalComponent,
+    ExperimentStudioGuideComponent
   ],
   templateUrl: './experiment-studio.component.html',
   styleUrls: ['./experiment-studio.component.css'],
@@ -42,6 +44,12 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   readonly selectedDatasets = this.expStudioService.selectedDatasets;
   readonly selectedAlgorithm = this.expStudioService.selectedAlgorithm;
   readonly dataExclusionWarnings = this.expStudioService.dataExclusionWarnings;
+  readonly pathologyAccessWarning = this.expStudioService.pathologyAccessWarning;
+  readonly dismissedPathologyWarning = signal(false);
+  readonly visiblePathologyAccessWarning = computed(() => {
+    const warning = this.pathologyAccessWarning();
+    return warning && !this.dismissedPathologyWarning() ? warning : null;
+  });
   @ViewChild(AlgorithmPanelComponent) algorithmPanel?: AlgorithmPanelComponent;
 
   onRunClick() {
@@ -83,6 +91,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     this.checkSidebarCollapse();
     // Reset any lingering global errors when arriving on the studio
     this.errorService.clearError();
+    this.dismissedPathologyWarning.set(false);
     this.expStudioService.clearDataExclusionWarnings();
     this.expStudioService.loadAndCategorizeModels().subscribe();
 
@@ -126,6 +135,10 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
 
   dismissDataExclusionWarnings(): void {
     this.expStudioService.clearDataExclusionWarnings();
+  }
+
+  dismissPathologyWarning(): void {
+    this.dismissedPathologyWarning.set(true);
   }
 
   private setupSectionObserver(): void {

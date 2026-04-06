@@ -1,5 +1,6 @@
 import { CanMatchFn, Routes } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
+import { studioGuideOnboardingGuard } from './guards/studio-guide-onboarding.guard';
 import { TermsGuard } from './guards/terms.guard';
 
 const parseBool = (value: unknown, defaultValue: boolean): boolean => {
@@ -28,15 +29,10 @@ export const appRoutes: Routes = [
   {
     path: 'experiments-dashboard',
     loadComponent: () => import('./pages/experiments-dashboard/experiments-dashboard.component').then(m => m.ExperimentsDashboardComponent),
-    canActivate: [AuthGuard, TermsGuard],
+    canActivate: [AuthGuard, TermsGuard, studioGuideOnboardingGuard],
   },
   {
     path: '',
-    redirectTo: 'experiments-dashboard',
-    pathMatch: 'full'
-  },
-  {
-    path: 'home',
     redirectTo: 'experiments-dashboard',
     pathMatch: 'full'
   },

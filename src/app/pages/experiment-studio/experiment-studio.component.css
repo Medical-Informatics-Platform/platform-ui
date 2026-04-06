@@ -5,16 +5,18 @@
 
 /* Page wrapper */
 .experiment-studio-page {
+  --warning-banner-space: 0px;
   padding: 32px 16px;
   position: relative;
-  background: radial-gradient(circle at 50% 0%, #f8fafc 0%, #f1f5f9 100%);
-  /* Organic Tech Slate */
+  background: transparent;
   color: var(--text-main);
   box-sizing: border-box;
-
-
   overflow-x: hidden;
-  /* Prevent horizontal scroll */
+}
+
+.experiment-studio-page.has-pathology-warning {
+  --warning-banner-space: 96px;
+  padding-top: calc(32px + var(--warning-banner-space));
 }
 
 :host {
@@ -40,7 +42,7 @@
 
 .studio-sidenav {
   position: fixed;
-  top: 80px;
+  top: calc(80px + var(--warning-banner-space));
   left: 16px;
   width: 210px;
   height: fit-content;
@@ -48,13 +50,13 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px 12px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
-  max-height: calc(100vh - 120px);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+  max-height: calc(100vh - 120px - var(--warning-banner-space));
   overflow: visible;
   z-index: 1000;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -138,8 +140,8 @@
   .studio-sidenav {
     left: -260px;
     /* Fully hidden */
-    top: 100px;
-    height: calc(100vh - 120px);
+    top: calc(100px + var(--warning-banner-space));
+    height: calc(100vh - 120px - var(--warning-banner-space));
     border-radius: 24px;
     box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15);
     width: 210px;
@@ -361,6 +363,29 @@
   box-shadow: 0 8px 18px rgba(127, 29, 29, 0.12);
 }
 
+.pathology-warning-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  position: fixed;
+  top: calc(var(--header-height) + 12px);
+  left: 16px;
+  right: 16px;
+  z-index: 2100;
+  border: 1px solid rgba(255, 186, 8, 0.25);
+  background: rgba(255, 186, 8, 0.08); /* Keep premium looking */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #7c2d12;
+  box-shadow: 0 10px 30px rgba(255, 186, 8, 0.08);
+  margin: 0;
+  border-left: 6px solid #ffba08;
+  border-radius: 16px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+}
+
 .section-warning-banner {
   display: flex;
   justify-content: space-between;
@@ -380,6 +405,12 @@
   font-weight: 600;
 }
 
+.pathology-warning-banner .banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .section-warning-banner .banner-content {
   display: flex;
   align-items: flex-start;
@@ -389,6 +420,33 @@
 .section-warning-banner .fa-exclamation-triangle {
   margin-top: 2px;
   color: #ad7d00;
+}
+
+.pathology-warning-banner .fa-exclamation-triangle {
+  margin-top: 2px;
+  color: #b45309;
+}
+
+.warning-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warning-copy p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.warning-email {
+  color: #9a3412;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.warning-email:hover {
+  text-decoration: underline;
 }
 
 .warning-content {
@@ -503,13 +561,11 @@
 .studio-section--algorithm {
   padding: 24px;
   border-radius: var(--radius-lg);
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  /* Level 3 Technical Shadows */
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.01),
-    0 12px 24px rgba(15, 23, 42, 0.04),
-    0 24px 48px rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.05);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transition: all 0.2s ease;
   overflow: hidden;
@@ -832,4 +888,15 @@
   color: #94a3b8;
   box-shadow: none;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .experiment-studio-page.has-pathology-warning {
+    --warning-banner-space: 132px;
+  }
+
+  .pathology-warning-banner {
+    left: 12px;
+    right: 12px;
+  }
 }
