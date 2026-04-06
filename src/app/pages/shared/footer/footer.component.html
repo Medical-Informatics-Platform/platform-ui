@@ -1,41 +1,72 @@
 <footer class="main-footer">
-  <div class="footer-container">
-    <div class="footer-left">
-      <div class="footer-logos">
-        <a href="https://www.athenarc.gr/" target="_blank" class="logo-link">
-          <img src="assets/athenarc.png" alt="Athena" class="footer-logo athena-logo">
-        </a>
-        <a href="https://www.ebrains.eu/" target="_blank" class="logo-link">
-          <img src="assets/logo_ebrains.png" alt="EBRAINS" class="footer-logo ebrains-logo">
-        </a>
-        <a href="https://www.chuv.ch/" target="_blank" class="logo-link">
-          <img src="assets/logo_chuv.png" alt="CHUV" class="footer-logo chuv-logo">
-        </a>
-      </div>
-    </div>
-
-    <div class="footer-center">
-      <div class="footer-copyright-group">
-        <p class="copyright-text">
-          <span class="copyright-symbol">© 2015-{{ currentYear }}</span>
-          <a href="https://www.humanbrainproject.eu/" target="_blank" class="hbp-link">Human Brain Project</a>/
-          <a href="https://www.ebrains.eu/" target="_blank" class="ebrains-link">EBRAINS</a>.
-          All right reserved
-        </p>
-        <div class="footer-legal">
-          <a routerLink="/terms" class="legal-link">Terms of Use</a>
-        </div>
-      </div>
-    </div>
-
-    <div class="footer-right">
-      @if (versionEntries.length) {
-      <div class="footer-versions">
-        @for (version of versionEntries; track version.label) {
-        <span>{{ version.label }}: {{ version.value }}</span>
+  <div class="footer-shell">
+    <div class="footer-column brand-col">
+      <div class="footer-logo-row">
+        <img src="assets/mip-logo-short.png" alt="MIP logo" class="footer-logo">
+        @if (versionEntries.length) {
+          <div class="footer-versions">
+            @for (version of versionEntries; track version.label) {
+              <div class="version-badge">
+                <span class="version-label">{{ version.label }}</span>
+                <span class="version-value">{{ version.value }}</span>
+              </div>
+            }
+          </div>
         }
       </div>
-      }
+      <p class="footer-brand-title">Medical Informatics Platform</p>
+      <p class="footer-brand-desc">
+        A federated privacy-preserving research infrastructure for clinical data analysis across Europe.
+      </p>
     </div>
+
+    <div class="footer-column">
+      <p class="footer-col-title">Resources</p>
+      <ul class="footer-links">
+        <li>
+          <a href="https://github.com/Medical-Informatics-Platform/mip" target="_blank" rel="noopener noreferrer">
+            Documentation
+          </a>
+        </li>
+        <li><a routerLink="/terms">Terms of Use</a></li>
+        <li><a href="mailto:mip@chuv.ch">Support</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-column institutional-col">
+      <p class="footer-col-title">Powered by</p>
+      <div class="institutional-logos">
+        <a href="https://www.athenarc.gr/" target="_blank" rel="noopener noreferrer" class="partner-link">
+          <img src="assets/athenarc.png" alt="Athena Research Center logo" class="partner-logo athena-logo">
+        </a>
+        <a href="https://www.ebrains.eu/" target="_blank" rel="noopener noreferrer" class="partner-link">
+          <img src="assets/logo_ebrains.png" alt="EBRAINS logo" class="partner-logo ebrains-logo">
+        </a>
+        <a href="https://www.chuv.ch/" target="_blank" rel="noopener noreferrer" class="partner-link">
+          <img src="assets/logo_chuv.png" alt="CHUV logo" class="partner-logo chuv-logo">
+        </a>
+      </div>
+      <div class="footer-funding-badge">
+        <img src="assets/eu-flag.svg" alt="European Union flag" class="footer-funding-flag">
+        <p class="footer-funding">
+          <span>Co-funded by</span>
+          <span>the European Union</span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <p class="footer-copyright">
+      <span class="copyright-symbol">© 2015-{{ currentYear }}</span>
+      <a href="https://www.humanbrainproject.eu/" target="_blank" rel="noopener noreferrer" class="footer-meta-link">
+        Human Brain Project
+      </a>
+      <span class="footer-divider">/</span>
+      <a href="https://www.ebrains.eu/" target="_blank" rel="noopener noreferrer" class="footer-meta-link">
+        EBRAINS
+      </a>
+      <span class="footer-copy-end">All rights reserved.</span>
+    </p>
   </div>
 </footer>
