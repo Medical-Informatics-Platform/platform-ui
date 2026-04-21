@@ -18,9 +18,9 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'] },
+      y: { label: '', desc: '', types: ['real'], required: true, multiple: false },
       x: { label: '', desc: '', types: ['real'] },
-      filter: { label: '', desc: '', types: [] }
+      filter: { label: '', desc: '', types: [], required: false, multiple: false }
     },
     parameters: {}
   };
@@ -112,5 +112,15 @@ describe('ExperimentStudioService', () => {
 
     // Assert
     expect(result).toBeNull();
+  });
+
+  it('keeps an algorithm available when multiple filter variables are selected', () => {
+    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setFilters([
+      { code: 'age', label: 'Age', type: 'real' } as any,
+      { code: 'event_type', label: 'Event Type', type: 'text' } as any,
+    ]);
+
+    expect(service.isAlgorithmAvailable('mock_algo')).toBeTrue();
   });
 });

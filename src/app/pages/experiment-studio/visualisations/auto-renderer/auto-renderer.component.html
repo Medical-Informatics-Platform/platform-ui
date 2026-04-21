@@ -2,7 +2,7 @@
 <div class="ar-container">
   @for (table of tableSpec(); track table) {
   <div class="ar-card" [class.ar-card--full]="!isCompactTable(table)" [class.ar-card--compact]="isCompactTable(table)">
-    <div class="ar-header">
+    <div class="ar-header" data-guide="result-actions">
       <div class="ar-title">{{ table.title || 'Result Table' }}</div>
       <button class="ar-export-btn" (click)="exportToCSV(table)" title="Export to CSV">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"

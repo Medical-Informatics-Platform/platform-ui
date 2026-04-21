@@ -1,5 +1,5 @@
 .tos-page {
-  background: #f4f6f9;
+  background: transparent;
   min-height: calc(100vh - 120px);
   padding: 32px 20px 48px;
 }
@@ -7,11 +7,13 @@
 .tos-card {
   max-width: 1024px;
   margin: 0 auto;
-  background: #ffffff;
-  border: 1px solid #e2e6ef;
-  border-radius: 12px;
-  padding: 28px 32px 24px;
-  box-shadow: 0 10px 26px rgba(20, 20, 40, 0.05);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: var(--glass-shadow);
 }
 
 .tos-intro {
@@ -122,14 +124,15 @@
 
 .tos-proceed {
   border: none;
-  border-radius: 8px;
-  background: #2563eb;
+  border-radius: 999px;
+  background: var(--primary-color);
   color: #fff;
-  padding: 10px 20px;
+  padding: 12px 28px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.2);
 }
 
 .tos-proceed:disabled {

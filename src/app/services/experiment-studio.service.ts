@@ -14,6 +14,13 @@ import { AlgorithmRulesService } from './algorithm-rules.service';
 import { AlgorithmNames, VariableTypes } from '../core/constants/algorithm.constants';
 import { RuntimeEnvService } from './runtime-env.service';
 
+export type PathologyAccessWarningKind = 'no-pathologies' | 'no-access';
+
+export interface PathologyAccessWarning {
+  kind: PathologyAccessWarningKind;
+  title: string;
+  message: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ExperimentStudioService {
@@ -79,6 +86,8 @@ export class ExperimentStudioService {
   readonly crossSectionalModels = signal<DataModel[]>([]);
   readonly longitudinalModels = signal<DataModel[]>([]);
   readonly availableDatasets = signal<{ code: string; label: string }[]>([]);
+  private pathologyAccessWarningSignal = signal<PathologyAccessWarning | null>(null);
+  readonly pathologyAccessWarning = this.pathologyAccessWarningSignal.asReadonly();
 
   private currentExperimentUUIDSignal = signal<string | null>(null);
   readonly currentExperimentUUID = this.currentExperimentUUIDSignal.asReadonly();
@@ -165,6 +174,8 @@ export class ExperimentStudioService {
       // Read these to establish reactive dependencies
       const _variables = this.selectedVariables();
       const _covariates = this.selectedCovariates();
+      const _filters = this.selectedFilters();
+      const _filterLogic = this._filterLogic();
 
       // Check if the currently selected algorithm is still available
       const isStillAvailable = this.isAlgorithmAvailable(currentAlgo.name);
@@ -454,10 +465,11 @@ export class ExperimentStudioService {
   availableGroupedAlgorithms = computed(() => {
     // Explicitly read selection signals to establish reactive dependencies.
     // Without this, the computed only re-runs when backendAlgorithms() changes,
-    // not when variable/covariate selections change.
+    // not when variable/covariate/filter selections change.
     const _variables = this.selectedVariables();
     const _covariates = this.selectedCovariates();
     const _filters = this.selectedFilters();
+    const _filterLogic = this._filterLogic();
 
     // Hide quick-preview algorithms from the selection list.
     const hidden = new Set([
@@ -489,10 +501,18 @@ export class ExperimentStudioService {
     const algo = this.backendAlgorithms()[name];
     if (!algo?.inputdata) return false;
 
+    const filterLogic = this._filterLogic();
+    const hasActiveFilter = !!(
+      filterLogic &&
+      Array.isArray(filterLogic.rules) &&
+      filterLogic.rules.length > 0
+    );
+
     return this.algorithmRulesService.isAlgorithmAvailable(algo, {
       y: this.selectedVariables(),
       x: this.selectedCovariates(),
       filters: this.selectedFilters(),
+      hasActiveFilter,
     });
   }
 
@@ -612,10 +632,19 @@ export class ExperimentStudioService {
     if (!this.dataModelsLoaded) {
       return this.http.get<any[]>(this.apiUrl).pipe(
         tap((models) => {
+          this.pathologyAccessWarningSignal.set(null);
           this.dataModels = models;
           this.dataModelsLoaded = true;
         }),
         catchError((err) => {
+          const warning = this.resolvePathologyAccessWarning(err);
+          if (warning) {
+            this.pathologyAccessWarningSignal.set(warning);
+            this.clearLoadedDataModelState();
+            return of([]);
+          }
+
+          this.pathologyAccessWarningSignal.set(null);
           console.error('Error fetching data models:', err);
           this.errorService.setError('Failed to load data models. Please try again.');
           return of([]);
@@ -623,6 +652,42 @@ export class ExperimentStudioService {
       );
     }
     return of(this.dataModels);
+  }
+
+  private clearLoadedDataModelState(): void {
+    this.dataModels = [];
+    this.dataModelsLoaded = false;
+    this.crossSectionalModels.set([]);
+    this.longitudinalModels.set([]);
+    this.availableDatasets.set([]);
+    this.selectedDataModel.set(null);
+    this.selectedDatasetsSignal.set([]);
+    this.selectedVariablesSignal.set([]);
+    this.selectedCovariatesSignal.set([]);
+    this.selectedFiltersSignal.set([]);
+    this.selectedAlgorithm.set(null);
+  }
+
+  private resolvePathologyAccessWarning(err: any): PathologyAccessWarning | null {
+    const status = Number(err?.status ?? 0);
+
+    if (status === 404) {
+      return {
+        kind: 'no-pathologies',
+        title: 'No Pathologies Available',
+        message: 'This federation does not currently expose any pathologies to the platform.',
+      };
+    }
+
+    if (status === 403) {
+      return {
+        kind: 'no-access',
+        title: 'No Access to Federation Pathologies',
+        message: 'You do not have access to any of the pathologies available in this federation.',
+      };
+    }
+
+    return null;
   }
 
   getAllDataModels(): Observable<any[]> {

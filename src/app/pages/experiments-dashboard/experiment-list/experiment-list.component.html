@@ -1,11 +1,11 @@
 <div class="experiments-list-root">
   <!-- Search bar -->
-  <div class="list-toolbar">
+  <div class="list-toolbar" data-guide="dashboard-search">
     <app-experiment-search [filters]="filters()" (filtersChange)="patchFilters($event)"></app-experiment-search>
   </div>
 
   <!-- Experiments Tabs -->
-  <div class="filter-row experiments-tabs-row">
+  <div class="filter-row experiments-tabs-row" data-guide="dashboard-tabs">
     <div class="experiments-tabs">
       <button type="button" class="tab-btn" [class.active]="onlyMine()" (click)="setTab(true)">
         <i class="far fa-user"></i> My Experiments
@@ -18,15 +18,17 @@
 
   @if (!pagedExperiments().length) {
   <div class="empty-state">
-    <div class="empty-icon">
-      <i class="fas fa-flask"></i>
+    <div class="empty-icon-wrapper">
+      <div class="empty-icon">
+        <i class="fas fa-microscope"></i>
+      </div>
     </div>
     <h3>No experiments found</h3>
     <p>
       Ready to start your research? <br />
-      Launch the Studio to create your first experiment.
+      Explore datasets and create your first investigation.
     </p>
-    <a routerLink="/experiment-studio" class="empty-action-btn">
+    <a routerLink="/experiment-studio" class="empty-action-btn primary-action-btn">
       <i class="fas fa-plus"></i>
       Create New Experiment
     </a>
@@ -50,7 +52,7 @@
     <li class="experiment-row" [class.selected]="
         (!compareMode && exp.id === selectedExperimentId) ||
         (compareMode && isInCompare(exp.id))
-      " (click)="selectExperiment(exp)">
+      " [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)">
       <!-- LEFT: main info -->
       <div class="row-main">
         <div class="row-title-line">

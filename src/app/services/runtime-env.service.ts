@@ -1,10 +1,9 @@
-import { Injectable } from '@angular/core';
+import { Injectable, isDevMode } from '@angular/core';
 
 interface RuntimeEnv {
-  FRONTEND_VERSION?: unknown;
-  BACKEND_VERSION?: unknown;
-  EXAFLOW_VERSION?: unknown;
   MIP_VERSION?: unknown;
+  GUIDE_COVARIATE?: unknown;
+  GUIDE_VARIABLE?: unknown;
 }
 
 export interface RuntimeVersionEntry {
@@ -12,10 +11,12 @@ export interface RuntimeVersionEntry {
   value: string;
 }
 
+export interface RuntimeGuideTarget {
+  value: string;
+  label: string;
+}
+
 interface RuntimeVersions {
-  frontend: string | null;
-  backend: string | null;
-  exaflow: string | null;
   mip: string | null;
 }
 
@@ -26,6 +27,8 @@ export class RuntimeEnvService {
   readonly versions = this.readVersions();
   readonly versionEntries = this.buildVersionEntries();
   readonly mipVersion = this.versions.mip;
+  readonly guideCovariate = this.readGuideTarget('GUIDE_COVARIATE', 'Sex');
+  readonly guideVariable = this.readGuideTarget('GUIDE_VARIABLE', 'Age');
 
   private readRuntimeEnv(): RuntimeEnv {
     if (typeof window === 'undefined') {
@@ -37,19 +40,13 @@ export class RuntimeEnvService {
 
   private readVersions(): RuntimeVersions {
     return {
-      frontend: this.readVersion('FRONTEND_VERSION', 'Frontend'),
-      backend: this.readVersion('BACKEND_VERSION', 'Backend'),
-      exaflow: this.readVersion('EXAFLOW_VERSION', 'Exaflow'),
       mip: this.readVersion('MIP_VERSION', 'MIP'),
     };
   }
 
   private buildVersionEntries(): RuntimeVersionEntry[] {
     const entries = [
-      { label: 'Frontend', value: this.versions.frontend },
-      { label: 'Backend', value: this.versions.backend },
-      { label: 'Exaflow', value: this.versions.exaflow },
-      { label: 'MIP', value: this.versions.mip },
+      { label: 'Version', value: this.versions.mip },
     ];
 
     return entries.filter((entry): entry is RuntimeVersionEntry => entry.value !== null);
@@ -61,10 +58,23 @@ export class RuntimeEnvService {
       return value;
     }
 
+    if (isDevMode()) {
+      return '9.0.0';
+    }
+
     console.warn(
       `[RuntimeEnv] Expected ${label} version in window.__env.${key}, but it was not provided. The UI will hide that version until it is set.`
     );
     return null;
+  }
+
+  private readGuideTarget(key: keyof RuntimeEnv, fallback: string): RuntimeGuideTarget {
+    const value = this.readString(key) ?? fallback;
+
+    return {
+      value,
+      label: this.formatGuideTargetLabel(value),
+    };
   }
 
   private readString(key: keyof RuntimeEnv): string | null {
@@ -75,5 +85,21 @@ export class RuntimeEnvService {
 
     const value = String(rawValue).trim();
     return value.length > 0 ? value : null;
+  }
+
+  private formatGuideTargetLabel(value: string): string {
+    const normalized = value
+      .trim()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ');
+
+    if (!normalized) {
+      return value;
+    }
+
+    return normalized
+      .split(' ')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   }
 }

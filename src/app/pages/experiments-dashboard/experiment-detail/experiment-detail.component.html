@@ -1,4 +1,4 @@
-<div class="experiment-details-root">
+<div class="experiment-details-root" data-guide="dashboard-workbench">
   @if (copyToastVisible()) {
   <div class="copy-toast">
     <i class="fas fa-check-circle"></i>
@@ -11,13 +11,13 @@
     <div class="empty-illustration">
       <i class="fas fa-microscope"></i>
     </div>
-    <h2>Research Workbench</h2>
+    <h2>Dashboard</h2>
     <p>
       Select an experiment to explore insights, or create a new one to begin your investigation.
     </p>
   </div>
   } @else {
-  <div class="experiment-details-body" #resultsCard>
+  <div class="experiment-details-body" #resultsCard data-guide="dashboard-detail-card">
     <!-- META CARD -->
     <section class="experiment-meta-card">
       <div class="meta-header">
@@ -79,9 +79,10 @@
         </span>
       </div>
 
-      <div class="details-actions">
+      <div class="details-actions" data-guide="dashboard-detail-actions">
         <div class="action-group primary-actions">
-          <button type="button" class="primary-action-btn run-btn" (click)="runExperiment()">
+          <button type="button" class="primary-action-btn run-btn" (click)="runExperiment()"
+            data-guide="dashboard-edit-studio">
             <i class="far fa-edit"></i>
             <span>Edit</span>
           </button>
@@ -188,7 +189,7 @@
     }
 
     <!-- RESULTS -->
-    <section class="results-card">
+    <section class="results-card" data-guide="dashboard-results">
       <div class="results-header">
         <div>
           <h3>Results</h3>

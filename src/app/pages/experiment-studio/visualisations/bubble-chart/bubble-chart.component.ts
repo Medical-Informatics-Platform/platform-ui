@@ -6,6 +6,8 @@ import {
   ElementRef,
   EventEmitter,
   Input,
+  effect,
+  inject,
   NgZone,
   OnChanges,
   OnDestroy,
@@ -17,6 +19,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { createZoomableCirclePacking } from './zoomable-circle-packing';
+import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 
 @Component({
   selector: 'app-bubble-chart',
@@ -27,6 +30,9 @@ import { createZoomableCirclePacking } from './zoomable-circle-packing';
 })
 
 export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+  private readonly guideState = inject(ExperimentStudioGuideStateService);
+  private readonly tutorialHighlightColor = '#22c55e';
+
   @Input() d3Data: any;
   @Input() highlightNode: any | null = null;
   @Input() selectedVariables: any[] = [];
@@ -148,7 +154,18 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     private elementRef: ElementRef,
     private ngZone: NgZone,
     private cdr: ChangeDetectorRef
-  ) { }
+  ) {
+    effect(() => {
+      this.guideState.activeStepId();
+      this.guideState.expectedTutorialCovariate();
+
+      if (!this.refreshColorsFn) {
+        return;
+      }
+
+      this.refreshColorsFn(this.buildRefreshOptions());
+    });
+  }
 
   ngOnInit(): void {
     this.loadSettings();
@@ -217,12 +234,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
         changes['selectedFilters']) &&
       this.refreshColorsFn
     ) {
-      this.refreshColorsFn({
-        selectedVariables: this.selectedVariables,
-        selectedCovariates: this.selectedCovariates,
-        selectedFilters: this.selectedFilters,
-        colors: this.colors,
-      });
+      this.refreshColorsFn(this.buildRefreshOptions());
     }
   }
 
@@ -256,10 +268,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       node => this.selectedNodeChange.emit(node),
       node => this.nodeDoubleClicked.emit(node),
       {
-        selectedVariables: this.selectedVariables,
-        selectedCovariates: this.selectedCovariates,
-        selectedFilters: this.selectedFilters,
-        colors: this.colors,
+        ...this.buildRefreshOptions(),
         onAnimationStart: () => this.isAnimating = true,
         onAnimationEnd: () => this.isAnimating = false,
       }
@@ -305,11 +314,9 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     selectedFilters?: any[];
   }): void {
     if (this.refreshColorsFn) {
-      this.refreshColorsFn(newOptions ?? {
-        selectedVariables: this.selectedVariables,
-        selectedCovariates: this.selectedCovariates,
-        selectedFilters: this.selectedFilters,
-        colors: this.colors,
+      this.refreshColorsFn({
+        ...this.buildRefreshOptions(),
+        ...(newOptions ?? {}),
       });
     } else {
       console.warn('refreshColorsFn not ready yet.');
@@ -318,13 +325,80 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   onColorChange(): void {
     if (this.refreshColorsFn) {
-      this.refreshColorsFn({
-        selectedVariables: this.selectedVariables,
-        selectedCovariates: this.selectedCovariates,
-        selectedFilters: this.selectedFilters,
-        colors: this.colors,
-      });
+      this.refreshColorsFn(this.buildRefreshOptions());
     }
     this.saveSettings();
+  }
+
+  private buildRefreshOptions(): {
+    selectedVariables: any[];
+    selectedCovariates: any[];
+    selectedFilters: any[];
+    colors: {
+      variable: string;
+      covariate: string;
+      filter: string;
+      selected: string;
+      groupStart: string;
+      groupEnd: string;
+    };
+    tutorialHighlightCode: string | null;
+    tutorialHighlightColor: string;
+  } {
+    return {
+      selectedVariables: this.selectedVariables,
+      selectedCovariates: this.selectedCovariates,
+      selectedFilters: this.selectedFilters,
+      colors: this.colors,
+      tutorialHighlightCode: this.getPendingTutorialHighlightCode(),
+      tutorialHighlightColor: this.tutorialHighlightColor,
+    };
+  }
+
+  private getPendingTutorialHighlightCode(): string | null {
+    const expected = this.guideState.expectedTutorialCovariate();
+    if (!expected || this.isTutorialStepSatisfied(expected)) {
+      return null;
+    }
+
+    return this.findTutorialHighlightCode(this.d3Data, expected);
+  }
+
+  private isTutorialStepSatisfied(expected: string): boolean {
+    switch (this.guideState.activeStepId()) {
+      case 'select-sex-variable':
+      case 'select-age-variable':
+        return this.guideState.matchesTutorialCovariate(this.highlightNode, expected);
+      case 'add-sex-covariate':
+        return this.selectedCovariates.some((node) => this.guideState.matchesTutorialCovariate(node, expected));
+      case 'add-age-variable':
+        return this.selectedVariables.some((node) => this.guideState.matchesTutorialCovariate(node, expected));
+      default:
+        return false;
+    }
+  }
+
+  private findTutorialHighlightCode(node: any, expected: string): string | null {
+    if (!node) {
+      return null;
+    }
+
+    if (!node.children?.length && this.guideState.matchesTutorialCovariate(node, expected)) {
+      return this.getNodeCode(node);
+    }
+
+    for (const child of node.children ?? []) {
+      const match = this.findTutorialHighlightCode(child, expected);
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
+  }
+
+  private getNodeCode(node: any): string | null {
+    const raw = node?.code ?? node?.uniqueId ?? node?.id ?? node?.label ?? null;
+    return raw == null ? null : String(raw);
   }
 }

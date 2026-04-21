@@ -15,6 +15,7 @@ import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
+import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 
 @Component({
   selector: 'app-variables-panel',
@@ -44,6 +45,7 @@ export class VariablesPanelComponent implements OnDestroy {
   experimentStudioService = inject(ExperimentStudioService);
   pdfExportService = inject(PdfExportService);
   csvExportService = inject(CsvExportService);
+  guideState = inject(ExperimentStudioGuideStateService);
   private cdr = inject(ChangeDetectorRef);
 
   errorService = inject(ErrorService);
@@ -149,6 +151,10 @@ export class VariablesPanelComponent implements OnDestroy {
     this.onSelectedNodeChange(variable);
   }
 
+  onBubbleNodeSelected(node: any): void {
+    this.onSelectedNodeChange(node);
+  }
+
   onNodeDoubleClicked(node: any): void {
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();
@@ -239,7 +245,20 @@ export class VariablesPanelComponent implements OnDestroy {
         : null;
       this.selectedDataModel.set(next ?? models[0] ?? null);
       this.experimentStudioService.selectedDataModel.set(this.selectedDataModel() ?? null);
+      return;
     }
+
+    this.selectedDataModel.set(null);
+    this.experimentStudioService.selectedDataModel.set(null);
+    this.availableDatasets = [];
+    this.filteredVariables.set([]);
+    this.filteredGroups.set([]);
+    this.d3Data = null;
+    this.selectedNode = null;
+    this.guideState.setSelectedHierarchyNode(null);
+    this.histogramData.set(null);
+    this.groupHistogramData.set(null);
+    this.groupHistogramMeta.set(null);
   }
 
   loadVisualizationData(): void {
@@ -363,6 +382,7 @@ export class VariablesPanelComponent implements OnDestroy {
   onSelectedNodeChange(node: any): void {
     if (!node) {
       this.selectedNode = null;
+      this.guideState.setSelectedHierarchyNode(null);
       this.cdr.detectChanges();
       this.errorMessage.set(null);
       this.histogramData.set(null);
@@ -381,6 +401,7 @@ export class VariablesPanelComponent implements OnDestroy {
     }
 
     this.selectedNode = { ...node };
+    this.guideState.setSelectedHierarchyNode(this.selectedNode);
     this.cdr.detectChanges();
     this.errorMessage.set(null);
     this.histogramData.set(null); // clear previous histogram

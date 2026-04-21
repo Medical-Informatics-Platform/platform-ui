@@ -3,8 +3,8 @@
 
   <!-- Main area -->
   <div class="variables-main">
-    <div class="visualization-parameters-row">
-      <div class="bubble-column">
+    <div class="visualization-parameters-row" data-guide="variables-section">
+      <div class="bubble-column" data-guide="variable-browser">
         <div class="visualization-header">
           <div class="visualization-header-left">
             <div class="bubble-selectors">
@@ -26,11 +26,11 @@
         </div>
 
         <!-- Data model visualization -->
-        <section class="bubble-chart-section" id="data-model-visualization">
+        <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
           @if (selectedDataModel()) {
           <app-bubble-chart [d3Data]="d3Data" [highlightNode]="highlightNode" [selectedVariables]="selectedVariables"
             [selectedCovariates]="selectedCovariates" [selectedFilters]="selectedFilters"
-            (selectedNodeChange)="onSelectedNodeChange($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+            (selectedNodeChange)="onBubbleNodeSelected($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">
           </app-bubble-chart>
           }
         </section>
@@ -38,14 +38,15 @@
 
       <aside class="right-column">
         <!-- Parameters listing -->
-        <section class="panel-block variable-filter-container parameters-panel" id="parameters-listing">
+        <section class="panel-block variable-filter-container parameters-panel" id="parameters-listing"
+          data-guide="variable-containers">
           <app-variable-filter-selection #variableFilterSelection [selectedNode]="selectedNode"
             (filtersChange)="onFilterChange($event)"
             (variableClicked)="onVariableClicked($event)"></app-variable-filter-selection>
         </section>
 
         <!-- Histogram graph -->
-        <section class="panel-block histogram-panel" id="histogram-graph">
+        <section class="panel-block histogram-panel" id="histogram-graph" data-guide="variable-details">
           <div class="histogram-header">
             {{ groupHistogramData() ? 'Group Information' : 'Histogram' }}
           </div>
@@ -102,11 +103,11 @@
               <div class="empty-state-actions">
                 <div class="hint-item">
                   <i class="fas fa-mouse-pointer"></i>
-                  <span><b>Single-click</b> to view details & histogram</span>
+                  <span><b>Single-click</b> to view details and histogram. <b>Double-click</b> to add a variable</span>
                 </div>
                 <div class="hint-item">
                   <i class="fas fa-bolt"></i>
-                  <span><b>Double-click</b> to add to Variables list</span>
+                  <span><b>Use the right panel</b> to move selected items into Covariates or Filters</span>
                 </div>
               </div>
             </div>

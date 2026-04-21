@@ -7,6 +7,10 @@ import { AlgorithmNames, VariableTypes, AlgorithmRoles } from '../core/constants
 type SelectionRole = 'y' | 'x' | 'filters';
 type RoleSelections = Record<SelectionRole, D3HierarchyNode[]>;
 
+interface AvailabilitySelections extends RoleSelections {
+    hasActiveFilter?: boolean;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -20,7 +24,7 @@ export class AlgorithmRulesService {
 
     isAlgorithmAvailable(
         algo: AlgorithmConfig,
-        selections: RoleSelections
+        selections: AvailabilitySelections
     ): boolean {
         if (!algo?.inputdata) return false;
         const name = algo.name;
@@ -137,16 +141,14 @@ export class AlgorithmRulesService {
         if (!xConfigured && selections.x.length > 0) return false;
 
         if (filterReq) {
-            const sel: D3HierarchyNode[] = selections[AlgorithmRoles.FILTERS as SelectionRole] ?? [];
             const isRequired = this.isFieldRequired(filterReq);
-            const multiple = this.normalizeBool((filterReq as any).multiple);
+            const hasActiveFilter = selections.hasActiveFilter ?? false;
 
-            if (isRequired && sel.length === 0) {
-                console.warn(`✘ ${name}: filters are required but none selected.`);
-                return false;
-            }
-            if (multiple === false && sel.length > 1) {
-                console.warn(`✘ ${name}: filters role only allows single selection but has ${sel.length}.`);
+            // The studio always submits filters as a single rule tree object. Availability should
+            // therefore be based on whether there is an active filter payload, not on how many
+            // variables participate in that payload.
+            if (isRequired && !hasActiveFilter) {
+                console.warn(`✘ ${name}: filters are required but no active filter payload is configured.`);
                 return false;
             }
         }

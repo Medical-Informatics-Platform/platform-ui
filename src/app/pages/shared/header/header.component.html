@@ -12,12 +12,16 @@
       @if (isLoggedIn()) {
       <!-- LOGGED IN: go to account -->
       <a class="sign-in-btn" routerLink="/account">
-        <img src="assets/user-icon.png" alt="User Picture" class="account-picture" />
+        <span class="account-guide-target" data-guide="header-account">
+          <img src="assets/user-icon.png" alt="User Picture" class="account-picture" />
+        </span>
       </a>
       } @else {
       <!-- LOGGED OUT: trigger login -->
       <button class="sign-in-btn" (click)="login()">
-        <img src="assets/grey-avatar.png" alt="Sign In" class="account-picture" />
+        <span class="account-guide-target" data-guide="header-account">
+          <img src="assets/grey-avatar.png" alt="Sign In" class="account-picture" />
+        </span>
       </button>
       }
     </div>

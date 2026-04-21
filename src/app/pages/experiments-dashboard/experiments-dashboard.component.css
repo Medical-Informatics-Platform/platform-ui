@@ -1,10 +1,13 @@
 .experiments-dashboard {
-  padding: calc(var(--header-height) + 20px) 24px 20px;
-  background: radial-gradient(circle at top left, #f8fafc, #edf2f7);
-  color: var(--text-main);
-  box-sizing: border-box;
-  overflow-x: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --warning-banner-space: 0px;
+  padding: calc(var(--header-height) + 20px + var(--warning-banner-space)) 24px 20px;
+  background: transparent; /* Use global background */
+  position: relative;
+  min-height: 100vh;
+}
+
+.experiments-dashboard.has-pathology-warning {
+  --warning-banner-space: 96px;
 }
 
 .studio-inner {
@@ -18,6 +21,118 @@
 .dashboard-greeting {
   padding: 12px 10px 24px;
   animation: slideDownIn 0.6s ease-out;
+}
+
+.dashboard-error-banner,
+.pathology-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.dashboard-error-banner {
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.98), rgba(254, 226, 226, 0.92));
+  color: #991b1b;
+  box-shadow: 0 10px 26px rgba(185, 28, 28, 0.12);
+}
+
+.pathology-warning-banner {
+  position: relative;
+  width: 100%;
+  z-index: 10;
+  border: 1px solid rgba(255, 186, 8, 0.25);
+  background: rgba(255, 186, 8, 0.08); /* Stronger indicator tint */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #7c2d12;
+  box-shadow: 0 10px 30px rgba(255, 186, 8, 0.08);
+  margin: 0 0 24px 0;
+  border-left: 6px solid #ffba08; /* Thick MIP Orange border */
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+/* Removed bannerPulse to reduce 'too much' feel */
+
+.dashboard-error-banner .banner-content,
+.pathology-warning-banner .banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dashboard-error-banner .fa-exclamation-triangle {
+  color: #dc2626;
+  font-size: 1rem;
+  margin-top: 2px;
+}
+
+.pathology-warning-banner .fa-exclamation-triangle {
+  color: var(--accent-color);
+  font-size: 1rem;
+  margin-top: 2px;
+}
+
+.warning-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warning-title {
+  font-weight: 700;
+}
+
+.warning-copy p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.warning-email {
+  color: #9a3412;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.banner-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.banner-close:hover,
+.banner-close:focus-visible {
+  background: rgba(127, 29, 29, 0.08);
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .experiments-dashboard.has-pathology-warning {
+    --warning-banner-space: 132px;
+  }
+
+  .pathology-warning-banner {
+    left: 12px;
+    right: 12px;
+  }
+
+  .pathology-warning-banner .warning-title {
+  font-weight: 800;
+  margin-bottom: 2px;
+  color: #9a3412;
+  font-size: 0.95rem;
+}
 }
 
 .greeting-content h1 {
@@ -269,7 +384,7 @@
 
 .pane-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -296,31 +411,49 @@
 }
 
 .btn-new-experiment.primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 30px rgba(2, 128, 144, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(43, 51, 233, 0.25);
   background: var(--primary-dark);
 }
 
 .side-pane {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   overflow: visible;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--glass-shadow);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  z-index: 10;
 }
 
 .main-pane {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-radius: 24px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  border: 1px solid var(--border-color);
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.06);
+  z-index: 10;
+  position: relative;
+}
+
+.main-pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5), transparent, rgba(255, 255, 255, 0.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .pane-header {

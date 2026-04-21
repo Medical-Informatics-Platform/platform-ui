@@ -88,10 +88,13 @@ const defaultColors: BubbleColorConfig = {
 const colorForLeaf = (
   d: any,
   sets: { vars: Set<string>; covs: Set<string>; filters: Set<string> },
-  colors: BubbleColorConfig
+  colors: BubbleColorConfig,
+  tutorialHighlightCode: string | null,
+  tutorialHighlightColor: string
 ): string => {
   const code = codeOf(d.data);
   if (!code) return 'white';
+  if (tutorialHighlightCode && code === tutorialHighlightCode) return tutorialHighlightColor;
   if (sets.vars.has(code)) return colors.variable; // variable
   if (sets.covs.has(code)) return colors.covariate; // covariate
   if (sets.filters.has(code)) return colors.filter; // filter
@@ -110,6 +113,8 @@ export function createZoomableCirclePacking(
     selectedCovariates?: any[];
     selectedFilters?: any[];
     colors?: Partial<BubbleColorConfig>;
+    tutorialHighlightCode?: string | null;
+    tutorialHighlightColor?: string;
     onAnimationStart?: () => void;
     onAnimationEnd?: () => void;
   }
@@ -123,6 +128,8 @@ export function createZoomableCirclePacking(
   };
 
   let colors: BubbleColorConfig = { ...defaultColors, ...(options?.colors ?? {}) };
+  let tutorialHighlightCode = options?.tutorialHighlightCode ?? null;
+  let tutorialHighlightColor = options?.tutorialHighlightColor ?? '#22c55e';
 
   const bounds = container.getBoundingClientRect();
   const width = Math.floor(bounds.width || 0) || 700;
@@ -231,13 +238,32 @@ export function createZoomableCirclePacking(
     .attr('stdDeviation', 2.5)
     .attr('flood-color', 'rgba(0,0,0,0.35)');
 
+  const fillForNode = (d: any): string => {
+    if (d.children) {
+      return groupColor(d.depth);
+    }
+
+    if (tutorialHighlightCode) {
+      const code = codeOf(d.data);
+      if (code && code === tutorialHighlightCode) {
+        return tutorialHighlightColor;
+      }
+    }
+
+    if (d === selectedDataNode) {
+      return colors.selected;
+    }
+
+    return colorForLeaf(d, sets, colors, tutorialHighlightCode, tutorialHighlightColor);
+  };
+
   // Nodes
   const node = svg.append('g')
     .selectAll('circle')
     .data(root.descendants().slice(1))
     .join('circle')
     .attr('class', (d: any) => (d.children ? 'group' : 'leaf'))
-    .attr('fill', (d: any) => (d.children ? groupColor(d.depth) : colorForLeaf(d, sets, colors)))
+    .attr('fill', (d: any) => fillForNode(d))
     .attr('fill-opacity', (d: any) => (d.children ? 0.6 : 1))
     .attr('stroke', (d: any) => (d.children ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.12)'))
     .attr('stroke-width', (d: any) => (d.children ? 1 : 0.6))
@@ -320,11 +346,7 @@ export function createZoomableCirclePacking(
 
   function updateSelection() {
     node.transition().duration(200)
-      .attr('fill', (d: any) => {
-        if (d === selectedDataNode) return colors.selected;
-        if (d.children) return groupColor(d.depth);
-        return colorForLeaf(d, sets, colors);
-      })
+      .attr('fill', (d: any) => fillForNode(d))
       .attr('fill-opacity', (d: any) => (d.children ? 0.6 : 1))
       .attr('stroke', (d: any) => {
         if (d === selectedDataNode) return '#000';
@@ -439,8 +461,21 @@ export function createZoomableCirclePacking(
     selectedCovariates?: any[];
     selectedFilters?: any[];
     colors?: Partial<BubbleColorConfig>;
+    tutorialHighlightCode?: string | null;
+    tutorialHighlightColor?: string;
   }) {
+    const hasTutorialHighlightCode = !!newOptions
+      && Object.prototype.hasOwnProperty.call(newOptions, 'tutorialHighlightCode');
+    const hasTutorialHighlightColor = !!newOptions
+      && Object.prototype.hasOwnProperty.call(newOptions, 'tutorialHighlightColor');
+
     colors = { ...colors, ...(newOptions?.colors ?? {}) };
+    if (hasTutorialHighlightCode) {
+      tutorialHighlightCode = newOptions?.tutorialHighlightCode ?? null;
+    }
+    if (hasTutorialHighlightColor && newOptions?.tutorialHighlightColor) {
+      tutorialHighlightColor = newOptions.tutorialHighlightColor;
+    }
     groupColor = d3.scaleLinear<string>()
       .domain([0, 5])
       .range([colors.groupStart, colors.groupEnd])
@@ -465,18 +500,6 @@ export function createZoomableCirclePacking(
       ),
     };
 
-    // Updates leaf node colors based on the new snapshot
-    node.each(function (d: any) {
-      const circle = d3.select(this);
-      if (!d.children) {
-        const newFill = colorForLeaf(d, sets, colors);
-        if (circle.attr('fill') !== newFill) {
-          circle.attr('fill', newFill);
-        }
-      } else {
-        circle.attr('fill', groupColor(d.depth));
-      }
-    });
     updateSelection();
   }
 

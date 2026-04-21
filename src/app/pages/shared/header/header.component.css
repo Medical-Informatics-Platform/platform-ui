@@ -151,6 +151,12 @@
     background-color 0.18s ease;
 }
 
+.account-guide-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .account-picture,
 .sign-in-btn img {
   width: 40px;

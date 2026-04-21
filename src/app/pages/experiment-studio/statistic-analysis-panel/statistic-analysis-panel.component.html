@@ -1,4 +1,4 @@
-<div class="stats-panel-shell">
+<div class="stats-panel-shell" data-guide="analysis-section">
   <div class="modal-header">
     <p>Descriptive statistics</p>
   </div>
@@ -41,7 +41,8 @@
             <button class="toolbar-seg" (click)="expandAll()">Expand All</button>
             <button class="toolbar-seg" (click)="collapseAll()">Collapse All</button>
           </div>
-          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF">
+          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF"
+            data-guide="analysis-export">
             <i class="fa fa-file-pdf-o"></i>
             Export
           </button>
@@ -93,7 +94,8 @@
       @if (activeTab === 'Distributions' && showBoxPlots) {
       <section class="distributions-section">
         <div class="accordion-controls no-margin-top">
-          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF">
+          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF"
+            data-guide="analysis-export">
             <i class="fa fa-file-pdf-o"></i>
             Export
           </button>

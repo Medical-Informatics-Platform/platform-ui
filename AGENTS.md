@@ -5,7 +5,7 @@ Use this as a fast orientation to the codebase.
 - **Project**: Angular **21** standalone app (`fl-platform`) serving as the Platform UI for the MIP (Medical Informatics Platform), for composing/running experiments, configuring algorithms, integrating JupyterHub, and reviewing results. Entry: `src/main.ts`, root component: `src/app/app.component.ts`.
 - **Routing** (`src/app/app.routes.ts`):
   - Main: `/experiments-dashboard`, `/experiment-studio`, `/account`, `/terms`
-  - Redirects: `''` and `/home` -> `/experiments-dashboard`
+  - Redirects: `''` -> `/experiments-dashboard`
   - Wildcard: `**` -> `/experiments-dashboard`
   - Guards: most routes use `AuthGuard` + `TermsGuard`; `/terms` uses `AuthGuard` only.
 - **Auth + session flow** (`src/app/services/auth.service.ts`):
@@ -54,7 +54,8 @@ Use this as a fast orientation to the codebase.
   - `src/app/services/pdf-export.service.ts`: distribution/descriptive statistics export.
 - **Theming and branding**:
   - `ThemeService` toggles body theme classes (`theme-light`/`theme-dark`) and persists preference.
-  - Footer surfaces frontend/backend/exaflow versions from `window.__env` (`src/assets/env.js` or template at container startup).
+  - Footer surfaces the MIP version from `window.__env.MIP_VERSION` (`src/assets/env.js` or template at container startup).
+  - For UI aesthetics, layout polish, visual hierarchy, spacing, typography, and color decisions, consult and follow `DESIGN_SYSTEM.yaml` in the repo root. Treat it as the aesthetic reference before introducing or changing interface styling.
 - **Build/Test commands**:
   - `npm start` (dev server + proxy)
   - `npm run build` (Angular build)
@@ -64,7 +65,7 @@ Use this as a fast orientation to the codebase.
   - `Dockerfile` builds with Node 20, serves with nginx.
   - Runtime `envsubst` injects:
     - proxy envs: `PLATFORM_BACKEND_SERVER`, `PLATFORM_BACKEND_CONTEXT`
-    - version envs: `FRONTEND_VERSION`, `BACKEND_VERSION`, `EXAFLOW_VERSION`
+    - version env: `MIP_VERSION`
 
 ## Folder Map
 
@@ -93,4 +94,3 @@ Use this as a fast orientation to the codebase.
 - `/Dockerfile`, `/nginx.conf.template`: container build/serve config.
 
 - Build once you make changes to be sure you did not break something.
-

@@ -187,6 +187,7 @@ export class ExperimentsListComponent implements OnInit {
   readonly pagedExperiments = computed<Experiment[]>(() => {
     return this.experimentsService.experiments();
   });
+  readonly guideExperimentId = computed(() => this.selectGuideExperiment(this.pagedExperiments())?.id ?? null);
 
   // pagination helpers
   goToPage(page: number) {
@@ -209,6 +210,10 @@ export class ExperimentsListComponent implements OnInit {
     this.experimentSelected.emit(exp);
   }
 
+  isGuideExperiment(exp: Experiment): boolean {
+    return exp.id === this.guideExperimentId();
+  }
+
   onEditRequested(id: string) {
     this.editRequested.emit(id);
   }
@@ -226,5 +231,52 @@ export class ExperimentsListComponent implements OnInit {
   getDomainLabel(code: string | null | undefined): string | null {
     if (!code) return null;
     return this.modelLabels()[code] || code;
+  }
+
+  private selectGuideExperiment(experiments: Experiment[]): Experiment | null {
+    if (!experiments.length) {
+      return null;
+    }
+
+    let bestMatch = experiments[0];
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (const experiment of experiments) {
+      const name = experiment.name.toLowerCase();
+      const algorithmName = experiment.algorithmName.toLowerCase();
+      const variables = (experiment.variables ?? []).map((value) => value.toLowerCase());
+      let score = 0;
+
+      if (experiment.isShared) {
+        score += 2;
+      }
+
+      if (name.includes('tutorial') || name.includes('guide') || name.includes('example')) {
+        score += 4;
+      }
+
+      if (algorithmName.includes('anova') || name.includes('anova')) {
+        score += 3;
+      }
+
+      if (name.includes('one-way') || name.includes('one way') || name.includes('oneway')) {
+        score += 2;
+      }
+
+      if (variables.some((value) => value.includes('age'))) {
+        score += 1;
+      }
+
+      if (variables.some((value) => value.includes('sex'))) {
+        score += 1;
+      }
+
+      if (score > bestScore) {
+        bestMatch = experiment;
+        bestScore = score;
+      }
+    }
+
+    return bestMatch;
   }
 }

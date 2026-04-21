@@ -2,8 +2,8 @@
   <p>Algorithm Selection and Configuration</p>
 </div>
 
-<div class="experiment-container">
-  <aside class="algorithm-panel">
+<div class="experiment-container" data-guide="experiment-workspace">
+  <aside class="algorithm-panel" data-guide="algorithm-selection">
     <h5>Available Algorithms</h5>
 
     <div class="algo-toolbar">
@@ -108,7 +108,7 @@
   </div>
   }
 
-  <main class="experiment-panel">
+  <main class="experiment-panel" data-guide="algorithm-settings">
     <header>
       <div class="experiment-header">
         <div class="header-title-group">
@@ -125,17 +125,18 @@
           </div>
         </div>
 
-        <div class="header-actions-group">
+        <div class="header-actions-group" data-guide="save-as-flow">
           @if (result() && !saveAsMode()) {
-          <button class="secondary-action-btn back-btn" (click)="backToParameters()" title="Edit Parameters">
+          <button class="secondary-action-btn back-btn" (click)="backToParameters()" title="Edit Parameters"
+            data-guide="edit-parameters-action">
             <i class="fas fa-chevron-left"></i>
             <span>Edit Parameters</span>
           </button>
-          <button class="primary-action-btn run-button save-as" (click)="toggleSaveAsMode()">
+          <button class="primary-action-btn run-button save-as" (click)="toggleSaveAsMode()" data-guide="save-as-action">
             Save As
           </button>
           } @else if (saveAsMode()) {
-          <div class="save-as-container">
+          <div class="save-as-container" data-guide="save-as-form">
             <input type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
               placeholder="Experiment name" class="save-as-input" />
             <button class="primary-action-btn run-button" (click)="onSaveAs()"
@@ -148,17 +149,20 @@
           </div>
           } @else {
           <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
+            data-guide="run-experiment"
             [title]="isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'">
             {{ isRunning() ? "Running..." : "Run Experiment" }}
           </button>
           }
 
           <div class="floating-group">
-            <button class="floating-info-button" type="button" (click)="toggleInfoPanel()">
+            <button class="floating-info-button" type="button" (click)="toggleInfoPanel()"
+              data-guide="experiment-summary">
               i
             </button>
 
-            <aside id="info-panel" class="experiment-info-panel" [class.open]="infoPanelOpen()">
+            <aside id="info-panel" class="experiment-info-panel" [class.open]="infoPanelOpen()"
+              [attr.data-guide]="infoPanelOpen() ? 'experiment-summary-panel' : null">
               <header class="info-panel-header">
                 <div class="info-title-block">
                   <h3>Experiment summary</h3>
@@ -167,7 +171,8 @@
                   </p>
                 </div>
 
-                <button class="info-close-btn" type="button" (click)="toggleInfoPanel()" aria-label="Close">
+                <button class="info-close-btn" type="button" (click)="toggleInfoPanel()" aria-label="Close"
+                  data-guide="experiment-summary-close">
                   ✕
                 </button>
               </header>
@@ -276,13 +281,14 @@
       <p>{{ loadingText() }}</p>
     </div>
     } @else if (result()) {
-    <section class="result-section" #resultSection>
+    <section class="result-section" #resultSection data-guide="experiment-result">
       <div class="result-header">
         <div class="header-spacer"></div>
         <h5>{{ resultDisplayTitle() }}</h5>
 
         <!-- Export as PDF button -->
         <button class="icon-button export-button" type="button" (click)="onExportResult(resultSection)"
+          data-guide="result-export"
           title="Export as PDF">
           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 20h14v-2H5v2zm7-16v9.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V4h2z" />
@@ -387,6 +393,19 @@
         <span>{{ errorMsg() }}</span>
       </div>
 
+      } @if (!hasAlgorithmParameterControls()) {
+      <div class="config-placeholder config-placeholder--minimal">
+        <div class="config-placeholder-icon" aria-hidden="true">
+          <i class="fas fa-sliders-h"></i>
+        </div>
+        <div class="config-placeholder-content">
+          <h6>No additional parameters for this algorithm</h6>
+          <p>
+            This algorithm does not expose extra configuration fields. Review the description above and run the
+            experiment when you are ready.
+          </p>
+        </div>
+      </div>
       } @if (enrichedConfigSchema().length) {
       <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
         @for (field of enrichedConfigSchema(); track field.key) { @if
@@ -465,6 +484,23 @@
       </form>
       }
     </section>
+    } @else {
+    <section class="experiment-settings experiment-settings--placeholder">
+      <div class="config-placeholder">
+        <div class="config-placeholder-icon" aria-hidden="true">
+          <i class="fas fa-sliders-h"></i>
+        </div>
+        <div class="config-placeholder-content">
+          <h5>Algorithm parameters will appear here</h5>
+          <p>
+            Select an algorithm from the left to load its description, configurable parameters and optional settings.
+          </p>
+          <p>
+            If the selected algorithm has no extra parameters, this panel will tell you that it is ready to run.
+          </p>
+        </div>
+      </div>
+    </section>
     }
   </main>
 </div>
@@ -473,7 +509,13 @@
 <div class="success-notification" role="status" aria-live="polite">
   <div class="notification-content">
     <i class="fas fa-check-circle"></i>
-    <span>Experiment saved successfully!</span>
+    <div class="notification-body">
+      <span class="notification-title">Experiment saved successfully!</span>
+      <span class="notification-subtext">
+        Review and compare your experiments on the
+        <a class="notification-link" routerLink="/experiments-dashboard">dashboard</a>.
+      </span>
+    </div>
   </div>
 </div>
 }

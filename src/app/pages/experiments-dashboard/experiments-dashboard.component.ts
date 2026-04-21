@@ -11,7 +11,9 @@ import { Experiment } from '../../models/experiments-dashboard.model';
 import { ExperimentsCompareComponent } from './experiments-compare/experiments-compare.component';
 import { ActivatedRoute } from '@angular/router';
 import { ErrorService } from '../../services/error.service';
+import { ExperimentStudioService } from '../../services/experiment-studio.service';
 import { Subject, takeUntil } from 'rxjs';
+import { ExperimentsDashboardGuideComponent } from './guide/experiments-dashboard-guide.component';
 
 @Component({
   selector: 'app-experiments-dashboard',
@@ -24,12 +26,14 @@ import { Subject, takeUntil } from 'rxjs';
     FormsModule,
     ExperimentDetailsComponent,
     ExperimentsListComponent,
-    ExperimentsCompareComponent
+    ExperimentsCompareComponent,
+    ExperimentsDashboardGuideComponent
   ]
 })
 export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   private router = inject(Router);
   public experimentsService = inject(ExperimentsDashboardService);
+  private experimentStudioService = inject(ExperimentStudioService);
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private errorService = inject(ErrorService);
@@ -51,6 +55,12 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     return this.deriveGreetingName(user);
   });
   errorMessage = computed(() => this.errorService.error());
+  readonly pathologyAccessWarning = this.experimentStudioService.pathologyAccessWarning;
+  readonly dismissedPathologyWarning = signal(false);
+  readonly visiblePathologyAccessWarning = computed(() => {
+    const warning = this.pathologyAccessWarning();
+    return warning && !this.dismissedPathologyWarning() ? warning : null;
+  });
   private destroy$ = new Subject<void>();
 
   constructor() { }
@@ -59,6 +69,10 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.errorService.clearError();
+    this.dismissedPathologyWarning.set(false);
+    this.experimentStudioService.getAllDataModels()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe();
 
     this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
       const expId = params.get('experiment');
@@ -118,6 +132,10 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
 
   dismissError() {
     this.errorService.clearError();
+  }
+
+  dismissPathologyWarning() {
+    this.dismissedPathologyWarning.set(true);
   }
 
   private deriveGreetingName(user: any | null): string {
