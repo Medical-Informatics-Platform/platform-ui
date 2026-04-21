@@ -1,0 +1,123 @@
+<button
+  type="button"
+  class="guide-launcher"
+  data-guide="launcher"
+  (click)="startGuide()"
+  [attr.aria-label]="labels.launcher"
+  [attr.title]="labels.launcher">
+  <span class="guide-launcher-icon" aria-hidden="true">
+    <i class="fas fa-compass"></i>
+  </span>
+</button>
+
+@if (isOpen() && currentStep(); as step) {
+<div class="guide-overlay" aria-hidden="false">
+  @if (highlightRect(); as rect) {
+  @if (step.allowTargetInteraction) {
+  <div class="guide-mask guide-mask--top" [style.height.px]="rect.top"></div>
+  <div class="guide-mask guide-mask--left" [style.top.px]="rect.top" [style.width.px]="rect.left"
+    [style.height.px]="rect.height"></div>
+  <div class="guide-mask guide-mask--right" [style.top.px]="rect.top" [style.left.px]="rect.right"
+    [style.height.px]="rect.height"></div>
+  <div class="guide-mask guide-mask--bottom" [style.top.px]="rect.bottom"></div>
+  } @else {
+  <div class="guide-mask guide-mask--full" [style.background]="'transparent'"></div>
+  }
+  <div class="guide-highlight" [style.top.px]="rect.top" [style.left.px]="rect.left" [style.width.px]="rect.width"
+    [style.height.px]="rect.height"></div>
+  } @else if (!step.allowTargetInteraction) {
+  <div class="guide-mask guide-mask--full" [style.background]="step.maskBackground ?? 'rgba(2, 6, 23, 0.65)'"></div>
+  }
+
+  <section
+    #guideCard
+    class="guide-banner"
+    role="dialog"
+    aria-labelledby="experiments-dashboard-guide-title"
+    [class.guide-banner--collapsed]="isCollapsed()"
+    tabindex="-1">
+    @if (isCollapsed()) {
+    <div class="guide-banner-compact">
+      <div class="guide-banner-meta">
+        <span class="guide-section-pill">{{ step.section }}</span>
+        <span class="guide-step-count guide-step-count--compact">{{ currentStepNumber() }} / {{ totalSteps() }}</span>
+      </div>
+
+      <div class="guide-banner-compact-copy">
+        <h3
+          id="experiments-dashboard-guide-title"
+          class="guide-step-title"
+          [innerHTML]="step.title"></h3>
+      </div>
+
+      <div class="guide-banner-compact-nav">
+        <button type="button" class="guide-nav-icon" [disabled]="!canGoToPrevious()" (click)="goToPreviousStep()"
+          [attr.aria-label]="labels.back" [attr.title]="labels.back">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="guide-nav-icon guide-nav-icon--primary" [disabled]="!canGoToNext()"
+          (click)="goToNextStep()" [attr.aria-label]="nextButtonLabel()"
+          [attr.title]="nextButtonLabel()">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <div class="guide-banner-utilities">
+        <button type="button" class="guide-collapse guide-collapse-icon" (click)="toggleCollapsed()"
+          [attr.aria-label]="labels.expand" [attr.title]="labels.expand">
+          <i class="fas fa-expand-alt" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="guide-close guide-close-icon" (click)="closeGuide()"
+          [attr.aria-label]="labels.exit" [attr.title]="labels.exit">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    } @else {
+    <div class="guide-banner-top">
+      <div class="guide-banner-meta">
+        <span class="guide-section-pill">{{ step.section }}</span>
+        <span class="guide-step-count">Step {{ currentStepNumber() }} of {{ totalSteps() }}</span>
+      </div>
+      <div class="guide-banner-utilities">
+        <button type="button" class="guide-collapse guide-window-control" (click)="toggleCollapsed()"
+          [attr.aria-label]="labels.collapse" [attr.title]="labels.collapse">
+          <i class="fas fa-compress-alt" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="guide-close guide-window-control" (click)="closeGuide()"
+          [attr.aria-label]="labels.exit" [attr.title]="labels.exit">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="guide-progress" aria-hidden="true">
+      <div class="guide-progress-bar" [style.width.%]="progressPercent()"></div>
+    </div>
+
+    <div class="guide-banner-body">
+      <div class="guide-banner-copy">
+        <h3
+          id="experiments-dashboard-guide-title"
+          [innerHTML]="step.title"></h3>
+        @if (step.body) {
+        <p [innerHTML]="step.body"></p>
+        }
+        @if (pendingRequirementHint(); as hint) {
+        <p class="guide-requirement">{{ hint }}</p>
+        }
+      </div>
+
+      <div class="guide-banner-actions">
+        <button type="button" class="guide-secondary" [disabled]="!canGoToPrevious()" (click)="goToPreviousStep()">
+          {{ labels.back }}
+        </button>
+        <button type="button" class="guide-primary" [disabled]="!canGoToNext()" (click)="goToNextStep()">
+          {{ nextButtonLabel() }}
+        </button>
+      </div>
+    </div>
+    }
+  </section>
+</div>
+}

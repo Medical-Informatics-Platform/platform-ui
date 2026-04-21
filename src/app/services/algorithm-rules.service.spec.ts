@@ -54,7 +54,38 @@ describe('AlgorithmRulesService', () => {
     expect(available).toBeTrue();
   });
 
-  it('still enforces required filter presence when required is true', () => {
+  it('does not disable an algorithm when multiple filter variables contribute to one filter payload', () => {
+    const algo = {
+      name: 'mock_algo',
+      label: 'Mock Algo',
+      description: '',
+      requiredVariable: [],
+      covariate: [],
+      category: 'Mock',
+      configSchema: [],
+      isDisabled: false,
+      inputdata: {
+        data_model: { label: 'data_model', desc: '', types: ['text'], required: true, multiple: false },
+        datasets: { label: 'datasets', desc: '', types: ['text'], required: true, multiple: true },
+        y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
+        x: { label: 'x', desc: '', types: ['real'], required: false, multiple: true },
+        filter: { label: 'filter', desc: '', types: ['json'], required: false, multiple: false },
+      },
+    } as AlgorithmConfig;
+
+    const available = service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      x: [],
+      filters: [
+        { code: 'age', label: 'Age', type: 'real' } as any,
+        { code: 'event_type', label: 'Event Type', type: 'text' } as any,
+      ],
+    });
+
+    expect(available).toBeTrue();
+  });
+
+  it('requires an active filter payload when filter input is mandatory', () => {
     const algo = {
       name: 'mock_algo',
       label: 'Mock Algo',
@@ -72,13 +103,22 @@ describe('AlgorithmRulesService', () => {
       },
     } as AlgorithmConfig;
 
-    const available = service.isAlgorithmAvailable(algo, {
+    const withoutActiveFilter = service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-      filters: [],
+      filters: [{ code: 'f1', label: 'filter1', type: 'real' } as any],
+      hasActiveFilter: false,
     });
 
-    expect(available).toBeFalse();
+    const withActiveFilter = service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      x: [],
+      filters: [{ code: 'f1', label: 'filter1', type: 'real' } as any],
+      hasActiveFilter: true,
+    });
+
+    expect(withoutActiveFilter).toBeFalse();
+    expect(withActiveFilter).toBeTrue();
   });
 
   it('enforces mandatory role when legacy notblank=true is provided', () => {

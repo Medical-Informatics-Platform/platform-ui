@@ -14,6 +14,7 @@ import { AuthService } from '../../../services/auth.service';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { VariableTypes } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { RouterLink } from '@angular/router';
 
 
 @Component({
@@ -24,7 +25,8 @@ import { RuntimeEnvService } from '../../../services/runtime-env.service';
     ReactiveFormsModule,
     AlgorithmResultComponent,
     EchartsxModule,
-    SpinnerComponent
+    SpinnerComponent,
+    RouterLink
   ],
   templateUrl: './algorithm-panel.component.html',
   styleUrls: ['./algorithm-panel.component.css'],
@@ -83,6 +85,12 @@ export class AlgorithmPanelComponent {
       !!this.experimentStudioService.backendAlgorithms()[baseName]
     );
   });
+  readonly hasAlgorithmParameterControls = computed(() => (
+    this.enrichedConfigSchema().length > 0 ||
+    this.canToggleCrossValidation() ||
+    this.isCrossValidationOnly() ||
+    this.canToggleTransformation()
+  ));
   readonly labelMap = computed(() => {
     const map: Record<string, string> = {};
     const items = [
@@ -762,24 +770,28 @@ export class AlgorithmPanelComponent {
     event.stopPropagation();
     const item = (event.currentTarget as HTMLElement)?.closest('li') || (event.currentTarget as HTMLElement);
     const rect = item.getBoundingClientRect();
-    const panel = item.closest('.algorithm-panel') as HTMLElement | null;
-    const panelRect = panel?.getBoundingClientRect();
+    const container = item.closest('.experiment-container') as HTMLElement | null;
+    const containerRect = container?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const padding = 16;
     const offset = 12;
 
-    // Horizontal: To the right of the sidebar panel
-    let x = (panelRect?.right ?? rect.right) + offset;
-    // Vertical: Aligned with the top of the hovered item
-    let y = rect.top;
-
     this.tooltipVisible.set(true);
-    this.tooltipData.set(algorithm);
+    this.tooltipData.set(
+      algorithm.isDisabled
+        ? {
+          ...algorithm,
+          description: `${algorithm.description || 'No description available.'}<br><span class='unavailable-warning'> This algorithm is currently unavailable for the selected variables.</span><br>`,
+        }
+        : algorithm
+    );
+
+    const initialPosition = this.getTooltipPosition(rect, containerRect, 320, 200, viewportWidth, viewportHeight, padding, offset);
 
     // Immediate initial placement
-    this.tooltipPosition.set({ x, y });
+    this.tooltipPosition.set(initialPosition);
 
     // Refinement after render
     setTimeout(() => {
@@ -789,32 +801,49 @@ export class AlgorithmPanelComponent {
       const w = el.offsetWidth || 320;
       const h = el.offsetHeight || 200;
 
-      // Handle horizontal overflow
-      if (x + w > viewportWidth - padding) {
-        x = (panelRect?.left ?? rect.left) - w - offset;
-      }
-
-      // Handle vertical overflow (shift up if it hits the bottom)
-      if (y + h > viewportHeight - padding) {
-        y = viewportHeight - h - padding;
-      }
-
-      // Safety: don't let it go off the top
-      if (y < padding) y = padding;
-
-      this.tooltipPosition.set({ x: Math.max(padding, x), y });
+      this.tooltipPosition.set(
+        this.getTooltipPosition(rect, containerRect, w, h, viewportWidth, viewportHeight, padding, offset)
+      );
     }, 0);
-
-    if (algorithm.isDisabled) {
-      this.tooltipData.set({
-        ...algorithm,
-        description: `${algorithm.description || 'No description available.'}<br><span class='unavailable-warning'> This algorithm is currently unavailable for the selected variables.</span><br>`,
-      });
-    }
   }
 
   hideTooltip() {
     this.tooltipVisible.set(false);
+  }
+
+  private getTooltipPosition(
+    rect: DOMRect,
+    containerRect: DOMRect,
+    tooltipWidth: number,
+    tooltipHeight: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    padding: number,
+    offset: number,
+  ): { x: number; y: number } {
+    const rightAlignedX = rect.right + offset;
+    const leftAlignedX = rect.left - tooltipWidth - offset;
+    const centeredY = rect.top + (rect.height - tooltipHeight) / 2;
+
+    let x = rightAlignedX;
+    if (rightAlignedX + tooltipWidth > viewportWidth - padding) {
+      x = leftAlignedX >= padding
+        ? leftAlignedX
+        : viewportWidth - tooltipWidth - padding;
+    }
+
+    let y = centeredY;
+    if (y + tooltipHeight > viewportHeight - padding) {
+      y = viewportHeight - tooltipHeight - padding;
+    }
+    if (y < padding) {
+      y = padding;
+    }
+
+    return {
+      x: Math.max(padding, x - containerRect.left),
+      y: Math.max(padding, y - containerRect.top),
+    };
   }
 
   hasText(value: any): boolean {
@@ -1071,6 +1100,6 @@ export class AlgorithmPanelComponent {
     this.showSuccessNotification.set(true);
     setTimeout(() => {
       this.showSuccessNotification.set(false);
-    }, 4000);
+    }, 8000);
   }
 }

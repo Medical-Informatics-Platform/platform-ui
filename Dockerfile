@@ -35,7 +35,9 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     NOTEBOOK_ENABLED=0 \
     JUPYTER_SERVER=jupyterhub:8000 \
     JUPYTER_CONTEXT=notebook \
-    JUPYTER_LANDING_PATH=/hub/spawn
+    JUPYTER_LANDING_PATH=/hub/spawn \
+    GUIDE_COVARIATE=Sex \
+    GUIDE_VARIABLE=Age
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template

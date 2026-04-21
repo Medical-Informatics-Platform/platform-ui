@@ -1,17 +1,38 @@
-<div class="experiments-dashboard full-bleed">
-  @if (errorMessage()) {
-  <div class="dashboard-error-banner" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="banner-content">
-      <i class="fas fa-exclamation-triangle"></i>
-      <span>{{ errorMessage() }}</span>
-    </div>
-    <button type="button" class="banner-close" (click)="dismissError()">
-      &times;
-    </button>
-  </div>
-  }
+<div class="experiments-dashboard full-bleed premium-page"
+  [class.has-pathology-warning]="!!visiblePathologyAccessWarning()">
 
   <div class="studio-main full-width">
+    @if (visiblePathologyAccessWarning(); as warning) {
+    <div class="pathology-warning-banner" role="status" aria-live="polite" aria-atomic="true">
+      <div class="banner-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div class="warning-copy">
+          <div class="warning-title">{{ warning.title }}</div>
+          <p>
+            {{ warning.message }}
+            Please contact us at
+            <a class="warning-email" href="mailto:mip@chuv.ch">mip@chuv.ch</a>.
+          </p>
+        </div>
+      </div>
+      <button type="button" class="banner-close" (click)="dismissPathologyWarning()" aria-label="Dismiss warning">
+        &times;
+      </button>
+    </div>
+    }
+
+    @if (errorMessage()) {
+    <div class="dashboard-error-banner" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="banner-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorMessage() }}</span>
+      </div>
+      <button type="button" class="banner-close" (click)="dismissError()">
+        &times;
+      </button>
+    </div>
+    }
+
     <!-- TOP: Greeting Header -->
     <header class="dashboard-greeting">
       <div class="greeting-content">
@@ -21,17 +42,17 @@
     </header>
 
     <!-- MAIN TRIPLE PANE CONTENT (now integrated actions) -->
-    <div class="command-center-layout">
+    <div class="command-center-layout" data-guide="dashboard-overview">
       <!-- LEFT: NAVIGATION & SELECTION -->
-      <aside class="side-pane experiments-pane">
+      <aside class="side-pane experiments-pane" data-guide="dashboard-workspace">
         <div class="pane-header workspace-pane-header">
           <div class="workspace-label-group">
-            <h2>Research Workspace</h2>
+            <h2>Dashboard</h2>
           </div>
 
           <div class="pane-actions">
             <!-- Compare Toggle -->
-            <button class="compare-mode-btn" [class.active]="compareMode()"
+            <button class="compare-mode-btn" [class.active]="compareMode()" data-guide="dashboard-compare"
               [class.has-selections]="compareIds().length >= 1" (click)="toggleCompareMode()" title="Comparison Mode">
               <i class="fas fa-columns"></i>
               <span class="btn-label">{{ compareMode() ? 'Exit' : 'Compare' }}</span>
@@ -41,7 +62,8 @@
             </button>
 
             <!-- New Experiment -->
-            <button class="btn-new-experiment primary" (click)="goToNewExperiment()" title="New Experiment">
+            <button class="btn-new-experiment primary" (click)="goToNewExperiment()" title="New Experiment"
+              data-guide="dashboard-new">
               <i class="fas fa-plus"></i>
               New
             </button>
@@ -62,7 +84,7 @@
           (run)="onRunExperiment($event)" (deleteExperiment)="onDeleteRequested()"
           (nameUpdated)="onNameUpdated($event)" />
         } @else {
-        <div class="compare-workspace">
+        <div class="compare-workspace" data-guide="dashboard-compare-workspace">
           @if (experimentsForCompare().length < 2) { <div class="compare-placeholder">
             <div class="placeholder-icon">
               <i class="fas fa-layer-group"></i>
@@ -112,3 +134,5 @@
   }
 </div>
 </div>
+
+<app-experiments-dashboard-guide></app-experiments-dashboard-guide>
