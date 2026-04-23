@@ -54,7 +54,7 @@ describe('FooterComponent', () => {
     const fundingText = fixture.nativeElement.querySelector('.footer-funding-item-eu .footer-funding-box-name') as HTMLElement | null;
     const fundingTooltip = fixture.nativeElement.querySelector('.footer-funding-item-eu .footer-funding-tooltip') as HTMLElement | null;
 
-    expect(fundingFlag?.getAttribute('src')).toBe('assets/eu-flag.svg');
+    expect(fundingFlag?.getAttribute('src')).toBe('assets/footer/eu-flag.svg');
     expect(fundingFlag?.getAttribute('alt')).toBe('European Union flag');
     expect(fundingText?.textContent).toContain('European Union');
     expect(fundingTooltip?.textContent).toContain('Human Brain Project');
@@ -75,7 +75,7 @@ describe('FooterComponent', () => {
   it('should render the selected CHUV blanc logo in the partner section', () => {
     const chuvLogo = fixture.nativeElement.querySelector('.chuv-logo') as HTMLImageElement | null;
 
-    expect(chuvLogo?.getAttribute('src')).toBe('assets/CHUV_Logo_Simple_BLANC.png');
+    expect(chuvLogo?.getAttribute('src')).toBe('assets/footer/CHUV_Logo_Simple_BLANC.png');
   });
 
   it('should render only the MIP version in the footer bottom row', () => {
