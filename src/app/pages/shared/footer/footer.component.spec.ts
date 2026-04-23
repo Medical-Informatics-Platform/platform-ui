@@ -40,7 +40,7 @@ describe('FooterComponent', () => {
       fixture.nativeElement.querySelectorAll('.footer-links a'),
     ) as HTMLAnchorElement[];
 
-    expect(resourceLinks.length).toBe(4);
+    expect(resourceLinks.length).toBe(3);
 
     const supportLink = resourceLinks.find((link) => link.textContent?.trim() === 'Support');
     const termsLink = resourceLinks.find((link) => link.textContent?.trim() === 'Terms of Use');
@@ -50,20 +50,40 @@ describe('FooterComponent', () => {
   });
 
   it('should render the EU co-funding badge', () => {
-    const fundingFlag = fixture.nativeElement.querySelector('.footer-funding-flag') as HTMLImageElement | null;
-    const fundingText = fixture.nativeElement.querySelector('.footer-funding') as HTMLElement | null;
+    const fundingFlag = fixture.nativeElement.querySelector('.footer-funding-item-eu .footer-funding-flag') as HTMLImageElement | null;
+    const fundingText = fixture.nativeElement.querySelector('.footer-funding-item-eu .footer-funding-box-name') as HTMLElement | null;
+    const fundingTooltip = fixture.nativeElement.querySelector('.footer-funding-item-eu .footer-funding-tooltip') as HTMLElement | null;
 
     expect(fundingFlag?.getAttribute('src')).toBe('assets/eu-flag.svg');
     expect(fundingFlag?.getAttribute('alt')).toBe('European Union flag');
-    expect(fundingText?.textContent).toContain('Co-funded by');
-    expect(fundingText?.textContent).toContain('the European Union');
+    expect(fundingText?.textContent).toContain('European Union');
+    expect(fundingTooltip?.textContent).toContain('Human Brain Project');
+    expect(fundingTooltip?.textContent).toContain('EBRAINS 2.0');
+    expect(fundingTooltip?.textContent).toContain('23.00638');
+  });
+
+  it('should render the SERI co-funding mark with the shared acknowledgement text', () => {
+    const seriFlag = fixture.nativeElement.querySelector('.footer-funding-item-seri .seri-mark-flag') as HTMLElement | null;
+    const seriText = fixture.nativeElement.querySelector('.footer-funding-item-seri .footer-funding-box-name-seri') as HTMLElement | null;
+    const seriTooltip = fixture.nativeElement.querySelector('.footer-funding-item-seri .footer-funding-tooltip') as HTMLElement | null;
+
+    expect(seriFlag).toBeTruthy();
+    expect(seriText?.textContent).toContain('State Secretariat for Education, Research and Innovation');
+    expect(seriTooltip?.textContent).toContain('SERI contract No. 23.00638');
+  });
+
+  it('should render the selected CHUV blanc logo in the partner section', () => {
+    const chuvLogo = fixture.nativeElement.querySelector('.chuv-logo') as HTMLImageElement | null;
+
+    expect(chuvLogo?.getAttribute('src')).toBe('assets/CHUV_Logo_Simple_BLANC.png');
   });
 
   it('should render only the MIP version in the footer bottom row', () => {
     const versions = fixture.nativeElement.querySelector('.footer-versions') as HTMLElement | null;
     const versionText = versions?.textContent ?? '';
 
-    expect(versionText).toContain('MIP: testing');
+    expect(versionText).toContain('MIP');
+    expect(versionText).toContain('testing');
     expect(versionText).not.toContain('Frontend:');
     expect(versionText).not.toContain('Backend:');
     expect(versionText).not.toContain('Exaflow:');

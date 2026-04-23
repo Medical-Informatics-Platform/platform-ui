@@ -43,15 +43,45 @@
           <img src="assets/logo_ebrains.png" alt="EBRAINS logo" class="partner-logo ebrains-logo">
         </a>
         <a href="https://www.chuv.ch/" target="_blank" rel="noopener noreferrer" class="partner-link">
-          <img src="assets/logo_chuv.png" alt="CHUV logo" class="partner-logo chuv-logo">
+          <img src="assets/CHUV_Logo_Simple_BLANC.png" alt="CHUV logo" class="partner-logo chuv-logo">
         </a>
       </div>
-      <div class="footer-funding-badge">
-        <img src="assets/eu-flag.svg" alt="European Union flag" class="footer-funding-flag">
-        <p class="footer-funding">
-          <span>Co-funded by</span>
-          <span>the European Union</span>
-        </p>
+      <div class="footer-funding-section" aria-label="Project funding acknowledgements">
+        <p class="footer-col-title footer-funding-title">Co-funded by</p>
+        <div class="footer-funding-logos">
+          <div
+            class="footer-funding-item footer-funding-item-eu"
+            tabindex="0"
+            aria-describedby="footer-funding-tooltip"
+          >
+            <div class="footer-funding-visual footer-funding-visual-eu">
+              <img src="assets/eu-flag.svg" alt="European Union flag" class="footer-funding-flag">
+              <span class="footer-funding-box-name">European Union</span>
+            </div>
+            <div class="footer-funding-tooltip" id="footer-funding-tooltip" role="tooltip">
+              <p class="footer-tooltip-title">Funding acknowledgement</p>
+              <p class="footer-tooltip-text">{{ fundingAcknowledgement }}</p>
+            </div>
+          </div>
+          <div
+            class="footer-funding-item footer-funding-item-seri"
+            tabindex="0"
+            aria-describedby="footer-funding-tooltip-seri"
+          >
+            <div class="footer-funding-visual footer-funding-visual-seri">
+              <div class="seri-mark" aria-hidden="true">
+                <span class="seri-mark-flag"></span>
+              </div>
+              <span class="footer-funding-box-name footer-funding-box-name-seri">
+                State Secretariat for Education, Research and Innovation
+              </span>
+            </div>
+            <div class="footer-funding-tooltip" id="footer-funding-tooltip-seri" role="tooltip">
+              <p class="footer-tooltip-title">Funding acknowledgement</p>
+              <p class="footer-tooltip-text">{{ fundingAcknowledgement }}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
