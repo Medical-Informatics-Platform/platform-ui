@@ -9,6 +9,22 @@
     </div>
   </div>
 
+  <div class="workflow-progress-strip">
+    <div class="step-line"></div>
+    <button type="button" class="progress-step active" (click)="goToSection('raw')">
+      <span class="step-num">1</span>
+      <span class="step-label">Raw Data Summary</span>
+    </button>
+    <button type="button" class="progress-step" [class.active]="pendingChangeCount > 0 || preprocessingStatus === 'applied'" (click)="goToSection('setup')">
+      <span class="step-num">2</span>
+      <span class="step-label">Preprocessing Setup</span>
+    </button>
+    <button type="button" class="progress-step" [class.active]="preprocessingStatus === 'applied'" (click)="goToSection('processed')">
+      <span class="step-num">3</span>
+      <span class="step-label">Processed Summary</span>
+    </button>
+  </div>
+
   <div class="modal-content">
     <div class="modal-body review-body">
       <section #rawSection class="workflow-section">
