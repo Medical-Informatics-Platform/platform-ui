@@ -52,8 +52,7 @@ export interface AnovaTwoWayResult {
 }
 
 export interface DescriptiveStatsResult {
-    variable_based: VariableStats[];
-    model_based: VariableStats[];
+    featurewise?: VariableStats[];
 }
 
 export interface VariableStats {

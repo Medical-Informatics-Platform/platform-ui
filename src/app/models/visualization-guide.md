@@ -211,7 +211,7 @@ Proposed visualization:
 ## `DescriptiveStatsResult`
 
 Data includes:
-- `variable_based`, `model_based`
+- `featurewise`
 - each item has `NominalDescriptiveStats` or `NumericalDescriptiveStats`
 
 Proposed visualization:

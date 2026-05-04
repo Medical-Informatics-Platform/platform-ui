@@ -22,6 +22,11 @@ export interface PathologyAccessWarning {
   message: string;
 }
 
+export type PreprocessingConfig = Record<string, unknown>;
+
+const MISSING_VALUES_HANDLER = 'missing_values_handler';
+const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__';
+
 @Injectable({ providedIn: 'root' })
 export class ExperimentStudioService {
   private http = inject(HttpClient);
@@ -363,6 +368,14 @@ export class ExperimentStudioService {
   algorithmConfigurations = signal<Record<string, Record<string, any>>>(
     this.sessionStorage.getItem('algorithmConfigurations') || {}
   );
+  algorithmPreprocessingConfigurations = signal<Record<string, PreprocessingConfig | null>>({});
+
+  setAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
+    this.algorithmPreprocessingConfigurations.set({
+      ...this.algorithmPreprocessingConfigurations(),
+      [APPLIED_DESCRIPTIVE_PREPROCESSING]: this.normalizePreprocessingConfig(preprocessing),
+    });
+  }
 
   async setAlgorithm(algorithm: AlgorithmConfig) {
     const algo = this.backendAlgorithms()[algorithm.name];
@@ -590,13 +603,14 @@ export class ExperimentStudioService {
 
     // special case for histogram (no filters, transient)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
+      const histogramY = yVariables?.length ? yVariables : null;
       return {
         name: expName,
         algorithm: {
           name: requestAlgorithmName,
           inputdata: {
             data_model: this.getActiveDataModelCode(),
-            y: yVariables ?? null,
+            y: histogramY,
             datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
             filters: null,
           },
@@ -607,6 +621,12 @@ export class ExperimentStudioService {
     }
     const yPayload = this.rolePayload(algoConfig, 'y', variables);
     const xPayload = this.rolePayload(algoConfig, 'x', covariates);
+    const preprocessing = this.resolveRequestPreprocessing(
+      requestAlgorithmName,
+      yPayload,
+      xPayload,
+      this.getStoredPreprocessingConfig(algoConfig.name, requestAlgorithmName)
+    );
     // generic build
     const mipVersion = this.runtimeEnvService.mipVersion;
     const body = {
@@ -621,11 +641,88 @@ export class ExperimentStudioService {
           filters: hasFilters ? filterLogic : null,
         },
         parameters: config,
-        preprocessing: null,
+        preprocessing,
       },
       ...(mipVersion ? { mipVersion } : {}),
     };
     return body;
+  }
+
+  private getStoredPreprocessingConfig(...algorithmNames: Array<string | null | undefined>): PreprocessingConfig | null {
+    const configs = this.algorithmPreprocessingConfigurations();
+    for (const name of algorithmNames) {
+      if (!name) continue;
+      const config = configs[name];
+      if (config && Object.keys(config).length > 0) return config;
+    }
+    const appliedDescriptivePreprocessing = configs[APPLIED_DESCRIPTIVE_PREPROCESSING];
+    if (
+      appliedDescriptivePreprocessing &&
+      Object.keys(appliedDescriptivePreprocessing).length > 0
+    ) {
+      return appliedDescriptivePreprocessing;
+    }
+    return null;
+  }
+
+  private resolveRequestPreprocessing(
+    algorithmName: string,
+    yPayload: string[] | string | null,
+    xPayload: string[] | string | null,
+    explicitPreprocessing: unknown = null
+  ): PreprocessingConfig | null {
+    if (algorithmName === AlgorithmNames.DESCRIBE) return null;
+
+    const explicit = this.normalizePreprocessingConfig(explicitPreprocessing);
+    if (explicit) return explicit;
+
+    const variables = Array.from(
+      new Set(
+        [...this.toArray(yPayload), ...this.toArray(xPayload)]
+          .map((code) => String(code).trim())
+          .filter((code) => code && code !== 'dataset')
+      )
+    );
+
+    if (!variables.length) return null;
+
+    return {
+      [MISSING_VALUES_HANDLER]: {
+        strategies: Object.fromEntries(variables.map((code) => [code, 'drop'])),
+      },
+    };
+  }
+
+  private normalizePreprocessingConfig(value: unknown): PreprocessingConfig | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const preprocessing = value as PreprocessingConfig;
+    return Object.keys(preprocessing).length > 0 ? { ...preprocessing } : null;
+  }
+
+  getEffectivePreprocessingSummary(algorithmName: string | null | undefined): string {
+    if (!algorithmName) return 'none';
+    const preprocessing = this.resolveRequestPreprocessing(
+      algorithmName,
+      this.selectedVariables().map((variable) => variable.code),
+      this.selectedCovariates().map((variable) => variable.code),
+      this.getStoredPreprocessingConfig(algorithmName)
+    );
+    return this.summarizePreprocessingConfig(preprocessing);
+  }
+
+  private summarizePreprocessingConfig(preprocessing: PreprocessingConfig | null): string {
+    if (!preprocessing) return 'none';
+
+    const missingValues = preprocessing[MISSING_VALUES_HANDLER] as { strategies?: Record<string, unknown> } | undefined;
+    const strategies = missingValues?.strategies ?? {};
+    const strategyValues = Object.values(strategies);
+    if (strategyValues.length && strategyValues.every((strategy) => strategy === 'drop')) {
+      return 'Missing values: drop';
+    }
+
+    return Object.keys(preprocessing)
+      .map((key) => key.replace(/_/g, ' '))
+      .join(', ');
   }
 
   loadAllDataModels(): Observable<any[]> {
@@ -825,7 +922,10 @@ export class ExperimentStudioService {
     return this.submitRequest(requestBody);
   }
 
-  private buildDescriptiveRequestBody(variableCodes: string[]): any {
+  private buildDescriptiveRequestBody(
+    variableCodes: string[],
+    preprocessing: PreprocessingConfig | null = null
+  ): any {
     const filters = this.filterLogic();
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
 
@@ -841,13 +941,16 @@ export class ExperimentStudioService {
           filters: hasFilters ? filters : null,
         },
         parameters: {},
-        preprocessing: null,
+        preprocessing: this.normalizePreprocessingConfig(preprocessing),
       },
     };
   }
 
-  loadDescriptiveOverview(variableCodes: string[]): Observable<any> {
-    const requestBody = this.buildDescriptiveRequestBody(variableCodes);
+  loadDescriptiveOverview(
+    variableCodes: string[],
+    preprocessing: PreprocessingConfig | null = null
+  ): Observable<any> {
+    const requestBody = this.buildDescriptiveRequestBody(variableCodes, preprocessing);
 
     return this.submitTransientRequest(requestBody).pipe(
       tap((response) => {
@@ -1043,6 +1146,7 @@ export class ExperimentStudioService {
     const algoName = exp.algorithm.name;
     const input = exp.algorithm.inputdata || {};
     const params = exp.algorithm.parameters || {};
+    const preprocessing = this.normalizePreprocessingConfig(exp.algorithm.preprocessing);
 
     const filters = input.filters ?? null;
 
@@ -1107,6 +1211,10 @@ export class ExperimentStudioService {
         this.algorithmConfigurations.set({
           ...existingConfigs,
           [algoName]: params,
+        });
+        this.algorithmPreprocessingConfigurations.set({
+          ...this.algorithmPreprocessingConfigurations(),
+          [algoName]: preprocessing,
         });
 
         this.setAlgorithm(algoConfig);
@@ -1187,6 +1295,7 @@ export class ExperimentStudioService {
     // algorithm state
     this.selectedAlgorithm.set(null);
     this.algorithmConfigurations.set({});
+    this.algorithmPreprocessingConfigurations.set({});
     this.lastUsedAlgorithm.set(null);
 
     // meta info

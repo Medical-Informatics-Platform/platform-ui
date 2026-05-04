@@ -21,6 +21,7 @@ export interface RawIOField {
   desc: string;
   types: string[];
   stattypes?: string[];
+  required?: boolean | string;
   notblank?: boolean | string;
   multiple?: boolean | string;
 }
@@ -37,10 +38,12 @@ export interface RawParameter {
   max?: string | number;
   default?: string | number;
   enums?: RawEnumsDefinition;
+  dict_keys_enums?: RawEnumsDefinition;
+  dict_values_enums?: RawEnumsDefinition;
 }
 
 export interface RawEnumsDefinition {
-  type: 'list' | 'input_var_CDE_enums' | 'fixed_var_CDE_enums';
+  type: 'list' | 'input_var_names' | 'input_var_CDE_enums' | 'fixed_var_CDE_enums';
   source: string[] | string;
 }
 
@@ -48,6 +51,7 @@ export interface RawPreprocessingStep {
   name: string;
   label: string;
   desc: string;
+  order?: number;
   parameters: Record<string, RawParameter | RawDictParameter>;
 }
 

@@ -7,7 +7,10 @@ import { AlgorithmPanelComponent } from './algorithm-panel/algorithm-panel.compo
 import { AuthService } from '../../services/auth.service';
 import { ExperimentsDashboardService } from '../../services/experiments-dashboard.service';
 import { ErrorService } from '../../services/error.service';
-import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel/statistic-analysis-panel.component';
+import {
+  DescriptiveProgressState,
+  StatisticAnalysisPanelComponent,
+} from './statistic-analysis-panel/statistic-analysis-panel.component';
 import { Subject, takeUntil } from 'rxjs';
 import { FilterConfigModalComponent } from './variables-panel/filter-config-modal/filter-config-modal.component';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
@@ -51,6 +54,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     return warning && !this.dismissedPathologyWarning() ? warning : null;
   });
   @ViewChild(AlgorithmPanelComponent) algorithmPanel?: AlgorithmPanelComponent;
+  @ViewChild(StatisticAnalysisPanelComponent) statisticPanel?: StatisticAnalysisPanelComponent;
 
   onRunClick() {
     this.algorithmPanel?.onClickRunExp();
@@ -59,10 +63,23 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   isRunDisabled() {
     return this.algorithmPanel?.isRunButtonDisabled() ?? true;
   }
+
+  goToDescriptiveStep(section: 'raw' | 'setup' | 'processed'): void {
+    void this.router.navigate([], {
+      fragment: 'statistics-section',
+      queryParamsHandling: 'preserve',
+    });
+    this.statisticPanel?.goToSection(section);
+  }
+
   private destroy$ = new Subject<void>();
   errorMessage = computed(() => this.errorService.error() ?? '');
   activeSection = signal('variables-top');
   sidebarCollapsed = signal(false);
+  descriptiveProgress = signal<DescriptiveProgressState>({
+    pendingChangeCount: 0,
+    preprocessingStatus: 'none',
+  });
   private sectionObserver?: IntersectionObserver;
 
 

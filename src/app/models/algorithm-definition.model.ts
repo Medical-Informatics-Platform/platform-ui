@@ -1,4 +1,4 @@
-import { RawInputData } from "./backend-algorithms.model";
+import { RawInputData, RawPreprocessingStep } from "./backend-algorithms.model";
 
 export interface AlgorithmParameter {
   type: 'number' | 'string' | 'boolean' | 'select';
@@ -30,5 +30,6 @@ export interface AlgorithmConfig {
   category: string;
   configSchema: Array<any>;
   inputdata?: RawInputData;
+  preprocessing?: RawPreprocessingStep[];
   isDisabled: boolean;
 }
