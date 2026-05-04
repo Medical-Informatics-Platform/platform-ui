@@ -54,56 +54,6 @@
   --header-height: 64px;
 }
 
-@media (prefers-color-scheme: dark) {
-  body:not(.theme-light) {
-    --bg-color: #0b0f1a;
-    --card-bg: #151b2b;
-    --text-main: #f1f5f9;
-    --text-muted: #94a3b8;
-    --border-color: rgba(148, 163, 184, 0.15);
-    --studio-card-bg: #151b2b;
-    --studio-card-border: rgba(148, 163, 184, 0.2);
-    --studio-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-    --studio-card-header-bg: #1c253d;
-    --studio-card-header-border: rgba(148, 163, 184, 0.2);
-    --glass-bg: rgba(21, 27, 43, 0.8);
-    --glass-border: rgba(148, 163, 184, 0.1);
-
-    /* MIP Brand colors for dark mode */
-    --primary-color: #7f9ce8;
-    --primary-dark: #5a73c9;
-    --primary-light: #2b33e9;
-    --accent-color: #ffba08;
-  }
-}
-
-/* Manual dark mode via class */
-body.theme-dark {
-  --bg-color: #0b0f1a;
-  --card-bg: #151b2b;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --border-color: rgba(148, 163, 184, 0.15);
-  --studio-card-bg: #151b2b;
-  --studio-card-border: rgba(148, 163, 184, 0.2);
-  --studio-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-  --studio-card-header-bg: #1c253d;
-  --studio-card-header-border: rgba(148, 163, 184, 0.2);
-  --glass-bg: rgba(21, 27, 43, 0.8);
-  --glass-border: rgba(148, 163, 184, 0.1);
-
-  /* MIP Brand colors for dark mode */
-  --primary-color: #7f9ce8;
-  --primary-dark: #5a73c9;
-  --primary-light: #2b33e9;
-  /* Low Profile Semantic Colors - Dark mode adjustments */
-  --covariate-color: #a48f68;
-  --filter-color: #64748b;
-  --variable-color: #7f9ce8;
-  --accent-color: var(--covariate-color);
-  --chart-label-color: #cbd5e1;
-}
-
 /* Colorblind Mode Overrides (matches portal-frontend colors) */
 body.colorblind-mode {
   --variable-color: #ffba08;
@@ -112,38 +62,6 @@ body.colorblind-mode {
   /* MIP tan/beige */
   --filter-color: #483300;
   /* MIP dark brown */
-}
-
-body.colorblind-mode.theme-dark {
-  --variable-color: #ffba08;
-  --covariate-color: #bba66f;
-  --filter-color: #5a4420;
-  /* Slightly lighter for dark mode visibility */
-}
-
-/* Global Transition for Theme Switching */
-body {
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Scrollbar Theming */
-body.theme-dark ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-body.theme-dark ::-webkit-scrollbar-track {
-  background: #0b0f1a;
-}
-
-body.theme-dark ::-webkit-scrollbar-thumb {
-  background: #1c253d;
-  border-radius: 10px;
-  border: 2px solid #0b0f1a;
-}
-
-body.theme-dark ::-webkit-scrollbar-thumb:hover {
-  background: #2b33e9;
 }
 
 html,

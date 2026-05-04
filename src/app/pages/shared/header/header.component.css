@@ -24,16 +24,6 @@
   pointer-events: auto;
 }
 
-/* Dark mode header */
-:host-context(body.theme-dark) .header,
-:host-context(body.theme-dark) .header.header--transparent {
-  background: var(--glass-bg, #111827e6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom-color: var(--border-color);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
 /* BRANDING (LEFT) */
 
 .branding {
@@ -52,11 +42,6 @@
   width: auto;
   object-fit: contain;
   transition: transform 0.2s ease, filter 0.3s ease;
-}
-
-:host-context(body.theme-dark) .logo {
-  filter: brightness(0) invert(1) contrast(0.9);
-  /* Make logo white in dark mode */
 }
 
 .branding:hover .logo {
