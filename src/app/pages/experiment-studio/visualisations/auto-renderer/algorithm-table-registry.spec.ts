@@ -144,7 +144,7 @@ describe('AlgorithmTableRegistry', () => {
 
   it('renders describe tables for both numeric and nominal entries', () => {
     const tables = AlgorithmTableRegistry['describe']({
-      variable_based: [
+      featurewise: [
         {
           variable: 'age',
           dataset: 'ds1',
@@ -156,11 +156,11 @@ describe('AlgorithmTableRegistry', () => {
           data: { num_dtps: 10, num_na: 1, num_total: 11, counts: { M: 6, F: 4 } },
         },
       ],
-      model_based: [],
     });
 
-    expect(tables.some((t) => t.title === 'Variable-based Summary — Numeric')).toBeTrue();
-    expect(tables.some((t) => t.title === 'Variable-based Summary — Nominal')).toBeTrue();
+    expect(tables.some((t) => t.title === 'Featurewise Summary — Numeric')).toBeTrue();
+    expect(tables.some((t) => t.title === 'Featurewise Summary — Nominal')).toBeTrue();
+    expect(tables.some((t) => t.title?.includes('Model-based'))).toBeFalse();
   });
 
   it('filters frontend metadata keys from ttest results', () => {

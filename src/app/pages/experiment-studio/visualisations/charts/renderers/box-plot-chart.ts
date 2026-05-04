@@ -1,14 +1,15 @@
 import { EChartsOption } from 'echarts';
+import { getFeaturewiseDescribeRows } from '../../../../../core/describe-result.utils';
 
 // Builds a Box Plot chart (Q1–Q3 boxes + min/max whiskers + mean dots)
 // for descriptive statistics results.
 export function buildBoxPlotChart(result: any): EChartsOption[] {
-  const variable_based = result?.result?.variable_based ?? result?.variable_based ?? [];
-  if (!Array.isArray(variable_based) || variable_based.length === 0) return [];
+  const featurewise = getFeaturewiseDescribeRows(result);
+  if (featurewise.length === 0) return [];
 
-  const firstVariable = variable_based[0]?.variable ?? 'Variable';
+  const firstVariable = featurewise[0]?.variable ?? 'Variable';
   // Filter for the first variable and exclude 'all datasets' as per request
-  const filtered = variable_based.filter(v =>
+  const filtered = featurewise.filter(v =>
     v.variable === firstVariable &&
     v.dataset !== 'all datasets'
   );
@@ -18,14 +19,15 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
 
   // Extract Q1, Q3, median, min, max, mean
   const boxData = filtered.map(v => {
-    const d = v.data ?? {};
+    const d = (v.data ?? {}) as Record<string, number | null | undefined>;
     // Only include in boxplot if we have essential quartiles
-    if (d.q1 == null || d.q3 == null) return [];
-    return [d.min, d.q1, d.q2, d.q3, d.max];
+    if (d['q1'] == null || d['q3'] == null) return [];
+    return [d['min'], d['q1'], d['q2'], d['q3'], d['max']];
   });
 
   const meanPoints = filtered.map((v, idx) => {
-    const mean = v.data?.mean ?? null;
+    const d = (v.data ?? {}) as Record<string, number | null | undefined>;
+    const mean = d['mean'] ?? null;
     return mean != null ? [idx, mean] : null;
   }).filter(Boolean) as [number, number][];
 

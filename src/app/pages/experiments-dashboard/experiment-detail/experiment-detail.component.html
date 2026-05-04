@@ -185,6 +185,19 @@
         </div>
       </div>
       }
+      @if (parameterEntries().length) {
+      <div class="config-tags-row">
+        <span class="label">Parameters</span>
+        <div class="tag-list parameter-list">
+          @for (param of parameterEntries(); track param.key) {
+          <div class="parameter-item">
+            <span class="parameter-name">{{ param.label }}</span>
+            <span class="parameter-value">{{ param.value }}</span>
+          </div>
+          }
+        </div>
+      </div>
+      }
     </section>
     }
 

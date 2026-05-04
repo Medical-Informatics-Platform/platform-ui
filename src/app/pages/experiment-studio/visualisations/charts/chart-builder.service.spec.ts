@@ -75,4 +75,21 @@ describe('ChartBuilderService', () => {
     expect(titles).toContain('Confidence Interval (Lower 95%)');
     expect(titles).toContain('Confidence Interval (Upper 95%)');
   });
+
+  it('renders describe box plots from featurewise rows', () => {
+    const service = new ChartBuilderService(experimentServiceStub as any);
+
+    const charts = service.getChartsForAlgorithm('describe', {
+      featurewise: [
+        {
+          variable: 'age',
+          dataset: 'ds1',
+          data: { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51 },
+        },
+      ],
+    });
+
+    expect(charts.length).toBe(1);
+    expect((charts[0] as any).title?.text).toBe('Distribution for age');
+  });
 });
