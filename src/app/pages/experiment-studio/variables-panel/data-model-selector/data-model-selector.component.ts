@@ -31,11 +31,21 @@ export class DataModelSelectorComponent implements OnChanges, OnInit {
   }
 
   updateSelectedModel(): void {
+    if (this.isSameModel(this.selectedDataModel, this.defaultModel)) {
+      return;
+    }
+
     this.selectedDataModel = this.defaultModel;
     this.dataModelChange.emit(this.selectedDataModel);
   }
 
   onDataModelChange(): void {
     this.dataModelChange.emit(this.selectedDataModel);
+  }
+
+  private isSameModel(a: DataModel | null, b: DataModel | null): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.code === b.code && String(a.version) === String(b.version);
   }
 }

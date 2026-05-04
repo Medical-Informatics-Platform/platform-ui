@@ -232,6 +232,56 @@ function mapRegressionVars(result: any, enumMaps: EnumMaps, labelMap: LabelMap |
   };
 }
 
+function mapMixedEffectsResult(
+  result: any,
+  enumMaps: EnumMaps,
+  vars: { y?: string | null; x?: string | null } | undefined,
+  labelMap: LabelMap | null | undefined
+): any {
+  const mapped = mapRegressionVars(result, enumMaps, labelMap);
+  const next = { ...mapped };
+
+  if (typeof mapped?.grouping_var === 'string') {
+    next.grouping_var = labelMap?.[mapped.grouping_var] ?? mapped.grouping_var;
+  }
+
+  if (Array.isArray(mapped?.category_order)) {
+    const directMap = getEnumMapForVar(enumMaps, vars?.y);
+    const map = directMap ?? resolveEnumMapForValues(mapped.category_order, enumMaps);
+    if (map) {
+      next.category_order = mapArrayValues(mapped.category_order, map);
+    }
+  }
+
+  return next;
+}
+
+function mapTableTestLabels(
+  result: any,
+  enumMaps: EnumMaps,
+  vars: { y?: string | null; x?: string | null } | undefined
+): any {
+  const next = { ...result };
+
+  if (Array.isArray(result?.x_labels)) {
+    const directMap = getEnumMapForVar(enumMaps, vars?.x);
+    const map = directMap ?? resolveEnumMapForValues(result.x_labels, enumMaps);
+    if (map) {
+      next.x_labels = mapArrayValues(result.x_labels, map);
+    }
+  }
+
+  if (Array.isArray(result?.y_labels)) {
+    const directMap = getEnumMapForVar(enumMaps, vars?.y);
+    const map = directMap ?? resolveEnumMapForValues(result.y_labels, enumMaps);
+    if (map) {
+      next.y_labels = mapArrayValues(result.y_labels, map);
+    }
+  }
+
+  return next;
+}
+
 function mapTwoWayAnovaKeys(obj: Record<string, any>, labelMap: LabelMap | null | undefined): Record<string, any> {
   if (!labelMap) return obj;
   const next: Record<string, any> = {};
@@ -369,6 +419,13 @@ export function mapAlgorithmResultEnums(
     case 'logistic_regression':
     case 'logistic_regression_cv':
       return mapRegressionVars(result, safeEnumMaps, labelMap);
+    case 'lmm':
+    case 'glmm_binary':
+    case 'glmm_ordinal':
+      return mapMixedEffectsResult(result, safeEnumMaps, vars, labelMap);
+    case 'chi_squared':
+    case 'fisher_exact':
+      return mapTableTestLabels(result, safeEnumMaps, vars);
     case 'anova_twoway': {
       if (!labelMap) return result;
       const mapped: any = { ...result };

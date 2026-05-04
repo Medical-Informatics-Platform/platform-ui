@@ -23,7 +23,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             selectedVariables: signal([]),
             selectedCovariates: signal([]),
             selectedFilters: signal([]),
-            selectedDataModel: signal(null)
+            selectedDatasets: signal(['dataset-a']),
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7' })
         });
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
@@ -46,6 +47,17 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy();
+    });
+
+    it('does not fetch descriptive stats until a model and dataset are ready', () => {
+        (mockExpService.selectedDataModel as any).set(null);
+        (mockExpService.selectedDatasets as any).set([]);
+        (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'real' }]);
+
+        fixture.detectChanges();
+
+        expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+        expect(component.isLoading).toBeFalse();
     });
 
     it('should treat variable as nominal if counts are present in response, even if metadata type is missing', () => {

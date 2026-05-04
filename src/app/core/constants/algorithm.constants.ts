@@ -7,6 +7,11 @@ export const AlgorithmNames = {
     PCA_WITH_TRANSFORMATION: 'pca_with_transformation',
     HISTOGRAM: 'histogram',
     DESCRIBE: 'describe',
+    LMM: 'lmm',
+    GLMM_BINARY: 'glmm_binary',
+    GLMM_ORDINAL: 'glmm_ordinal',
+    CHI_SQUARED: 'chi_squared',
+    FISHER_EXACT: 'fisher_exact',
     LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER: 'logistic_regression_fedaverage_flower',
 };
 

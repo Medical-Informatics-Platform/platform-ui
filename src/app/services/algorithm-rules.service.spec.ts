@@ -4,6 +4,10 @@ import { AlgorithmRulesService } from './algorithm-rules.service';
 
 describe('AlgorithmRulesService', () => {
   let service: AlgorithmRulesService;
+  const baseInputdata = {
+    data_model: { label: 'data_model', desc: '', types: ['text'], required: true, multiple: false },
+    datasets: { label: 'datasets', desc: '', types: ['text'], required: true, multiple: true },
+  };
 
   const buildAlgo = (name: string): AlgorithmConfig => ({
     name,
@@ -37,8 +41,7 @@ describe('AlgorithmRulesService', () => {
       configSchema: [],
       isDisabled: false,
       inputdata: {
-        data_model: { label: 'data_model', desc: '', types: ['text'], required: true, multiple: false },
-        datasets: { label: 'datasets', desc: '', types: ['text'], required: true, multiple: true },
+        ...baseInputdata,
         y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
         x: { label: 'x', desc: '', types: ['real'], required: false, multiple: true },
         filter: { label: 'filter', desc: '', types: ['json'], required: false, multiple: true },
@@ -183,5 +186,105 @@ describe('AlgorithmRulesService', () => {
     expect(override?.x).toContain('types: nominal');
     expect(override?.x).not.toContain('types: text');
     expect(override?.y).toContain('exactly 1');
+  });
+
+  it('enforces mixed-effects selection requirements', () => {
+    const lmm = buildAlgo(AlgorithmNames.LMM);
+    lmm.inputdata = {
+      ...baseInputdata,
+      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
+      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: true, multiple: true },
+    };
+
+    const valid = service.isAlgorithmAvailable(lmm, {
+      y: [{ code: 'volume', label: 'Volume', type: VariableTypes.REAL } as any],
+      x: [
+        { code: 'age', label: 'Age', type: VariableTypes.REAL } as any,
+        { code: 'dataset', label: 'Dataset', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'a' }, { code: 'b' }] } as any,
+      ],
+      filters: [],
+    });
+
+    const missingFixedEffect = service.isAlgorithmAvailable(lmm, {
+      y: [{ code: 'volume', label: 'Volume', type: VariableTypes.REAL } as any],
+      x: [{ code: 'dataset', label: 'Dataset', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'a' }, { code: 'b' }] } as any],
+      filters: [],
+    });
+
+    const wrongOutcome = service.isAlgorithmAvailable(lmm, {
+      y: [{ code: 'gender', label: 'Gender', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'F' }, { code: 'M' }] } as any],
+      x: [
+        { code: 'age', label: 'Age', type: VariableTypes.REAL } as any,
+        { code: 'dataset', label: 'Dataset', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'a' }, { code: 'b' }] } as any,
+      ],
+      filters: [],
+    });
+
+    expect(valid).toBeTrue();
+    expect(missingFixedEffect).toBeFalse();
+    expect(wrongOutcome).toBeFalse();
+  });
+
+  it('requires categorical GLMM outcomes with at least two categories', () => {
+    const glmm = buildAlgo(AlgorithmNames.GLMM_BINARY);
+    glmm.inputdata = {
+      ...baseInputdata,
+      y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['nominal'], required: true, multiple: false },
+      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: true, multiple: true },
+    };
+
+    const valid = service.isAlgorithmAvailable(glmm, {
+      y: [{ code: 'gender', label: 'Gender', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'F' }, { code: 'M' }] } as any],
+      x: [
+        { code: 'age', label: 'Age', type: VariableTypes.REAL } as any,
+        { code: 'dataset', label: 'Dataset', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'a' }, { code: 'b' }] } as any,
+      ],
+      filters: [],
+    });
+
+    const noEnums = service.isAlgorithmAvailable(glmm, {
+      y: [{ code: 'gender', label: 'Gender', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [] } as any],
+      x: [
+        { code: 'age', label: 'Age', type: VariableTypes.REAL } as any,
+        { code: 'dataset', label: 'Dataset', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'a' }, { code: 'b' }] } as any,
+      ],
+      filters: [],
+    });
+
+    expect(valid).toBeTrue();
+    expect(noEnums).toBeFalse();
+  });
+
+  it('enforces categorical table constraints for chi-squared and fisher exact', () => {
+    const chiSquared = buildAlgo(AlgorithmNames.CHI_SQUARED);
+    const fisher = buildAlgo(AlgorithmNames.FISHER_EXACT);
+    const inputdata = {
+      ...baseInputdata,
+      y: { label: 'y', desc: '', types: ['text'], stattypes: ['nominal'], required: true, multiple: false },
+      x: { label: 'x', desc: '', types: ['text'], stattypes: ['nominal'], required: true, multiple: false },
+    };
+    chiSquared.inputdata = inputdata;
+    fisher.inputdata = inputdata;
+
+    const binaryY = { code: 'gender', label: 'Gender', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'F' }, { code: 'M' }] } as any;
+    const binaryX = { code: 'status', label: 'Status', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: 'AD' }, { code: 'Other' }] } as any;
+    const threeLevelX = { code: 'agegroup', label: 'Age group', type: VariableTypes.NOMINAL, isCategorical: true, enumerations: [{ code: '1' }, { code: '2' }, { code: '3' }] } as any;
+    const binaryWithUnknown = {
+      code: 'prestr_af',
+      label: 'Atrial Fibrillation',
+      type: VariableTypes.NOMINAL,
+      isCategorical: true,
+      enumerations: [
+        { code: '0', label: 'no' },
+        { code: '1', label: 'yes' },
+        { code: '9', label: 'unknown' },
+      ],
+    } as any;
+
+    expect(service.isAlgorithmAvailable(chiSquared, { y: [binaryY], x: [threeLevelX], filters: [] })).toBeTrue();
+    expect(service.isAlgorithmAvailable(fisher, { y: [binaryY], x: [binaryX], filters: [] })).toBeTrue();
+    expect(service.isAlgorithmAvailable(fisher, { y: [binaryY], x: [binaryWithUnknown], filters: [] })).toBeTrue();
+    expect(service.isAlgorithmAvailable(fisher, { y: [binaryY], x: [threeLevelX], filters: [] })).toBeFalse();
+    expect(service.isAlgorithmAvailable(chiSquared, { y: [binaryY], x: [], filters: [] })).toBeFalse();
   });
 });

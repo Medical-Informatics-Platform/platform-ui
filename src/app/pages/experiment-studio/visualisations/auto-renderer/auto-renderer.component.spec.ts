@@ -94,4 +94,53 @@ describe('AutoRendererComponent', () => {
     expect(tables?.length).toBe(1);
     expect(tables?.[0].title).toBe('K-Means Centers');
   });
+
+  it('has renderers for new Exaflow algorithms', () => {
+    const payloads: Record<string, any> = {
+      lmm: {
+        indep_vars: ['Intercept'],
+        coefficients: [1],
+        std_err: [0.1],
+        t_stats: [10],
+        pvalues: [0.01],
+        lower_ci: [0.8],
+        upper_ci: [1.2],
+      },
+      glmm_binary: {
+        indep_vars: ['Intercept'],
+        coefficients: [0.5],
+      },
+      glmm_ordinal: {
+        indep_vars: ['Intercept'],
+        coefficients: [0.5],
+        category_order: ['Low', 'High'],
+        cutpoints: [0.1],
+      },
+      chi_squared: {
+        chi2: 1.2,
+        p_value: 0.2,
+        dof: 1,
+        expected: [[1, 2]],
+        x_labels: ['A'],
+        y_labels: ['B', 'C'],
+      },
+      fisher_exact: {
+        odds_ratio: 1.1,
+        p_value: 0.4,
+        x_labels: ['A', 'B'],
+        y_labels: ['C', 'D'],
+      },
+    };
+
+    Object.entries(payloads).forEach(([algorithm, value]) => {
+      const cmp = new AutoRendererComponent();
+      cmp.algorithm = algorithm;
+      cmp.value = value;
+
+      cmp.ngOnChanges({});
+
+      expect(cmp.error()).toBeNull();
+      expect(cmp.tableSpec()?.length).toBeGreaterThan(0);
+    });
+  });
 });
