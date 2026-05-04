@@ -224,6 +224,24 @@ export class ExperimentDetailsComponent {
     this.withLabels(this.selectedExperiment()?.filters)
   );
 
+  readonly parameterEntries = computed(() => {
+    const fullExperiment = this.fullExperimentSignal();
+    const params = fullExperiment?.algorithm?.parameters ?? {};
+    const algoName = fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
+    const labelByKey = new Map(
+      schema.map((field: any) => [String(field.key), String(field.label ?? field.key)])
+    );
+
+    return Object.entries(params)
+      .filter(([, value]) => !this.isEmptyParameterValue(value))
+      .map(([key, value]) => ({
+        key,
+        label: labelByKey.get(key) ?? this.humanizeParameterKey(key),
+        value: this.formatParameterValue(value, key),
+      }));
+  });
+
   /** Enriches PCA results with actual variable labels so the heatmap doesn't fall back to Var1/Var2. */
   readonly enrichedResult = computed(() => {
     const result = this.experimentResult();
@@ -408,5 +426,57 @@ export class ExperimentDetailsComponent {
 
   onDelete() {
     this.deleteExperiment.emit();
+  }
+
+  private isEmptyParameterValue(value: unknown): boolean {
+    if (value === null || value === undefined || value === '') return true;
+    if (Array.isArray(value)) return value.length === 0;
+    if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length === 0;
+    return false;
+  }
+
+  private formatParameterValue(value: unknown, parameterKey?: string): string {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.formatParameterValue(item, parameterKey)).join(', ');
+    }
+
+    if (value && typeof value === 'object') {
+      return Object.entries(value as Record<string, unknown>)
+        .filter(([, nestedValue]) => !this.isEmptyParameterValue(nestedValue))
+        .map(([key, nestedValue]) => `${this.humanizeParameterKey(key)}: ${this.formatParameterValue(nestedValue, key)}`)
+        .join('; ');
+    }
+
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    return this.formatParameterScalarValue(value, parameterKey);
+  }
+
+  private formatParameterScalarValue(value: unknown, parameterKey?: string): string {
+    const raw = String(value);
+    const label = this.resolveParameterEnumLabel(raw, parameterKey);
+    if (!label || label === raw) return raw;
+    return `${label} (${raw})`;
+  }
+
+  private resolveParameterEnumLabel(value: string, parameterKey?: string): string | null {
+    const enumMaps = this.enumMaps();
+
+    if (parameterKey === 'positive_class') {
+      const targetMap = enumMaps[this.yVar() ?? ''];
+      if (targetMap?.[value]) return targetMap[value];
+    }
+
+    const matches = Object.values(enumMaps)
+      .map((map) => map[value])
+      .filter((label): label is string => !!label);
+
+    const unique = Array.from(new Set(matches));
+    return unique.length === 1 ? unique[0] : null;
+  }
+
+  private humanizeParameterKey(key: string): string {
+    return key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 }

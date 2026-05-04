@@ -96,6 +96,9 @@ function buildConfigSchema(parameters: Record<string, RawParameter>): Array<any>
 
 export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): AlgorithmConfig {
   const normalizedName = raw.name === 'anova' ? 'anova_twoway' : raw.name;
+  const preprocessing = [...(raw.preprocessing ?? [])].sort(
+    (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
+  );
 
   return {
     name: normalizedName,
@@ -106,6 +109,7 @@ export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): A
     covariate: raw.inputdata?.x?.types || [],
     category: CATEGORY_MAPPING[normalizedName] ?? 'Uncategorized',
     configSchema: buildConfigSchema(raw.parameters ?? {}),
+    preprocessing,
     isDisabled: false,
     ...(getOutputSchema(normalizedName) ? { outputSchema: getOutputSchema(normalizedName) } : {}),
   };

@@ -7,6 +7,7 @@ import {
   HistogramResult, DescriptiveStatsResult,
   VariableStats, NominalDescriptiveStats, NumericalDescriptiveStats
 } from '../../../../models/algorithm-results.model';
+import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 
 export interface TableSpec {
   title?: string;
@@ -569,8 +570,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       }
     };
 
-    buildTables(result.variable_based, 'Variable-based');
-    buildTables(result.model_based, 'Model-based');
+    buildTables(getFeaturewiseDescribeRows(result), 'Featurewise');
 
     return tables;
   },

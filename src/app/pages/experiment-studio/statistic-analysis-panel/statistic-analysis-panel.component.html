@@ -1,172 +1,533 @@
 <div class="stats-panel-shell" data-guide="analysis-section">
   <div class="modal-header">
-    <p>Descriptive statistics</p>
+    <div class="header-main">
+      <i class="fa fa-bar-chart panel-icon"></i>
+      <div class="header-text">
+        <p>DATA REVIEW & PREPROCESSING</p>
+        <span class="header-subtitle">Inspect variable distributions and configure missing value handling.</span>
+      </div>
+    </div>
   </div>
 
   <div class="modal-content">
-    <!-- Tabs -->
-    <div class="modal-tabs">
-      <button [class.active]="activeTab === 'Variables'" (click)="setTab('Variables')">
-        Variables
-      </button>
-      <button [class.active]="activeTab === 'Model'" (click)="setTab('Model')">
-        Model
-      </button>
-      @if (showBoxPlots) {
-      <button [class.active]="activeTab === 'Distributions'" (click)="setTab('Distributions')">
-        Distributions
-      </button>
-      }
-    </div>
-
-    <div class="modal-body">
-      @if (isLoading) {
-      <app-spinner text="Descriptive statistics Loading" [overlay]="false" />
-      }
-
-      @if (!isLoading) {
-      <!-- VARIABLES / MODEL TAB -->
-      @if (activeTab === 'Variables' || activeTab === 'Model') {
-      <section class="pivot-section">
-        @if ((activeTab === 'Variables' ? processedData : modelData).length > 0) {
-        @if (activeTab === 'Model') {
-        <p class="tab-description">
-          Descriptive statistics for complete dataset only, based on the variables and covariates you selected.
-          <strong>Note: Any records containing N/A values in these selected variables and covariates are
-            excluded.</strong>
-        </p>
-        }
-        <div class="accordion-controls">
-          <div class="toolbar-segmented">
-            <button class="toolbar-seg" (click)="expandAll()">Expand All</button>
-            <button class="toolbar-seg" (click)="collapseAll()">Collapse All</button>
+    <div class="modal-body review-body">
+      <section #rawSection class="workflow-section">
+        <button type="button" class="workflow-section-header" (click)="toggleSection('raw')">
+          <div class="header-left">
+            <span class="step-badge">1</span>
+            <span>Raw Data Summary</span>
           </div>
-          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF"
-            data-guide="analysis-export">
-            <i class="fa fa-file-pdf-o"></i>
-            Export
-          </button>
+          <span class="accordion-icon" [class.open]="sectionOpen.raw">▾</span>
+        </button>
+        <div class="workflow-section-body" [class.open]="sectionOpen.raw">
+          <div class="summary-tabs modal-tabs">
+            <button type="button" [class.active]="rawSummary.activeTab === 'Variables'" (click)="setSummaryTab('raw', 'Variables')">
+              Variables
+            </button>
+            @if (rawSummary.showDistributions) {
+            <button type="button" [class.active]="rawSummary.activeTab === 'Distributions'" (click)="setSummaryTab('raw', 'Distributions')">
+              Distributions
+            </button>
+            }
+          </div>
+
+          @if (rawSummary.isLoading) {
+          <app-spinner text="Raw data summary loading" [overlay]="false" />
+          }
+
+          @if (!rawSummary.isLoading) {
+          @if (rawSummary.activeTab === 'Variables') {
+          <section class="pivot-section">
+            @if (rawSummary.data.length > 0) {
+            <div class="accordion-controls">
+              <div class="toolbar-segmented">
+                <button type="button" class="toolbar-seg" (click)="expandAll('raw')">Expand All</button>
+                <button type="button" class="toolbar-seg" (click)="collapseAll('raw')">Collapse All</button>
+              </div>
+              <button type="button" class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
+                <i class="fa fa-file-pdf-o"></i>
+                Export
+              </button>
+            </div>
+
+            @for (v of rawSummary.data; track v.name) {
+            <div class="accordion pivot-card">
+              <button type="button" class="accordion-header" (click)="toggleAccordion('raw', v.name)">
+                <div class="accordion-header-left">
+                  <span class="accordion-title">{{ v.name }}</span>
+                  <div class="snapshot-chips">
+                    @for (stat of getSnapshotStats(v); track stat.label) {
+                    <span class="snapshot-chip">
+                      <span class="chip-label">{{ stat.label }}:</span>
+                      <span class="chip-value">{{ stat.value }}</span>
+                    </span>
+                    }
+                  </div>
+                </div>
+                <span class="accordion-icon" [class.open]="isAccordionOpen('raw', v.name)">▾</span>
+              </button>
+
+              <div class="accordion-body fade" [class.open]="isAccordionOpen('raw', v.name)">
+                <div class="table-wrapper">
+                  <table class="data-table pivot-table">
+                    <thead>
+                      <tr>
+                        <th>Metric</th>
+                        @for (ds of v.columns; track ds) {
+                        <th>{{ ds }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (r of v.rows; track r.metric) {
+                      <tr>
+                        <td class="metric-cell">{{ r.metric }}</td>
+                        @for (ds of v.columns; track ds) {
+                        <td>{{ r.values[ds] }}</td>
+                        }
+                      </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            }
+            }
+            @else {
+            <div class="empty-state-block">
+              <i class="fa fa-table"></i>
+              <p>No data available.</p>
+              <span>Select variables and datasets to load the data summary.</span>
+            </div>
+            }
+          </section>
+          }
+
+          @if (rawSummary.activeTab === 'Distributions' && rawSummary.showDistributions) {
+          <section class="distributions-section">
+            <div class="accordion-controls no-margin-top">
+              <button type="button" class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
+                <i class="fa fa-file-pdf-o"></i>
+                Export
+              </button>
+            </div>
+
+            @if (rawSummary.nonNominalVariables.length > 0 && rawSummary.nominalVariables.length > 0) {
+            <div class="distribution-sheet-tabs">
+              <button type="button" [class.active]="rawSummary.distributionSubTab === 'Numeric'" (click)="setDistributionSubTab('raw', 'Numeric')">
+                Numeric Variables
+              </button>
+              <button type="button" [class.active]="rawSummary.distributionSubTab === 'Nominal'" (click)="setDistributionSubTab('raw', 'Nominal')">
+                Nominal Variables
+              </button>
+            </div>
+            }
+
+            @if (rawSummary.distributionSubTab === 'Numeric' && rawSummary.nonNominalVariables.length > 0) {
+            <div class="distribution-sheet">
+              <div class="federated-info-note">
+                <i class="fa fa-info-circle"></i>
+                <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled metrics (Q1, median, Q3) is not possible in federated analytics.</span>
+              </div>
+              @if (rawSummary.nonNominalVariables.length > 1) {
+              <div class="mini-tabs">
+                @for (v of rawSummary.nonNominalVariables; track v.code; let i = $index) {
+                <button type="button" [class.active]="rawSummary.activeBoxPlotIndex === i" (click)="setActiveChart('raw', 'numeric', i)">
+                  {{ variableLabel(v) }}
+                </button>
+                }
+              </div>
+              }
+              <div class="chart-container fade">
+                <app-chart-renderer [charts]="rawSummary.chartsForBoxPlot[rawSummary.activeBoxPlotIndex] || []"></app-chart-renderer>
+              </div>
+            </div>
+            }
+
+            @if (rawSummary.distributionSubTab === 'Nominal' && rawSummary.nominalVariables.length > 0) {
+            <div class="distribution-sheet">
+              @if (rawSummary.nominalVariables.length > 1) {
+              <div class="mini-tabs">
+                @for (v of rawSummary.nominalVariables; track v.code; let i = $index) {
+                <button type="button" [class.active]="rawSummary.activeNominalIndex === i" (click)="setActiveChart('raw', 'nominal', i)">
+                  {{ variableLabel(v) }}
+                </button>
+                }
+              </div>
+              }
+              <div class="chart-container fade">
+                <app-chart-renderer [charts]="rawSummary.chartsForNominal[rawSummary.activeNominalIndex] || []"></app-chart-renderer>
+              </div>
+            </div>
+            }
+          </section>
+          }
+          }
         </div>
+      </section>
 
-        @for (v of (activeTab === 'Variables' ? processedData : modelData); track v; let i = $index) {
-        <div class="accordion pivot-card">
-          <div class="accordion-header" (click)="toggleAccordion(v.name)">
-            <p>{{ v.name }}</p>
-            <span class="accordion-icon" [class.open]="isAccordionOpen(v.name)">
-              ▾
-            </span>
+      <section #setupSection class="workflow-section preprocessing-section">
+        <button type="button" class="workflow-section-header" (click)="toggleSection('setup')">
+          <div class="header-left">
+            <span class="step-badge">2</span>
+            <span>Preprocessing Setup</span>
+          </div>
+          <span
+            class="status-pill"
+            [class.status-neutral]="preprocessingStatusClass === 'status-neutral'"
+            [class.status-amber]="preprocessingStatusClass === 'status-amber'"
+            [class.status-green]="preprocessingStatusClass === 'status-green'"
+          >
+            {{ preprocessingStatusLabel }}
+          </span>
+          <span class="accordion-icon" [class.open]="sectionOpen.setup">▾</span>
+        </button>
+        <div class="workflow-section-body" [class.open]="sectionOpen.setup">
+          <div class="preprocessing-toolbar">
+            <div class="preprocessing-section-heading">
+              <i class="fa fa-wrench" aria-hidden="true"></i>
+              <span>Missing Values</span>
+            </div>
+            <div class="search-inline">
+              <i class="fa fa-search search-inline-icon" aria-hidden="true"></i>
+              <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." [(ngModel)]="preprocessingSearch" />
+            </div>
           </div>
 
-          <div class="accordion-body fade" [class.open]="isAccordionOpen(v.name)">
-            <div class="table-wrapper">
-              <table class="data-table pivot-table">
+          @for (group of preprocessingGroups; track group.key) {
+          <div class="preprocessing-group">
+            <div class="preprocessing-group-chip">{{ group.title }} <span class="group-count">{{ group.variables.length }}</span></div>
+            <div class="table-wrapper preprocessing-table-wrapper">
+              <table class="data-table preprocessing-table">
                 <thead>
                   <tr>
-                    <th>Metric</th>
-                    @for (ds of v.columns; track ds) {
-                    <th>{{ ds }}</th>
-                    }
+                    <th>Variable</th>
+                    <th>Type</th>
+                    <th>Current Status / Issue</th>
+                    <th>Selected Action</th>
+                    <th>Options / Value</th>
+                    <th>Enabled</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (r of v.rows; track r) {
-                  <tr>
-                    <td class="metric-cell">{{ r.metric }}</td>
-                    @for (ds of v.columns; track ds) {
-                    <td>{{ r.values[ds] }}</td>
-                    }
+                  @for (variable of group.variables; track variable.code) {
+                  <tr [class.row-disabled]="!ruleFor(variable).enabled">
+                    <td class="metric-cell">{{ variableLabel(variable) }}</td>
+                    <td><span class="type-badge">{{ variableTypeLabel(variable) }}</span></td>
+                    <td><span class="issue-badge">{{ currentStatus(variable) }}</span></td>
+                    <td>
+                      <select class="table-select" [ngModel]="ruleFor(variable).action" (ngModelChange)="onMissingActionChange(variable, $event)">
+                        @for (action of missingActions; track action.value) {
+                        <option [ngValue]="action.value" [disabled]="isMissingActionDisabled(variable, action.value)">{{ action.label }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <input class="table-input" type="text" [disabled]="ruleFor(variable).action !== 'constant'" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)" placeholder="Value" />
+                      @if (preprocessingValidationErrors[variable.code]) {
+                      <div class="row-error">{{ preprocessingValidationErrors[variable.code] }}</div>
+                      }
+                    </td>
+                    <td>
+                      <label class="toggle-switch">
+                        <input type="checkbox" [ngModel]="ruleFor(variable).enabled" (ngModelChange)="onRuleEnabledChange(variable, $event)" />
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </td>
                   </tr>
                   }
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-        }
-        }
-        @else {
-        <p>No data available.</p>
-        }
-      </section>
-      }
-
-      <!-- DISTRIBUTIONS TAB (Two sheets: Numeric + Nominal) -->
-      @if (activeTab === 'Distributions' && showBoxPlots) {
-      <section class="distributions-section">
-        <div class="accordion-controls no-margin-top">
-          <button class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF()" title="Export PDF"
-            data-guide="analysis-export">
-            <i class="fa fa-file-pdf-o"></i>
-            Export
-          </button>
-        </div>
-        <!-- Sub-tabs to switch between Numeric and Nominal sheets (only if both exist) -->
-        @if (nonNominalVariables.length > 0 && nominalVariables.length > 0) {
-        <div class="distribution-sheet-tabs">
-          <button [class.active]="distributionSubTab === 'Numeric'" (click)="distributionSubTab = 'Numeric'">
-            Numeric Variables
-          </button>
-          <button [class.active]="distributionSubTab === 'Nominal'" (click)="distributionSubTab = 'Nominal'">
-            Nominal Variables
-          </button>
-        </div>
-        }
-
-        <!-- Numeric Variables Sheet (Box Plots) -->
-        @if (distributionSubTab === 'Numeric' && nonNominalVariables.length > 0) {
-        <div class="distribution-sheet">
-          <div class="federated-info-note"
-            style="background-color: #e9ecef; color: #495057; padding: 10px; margin-bottom: 15px; border-left: 4px solid #0056b3; border-radius: 4px; font-size: 0.9em; display: flex; align-items: center; gap: 8px;">
-            <i class="fa fa-info-circle" style="color: #0056b3;"></i>
-            <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled
-              metrics (Q1, median, Q3) is not possible in federated analytics.</span>
+          }
+          @if (preprocessingGroups.length === 0) {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to show selected variables.</span>
           </div>
-          @if (nonNominalVariables.length > 1) {
-          <div class="mini-tabs">
-            @for (v of nonNominalVariables; track v; let i = $index) {
-            <button [class.active]="activeBoxPlotIndex === i" (click)="activeBoxPlotIndex = i">
-              {{ v?.name || v?.label || v?.code }}
-            </button>
+          }
+
+          @if (isLongitudinalModel) {
+          <div class="longitudinal-preprocessing">
+            <div class="preprocessing-section-heading longitudinal-heading">
+              <i class="fa fa-calendar" aria-hidden="true"></i>
+              <span>Longitudinal Preprocessing</span>
+            </div>
+            <div class="longitudinal-info-banner">
+              <i class="fa fa-info-circle" aria-hidden="true"></i>
+              <span>Required for longitudinal pathologies</span>
+            </div>
+            <div class="longitudinal-controls">
+              <div class="visit-controls">
+                <label>
+                  <span>Visit 1</span>
+                  <select class="table-select" [ngModel]="longitudinalVisit1" (ngModelChange)="onLongitudinalVisitChange('visit1', $event)">
+                    <option value="">Select visit</option>
+                    @for (visit of visitOptions; track visit.code) {
+                    <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+                    }
+                  </select>
+                </label>
+                <label>
+                  <span>Visit 2</span>
+                  <select class="table-select" [ngModel]="longitudinalVisit2" (ngModelChange)="onLongitudinalVisitChange('visit2', $event)">
+                    <option value="">Select visit</option>
+                    @for (visit of visitOptions; track visit.code) {
+                    <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+                    }
+                  </select>
+                </label>
+              </div>
+            </div>
+            @if (preprocessingValidationErrors['__longitudinal__']) {
+            <div class="row-error longitudinal-error">{{ preprocessingValidationErrors['__longitudinal__'] }}</div>
+            }
+            @if (filteredPreprocessingVariables.length === 0) {
+            <div class="empty-state-block compact-empty">
+              <i class="fa fa-search"></i>
+              <p>No variables match the current search.</p>
+              <span>Clear the search field to show selected variables.</span>
+            </div>
+            } @else {
+            <div class="table-wrapper preprocessing-table-wrapper">
+              <table class="data-table preprocessing-table longitudinal-table">
+                <thead>
+                  <tr>
+                    <th>Variable</th>
+                    <th>Type</th>
+                    <th>Strategy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (variable of filteredPreprocessingVariables; track variable.code) {
+                  <tr>
+                    <td class="metric-cell">{{ variableLabel(variable) }}</td>
+                    <td><span class="type-badge">{{ variableTypeLabel(variable) }}</span></td>
+                    <td>
+                      <select class="table-select" [ngModel]="longitudinalStrategyFor(variable)" (ngModelChange)="onLongitudinalStrategyChange(variable, $event)">
+                        @for (strategy of longitudinalStrategies; track strategy.value) {
+                        <option [ngValue]="strategy.value" [disabled]="isLongitudinalStrategyDisabled(variable, strategy.value)">{{ strategy.label }}</option>
+                        }
+                      </select>
+                    </td>
+                  </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
             }
           </div>
           }
-          <div class="chart-container fade">
-            <app-chart-renderer [charts]="chartsForBoxPlot[activeBoxPlotIndex] || []"></app-chart-renderer>
+
+          @if (showPreview) {
+          <div class="preview-panel glass-feedback" role="status">
+            <div class="feedback-header">
+              <i class="fa fa-eye" aria-hidden="true"></i>
+              <h4>Preview Impact</h4>
+            </div>
+            <ul>
+              @for (item of previewImpactItems; track item) {
+              <li>{{ item }}</li>
+              }
+            </ul>
+          </div>
+          }
+
+          @if (successMessage) {
+          <div class="success-message glass-feedback" role="status">
+            <i class="fa fa-check-circle" aria-hidden="true"></i>
+            <span>{{ successMessage }}</span>
+          </div>
+          }
+
+          <div class="preprocessing-footer" [class.has-pending]="pendingChangeCount > 0">
+            <div class="pending-count"><span class="pending-chip">{{ pendingChangeCount }}</span> pending changes</div>
+            <div class="preprocessing-actions">
+              <button type="button" class="toolbar-seg" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="resetChanges()">Reset Changes</button>
+              <button type="button" class="toolbar-seg" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="previewImpact()">Preview Impact</button>
+              <button type="button" class="toolbar-icon-btn apply-preprocessing-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="applyPreprocessing()">
+                <i class="fa fa-magic"></i>
+                @if (isApplyingPreprocessing) { Applying... } @else { Apply Preprocessing }
+              </button>
+            </div>
           </div>
         </div>
-        }
+      </section>
 
-        <!-- Nominal Variables Sheet (Grouped Bar Charts) -->
-        @if (distributionSubTab === 'Nominal' && nominalVariables.length > 0) {
-        <div class="distribution-sheet">
-          @if (nominalVariables.length > 1) {
-          <div class="mini-tabs">
-            @for (v of nominalVariables; track v; let i = $index) {
-            <button [class.active]="activeNominalIndex === i" (click)="activeNominalIndex = i">
-              {{ v?.name || v?.label || v?.code }}
+      <section #processedSection class="workflow-section">
+        <button type="button" class="workflow-section-header" (click)="toggleSection('processed')">
+          <div class="header-left">
+            <span class="step-badge">3</span>
+            <span>Processed Data Summary</span>
+          </div>
+          <span class="accordion-icon" [class.open]="sectionOpen.processed">▾</span>
+        </button>
+        <div class="workflow-section-body" [class.open]="sectionOpen.processed">
+          @if (preprocessingStatus !== 'applied') {
+          <div class="empty-state-block">
+            <i class="fa fa-flask"></i>
+            <p>No preprocessing has been applied yet.</p>
+            <span>Configure preprocessing rules and click Apply Preprocessing to generate the processed summary.</span>
+          </div>
+          }
+
+          @if (preprocessingStatus === 'applied') {
+          <div class="processed-note">Based on applied preprocessing rules</div>
+          <div class="summary-tabs modal-tabs">
+            <button type="button" [class.active]="processedSummary.activeTab === 'Variables'" (click)="setSummaryTab('processed', 'Variables')">
+              Variables
+            </button>
+            @if (processedSummary.showDistributions) {
+            <button type="button" [class.active]="processedSummary.activeTab === 'Distributions'" (click)="setSummaryTab('processed', 'Distributions')">
+              Distributions
             </button>
             }
           </div>
-          }
-          <div class="chart-container fade">
-            <app-chart-renderer [charts]="chartsForNominal[activeNominalIndex] || []"></app-chart-renderer>
-          </div>
-        </div>
-        }
-      </section>
-      }
-      }
 
-      <!-- Hidden charts for PDF export -->
-      <div class="hidden-charts-for-export">
+          @if (processedSummary.isLoading) {
+          <app-spinner text="Processed data summary loading" [overlay]="false" />
+          }
+
+          @if (!processedSummary.isLoading && processedSummary.activeTab === 'Variables') {
+          <section class="pivot-section">
+            @if (processedSummary.data.length > 0) {
+            <div class="accordion-controls">
+              <div class="toolbar-segmented">
+                <button type="button" class="toolbar-seg" (click)="expandAll('processed')">Expand All</button>
+                <button type="button" class="toolbar-seg" (click)="collapseAll('processed')">Collapse All</button>
+              </div>
+              <button type="button" class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
+                <i class="fa fa-file-pdf-o"></i>
+                Export
+              </button>
+            </div>
+
+            @for (v of processedSummary.data; track v.name) {
+            <div class="accordion pivot-card">
+              <button type="button" class="accordion-header" (click)="toggleAccordion('processed', v.name)">
+                <div class="accordion-header-left">
+                  <span class="accordion-title">{{ v.name }}</span>
+                  <div class="snapshot-chips">
+                    @for (stat of getSnapshotStats(v); track stat.label) {
+                    <span class="snapshot-chip">
+                      <span class="chip-label">{{ stat.label }}:</span>
+                      <span class="chip-value">{{ stat.value }}</span>
+                    </span>
+                    }
+                  </div>
+                </div>
+                <span class="accordion-icon" [class.open]="isAccordionOpen('processed', v.name)">▾</span>
+              </button>
+              <div class="accordion-body fade" [class.open]="isAccordionOpen('processed', v.name)">
+                <div class="table-wrapper">
+                  <table class="data-table pivot-table">
+                    <thead>
+                      <tr>
+                        <th>Metric</th>
+                        @for (ds of v.columns; track ds) {
+                        <th>{{ ds }}</th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (r of v.rows; track r.metric) {
+                      <tr>
+                        <td class="metric-cell">{{ r.metric }}</td>
+                        @for (ds of v.columns; track ds) {
+                        <td>{{ r.values[ds] }}</td>
+                        }
+                      </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            }
+            }
+            @else {
+            <div class="empty-state-block">
+              <i class="fa fa-table"></i>
+              <p>No data available.</p>
+              <span>Apply preprocessing to recalculate the processed data summary.</span>
+            </div>
+            }
+          </section>
+          }
+
+          @if (!processedSummary.isLoading && processedSummary.activeTab === 'Distributions' && processedSummary.showDistributions) {
+          <section class="distributions-section">
+            <div class="accordion-controls no-margin-top">
+              <button type="button" class="toolbar-icon-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
+                <i class="fa fa-file-pdf-o"></i>
+                Export
+              </button>
+            </div>
+            @if (processedSummary.nonNominalVariables.length > 0 && processedSummary.nominalVariables.length > 0) {
+            <div class="distribution-sheet-tabs">
+              <button type="button" [class.active]="processedSummary.distributionSubTab === 'Numeric'" (click)="setDistributionSubTab('processed', 'Numeric')">Numeric Variables</button>
+              <button type="button" [class.active]="processedSummary.distributionSubTab === 'Nominal'" (click)="setDistributionSubTab('processed', 'Nominal')">Nominal Variables</button>
+            </div>
+            }
+            @if (processedSummary.distributionSubTab === 'Numeric' && processedSummary.nonNominalVariables.length > 0) {
+            <div class="distribution-sheet">
+              @if (processedSummary.nonNominalVariables.length > 1) {
+              <div class="mini-tabs">
+                @for (v of processedSummary.nonNominalVariables; track v.code; let i = $index) {
+                <button type="button" [class.active]="processedSummary.activeBoxPlotIndex === i" (click)="setActiveChart('processed', 'numeric', i)">{{ variableLabel(v) }}</button>
+                }
+              </div>
+              }
+              <div class="chart-container fade">
+                <app-chart-renderer [charts]="processedSummary.chartsForBoxPlot[processedSummary.activeBoxPlotIndex] || []"></app-chart-renderer>
+              </div>
+            </div>
+            }
+            @if (processedSummary.distributionSubTab === 'Nominal' && processedSummary.nominalVariables.length > 0) {
+            <div class="distribution-sheet">
+              @if (processedSummary.nominalVariables.length > 1) {
+              <div class="mini-tabs">
+                @for (v of processedSummary.nominalVariables; track v.code; let i = $index) {
+                <button type="button" [class.active]="processedSummary.activeNominalIndex === i" (click)="setActiveChart('processed', 'nominal', i)">{{ variableLabel(v) }}</button>
+                }
+              </div>
+              }
+              <div class="chart-container fade">
+                <app-chart-renderer [charts]="processedSummary.chartsForNominal[processedSummary.activeNominalIndex] || []"></app-chart-renderer>
+              </div>
+            </div>
+            }
+          </section>
+          }
+          }
+        </div>
+      </section>
+
+      <div class="hidden-charts-for-export raw-export">
         <div class="numeric-charts-export">
-          @for (v of nonNominalVariables; track v; let i = $index) {
-          <app-chart-renderer class="invisible" [charts]="chartsForBoxPlot[i]"></app-chart-renderer>
+          @for (v of rawSummary.nonNominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="rawSummary.chartsForBoxPlot[i]"></app-chart-renderer>
           }
         </div>
         <div class="nominal-charts-export">
-          @for (v of nominalVariables; track v; let i = $index) {
-          <app-chart-renderer class="invisible" [charts]="chartsForNominal[i]"></app-chart-renderer>
+          @for (v of rawSummary.nominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="rawSummary.chartsForNominal[i]"></app-chart-renderer>
+          }
+        </div>
+      </div>
+
+      <div class="hidden-charts-for-export processed-export">
+        <div class="numeric-charts-export">
+          @for (v of processedSummary.nonNominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="processedSummary.chartsForBoxPlot[i]"></app-chart-renderer>
+          }
+        </div>
+        <div class="nominal-charts-export">
+          @for (v of processedSummary.nominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="processedSummary.chartsForNominal[i]"></app-chart-renderer>
           }
         </div>
       </div>

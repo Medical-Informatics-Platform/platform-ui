@@ -530,6 +530,52 @@
   transform: translateY(-1px);
 }
 
+.parameter-list {
+  gap: 8px;
+}
+
+.parameter-item {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) minmax(80px, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(2, 128, 144, 0.06);
+  border: 1px solid rgba(2, 128, 144, 0.14);
+}
+
+.parameter-item:hover {
+  background: rgba(2, 128, 144, 0.1);
+}
+
+.parameter-name,
+.parameter-value {
+  overflow-wrap: anywhere;
+}
+
+.parameter-name {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.parameter-value {
+  justify-self: start;
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .parameter-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
 /* RESULTS CARD */
 
 .results-card {

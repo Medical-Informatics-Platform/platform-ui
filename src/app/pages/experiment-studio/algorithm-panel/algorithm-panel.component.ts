@@ -1078,7 +1078,7 @@ export class AlgorithmPanelComponent {
         createdAt: new Date(),
         algorithm: algoLabel,
         params: info.algorithmConfigs,
-        preprocessing: 'none',
+        preprocessing: this.experimentStudioService.getEffectivePreprocessingSummary(algoKey),
         domain: this.experimentStudioService.selectedDataModel()?.code ?? null,
         datasets: (info.datasets ?? []).map(code => {
           const ds = this.experimentStudioService.availableDatasets().find(d => d.code === code);

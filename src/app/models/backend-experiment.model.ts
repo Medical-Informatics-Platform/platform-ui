@@ -20,6 +20,7 @@ export interface BackendExperiment {
       filters: BackendFilter | null;
     };
     parameters: Record<string, unknown>;
+    preprocessing?: Record<string, unknown> | null;
     status: string;
   };
   createdBy: {

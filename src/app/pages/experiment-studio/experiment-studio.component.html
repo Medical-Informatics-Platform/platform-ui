@@ -68,6 +68,32 @@
             <span class="studio-rail-icon"><i class="fas fa-chart-line"></i></span>
             <span class="studio-rail-label">Descriptive statistics</span>
           </a>
+          @if (activeSection() === 'statistics-section') {
+          <div class="studio-descriptive-progress" aria-label="Descriptive statistics progress">
+            <button type="button" class="studio-progress-step is-active" (click)="goToDescriptiveStep('raw')">
+              <span class="studio-progress-num">1</span>
+              <span class="studio-progress-label">Raw Data Summary</span>
+            </button>
+            <button
+              type="button"
+              class="studio-progress-step"
+              [class.is-active]="descriptiveProgress().pendingChangeCount > 0 || descriptiveProgress().preprocessingStatus === 'applied'"
+              (click)="goToDescriptiveStep('setup')"
+            >
+              <span class="studio-progress-num">2</span>
+              <span class="studio-progress-label">Preprocessing Setup</span>
+            </button>
+            <button
+              type="button"
+              class="studio-progress-step"
+              [class.is-active]="descriptiveProgress().preprocessingStatus === 'applied'"
+              (click)="goToDescriptiveStep('processed')"
+            >
+              <span class="studio-progress-num">3</span>
+              <span class="studio-progress-label">Processed Summary</span>
+            </button>
+          </div>
+          }
           <a routerLink="." [fragment]="'algorithm-section'" queryParamsHandling="preserve" class="studio-rail-item"
             [class.is-active]="activeSection() === 'algorithm-section'"
             [attr.aria-current]="activeSection() === 'algorithm-section' ? 'page' : null">
@@ -86,7 +112,7 @@
       </section>
 
       <section class="studio-section studio-section--statistics" id="statistics-section">
-        <app-statistic-analysis-panel></app-statistic-analysis-panel>
+        <app-statistic-analysis-panel (progressStateChange)="descriptiveProgress.set($event)"></app-statistic-analysis-panel>
       </section>
 
       @if (dataExclusionWarnings().length > 0) {
