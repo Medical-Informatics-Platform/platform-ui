@@ -77,10 +77,19 @@
             <button
               type="button"
               class="studio-progress-step"
+              [class.is-active]="expStudioService.selectedFilters().length > 0 || !!expStudioService.filterLogic()"
+              (click)="goToDescriptiveStep('filters')"
+            >
+              <span class="studio-progress-num">2</span>
+              <span class="studio-progress-label">Filter</span>
+            </button>
+            <button
+              type="button"
+              class="studio-progress-step"
               [class.is-active]="descriptiveProgress().pendingChangeCount > 0 || descriptiveProgress().preprocessingStatus === 'applied'"
               (click)="goToDescriptiveStep('setup')"
             >
-              <span class="studio-progress-num">2</span>
+              <span class="studio-progress-num">3</span>
               <span class="studio-progress-label">Preprocessing Setup</span>
             </button>
             <button
@@ -89,7 +98,7 @@
               [class.is-active]="descriptiveProgress().preprocessingStatus === 'applied'"
               (click)="goToDescriptiveStep('processed')"
             >
-              <span class="studio-progress-num">3</span>
+              <span class="studio-progress-num">4</span>
               <span class="studio-progress-label">Processed Summary</span>
             </button>
           </div>
@@ -142,11 +151,6 @@
       </section>
     </div>
   </div>
-
-  @if (expStudioService.isFilterConfigOpen()) {
-  <app-filter-config-modal (closeModal)="expStudioService.toggleFilterConfigModal(false)"
-    [filterLogic]="expStudioService.filterLogic()"></app-filter-config-modal>
-  }
 
   <app-experiment-studio-guide></app-experiment-studio-guide>
 </div>

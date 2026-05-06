@@ -26,7 +26,7 @@
       <div class="panel-container">
         <div class="panel">
           <ul class="horizontal-list" cdkDropList #varList="cdkDropList" [cdkDropListData]="variables()"
-            [cdkDropListConnectedTo]="[covList, filtList]" (cdkDropListDropped)="drop($event, 'variables')">
+            [cdkDropListConnectedTo]="[covList]" (cdkDropListDropped)="drop($event, 'variables')">
             @for (variable of variables(); track variable) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable': selectedNode?.code === variable.code
@@ -67,7 +67,7 @@
       <div class="panel-container">
         <div class="panel">
           <ul class="horizontal-list" cdkDropList #covList="cdkDropList" [cdkDropListData]="covariates()"
-            [cdkDropListConnectedTo]="[varList, filtList]" (cdkDropListDropped)="drop($event, 'covariates')">
+            [cdkDropListConnectedTo]="[varList]" (cdkDropListDropped)="drop($event, 'covariates')">
             @for (covariate of covariates(); track covariate) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable highlighted-covariate':
@@ -89,51 +89,5 @@
       </div>
     </div>
 
-    <!-- Filters Section -->
-    <div class="section-container">
-      <div class="panel-controls">
-        <button type="button" class="panel-title panel-title--filter"
-          [class.pulse-hint--filter]="isNodeSelectedAndNotInList('filters')" [disabled]="!hasSelectedDatasets"
-          (click)="addFilter()">
-          <span>+ Filters</span>
-          <span class="counter counter--inline counter--filter">{{ filters().length }}</span>
-        </button>
-        @if (filters().length > 0) {
-        <button class="bin-btn" (click)="clearList('filters')">
-          <i class="fa fa-trash"></i>
-        </button>
-        }
-      </div>
-
-      <div class="panel-container">
-        <div class="panel">
-          <ul class="horizontal-list" cdkDropList #filtList="cdkDropList" [cdkDropListData]="filters()"
-            [cdkDropListConnectedTo]="[varList, covList]" (cdkDropListDropped)="drop($event, 'filters')">
-            @for (filter of filters(); track filter) {
-            <li class="horizontal-item" [ngClass]="{
-                'highlighted-variable highlighted-filter':
-                  selectedNode?.code === filter.code
-              }" cdkDrag (click)="onVariableClick(filter)">
-              <div class="variable-info">
-                <span class="variable-name">{{ filter.label }}</span>
-                <span class="variable-type">type: {{ filter.type }}</span>
-              </div>
-              <button class="remove-btn" (click)="
-                  removeItem(filter, 'filters'); $event.stopPropagation()
-                ">
-                ✖
-              </button>
-            </li>
-            }
-          </ul>
-        </div>
-
-        <button class="cog-btn" (click)="openFilterConfig()" [disabled]="filters().length === 0"
-          [ngClass]="{ disabled: filters().length === 0 }">
-          <i class="fa fa-cog"></i>
-        </button>
-      </div>
-
-    </div>
   </div>
 </div>

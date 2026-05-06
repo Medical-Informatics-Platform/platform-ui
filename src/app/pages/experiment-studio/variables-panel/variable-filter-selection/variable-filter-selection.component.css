@@ -19,10 +19,10 @@
   border-top-right-radius: 12px;
 }
 
-/* Main layout: three equal columns */
+/* Main layout: variables and covariates share the full width equally */
 .parameters-content {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.6rem;
   padding: 0.4rem 0.15rem 0.4rem;
 }

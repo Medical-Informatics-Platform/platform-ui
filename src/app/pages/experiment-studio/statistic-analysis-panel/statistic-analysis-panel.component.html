@@ -15,12 +15,16 @@
       <span class="step-num">1</span>
       <span class="step-label">Raw Data Summary</span>
     </button>
-    <button type="button" class="progress-step" [class.active]="pendingChangeCount > 0 || preprocessingStatus === 'applied'" (click)="goToSection('setup')">
+    <button type="button" class="progress-step" [class.active]="activeFilterRuleCount > 0" (click)="goToSection('filters')">
       <span class="step-num">2</span>
+      <span class="step-label">Filter</span>
+    </button>
+    <button type="button" class="progress-step" [class.active]="pendingChangeCount > 0 || preprocessingStatus === 'applied'" (click)="goToSection('setup')">
+      <span class="step-num">3</span>
       <span class="step-label">Preprocessing Setup</span>
     </button>
     <button type="button" class="progress-step" [class.active]="preprocessingStatus === 'applied'" (click)="goToSection('processed')">
-      <span class="step-num">3</span>
+      <span class="step-num">4</span>
       <span class="step-label">Processed Summary</span>
     </button>
   </div>
@@ -183,10 +187,41 @@
         </div>
       </section>
 
+      <section #filtersSection class="workflow-section filter-workflow-section">
+        <button type="button" class="workflow-section-header" (click)="toggleSection('filters')">
+          <div class="header-left">
+            <span class="step-badge">2</span>
+            <span>Filter</span>
+          </div>
+          <span
+            class="status-pill"
+            [class.status-neutral]="filterStatusClass === 'status-neutral'"
+            [class.status-amber]="filterStatusClass === 'status-amber'"
+            [class.status-green]="filterStatusClass === 'status-green'"
+          >
+            {{ filterStatusLabel }}
+          </span>
+          <span class="accordion-icon" [class.open]="sectionOpen.filters">▾</span>
+        </button>
+        <div class="workflow-section-body" [class.open]="sectionOpen.filters">
+          <div class="preprocessing-toolbar">
+            <div class="preprocessing-section-heading">
+              <i class="fa fa-filter" aria-hidden="true"></i>
+              <span>Experiment Filters</span>
+            </div>
+          </div>
+
+          <app-filter-config-modal
+            [inline]="true"
+            [filterLogic]="expStudioService.filterLogic()"
+          ></app-filter-config-modal>
+        </div>
+      </section>
+
       <section #setupSection class="workflow-section preprocessing-section">
         <button type="button" class="workflow-section-header" (click)="toggleSection('setup')">
           <div class="header-left">
-            <span class="step-badge">2</span>
+            <span class="step-badge">3</span>
             <span>Preprocessing Setup</span>
           </div>
           <span
@@ -376,7 +411,7 @@
       <section #processedSection class="workflow-section">
         <button type="button" class="workflow-section-header" (click)="toggleSection('processed')">
           <div class="header-left">
-            <span class="step-badge">3</span>
+            <span class="step-badge">4</span>
             <span>Processed Data Summary</span>
           </div>
           <span class="accordion-icon" [class.open]="sectionOpen.processed">▾</span>

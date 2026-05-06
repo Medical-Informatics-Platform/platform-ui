@@ -1,7 +1,10 @@
-<div class="modal-wrapper">
+<div [class.modal-wrapper]="!inline" [class.inline-filter-builder]="inline">
+  @if (!inline) {
   <div class="modal-overlay" (click)="cancel()"></div>
+  }
 
   <div class="filter-modal">
+    @if (!inline) {
     <div class="filter-modal-header">
       <div class="header-left">
         <i class="fas fa-filter header-icon"></i>
@@ -11,6 +14,7 @@
         <i class="fas fa-times"></i>
       </button>
     </div>
+    }
 
     <div class="filter-helper">
       <div class="helper-content">
@@ -21,35 +25,78 @@
     </div>
 
     <div class="filter-modal-body">
-      @if(config().fields && Object.keys(config().fields).length) {
-      <ngx-query-builder [config]="config()" [ngModel]="filterLogicModel()"
-        (ngModelChange)="filterLogicModel.set($event)" [attr.key]="configKey()">
-        <ng-container *queryOperator="let rule; let operators=operators">
-          <select [(ngModel)]="rule.operator" (ngModelChange)="filterLogicModel.set(filterLogicModel())"
-            [class.q-control]="true" [style.min-width.px]="120">
-            <option *ngFor="let value of operators" [value]="value">
-              {{ getOperatorLabel(value) }}
-            </option>
-          </select>
-        </ng-container>
+      @if(allFilterVariables().length > 0) {
+      
+      <div class="where-editor">
 
-        <ng-container *queryInput="let rule; type: 'number'">
-          <div class="numeric-input-container">
-            @if (rule.operator === 'between' || rule.operator === 'not_between') {
-            <div class="between-inputs">
-              <input type="number" [(ngModel)]="rule.value[0]"
-                (ngModelChange)="filterLogicModel.set(filterLogicModel())">
-              <span class="and-separator">and</span>
-              <input type="number" [(ngModel)]="rule.value[1]"
-                (ngModelChange)="filterLogicModel.set(filterLogicModel())">
-            </div>
-            } @else {
-            <input type="number" [(ngModel)]="rule.value" (ngModelChange)="filterLogicModel.set(filterLogicModel())">
+        <div class="where-builder-toolbar" aria-label="Expression controls">
+          <button type="button" class="builder-token-btn" (click)="appendWhereToken('(')">(</button>
+          <button type="button" class="builder-token-btn" (click)="appendWhereToken(')')">)</button>
+          <button type="button" class="builder-token-btn" (click)="appendWhereToken('AND')">AND</button>
+          <button type="button" class="builder-token-btn" (click)="appendWhereToken('OR')">OR</button>
+          <button type="button" class="builder-token-btn muted" (click)="removeLastWherePart()">Backspace</button>
+          <button type="button" class="builder-token-btn muted" (click)="clearWhereExpression()">Clear</button>
+        </div>
+
+        <div class="where-condition-row">
+          <label>
+            <span>Variable</span>
+            <input type="text" list="filter-variable-options" [ngModel]="whereVariableText()"
+              (ngModelChange)="onWhereVariableTextChange($event)" placeholder="Type to find a variable">
+          </label>
+          <datalist id="filter-variable-options">
+            @for (field of visibleFilterVariables(); track field.code) {
+            <option [value]="variableDisplayLabel(field)"></option>
             }
-          </div>
-        </ng-container>
-      </ngx-query-builder>
+          </datalist>
+          <label>
+            <span>Operator</span>
+            <select [ngModel]="whereOperator()" (ngModelChange)="whereOperator.set($event)">
+              @for (operator of whereOperatorOptions(); track operator.value) {
+              <option [ngValue]="operator.value">{{ operator.value }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            <span>Value</span>
+            @if (selectedWhereFilter()?.type === 'nominal' && whereCategoryOptions().length > 0) {
+            <select [ngModel]="whereValue()" (ngModelChange)="whereValue.set($event)">
+              <option value="">Choose category</option>
+              @for (category of whereCategoryOptions(); track category.value) {
+              <option [ngValue]="category.value">{{ category.label }}</option>
+              }
+            </select>
+            } @else {
+            <input type="text" [ngModel]="whereValue()" (ngModelChange)="whereValue.set($event)" placeholder="2 or female">
+            }
+          </label>
+          <button type="button" class="btn-primary-gradient where-add-condition" (click)="appendWhereCondition()" [disabled]="!whereField() || whereValue() === ''">
+            <i class="fas fa-plus icon-left"></i>
+            Add Condition
+          </button>
+        </div>
 
+        <label for="where-expression">Expression preview</label>
+        <textarea id="where-expression" readonly [ngModel]="whereExpression()"
+          placeholder="Use the controls above to build: ( Age > 2 AND Sex = female ) OR ( Score <= 10 )"></textarea>
+        <div class="where-help">
+          Add parentheses first when you need grouped logic, then add conditions and connect them with
+          <code>AND</code> or <code>OR</code>. The generated expression is validated when you apply filters.
+        </div>
+        @if (selectedWhereFilter()?.type === 'nominal' && whereCategoryOptions().length > 0) {
+        <div class="where-categories">
+          <span>Available categories:</span>
+          @for (category of whereCategoryOptions(); track category.value) {
+          <code>{{ category.label }}</code>
+          }
+        </div>
+        }
+        @if (whereError()) {
+        <div class="where-error" role="alert">{{ whereError() }}</div>
+        }
+      </div>
+      } @else {
+      <div class="where-error" role="status">No filterable variables are available for this pathology.</div>
       }
     </div>
 
@@ -66,7 +113,9 @@
       </div>
 
       <div class="filter-actions">
+        @if (!inline) {
         <button class="btn-secondary" (click)="cancel()">Cancel</button>
+        }
         <button class="btn-primary-gradient" (click)="saveFilters()">
           <i class="fas fa-check icon-left"></i>
           Apply Filters

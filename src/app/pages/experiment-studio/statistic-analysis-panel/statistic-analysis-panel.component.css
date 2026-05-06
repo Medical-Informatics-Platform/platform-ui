@@ -70,7 +70,7 @@
 .workflow-progress-strip {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 0 0 20px;
   margin: -6px 0 20px;
@@ -448,6 +448,81 @@
 
 .preprocessing-search {
   padding-left: 32px;
+}
+
+.filter-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.filter-picker-control {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.selected-filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.selected-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  border: 1px solid rgba(43, 51, 233, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 6px 8px 6px 14px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+}
+
+.selected-filter-name {
+  display: block;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.selected-filter-type {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.remove-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(43, 51, 233, 0.12);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remove-filter-btn:hover {
+  color: var(--primary-color);
+  border-color: rgba(43, 51, 233, 0.28);
+}
+
+.filter-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* ── B. Group count chips (distinct from section headings) ── */

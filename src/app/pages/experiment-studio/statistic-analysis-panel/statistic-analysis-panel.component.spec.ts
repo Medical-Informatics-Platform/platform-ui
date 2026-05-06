@@ -18,13 +18,17 @@ describe('StatisticAnalysisPanelComponent', () => {
             'loadDescriptiveOverview',
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
-            'setAppliedDescriptivePreprocessing'
+            'setAppliedDescriptivePreprocessing',
+            'setFilters',
+            'setFilterLogic',
+            'toggleFilterConfigModal'
         ], {
             selectedVariables: signal([]),
             selectedCovariates: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
-            selectedDataModel: signal({ code: 'Stroke', version: '3.7' })
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            filterLogic: signal(null)
         });
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
@@ -133,6 +137,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(text).toContain('DATA REVIEW & PREPROCESSING');
         expect(text).toContain('Raw Data Summary');
         expect(text).toContain('Preprocessing Setup');
+        expect(text).toContain('Optional Filters');
         expect(text).toContain('Processed Data Summary');
         const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
         const buttonLabels = Array.from(buttons).map((button) => button.textContent?.trim());

@@ -24,6 +24,7 @@ import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
+import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
 
 type TabKey = 'Variables' | 'Distributions';
 type SummaryKind = 'raw' | 'processed';
@@ -84,7 +85,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, SpinnerComponent, FormsModule],
+  imports: [ChartRendererComponent, SpinnerComponent, FormsModule, FilterConfigModalComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   styleUrls: ['./statistic-analysis-panel.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -101,10 +102,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   rawSection?: ElementRef<HTMLElement>;
   @ViewChild('setupSection')
   setupSection?: ElementRef<HTMLElement>;
+  @ViewChild('filtersSection')
+  filtersSection?: ElementRef<HTMLElement>;
   @ViewChild('processedSection')
   processedSection?: ElementRef<HTMLElement>;
 
-  private expStudioService = inject(ExperimentStudioService);
+  expStudioService = inject(ExperimentStudioService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
   private cdr = inject(ChangeDetectorRef);
@@ -132,9 +135,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   isLoading = true;
   showBoxPlots = false;
   openAccordions: Record<string, boolean> = {};
-  sectionOpen: Record<'raw' | 'setup' | 'processed', boolean> = {
+  sectionOpen: Record<'raw' | 'setup' | 'filters' | 'processed', boolean> = {
     raw: true,
     setup: true,
+    filters: false,
     processed: false,
   };
 
@@ -185,7 +189,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       const variables = this.expStudioService.selectedVariables();
       const covariates = this.expStudioService.selectedCovariates();
       const filters = this.expStudioService.selectedFilters();
-      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters);
+      const filterLogic = this.expStudioService.filterLogic();
+      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters, filterLogic);
 
       if (nextSelectionKey !== this.selectionKey) {
         this.selectionKey = nextSelectionKey;
@@ -293,6 +298,26 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return groups.filter((group) => group.variables.length > 0);
   }
 
+  get selectedFilters(): VariableRow[] {
+    return this.expStudioService.selectedFilters() as VariableRow[];
+  }
+
+  get activeFilterRuleCount(): number {
+    return this.countFilterRules(this.expStudioService.filterLogic());
+  }
+
+  get filterStatusLabel(): string {
+    if (this.activeFilterRuleCount > 0) {
+      return `${this.activeFilterRuleCount} active ${this.activeFilterRuleCount === 1 ? 'rule' : 'rules'}`;
+    }
+    return 'Optional';
+  }
+
+  get filterStatusClass(): string {
+    if (this.activeFilterRuleCount > 0) return 'status-green';
+    return 'status-neutral';
+  }
+
   get isLongitudinalModel(): boolean {
     return !!this.expStudioService.selectedDataModel()?.longitudinal;
   }
@@ -347,17 +372,18 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     else summary.activeNominalIndex = index;
   }
 
-  goToSection(section: 'raw' | 'setup' | 'processed'): void {
+  goToSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
     this.sectionOpen = {
       raw: section === 'raw',
       setup: section === 'setup',
+      filters: section === 'filters',
       processed: section === 'processed',
     };
     this.cdr.markForCheck();
     setTimeout(() => this.sectionElement(section)?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
-  toggleSection(section: 'raw' | 'setup' | 'processed'): void {
+  toggleSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
     this.sectionOpen[section] = !this.sectionOpen[section];
   }
 
@@ -528,6 +554,15 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   fetchDescriptiveStatistics(): void {
+    if (!this.expStudioService.selectedDataModel() || this.expStudioService.selectedDatasets().length === 0) {
+      this.expStudioService.clearDataExclusionWarnings();
+      this.rawSummary = this.createEmptySummary(false);
+      this.processedData = [];
+      this.isLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.rawSummary = { ...this.rawSummary, isLoading: true };
     this.isLoading = true;
     this.expStudioService.clearDataExclusionWarnings();
@@ -686,9 +721,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return kind === 'raw' ? this.rawSummary : this.processedSummary;
   }
 
-  private sectionElement(section: 'raw' | 'setup' | 'processed'): ElementRef<HTMLElement> | undefined {
+  private sectionElement(section: 'raw' | 'setup' | 'filters' | 'processed'): ElementRef<HTMLElement> | undefined {
     if (section === 'raw') return this.rawSection;
     if (section === 'setup') return this.setupSection;
+    if (section === 'filters') return this.filtersSection;
     return this.processedSection;
   }
 
@@ -970,11 +1006,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     });
   }
 
-  private buildSelectionKey(variables: VariableRow[], covariates: VariableRow[], filters: VariableRow[]): string {
+  private buildSelectionKey(variables: VariableRow[], covariates: VariableRow[], filters: VariableRow[], filterLogic: unknown): string {
     return JSON.stringify({
       variables: variables.map((variable) => variable.code).sort(),
       covariates: covariates.map((variable) => variable.code).sort(),
       filters: filters.map((variable) => variable.code).sort(),
+      filterLogic,
     });
   }
 
@@ -1006,6 +1043,16 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       ...variables,
       ...groups.flatMap((group) => this.flattenModelVariables(group.variables ?? [], group.groups ?? [])),
     ].filter((variable): variable is VariableRow => !!variable?.code);
+  }
+
+  private countFilterRules(node: any): number {
+    if (!node || !Array.isArray(node.rules)) return 0;
+    return node.rules.reduce((count: number, rule: any) => {
+      if (rule?.condition && Array.isArray(rule.rules)) {
+        return count + this.countFilterRules(rule);
+      }
+      return count + 1;
+    }, 0);
   }
 
   private getFeaturewiseRowsForRaw(variableCode: string): any[] {
