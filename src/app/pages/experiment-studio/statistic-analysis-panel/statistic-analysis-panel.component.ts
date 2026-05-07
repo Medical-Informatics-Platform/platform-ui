@@ -65,6 +65,11 @@ interface VariableRow {
   enumerations?: Array<{ code?: string; label?: string; name?: string }>;
 }
 
+interface EnumOption {
+  code: string;
+  label: string;
+}
+
 interface PreprocessingRule {
   variableCode: string;
   action: MissingAction;
@@ -136,9 +141,9 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   showBoxPlots = false;
   openAccordions: Record<string, boolean> = {};
   sectionOpen: Record<'raw' | 'setup' | 'filters' | 'processed', boolean> = {
-    raw: true,
-    setup: true,
-    filters: false,
+    raw: false,
+    setup: false,
+    filters: true,
     processed: false,
   };
 
@@ -398,6 +403,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     const next = { ...this.ruleFor(variable), action };
     next.enabled = action !== 'no_action';
     if (action !== 'constant') next.value = '';
+    if (action === 'constant' && this.isCategoricalVariable(variable)) {
+      const enumValues = this.enumOptions(variable).map((item) => item.code);
+      if (!enumValues.includes(next.value)) next.value = '';
+    }
     this.pendingPreprocessingRules = {
       ...this.pendingPreprocessingRules,
       [variable.code]: next,
@@ -627,6 +636,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   missingActionLabel(action: MissingAction): string {
     return this.missingActions.find((item) => item.value === action)?.label ?? 'No action';
+  }
+
+  enumOptions(variable: VariableRow): EnumOption[] {
+    return (variable.enumerations ?? [])
+      .map((item) => {
+        const raw = item.code ?? item.label ?? item.name;
+        if (raw === undefined || raw === null) return null;
+        return {
+          code: String(raw),
+          label: String(item.label ?? item.name ?? raw),
+        };
+      })
+      .filter((item): item is EnumOption => !!item);
   }
 
   getSnapshotStats(v: PivotBlock): { label: string; value: string }[] {
@@ -883,6 +905,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   private reconcilePreprocessingForSelection(): void {
     const currentCodes = this.currentPreprocessingCodeSet();
+    this.ensureDefaultRulesForCurrentSelection(currentCodes);
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
     );
@@ -892,6 +915,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
     this.updatePreprocessingStatus();
+    this.syncAppliedPreprocessingForCurrentSelection();
+  }
+
+  private ensureDefaultRulesForCurrentSelection(currentCodes = this.currentPreprocessingCodeSet()): void {
+    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
+    let changed = false;
+    currentCodes.forEach((code) => {
+      if (!nextPending[code] && !this.appliedPreprocessingRules[code]) {
+        nextPending[code] = this.defaultRule(code);
+        changed = true;
+      }
+    });
+    if (changed) this.pendingPreprocessingRules = nextPending;
   }
 
   private emitProgressState(): void {
@@ -988,7 +1024,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   private defaultRule(variableCode: string): PreprocessingRule {
-    return { variableCode, action: 'no_action', value: '', enabled: false };
+    return { variableCode, action: 'drop', value: '', enabled: true };
   }
 
   private cloneRules(rules: Record<string, PreprocessingRule>): Record<string, PreprocessingRule> {
@@ -1019,7 +1055,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return ['real', 'int', 'integer', 'numeric', 'number'].includes(String(variable.type ?? '').toLowerCase());
   }
 
-  private isCategoricalVariable(variable: VariableRow): boolean {
+  isCategoricalVariable(variable: VariableRow): boolean {
     return String(variable.type ?? '').toLowerCase() === 'nominal' || !!variable.enumerations?.length;
   }
 

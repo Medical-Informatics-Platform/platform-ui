@@ -19,82 +19,27 @@
     <div class="filter-helper">
       <div class="helper-content">
         <i class="fas fa-info-circle info-icon"></i>
-        <p>Define rules to filter your dataset before running the experiment. Combined rules form the final Cohort
-          Selection.</p>
+        <p>Build filter logic from editable condition and group blocks. Connector chips define how neighboring blocks are combined.</p>
       </div>
     </div>
 
     <div class="filter-modal-body">
       @if(allFilterVariables().length > 0) {
-      
-      <div class="where-editor">
+      <ng-container
+        [ngTemplateOutlet]="groupTemplate"
+        [ngTemplateOutletContext]="{ group: rootGroup(), depth: 0, removable: false }">
+      </ng-container>
 
-        <div class="where-builder-toolbar" aria-label="Expression controls">
-          <button type="button" class="builder-token-btn" (click)="appendWhereToken('(')">(</button>
-          <button type="button" class="builder-token-btn" (click)="appendWhereToken(')')">)</button>
-          <button type="button" class="builder-token-btn" (click)="appendWhereToken('AND')">AND</button>
-          <button type="button" class="builder-token-btn" (click)="appendWhereToken('OR')">OR</button>
-          <button type="button" class="builder-token-btn muted" (click)="removeLastWherePart()">Backspace</button>
-          <button type="button" class="builder-token-btn muted" (click)="clearWhereExpression()">Clear</button>
-        </div>
-
-        <div class="where-condition-row">
-          <label>
-            <span>Variable</span>
-            <input type="text" list="filter-variable-options" [ngModel]="whereVariableText()"
-              (ngModelChange)="onWhereVariableTextChange($event)" placeholder="Type to find a variable">
-          </label>
-          <datalist id="filter-variable-options">
-            @for (field of visibleFilterVariables(); track field.code) {
-            <option [value]="variableDisplayLabel(field)"></option>
-            }
-          </datalist>
-          <label>
-            <span>Operator</span>
-            <select [ngModel]="whereOperator()" (ngModelChange)="whereOperator.set($event)">
-              @for (operator of whereOperatorOptions(); track operator.value) {
-              <option [ngValue]="operator.value">{{ operator.value }}</option>
-              }
-            </select>
-          </label>
-          <label>
-            <span>Value</span>
-            @if (selectedWhereFilter()?.type === 'nominal' && whereCategoryOptions().length > 0) {
-            <select [ngModel]="whereValue()" (ngModelChange)="whereValue.set($event)">
-              <option value="">Choose category</option>
-              @for (category of whereCategoryOptions(); track category.value) {
-              <option [ngValue]="category.value">{{ category.label }}</option>
-              }
-            </select>
-            } @else {
-            <input type="text" [ngModel]="whereValue()" (ngModelChange)="whereValue.set($event)" placeholder="2 or female">
-            }
-          </label>
-          <button type="button" class="btn-primary-gradient where-add-condition" (click)="appendWhereCondition()" [disabled]="!whereField() || whereValue() === ''">
-            <i class="fas fa-plus icon-left"></i>
-            Add Condition
-          </button>
-        </div>
-
-        <label for="where-expression">Expression preview</label>
-        <textarea id="where-expression" readonly [ngModel]="whereExpression()"
-          placeholder="Use the controls above to build: ( Age > 2 AND Sex = female ) OR ( Score <= 10 )"></textarea>
-        <div class="where-help">
-          Add parentheses first when you need grouped logic, then add conditions and connect them with
-          <code>AND</code> or <code>OR</code>. The generated expression is validated when you apply filters.
-        </div>
-        @if (selectedWhereFilter()?.type === 'nominal' && whereCategoryOptions().length > 0) {
-        <div class="where-categories">
-          <span>Available categories:</span>
-          @for (category of whereCategoryOptions(); track category.value) {
-          <code>{{ category.label }}</code>
-          }
-        </div>
-        }
-        @if (whereError()) {
-        <div class="where-error" role="alert">{{ whereError() }}</div>
-        }
+      @if (previewExpression()) {
+      <div class="block-preview">
+        <span>Preview</span>
+        <code>{{ previewExpression() }}</code>
       </div>
+      }
+
+      @if (filterError()) {
+      <div class="where-error" role="alert">{{ filterError() }}</div>
+      }
       } @else {
       <div class="where-error" role="status">No filterable variables are available for this pathology.</div>
       }
@@ -113,10 +58,11 @@
       </div>
 
       <div class="filter-actions">
+        <button class="btn-secondary" type="button" (click)="clearFilters()">Clear</button>
         @if (!inline) {
-        <button class="btn-secondary" (click)="cancel()">Cancel</button>
+        <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
         }
-        <button class="btn-primary-gradient" (click)="saveFilters()">
+        <button class="btn-primary-gradient" type="button" (click)="saveFilters()">
           <i class="fas fa-check icon-left"></i>
           Apply Filters
         </button>
@@ -124,3 +70,112 @@
     </div>
   </div>
 </div>
+
+<ng-template #groupTemplate let-group="group" let-depth="depth" let-removable="removable">
+  <div class="filter-block-group" [class.is-root]="depth === 0">
+    <div class="filter-group-header">
+      <div class="filter-group-title">
+        <i class="fas fa-layer-group"></i>
+        <span>{{ depth === 0 ? 'Filter group' : 'Nested group' }}</span>
+      </div>
+      <div class="filter-group-actions">
+        <button type="button" class="builder-token-btn" (click)="addCondition(group.id, 0)">
+          <i class="fas fa-plus"></i> Condition
+        </button>
+        <button type="button" class="builder-token-btn" (click)="addGroup(group.id, 0)">
+          <i class="fas fa-plus"></i> Group
+        </button>
+        @if (removable) {
+        <button type="button" class="builder-token-btn muted" (click)="removeBlock(group.id)">
+          <i class="fas fa-trash"></i>
+        </button>
+        }
+      </div>
+    </div>
+
+    @if (group.rules.length === 0) {
+    <div class="empty-filter-group">
+      <span>No conditions yet.</span>
+      <button type="button" class="builder-token-btn" (click)="addCondition(group.id, 0)">Add condition</button>
+    </div>
+    }
+
+    <div class="filter-block-list">
+      @for (block of group.rules; track block.id; let i = $index) {
+        @if (i > 0) {
+        <div class="connector-row">
+          <button type="button" class="insert-chip" (click)="addCondition(group.id, i)">
+            <i class="fas fa-plus"></i>
+          </button>
+          <select class="connector-select" [ngModel]="group.condition" (ngModelChange)="setGroupCondition(group.id, $event)">
+            <option ngValue="AND">AND</option>
+            <option ngValue="OR">OR</option>
+          </select>
+          <button type="button" class="insert-chip" (click)="addGroup(group.id, i)">
+            <i class="fas fa-object-group"></i>
+          </button>
+        </div>
+        }
+
+        @if (block.kind === 'condition') {
+        <div class="condition-block">
+          <div class="condition-fields">
+            <label>
+              <span>Variable</span>
+              <input type="text" [attr.list]="'filter-variable-options-' + block.id" [ngModel]="block.variableText"
+                (ngModelChange)="onConditionVariableTextChange(block.id, $event)" placeholder="Type to find a variable">
+              <datalist [id]="'filter-variable-options-' + block.id">
+                @for (field of visibleFilterVariables(block.variableText); track field.code) {
+                <option [value]="variableDisplayLabel(field)"></option>
+                }
+              </datalist>
+            </label>
+            <label>
+              <span>Operator</span>
+              <select [ngModel]="block.operator" (ngModelChange)="setConditionOperator(block.id, $event)">
+                @for (operator of operatorOptions(block); track operator) {
+                <option [ngValue]="operator">{{ operatorDisplayLabel(operator) }}</option>
+                }
+              </select>
+            </label>
+            @if (!isUnaryOperator(block.operator)) {
+            <label>
+              <span>Value</span>
+              @if (selectedFilter(block)?.type === 'nominal' && categoryOptions(block).length > 0) {
+              <select [ngModel]="block.value" (ngModelChange)="setConditionValue(block.id, $event)">
+                <option value="">Choose category</option>
+                @for (category of categoryOptions(block); track category.value) {
+                <option [ngValue]="category.value">{{ category.label }}</option>
+                }
+              </select>
+              } @else {
+              <input type="text" [ngModel]="block.value" (ngModelChange)="setConditionValue(block.id, $event)" placeholder="Value">
+              }
+            </label>
+            }
+          </div>
+          <button type="button" class="remove-block-btn" (click)="removeBlock(block.id)" aria-label="Remove condition">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        } @else {
+        <ng-container
+          [ngTemplateOutlet]="groupTemplate"
+          [ngTemplateOutletContext]="{ group: block, depth: depth + 1, removable: true }">
+        </ng-container>
+        }
+      }
+
+      @if (group.rules.length > 0) {
+      <div class="connector-row is-tail">
+        <button type="button" class="insert-chip" (click)="addCondition(group.id, group.rules.length)">
+          <i class="fas fa-plus"></i> Condition
+        </button>
+        <button type="button" class="insert-chip" (click)="addGroup(group.id, group.rules.length)">
+          <i class="fas fa-plus"></i> Group
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</ng-template>

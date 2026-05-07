@@ -70,18 +70,18 @@
           </a>
           @if (activeSection() === 'statistics-section') {
           <div class="studio-descriptive-progress" aria-label="Descriptive statistics progress">
-            <button type="button" class="studio-progress-step is-active" (click)="goToDescriptiveStep('raw')">
-              <span class="studio-progress-num">1</span>
-              <span class="studio-progress-label">Raw Data Summary</span>
-            </button>
             <button
               type="button"
               class="studio-progress-step"
               [class.is-active]="expStudioService.selectedFilters().length > 0 || !!expStudioService.filterLogic()"
               (click)="goToDescriptiveStep('filters')"
             >
-              <span class="studio-progress-num">2</span>
+              <span class="studio-progress-num">1</span>
               <span class="studio-progress-label">Filter</span>
+            </button>
+            <button type="button" class="studio-progress-step is-active" (click)="goToDescriptiveStep('raw')">
+              <span class="studio-progress-num">2</span>
+              <span class="studio-progress-label">Raw Data Summary</span>
             </button>
             <button
               type="button"

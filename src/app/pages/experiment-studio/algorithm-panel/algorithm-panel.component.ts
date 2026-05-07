@@ -91,6 +91,12 @@ export class AlgorithmPanelComponent {
     this.isCrossValidationOnly() ||
     this.canToggleTransformation()
   ));
+  readonly preprocessingRunBlockMessage = computed(() => {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm) return null;
+    if (this.experimentStudioService.hasAppliedDescriptivePreprocessing()) return null;
+    return 'Apply missing value preprocessing before running algorithms. The recommended default is Remove rows.';
+  });
   readonly labelMap = computed(() => {
     const map: Record<string, string> = {};
     const items = [
@@ -595,6 +601,12 @@ export class AlgorithmPanelComponent {
     this.errorMsg.set(null);
     this.errorService.clearError();
 
+    const preprocessingMessage = this.preprocessingRunBlockMessage();
+    if (preprocessingMessage) {
+      this.errorMsg.set(preprocessingMessage);
+      return;
+    }
+
     // algorithm does not run if form is invalid
     if (this.configForm() && this.configForm().invalid) {
       this.configForm().markAllAsTouched();
@@ -716,6 +728,8 @@ export class AlgorithmPanelComponent {
 
     // if experiment running -> disabled
     if (this.isRunning()) return true;
+
+    if (this.preprocessingRunBlockMessage()) return true;
 
 
     if (this.configForm() && Object.keys(this.configForm().controls).length > 0) {

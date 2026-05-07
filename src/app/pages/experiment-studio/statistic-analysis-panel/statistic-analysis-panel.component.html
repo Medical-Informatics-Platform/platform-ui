@@ -11,13 +11,13 @@
 
   <div class="workflow-progress-strip">
     <div class="step-line"></div>
-    <button type="button" class="progress-step active" (click)="goToSection('raw')">
-      <span class="step-num">1</span>
-      <span class="step-label">Raw Data Summary</span>
-    </button>
     <button type="button" class="progress-step" [class.active]="activeFilterRuleCount > 0" (click)="goToSection('filters')">
-      <span class="step-num">2</span>
+      <span class="step-num">1</span>
       <span class="step-label">Filter</span>
+    </button>
+    <button type="button" class="progress-step active" (click)="goToSection('raw')">
+      <span class="step-num">2</span>
+      <span class="step-label">Raw Data Summary</span>
     </button>
     <button type="button" class="progress-step" [class.active]="pendingChangeCount > 0 || preprocessingStatus === 'applied'" (click)="goToSection('setup')">
       <span class="step-num">3</span>
@@ -31,10 +31,41 @@
 
   <div class="modal-content">
     <div class="modal-body review-body">
+      <section #filtersSection class="workflow-section filter-workflow-section">
+        <button type="button" class="workflow-section-header" (click)="toggleSection('filters')">
+          <div class="header-left">
+            <span class="step-badge">1</span>
+            <span>Filter</span>
+          </div>
+          <span
+            class="status-pill"
+            [class.status-neutral]="filterStatusClass === 'status-neutral'"
+            [class.status-amber]="filterStatusClass === 'status-amber'"
+            [class.status-green]="filterStatusClass === 'status-green'"
+          >
+            {{ filterStatusLabel }}
+          </span>
+          <span class="accordion-icon" [class.open]="sectionOpen.filters">▾</span>
+        </button>
+        <div class="workflow-section-body" [class.open]="sectionOpen.filters">
+          <div class="preprocessing-toolbar">
+            <div class="preprocessing-section-heading">
+              <i class="fa fa-filter" aria-hidden="true"></i>
+              <span>Experiment Filters</span>
+            </div>
+          </div>
+
+          <app-filter-config-modal
+            [inline]="true"
+            [filterLogic]="expStudioService.filterLogic()"
+          ></app-filter-config-modal>
+        </div>
+      </section>
+
       <section #rawSection class="workflow-section">
         <button type="button" class="workflow-section-header" (click)="toggleSection('raw')">
           <div class="header-left">
-            <span class="step-badge">1</span>
+            <span class="step-badge">2</span>
             <span>Raw Data Summary</span>
           </div>
           <span class="accordion-icon" [class.open]="sectionOpen.raw">▾</span>
@@ -187,37 +218,6 @@
         </div>
       </section>
 
-      <section #filtersSection class="workflow-section filter-workflow-section">
-        <button type="button" class="workflow-section-header" (click)="toggleSection('filters')">
-          <div class="header-left">
-            <span class="step-badge">2</span>
-            <span>Filter</span>
-          </div>
-          <span
-            class="status-pill"
-            [class.status-neutral]="filterStatusClass === 'status-neutral'"
-            [class.status-amber]="filterStatusClass === 'status-amber'"
-            [class.status-green]="filterStatusClass === 'status-green'"
-          >
-            {{ filterStatusLabel }}
-          </span>
-          <span class="accordion-icon" [class.open]="sectionOpen.filters">▾</span>
-        </button>
-        <div class="workflow-section-body" [class.open]="sectionOpen.filters">
-          <div class="preprocessing-toolbar">
-            <div class="preprocessing-section-heading">
-              <i class="fa fa-filter" aria-hidden="true"></i>
-              <span>Experiment Filters</span>
-            </div>
-          </div>
-
-          <app-filter-config-modal
-            [inline]="true"
-            [filterLogic]="expStudioService.filterLogic()"
-          ></app-filter-config-modal>
-        </div>
-      </section>
-
       <section #setupSection class="workflow-section preprocessing-section">
         <button type="button" class="workflow-section-header" (click)="toggleSection('setup')">
           <div class="header-left">
@@ -244,6 +244,11 @@
               <i class="fa fa-search search-inline-icon" aria-hidden="true"></i>
               <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." [(ngModel)]="preprocessingSearch" />
             </div>
+          </div>
+
+          <div class="preprocessing-required-note">
+            <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>Missing value handling is required before running algorithms. New variables are preselected to remove rows with missing values.</span>
           </div>
 
           @for (group of preprocessingGroups; track group.key) {
@@ -275,7 +280,16 @@
                       </select>
                     </td>
                     <td>
+                      @if (ruleFor(variable).action === 'constant' && isCategoricalVariable(variable) && enumOptions(variable).length > 0) {
+                      <select class="table-select" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)">
+                        <option value="">Select category</option>
+                        @for (option of enumOptions(variable); track option.code) {
+                        <option [ngValue]="option.code">{{ option.label }}</option>
+                        }
+                      </select>
+                      } @else {
                       <input class="table-input" type="text" [disabled]="ruleFor(variable).action !== 'constant'" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)" placeholder="Value" />
+                      }
                       @if (preprocessingValidationErrors[variable.code]) {
                       <div class="row-error">{{ preprocessingValidationErrors[variable.code] }}</div>
                       }

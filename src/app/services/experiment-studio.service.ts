@@ -378,6 +378,11 @@ export class ExperimentStudioService {
     });
   }
 
+  hasAppliedDescriptivePreprocessing(): boolean {
+    const applied = this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING];
+    return !!applied && Object.keys(applied).length > 0;
+  }
+
   async setAlgorithm(algorithm: AlgorithmConfig) {
     const algo = this.backendAlgorithms()[algorithm.name];
     if (!algo) {
