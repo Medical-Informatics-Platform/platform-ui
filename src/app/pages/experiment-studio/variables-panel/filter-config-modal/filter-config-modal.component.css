@@ -532,17 +532,40 @@
 
 /* ===== BLOCK FILTER BUILDER ===== */
 .filter-block-group {
+  --group-accent: 127, 156, 232;
   display: grid;
   gap: 12px;
-  border: 1px solid rgba(43, 51, 233, 0.12);
+  border: 1px solid rgba(var(--group-accent), 0.2);
+  border-left: 4px solid rgba(var(--group-accent), 0.72);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.62);
-  padding: 14px;
+  background: linear-gradient(90deg, rgba(var(--group-accent), 0.07), rgba(255, 255, 255, 0.68) 34%);
+  padding: 14px 14px 14px 12px;
 }
 
 .filter-block-group.is-root {
-  border-color: rgba(43, 51, 233, 0.16);
+  border-color: rgba(var(--group-accent), 0.18);
+  border-left-color: rgba(var(--group-accent), 0.72);
   background: rgba(248, 250, 252, 0.75);
+}
+
+.filter-block-group.depth-1 {
+  --group-accent: 100, 128, 225;
+}
+
+.filter-block-group.depth-2 {
+  --group-accent: 76, 95, 218;
+}
+
+.filter-block-group.depth-3 {
+  --group-accent: 55, 68, 205;
+}
+
+.filter-block-group.depth-4 {
+  --group-accent: 43, 51, 233;
+}
+
+.filter-block-group.depth-5 {
+  --group-accent: 27, 33, 163;
 }
 
 .filter-group-header,
@@ -561,7 +584,7 @@
 
 .filter-group-title {
   gap: 8px;
-  color: var(--primary-color);
+  color: rgb(var(--group-accent));
   font-size: 0.88rem;
   font-weight: 800;
 }
@@ -581,11 +604,11 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 1px solid rgba(var(--group-accent), 0.14);
   border-radius: 10px;
   background: #ffffff;
   padding: 10px 12px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
+  box-shadow: 0 4px 14px rgba(var(--group-accent), 0.05);
 }
 
 .condition-fields {

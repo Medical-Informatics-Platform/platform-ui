@@ -253,7 +253,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   get preprocessingStatusLabel(): string {
     if (this.pendingChangeCount > 0) return `${this.pendingChangeCount} pending changes`;
     if (this.preprocessingStatus === 'applied') return 'Preprocessing applied';
-    return 'No preprocessing applied';
+    return 'Required';
   }
 
   get preprocessingStatusClass(): string {

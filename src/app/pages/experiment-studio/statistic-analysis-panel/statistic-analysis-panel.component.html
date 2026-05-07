@@ -13,7 +13,7 @@
     <div class="step-line"></div>
     <button type="button" class="progress-step" [class.active]="activeFilterRuleCount > 0" (click)="goToSection('filters')">
       <span class="step-num">1</span>
-      <span class="step-label">Filter</span>
+      <span class="step-label">Filtering</span>
     </button>
     <button type="button" class="progress-step active" (click)="goToSection('raw')">
       <span class="step-num">2</span>
@@ -35,7 +35,7 @@
         <button type="button" class="workflow-section-header" (click)="toggleSection('filters')">
           <div class="header-left">
             <span class="step-badge">1</span>
-            <span>Filter</span>
+            <span>Filtering</span>
           </div>
           <span
             class="status-pill"
@@ -51,7 +51,7 @@
           <div class="preprocessing-toolbar">
             <div class="preprocessing-section-heading">
               <i class="fa fa-filter" aria-hidden="true"></i>
-              <span>Experiment Filters</span>
+              <span>Experiment Filtering</span>
             </div>
           </div>
 
@@ -246,9 +246,9 @@
             </div>
           </div>
 
-          <div class="preprocessing-required-note">
-            <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
-            <span>Missing value handling is required before running algorithms. New variables are preselected to remove rows with missing values.</span>
+          <div class="preprocessing-default-note">
+            <i class="fa fa-info-circle" aria-hidden="true"></i>
+            <span>New variables are preselected to remove rows with missing values.</span>
           </div>
 
           @for (group of preprocessingGroups; track group.key) {

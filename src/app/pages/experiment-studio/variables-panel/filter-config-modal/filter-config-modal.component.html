@@ -72,7 +72,7 @@
 </div>
 
 <ng-template #groupTemplate let-group="group" let-depth="depth" let-removable="removable">
-  <div class="filter-block-group" [class.is-root]="depth === 0">
+  <div class="filter-block-group" [class.is-root]="depth === 0" [ngClass]="'depth-' + (depth > 5 ? 5 : depth)">
     <div class="filter-group-header">
       <div class="filter-group-title">
         <i class="fas fa-layer-group"></i>
