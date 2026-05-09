@@ -20,6 +20,9 @@ function inOptionsValidator(options: any[]) {
 
     // If empty, it is validated by the "required" value
     if (v === null || v === undefined || v === '') return null;
+    if (Array.isArray(v)) {
+      return v.every(item => allowed.has(item)) ? null : { invalidOption: true };
+    }
 
     return allowed.has(v) ? null : { invalidOption: true };
   };
@@ -35,15 +38,22 @@ export function buildFormControl(field: any, initialValue: any = ''): FormContro
   if (field.pattern) validators.push(Validators.pattern(field.pattern));
 
   // Select validator (options as objects or primitives)
-  if (field.type === 'select' && Array.isArray(field.options)) {
+  if ((field.type === 'select' || field.type === 'multi-select') && Array.isArray(field.options)) {
     validators.push(inOptionsValidator(field.options));
   }
 
-  // Initial value for select with no value. null to show required
-  const startValue =
-    field.type === 'select' && (initialValue === undefined || initialValue === '')
-      ? null
-      : (initialValue ?? '');
+  let startValue: any;
+  if (field.type === 'multi-select') {
+    startValue = Array.isArray(initialValue)
+      ? initialValue
+      : initialValue === undefined || initialValue === null || initialValue === ''
+        ? []
+        : [initialValue];
+  } else if (field.type === 'select' && (initialValue === undefined || initialValue === '')) {
+    startValue = null;
+  } else {
+    startValue = initialValue ?? '';
+  }
 
   return new FormControl(startValue, {
     validators,

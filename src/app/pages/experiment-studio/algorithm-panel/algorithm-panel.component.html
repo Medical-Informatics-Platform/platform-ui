@@ -443,6 +443,14 @@
             </option>
             }
           </select>
+          } @else if (field.type === 'multi-select') {
+          <select multiple [formControlName]="field.key" class="config-select">
+            @for (opt of field.options; track opt) {
+            <option [ngValue]="opt.code ?? opt">
+              {{ opt.label ?? opt.name ?? opt }}
+            </option>
+            }
+          </select>
           } @else if (field.type === 'checkbox') {
           <label class="checkbox-wrapper">
             <input type="checkbox" [formControlName]="field.key" />
