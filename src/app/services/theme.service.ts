@@ -19,29 +19,20 @@ export class ThemeService {
     constructor() { }
 
     private getInitialTheme(): Theme {
-        // Check localStorage first
-        const stored = localStorage.getItem(this.STORAGE_KEY) as Theme | null;
-        if (stored === 'light' || stored === 'dark') {
-            return stored;
-        }
-        // Fall back to system preference
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            return 'dark';
-        }
         return 'light';
     }
 
-    private applyTheme(theme: Theme): void {
+    private applyTheme(_theme: Theme): void {
         document.body.classList.remove('theme-light', 'theme-dark');
-        document.body.classList.add(`theme-${theme}`);
-        localStorage.setItem(this.STORAGE_KEY, theme);
+        document.body.classList.add('theme-light');
+        localStorage.setItem(this.STORAGE_KEY, 'light');
     }
 
     toggleTheme(): void {
-        this.theme.update(current => current === 'light' ? 'dark' : 'light');
+        this.theme.set('light');
     }
 
     isDark(): boolean {
-        return this.theme() === 'dark';
+        return false;
     }
 }
