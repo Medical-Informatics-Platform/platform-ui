@@ -55,6 +55,11 @@ export function buildFormControl(field: any, initialValue: any = ''): FormContro
     startValue = initialValue ?? '';
   }
 
+  if (field.type === 'number' && typeof startValue === 'string' && startValue.trim() !== '') {
+    const parsed = Number(startValue);
+    if (Number.isFinite(parsed)) startValue = parsed;
+  }
+
   return new FormControl(startValue, {
     validators,
     updateOn: 'change',

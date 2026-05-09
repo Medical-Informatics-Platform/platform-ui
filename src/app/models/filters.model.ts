@@ -7,8 +7,10 @@ export type BackendRule = {
   value: any;
 };
 
+export type BackendFilterNode = BackendRule | BackendFilter;
+
 export type BackendFilter = {
   condition: 'AND' | 'OR';
-  rules: BackendRule[];
+  rules: BackendFilterNode[];
   valid?: boolean;
 };
