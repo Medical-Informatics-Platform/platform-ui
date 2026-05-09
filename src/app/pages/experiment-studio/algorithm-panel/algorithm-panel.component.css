@@ -1,32 +1,11 @@
 /* ROOT LAYOUT - CONTAINER */
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0px;
-  margin: 2px 0 10px;
-}
-
-.panel-header p {
-  margin: 0;
-  font-size: 0.82rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
 .experiment-container {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 18px;
-  padding: 8px 6px 6px;
-  font-family: "Roboto", system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  padding: 20px 0 0;
+  font-family: inherit;
   position: relative;
   min-height: 60vh;
   align-items: flex-start;
@@ -1115,10 +1094,10 @@
 .config-field {
   display: flex;
   flex-direction: column;
-  padding: 10px 12px;
-  border-radius: 0px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg, 12px);
   background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(203, 213, 225, 0.6);
+  border: 1px solid rgba(43, 51, 233, 0.1);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
 }
 
@@ -1126,24 +1105,26 @@
 
 .config-label,
 .config-field>label {
-  font-weight: 600;
-  font-size: 0.86rem;
-  color: #026a6a;
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: #64748b;
   margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* Required tag */
 
 .required-tag {
-  background: rgba(210, 232, 255, 0.9);
-  color: #4866c9;
+  background: color-mix(in srgb, var(--primary-light) 20%, white 80%);
+  color: var(--primary-color);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 0px;
+  border-radius: 999px;
   border: 1px solid rgba(157, 178, 248, 0.9);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1155,8 +1136,8 @@
 .config-select {
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.96);
-  border-radius: 0px;
-  border: 1px solid #c4e3e3;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(43, 51, 233, 0.16);
   font-size: 0.85rem;
   line-height: 1.4;
   transition: border-color 0.18s ease, box-shadow 0.18s ease,
@@ -1177,10 +1158,11 @@
 .config-input:focus,
 .config-select:focus {
   outline: none;
-  border-color: #03a0a0;
-  background-color: #f4fdfd;
-  box-shadow: 0 0 0 1px rgba(1, 148, 148, 0.2),
-    0 8px 18px rgba(15, 23, 42, 0.15);
+  border-color: var(--primary-color);
+  background-color: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(127, 156, 232, 0.24),
+    0 8px 18px rgba(43, 51, 233, 0.1);
   transform: translateY(-0.5px);
 }
 
@@ -1191,13 +1173,13 @@
   align-items: center;
   gap: 8px;
   font-size: 0.85rem;
-  color: #035757;
+  color: var(--text-main);
 }
 
 .checkbox-wrapper input[type="checkbox"] {
-  width: 15px;
-  height: 15px;
-  border-radius: 0px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
 }
 
 /* Field meta info (desc / range / default) */
@@ -1220,7 +1202,7 @@
 }
 
 .default-hint {
-  color: #028080;
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -1550,7 +1532,7 @@
 /* --- Tablet portrait --- */
 @media (max-width: 768px) {
   .experiment-container {
-    padding: 8px 0;
+    padding: 16px 0 0;
   }
 
   .algorithm-panel {

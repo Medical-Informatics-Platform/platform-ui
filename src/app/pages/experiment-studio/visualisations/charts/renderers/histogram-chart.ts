@@ -64,6 +64,10 @@ export function buildHistogramChart(result: any): EChartsOption[] {
                     type: 'bar',
                     barWidth: '90%', // Reduce gap
                     data: counts,
+                    itemStyle: {
+                        borderRadius: [5, 5, 0, 0],
+                        color: '#2B33E9',
+                    },
                     label: {
                         show: true,
                         position: 'top'

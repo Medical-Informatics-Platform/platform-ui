@@ -77,11 +77,11 @@ type BubbleColorConfig = {
 
 const defaultColors: BubbleColorConfig = {
   variable: '#2b33e9',     // Brand Blue (matches --variable-color)
-  covariate: '#ccb692',    // Muted Sand (matches --covariate-color)
-  filter: '#94a3b8',       // Muted Slate (matches --filter-color)
-  selected: '#1b21a3',     // Brand Blue darker
+  covariate: '#7f9ce8',    // MIP Light Blue
+  filter: '#dfefe4',       // MIP Light Green
+  selected: '#ffba08',     // MIP Orange for highlights
   groupStart: '#dfefe4',   // Light green for groups
-  groupEnd: '#2b33e9',     // Brand Blue for groups
+  groupEnd: '#7f9ce8',     // Light Blue for groups
 };
 
 // Calculate leaf color
@@ -129,7 +129,7 @@ export function createZoomableCirclePacking(
 
   let colors: BubbleColorConfig = { ...defaultColors, ...(options?.colors ?? {}) };
   let tutorialHighlightCode = options?.tutorialHighlightCode ?? null;
-  let tutorialHighlightColor = options?.tutorialHighlightColor ?? '#22c55e';
+  let tutorialHighlightColor = options?.tutorialHighlightColor ?? '#ffba08';
 
   const bounds = container.getBoundingClientRect();
   const width = Math.floor(bounds.width || 0) || 700;

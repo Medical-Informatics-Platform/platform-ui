@@ -1,4 +1,14 @@
 <div id="variables-top">
+  <div class="studio-panel-header">
+    <div class="header-main">
+      <i class="fas fa-database panel-icon" aria-hidden="true"></i>
+      <div class="header-text">
+        <p>DATASETS & VARIABLES</p>
+        <span class="header-subtitle">Select data models, datasets, variables, and covariates.</span>
+      </div>
+    </div>
+  </div>
+
   <div class="selectors-row" id="dataset-selection"></div>
 
   <!-- Main area -->
@@ -13,7 +23,10 @@
                 (dataModelChange)="onSelectedDataModelChange($event)">
               </app-data-model-selector>
 
-              <app-dataset-selector [datasets]="availableDatasets">
+              <app-dataset-selector
+                [datasets]="availableDatasets"
+                [selectedDatasetCodes]="experimentStudioService.selectedDatasets()"
+                [autoSelectAll]="!experimentStudioService.editingExistingExperiment()">
               </app-dataset-selector>
             </div>
           </div>
@@ -85,7 +98,17 @@
           <div class="histogram-graph" #histogramExport>
             @if (isLoadingHistogram()) {
             <div class="histogram-loader">
-              <app-spinner text="Loading Histogram" [overlay]="false" />
+              <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
+                <span class="studio-skeleton-line medium"></span>
+                <div class="studio-skeleton-chart" aria-hidden="true">
+                  <span class="studio-skeleton-bar" style="height: 42%"></span>
+                  <span class="studio-skeleton-bar" style="height: 68%"></span>
+                  <span class="studio-skeleton-bar" style="height: 56%"></span>
+                  <span class="studio-skeleton-bar" style="height: 84%"></span>
+                  <span class="studio-skeleton-bar" style="height: 48%"></span>
+                  <span class="studio-skeleton-bar" style="height: 64%"></span>
+                </div>
+              </div>
             </div>
             } @else if (errorMessage()) {
             <div class="message-container error">
@@ -175,7 +198,10 @@
 
           @if (isExporting()) {
           <div class="pdf-export-overlay">
-            <app-spinner text="Generating PDF..." [overlay]="false" />
+            <div class="studio-skeleton-card" role="status" aria-label="Generating PDF">
+              <span class="studio-skeleton-line medium"></span>
+              <span class="studio-skeleton-line short"></span>
+            </div>
           </div>
           }
         </section>
