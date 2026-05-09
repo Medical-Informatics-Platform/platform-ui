@@ -156,6 +156,44 @@ export class AlgorithmPanelComponent {
     return base;
   }
 
+  private variableOptionsForRoles(roles: string[]): Array<{ code: string; label: string }> {
+    const roleList = roles.length ? roles : ['x'];
+    return roleList.flatMap((role) => {
+      const selected =
+        role === 'y'
+          ? this.experimentStudioService.selectedVariables()
+          : role === 'x'
+            ? this.experimentStudioService.selectedCovariates()
+            : [];
+
+      return selected
+        .map((item: any) => {
+          const code = item?.code;
+          if (code === null || code === undefined || code === '') return null;
+          return {
+            code: String(code),
+            label: String(item?.label ?? item?.name ?? code),
+          };
+        })
+        .filter((item): item is { code: string; label: string } => !!item);
+    });
+  }
+
+  private enumOptionsForRole(role: string | null | undefined): any[] {
+    const selected =
+      role === 'x'
+        ? this.experimentStudioService.selectedCovariates()[0]
+        : this.experimentStudioService.selectedVariables()[0];
+    return Array.isArray(selected?.enumerations) ? [...selected.enumerations] : [];
+  }
+
+  private optionValue(opt: any): any {
+    if (opt && typeof opt === 'object') {
+      return opt.code ?? opt.value ?? opt.name ?? opt.label ?? String(opt);
+    }
+    return opt;
+  }
+
   // sensible defaults
   private readonly uiDefaults: Record<string, any> = {
     alpha: 0.05,
@@ -382,11 +420,22 @@ export class AlgorithmPanelComponent {
     // Basic algorithm schema (shallow copy)
     const schema = (algorithm.configSchema ?? []).map(f => ({ ...f }));
 
-    const yVar = this.experimentStudioService.selectedVariables()[0];
-    const xVar = this.experimentStudioService.selectedCovariates()[0];
+    const yVars = this.experimentStudioService.selectedVariables();
+    const xVars = this.experimentStudioService.selectedCovariates();
+    const yVar = yVars[0];
+    const xVar = xVars[0];
 
     const enriched = schema.map(field => {
       let options = field.options ?? [];
+      const enumSource = Array.isArray(field.enumSource) ? field.enumSource : [];
+
+      if (field.enumType === 'input_var_names') {
+        options = this.variableOptionsForRoles(enumSource);
+      } else if (field.enumType === 'input_var_CDE_enums') {
+        options = this.enumOptionsForRole(enumSource[0]);
+      } else if (field.key === 'category_order' && yVar?.enumerations?.length) {
+        options = [...yVar.enumerations];
+      }
 
       // Placeholder substitution for enums
       if (Array.isArray(options) && options.length === 1) {
@@ -408,12 +457,16 @@ export class AlgorithmPanelComponent {
         options = [...yVar.enumerations];
       }
 
+      const defaultValue = field.key === 'category_order' && Array.isArray(options) && options.length > 0
+        ? options.map((opt: any) => this.optionValue(opt))
+        : field.default;
+
       // Normalize label and desc
       const label = field.label?.trim() || this.prettifyLabel(field.key);
       const desc = field.desc ?? field.description ?? '';
 
       // Return enriched field
-      return { ...field, label, desc, options };
+      return { ...field, label, desc, options, default: defaultValue };
     });
 
     if (this.crossValidationEnabled() && this.canToggleCrossValidation()) {
@@ -680,25 +733,35 @@ export class AlgorithmPanelComponent {
     const baseName = this.experimentStudioService.getCrossValidationBase(algorithm.name) ?? algorithm.name;
     const variant = this.experimentStudioService.getCrossValidationVariant(baseName);
     if (!variant) return;
+    const configs = this.experimentStudioService.algorithmConfigurations();
+    const currentFormValues = this.configForm()?.getRawValue?.() ?? {};
+    const preservedConfig = { ...(configs[baseName] ?? {}), ...currentFormValues };
+
     this.crossValidationSelections[baseName] = enabled;
-    this.crossValidationEnabled.set(enabled);
 
     if (!enabled) {
+      if (preservedConfig['n_splits'] !== undefined) delete preservedConfig['n_splits'];
+
       if (this.configForm()?.contains('n_splits')) {
         this.configForm().removeControl('n_splits');
       }
 
-      const configs = this.experimentStudioService.algorithmConfigurations();
-      const baseConfig = { ...(configs[baseName] ?? {}) };
       const variantConfig = { ...(configs[variant] ?? {}) };
-      if (baseConfig['n_splits'] !== undefined) delete baseConfig['n_splits'];
       if (variantConfig['n_splits'] !== undefined) delete variantConfig['n_splits'];
       this.experimentStudioService.algorithmConfigurations.set({
         ...configs,
-        [baseName]: baseConfig,
+        [baseName]: preservedConfig,
         [variant]: variantConfig,
       });
+    } else {
+      this.experimentStudioService.algorithmConfigurations.set({
+        ...configs,
+        [baseName]: preservedConfig,
+        [variant]: { ...(configs[variant] ?? {}), ...preservedConfig },
+      });
     }
+
+    this.crossValidationEnabled.set(enabled);
   }
 
   toggleTransformation(event: Event) {

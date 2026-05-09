@@ -10,6 +10,9 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "ttest_paired": "Statistical Tests",
   "linear_regression": "Regression",
   "logistic_regression": "Regression",
+  "lmm": "Mixed Models",
+  "glmm_binary": "Mixed Models",
+  "glmm_ordinal": "Mixed Models",
   "naive_bayes_categorical": "Classification",
   "naive_bayes_gaussian": "Classification",
   "kmeans": "Clustering",
@@ -21,6 +24,8 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "naive_bayes_gaussian_cv": "Classification",
   "naive_bayes_categorical_cv": "Classification",
   "anova_twoway": "Statistical Tests",
+  "chi_squared": "Statistical Tests",
+  "fisher_exact": "Statistical Tests",
   "describe": "Descriptive Statistics",
   "histogram": "Descriptive Statistics",
   "linear_svm": "Classification",
@@ -35,33 +40,56 @@ function guessVariableType(ioField?: { types?: string[] }): string {
   return "Any";
 }
 
-function buildConfigSchema(parameters: Record<string, RawParameter>): Array<any> {
-  const schema = [];
+function normalizeBool(value: boolean | string | undefined | null): boolean {
+  if (typeof value === 'boolean') return value;
+  return String(value ?? '').trim().toLowerCase() === 'true';
+}
+
+function enumSourceToArray(source: string[] | string | undefined): string[] {
+  if (Array.isArray(source)) return source;
+  if (source === undefined || source === null) return [];
+  return [source];
+}
+
+function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Array<any> {
+  const schema: any[] = [];
+  if (!parameters) return schema;
 
   for (const [key, param] of Object.entries(parameters)) {
+    const enumType = param.enums?.type;
+    const enumSource = enumSourceToArray(param.enums?.source);
+    const isMultiple = normalizeBool(param.multiple);
     const baseField: any = {
       key,
       label: param.label ?? key,
       desc: param.desc ?? '',
-      required: param.required ?? false,
-      multiple: param.multiple ?? false,
+      required: normalizeBool(param.required),
+      multiple: isMultiple,
       types: param.types ?? [],
       stattypes: param.stattypes ?? [],
+      ...(enumType ? { enumType } : {}),
+      ...(enumSource.length ? { enumSource } : {}),
       ...(param.min !== undefined ? { min: +param.min } : {}),
       ...(param.max !== undefined ? { max: +param.max } : {}),
       ...(param.default !== undefined ? { default: param.default } : {}),
+      ...(param.default === undefined && param.default_value !== undefined ? { default: param.default_value } : {}),
     };
 
     // --- Select fields ---
     if (param.enums) {
       schema.push({
         ...baseField,
-        type: 'select',
-        options: Array.isArray(param.enums?.source)
-          ? param.enums.source
-          : Array.isArray(param.enums)
-            ? param.enums
-            : [],
+        type: isMultiple ? 'multi-select' : 'select',
+        options: enumType === 'list' ? enumSource : [],
+      });
+      continue;
+    }
+
+    if (isMultiple && (param.types?.includes('text') || param.types?.includes('int'))) {
+      schema.push({
+        ...baseField,
+        type: 'multi-select',
+        options: [],
       });
       continue;
     }
@@ -240,6 +268,84 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
           ]
         }
       ];
+    case 'lmm':
+      return [
+        { key: 'dependent_var', label: 'Dependent Variable', type: 'string' },
+        { key: 'grouping_var', label: 'Grouping Variable', type: 'string' },
+        { key: 'n_obs', label: 'Observations', type: 'number' },
+        { key: 'n_groups', label: 'Groups', type: 'number' },
+        { key: 'df_model', label: 'Degrees of Freedom (Model)', type: 'number' },
+        { key: 'df_resid', label: 'Degrees of Freedom (Residual)', type: 'number' },
+        { key: 'sigma2', label: 'Residual Variance', type: 'number' },
+        { key: 'sigma_u2', label: 'Random Intercept Variance', type: 'number' },
+        { key: 'll_reml', label: 'REML Log-Likelihood', type: 'number' },
+        { key: 'aic', label: 'AIC', type: 'number' },
+        { key: 'bic', label: 'BIC', type: 'number' },
+        { key: 'converged', label: 'Converged', type: 'boolean' },
+        { key: 'n_iter', label: 'Iterations', type: 'number' },
+        {
+          key: 'coefficients',
+          label: 'Fixed Effects',
+          type: 'table',
+          constructFrom: ['indep_vars', 'coefficients', 'std_err', 't_stats', 'pvalues', 'lower_ci', 'upper_ci'],
+          columns: [
+            { key: 'variable', label: 'Variable' },
+            { key: 'coefficient', label: 'Coefficient', format: 'float' },
+            { key: 'std_err', label: 'Std. Error', format: 'float' },
+            { key: 't_stat', label: 't-statistic', format: 'float' },
+            { key: 'pvalue', label: 'p-value', format: 'pval' },
+            { key: 'lower_ci', label: 'Lower 95% CI', format: 'float' },
+            { key: 'upper_ci', label: 'Upper 95% CI', format: 'float' },
+          ]
+        }
+      ];
+    case 'glmm_binary':
+      return [
+        { key: 'dependent_var', label: 'Dependent Variable', type: 'string' },
+        { key: 'grouping_var', label: 'Grouping Variable', type: 'string' },
+        { key: 'n_obs', label: 'Observations', type: 'number' },
+        { key: 'n_groups', label: 'Groups', type: 'number' },
+        { key: 'sigma_u2', label: 'Random Intercept Variance', type: 'number' },
+        { key: 'converged', label: 'Converged', type: 'boolean' },
+        { key: 'n_iter', label: 'Iterations', type: 'number' },
+        {
+          key: 'coefficients',
+          label: 'Fixed Effects',
+          type: 'table',
+          constructFrom: ['indep_vars', 'coefficients'],
+          columns: [
+            { key: 'variable', label: 'Variable' },
+            { key: 'coefficient', label: 'Coefficient', format: 'float' },
+          ]
+        }
+      ];
+    case 'glmm_ordinal':
+      return [
+        { key: 'dependent_var', label: 'Dependent Variable', type: 'string' },
+        { key: 'grouping_var', label: 'Grouping Variable', type: 'string' },
+        { key: 'category_order', label: 'Category Order', type: 'array', elementType: 'string' },
+        { key: 'n_obs', label: 'Observations', type: 'number' },
+        { key: 'n_groups', label: 'Groups', type: 'number' },
+        { key: 'sigma_u2', label: 'Random Intercept Variance', type: 'number' },
+        { key: 'converged', label: 'Converged', type: 'boolean' },
+        { key: 'n_iter', label: 'Iterations', type: 'number' },
+        {
+          key: 'coefficients',
+          label: 'Fixed Effects',
+          type: 'table',
+          constructFrom: ['indep_vars', 'coefficients'],
+          columns: [
+            { key: 'variable', label: 'Variable' },
+            { key: 'coefficient', label: 'Coefficient', format: 'float' },
+          ]
+        },
+        {
+          key: 'cutpoints',
+          label: 'Cutpoints',
+          type: 'array',
+          elementType: 'number'
+        }
+      ];
     case 'logistic_regression_cv_fedaverage':
       return [
         {
@@ -397,6 +503,29 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
           elementType: 'number'
         },
         { key: 'intercept', label: 'Intercept', type: 'number' }
+      ];
+    case 'chi_squared':
+      return [
+        { key: 'chi2', label: 'Chi-Squared Statistic', type: 'number', format: 'float' },
+        { key: 'p_value', label: 'p-value', type: 'number', format: 'pval' },
+        { key: 'dof', label: 'Degrees of Freedom', type: 'number' },
+        { key: 'x_labels', label: 'Factor Categories', type: 'array', elementType: 'string' },
+        { key: 'y_labels', label: 'Outcome Categories', type: 'array', elementType: 'string' },
+        {
+          key: 'expected',
+          label: 'Expected Frequencies',
+          type: 'matrix',
+          elementType: 'number',
+          rowLabelsKey: 'x_labels',
+          columnLabelsKey: 'y_labels'
+        }
+      ];
+    case 'fisher_exact':
+      return [
+        { key: 'odds_ratio', label: 'Odds Ratio', type: 'number', format: 'float' },
+        { key: 'p_value', label: 'p-value', type: 'number', format: 'pval' },
+        { key: 'x_labels', label: 'Factor Categories', type: 'array', elementType: 'string' },
+        { key: 'y_labels', label: 'Outcome Categories', type: 'array', elementType: 'string' }
       ];
     case 'ttest_independent':
       return [

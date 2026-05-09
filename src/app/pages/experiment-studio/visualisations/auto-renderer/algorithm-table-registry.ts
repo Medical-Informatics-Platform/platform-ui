@@ -92,6 +92,66 @@ function buildTTestRows(result: Record<string, any>): any[][] {
     .map(([k, v]) => [formatTTestKey(k), formatDecimal(v)]);
 }
 
+function buildMetricRows(result: Record<string, any>, labels: Record<string, string>, keys: string[]): any[][] {
+  return keys
+    .filter((key) => result?.[key] !== undefined && result?.[key] !== null)
+    .map((key) => [labels[key] ?? key, formatDecimal(result[key])]);
+}
+
+function buildCoefficientRows(
+  result: Record<string, any>,
+  values: Array<{ key: string; label: string }>
+): any[][] {
+  const variables = Array.isArray(result?.['indep_vars']) ? result['indep_vars'] : [];
+  if (!variables.length) return [];
+
+  return variables.map((variable, index) => [
+    variable,
+    ...values.map(({ key }) => {
+      const source = Array.isArray(result?.[key]) ? result[key] : [];
+      return formatDecimal(source[index]);
+    }),
+  ]);
+}
+
+function buildMixedEffectsSummary(result: Record<string, any>, extraKeys: string[] = []): TableSpec {
+  const labels: Record<string, string> = {
+    dependent_var: 'Dependent variable',
+    grouping_var: 'Grouping variable',
+    n_obs: 'Observations',
+    n_groups: 'Groups',
+    df_model: 'DF Model',
+    df_resid: 'DF Residual',
+    sigma2: 'Residual variance',
+    sigma_u2: 'Random intercept variance',
+    ll_reml: 'REML log-likelihood',
+    aic: 'AIC',
+    bic: 'BIC',
+    converged: 'Converged',
+    n_iter: 'Iterations',
+  };
+  const keys = [
+    'dependent_var',
+    'grouping_var',
+    'n_obs',
+    'n_groups',
+    ...extraKeys,
+    'sigma2',
+    'sigma_u2',
+    'll_reml',
+    'aic',
+    'bic',
+    'converged',
+    'n_iter',
+  ];
+  return {
+    title: 'Model Summary',
+    columns: ['Metric', 'Value'],
+    rows: buildMetricRows(result, labels, keys),
+    layout: 'full',
+  };
+}
+
 export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   kmeans: (result: KMeansResult) => {
     const centers = result?.centers;
@@ -173,6 +233,98 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       ];
     }
     return [];
+  },
+
+  lmm: (result: any) => {
+    if (!result) return [];
+
+    const coefficientColumns = [
+      { key: 'coefficients', label: 'Coefficient' },
+      { key: 'std_err', label: 'Std.Err.' },
+      { key: 't_stats', label: 't-statistic' },
+      { key: 'pvalues', label: 'P(>|t|)' },
+      { key: 'lower_ci', label: 'Lower 95% CI' },
+      { key: 'upper_ci', label: 'Upper 95% CI' },
+    ];
+    const coefRows = buildCoefficientRows(result, coefficientColumns);
+
+    const tables: TableSpec[] = [];
+    if (coefRows.length) {
+      tables.push({
+        title: 'Fixed Effects',
+        columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
+        rows: coefRows,
+      });
+    }
+
+    const summary = buildMixedEffectsSummary(result, ['df_model', 'df_resid']);
+    if (summary.rows.length) tables.push(summary);
+
+    return tables;
+  },
+
+  glmm_binary: (result: any) => {
+    if (!result) return [];
+
+    const coefficientColumns = [{ key: 'coefficients', label: 'Coefficient' }];
+    const coefRows = buildCoefficientRows(result, coefficientColumns);
+    const tables: TableSpec[] = [];
+
+    if (coefRows.length) {
+      tables.push({
+        title: 'Fixed Effects',
+        columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
+        rows: coefRows,
+      });
+    }
+
+    const summary = buildMixedEffectsSummary(result);
+    if (summary.rows.length) tables.push(summary);
+
+    return tables;
+  },
+
+  glmm_ordinal: (result: any) => {
+    if (!result) return [];
+
+    const coefficientColumns = [{ key: 'coefficients', label: 'Coefficient' }];
+    const coefRows = buildCoefficientRows(result, coefficientColumns);
+    const tables: TableSpec[] = [];
+
+    if (coefRows.length) {
+      tables.push({
+        title: 'Fixed Effects',
+        columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
+        rows: coefRows,
+      });
+    }
+
+    if (Array.isArray(result.cutpoints) && result.cutpoints.length) {
+      tables.push({
+        title: 'Cutpoints',
+        columns: ['Boundary', 'Cutpoint'],
+        rows: result.cutpoints.map((value: any, index: number) => [
+          `Cutpoint ${index + 1}`,
+          formatDecimal(value),
+        ]),
+      });
+    }
+
+    if (Array.isArray(result.category_order) && result.category_order.length) {
+      tables.push({
+        title: 'Ordinal Category Order',
+        columns: ['Level', 'Category'],
+        rows: result.category_order.map((category: any, index: number) => [
+          index + 1,
+          category,
+        ]),
+      });
+    }
+
+    const summary = buildMixedEffectsSummary(result);
+    if (summary.rows.length) tables.push(summary);
+
+    return tables;
   },
 
   linear_regression_cv: (result: LinearRegressionCVResult) => {
@@ -648,6 +800,77 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         layout: 'compact'
       });
     }
+    return tables;
+  },
+
+  chi_squared: (result: any) => {
+    if (!result) return [];
+    const tables: TableSpec[] = [];
+
+    const summaryRows = buildMetricRows(result, {
+      chi2: 'Chi-Squared statistic',
+      p_value: 'p-value',
+      dof: 'Degrees of freedom',
+    }, ['chi2', 'p_value', 'dof']);
+
+    if (summaryRows.length) {
+      tables.push({
+        title: 'Chi-Squared Test Summary',
+        columns: ['Metric', 'Value'],
+        rows: summaryRows,
+        layout: 'compact',
+      });
+    }
+
+    if (Array.isArray(result.expected) && result.expected.length) {
+      const xLabels = Array.isArray(result.x_labels) ? result.x_labels : [];
+      const yLabels = Array.isArray(result.y_labels) ? result.y_labels : [];
+      tables.push({
+        title: 'Expected Frequencies',
+        columns: ['Factor \\ Outcome', ...yLabels.map(String)],
+        rows: result.expected.map((row: any[], index: number) => [
+          xLabels[index] ?? `Row ${index + 1}`,
+          ...(Array.isArray(row) ? row.map(value => formatDecimal(value)) : []),
+        ]),
+        layout: 'full',
+      });
+    }
+
+    return tables;
+  },
+
+  fisher_exact: (result: any) => {
+    if (!result) return [];
+    const tables: TableSpec[] = [];
+
+    const summaryRows = buildMetricRows(result, {
+      odds_ratio: 'Odds ratio',
+      p_value: 'p-value',
+    }, ['odds_ratio', 'p_value']);
+
+    if (summaryRows.length) {
+      tables.push({
+        title: "Fisher's Exact Test Summary",
+        columns: ['Metric', 'Value'],
+        rows: summaryRows,
+        layout: 'compact',
+      });
+    }
+
+    const xLabels = Array.isArray(result.x_labels) ? result.x_labels : [];
+    const yLabels = Array.isArray(result.y_labels) ? result.y_labels : [];
+    if (xLabels.length || yLabels.length) {
+      tables.push({
+        title: 'Contingency Table Categories',
+        columns: ['Role', 'Categories'],
+        rows: [
+          ['Factor', xLabels.join(', ')],
+          ['Outcome', yLabels.join(', ')],
+        ],
+        layout: 'full',
+      });
+    }
+
     return tables;
   },
 

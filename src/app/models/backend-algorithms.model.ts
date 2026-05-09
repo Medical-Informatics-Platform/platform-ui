@@ -4,7 +4,7 @@ export interface RawAlgorithmDefinition {
   desc: string;
   enabled: boolean;
   inputdata: RawInputData;
-  parameters: Record<string, RawParameter>;
+  parameters: Record<string, RawParameter> | null;
   preprocessing?: RawPreprocessingStep[];
 }
 

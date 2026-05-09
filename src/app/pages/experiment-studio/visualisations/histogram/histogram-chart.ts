@@ -15,7 +15,7 @@ export function createHistogram(
     skipEveryOtherLabel?: boolean;
   } = {}
 ): void {
-  const isDark = document.body.classList.contains('theme-dark');
+  const isDark = false;
   const textColor = isDark ? '#f1f5f9' : '#475569';
   const mutedTextColor = isDark ? '#94a3b8' : '#64748b';
   const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
