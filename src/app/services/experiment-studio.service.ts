@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, catchError, defaultIfEmpty, filter, map, of, switchMap, take, takeUntil, tap, timer } from 'rxjs';
+import { Observable, Subject, catchError, defaultIfEmpty, filter, finalize, map, of, shareReplay, switchMap, take, takeUntil, tap, timer } from 'rxjs';
 import { SessionStorageService } from './session-storage.service';
 import { D3HierarchyNode, DataModel, Group, Variable } from '../models/data-model.interface';
 import { mapRawAlgorithmToAlgorithmConfig } from '../core/algorithm-mappers';
@@ -39,6 +39,7 @@ export class ExperimentStudioService {
   private experimentUrl = '/services/experiments';
   private dataModels: any[] = [];
   private dataModelsLoaded = false;
+  private dataModelsRequest$: Observable<any[]> | null = null;
 
   private selectedVariablesSignal = signal<any[]>(this.sessionStorage.getItem('selectedVariables') || []);
   private selectedCovariatesSignal = signal<any[]>(this.sessionStorage.getItem('selectedCovariates') || []);
@@ -726,8 +727,12 @@ export class ExperimentStudioService {
   }
 
   loadAllDataModels(): Observable<any[]> {
-    if (!this.dataModelsLoaded) {
-      return this.http.get<any[]>(this.apiUrl).pipe(
+    if (this.dataModelsLoaded) {
+      return of(this.dataModels);
+    }
+
+    if (!this.dataModelsRequest$) {
+      this.dataModelsRequest$ = this.http.get<any[]>(this.apiUrl).pipe(
         tap((models) => {
           this.pathologyAccessWarningSignal.set(null);
           this.dataModels = models;
@@ -745,10 +750,15 @@ export class ExperimentStudioService {
           console.error('Error fetching data models:', err);
           this.errorService.setError('Failed to load data models. Please try again.');
           return of([]);
-        })
+        }),
+        finalize(() => {
+          this.dataModelsRequest$ = null;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false })
       );
     }
-    return of(this.dataModels);
+
+    return this.dataModelsRequest$;
   }
 
   private clearLoadedDataModelState(): void {
@@ -802,8 +812,14 @@ export class ExperimentStudioService {
         code: v.code ?? '',
         value: 1,
         type: v.type ?? 'unknown',
+        isCategorical: v.isCategorical ?? !!v.enumerations?.length,
+        sql_type: v.sql_type,
         description: v.description ?? '',
-        enumerations: v.enumerations ?? []
+        enumerations: v.enumerations ?? [],
+        methodology: v.methodology,
+        units: v.units,
+        minValue: v.minValue,
+        maxValue: v.maxValue,
       }));
 
     const convertGroups = (groups: Group[] = []): D3HierarchyNode[] =>
