@@ -212,6 +212,29 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toEqual(applied);
   });
 
+  it('uses applied descriptive preprocessing with multiple preprocessing steps for later algorithm requests', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: {
+        strategies: { age: 'drop', sex: 'drop' },
+      },
+      longitudinal_transformer: {
+        visit1: 'BL',
+        visit2: 'FL1',
+        strategies: {
+          age: 'diff',
+          sex: 'first',
+        },
+      },
+    };
+
+    service.setAppliedDescriptivePreprocessing(applied);
+    const body = service.buildRequestBody('mock_algo', ['age'], ['sex']);
+
+    expect(body.algorithm.preprocessing).toEqual(applied);
+  });
+
   it('resetStudioState clears selections and errors', (done) => {
     const errorService = TestBed.inject(ErrorService);
 

@@ -224,6 +224,12 @@ export class ExperimentDetailsComponent {
     this.withLabels(this.selectedExperiment()?.filters)
   );
 
+  readonly filterPreview = computed(() => {
+    const logic = this.fullExperimentSignal()?.algorithm?.inputdata?.filters;
+    if (!logic || !Array.isArray((logic as any).rules) || !(logic as any).rules.length) return '';
+    return this.formatFilterNode(logic);
+  });
+
   readonly parameterEntries = computed(() => {
     const fullExperiment = this.fullExperimentSignal();
     const params = fullExperiment?.algorithm?.parameters ?? {};
@@ -305,7 +311,7 @@ export class ExperimentDetailsComponent {
         datasets: (this.selectedExperiment()?.datasets ?? []).map(code => this.labelMap()[code] || code),
         variables: this.variablesWithLabels().map((v) => v.label),
         covariates: this.covariatesWithLabels().map((c) => c.label),
-        filters: this.filtersWithLabels().map((f) => f.label),
+        filters: this.filterPreview() ? [this.filterPreview()] : this.filtersWithLabels().map((f) => f.label),
         transformations,
         mipVersion: this.selectedExperiment()?.mipVersion ?? fullExperiment?.mipVersion ?? null,
       },
@@ -454,14 +460,20 @@ export class ExperimentDetailsComponent {
   private formatParameterScalarValue(value: unknown, parameterKey?: string): string {
     const raw = String(value);
     const label = this.resolveParameterEnumLabel(raw, parameterKey);
-    if (!label || label === raw) return raw;
-    return `${label} (${raw})`;
+    return label || raw;
   }
 
   private resolveParameterEnumLabel(value: string, parameterKey?: string): string | null {
     const enumMaps = this.enumMaps();
+    const schemaField = this.parameterSchemaField(parameterKey);
+    const enumSource = Array.isArray(schemaField?.enumSource) ? schemaField.enumSource : [];
 
-    if (parameterKey === 'positive_class') {
+    if (enumSource.includes('x') || parameterKey === 'groupA' || parameterKey === 'groupB') {
+      const targetMap = enumMaps[this.xVar() ?? ''];
+      if (targetMap?.[value]) return targetMap[value];
+    }
+
+    if (enumSource.includes('y') || parameterKey === 'positive_class' || parameterKey === 'category_order') {
       const targetMap = enumMaps[this.yVar() ?? ''];
       if (targetMap?.[value]) return targetMap[value];
     }
@@ -474,9 +486,77 @@ export class ExperimentDetailsComponent {
     return unique.length === 1 ? unique[0] : null;
   }
 
+  private parameterSchemaField(parameterKey?: string): any | null {
+    if (!parameterKey) return null;
+    const fullExperiment = this.fullExperimentSignal();
+    const algoName = fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
+    return schema.find((field: any) => String(field.key) === parameterKey) ?? null;
+  }
+
   private humanizeParameterKey(key: string): string {
     return key
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  private formatFilterNode(node: any): string {
+    if (!node) return '';
+
+    if (Array.isArray(node.rules)) {
+      const parts = node.rules
+        .map((rule: any) => this.formatFilterNode(rule))
+        .filter(Boolean);
+      if (!parts.length) return '';
+
+      const condition = String(node.condition || 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND';
+      const expression = parts.join(` ${condition} `);
+      return parts.length > 1 ? `(${expression})` : expression;
+    }
+
+    const field = String(node.field ?? node.id ?? '');
+    const label = this.labelMap()[field] ?? (field || 'Variable');
+    const operator = this.filterOperatorLabel(String(node.operator ?? 'equal'));
+
+    if (node.operator === 'is_null' || node.operator === 'is_not_null') {
+      return `${label} ${operator}`;
+    }
+
+    return `${label} ${operator} ${this.formatFilterValue(field, node.value)}`;
+  }
+
+  private filterOperatorLabel(operator: string): string {
+    switch (operator) {
+      case 'equal':
+      case '=':
+        return '=';
+      case 'not_equal':
+      case '!=':
+        return '!=';
+      case 'greater':
+      case '>':
+        return '>';
+      case 'greater_or_equal':
+      case '>=':
+        return '>=';
+      case 'less':
+      case '<':
+        return '<';
+      case 'less_or_equal':
+      case '<=':
+        return '<=';
+      case 'is_null':
+        return 'IS NULL';
+      case 'is_not_null':
+        return 'IS NOT NULL';
+      default:
+        return operator;
+    }
+  }
+
+  private formatFilterValue(field: string, value: any): string {
+    if (value === null || value === undefined || value === '') return 'value';
+    const valueKey = String(value);
+    return this.enumMaps()[field]?.[valueKey] ?? valueKey;
   }
 }

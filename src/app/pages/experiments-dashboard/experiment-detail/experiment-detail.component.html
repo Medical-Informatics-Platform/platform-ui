@@ -175,13 +175,11 @@
           }
         </div>
       </div>
-      } @if (filtersWithLabels().length) {
+      } @if (filterPreview() || filtersWithLabels().length) {
       <div class="config-tags-row">
         <span class="label">Filters</span>
         <div class="tag-list">
-          @for (f of filtersWithLabels(); track f.code) {
-          <span class="tag">{{ f.label }}</span>
-          }
+          <span class="tag filter-preview-tag">{{ filterPreview() || 'Loading filter rules...' }}</span>
         </div>
       </div>
       }

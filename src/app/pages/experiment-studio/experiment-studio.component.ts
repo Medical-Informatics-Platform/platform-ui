@@ -12,7 +12,6 @@ import {
   StatisticAnalysisPanelComponent,
 } from './statistic-analysis-panel/statistic-analysis-panel.component';
 import { Subject, takeUntil } from 'rxjs';
-import { FilterConfigModalComponent } from './variables-panel/filter-config-modal/filter-config-modal.component';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
 
 @Component({
@@ -23,7 +22,6 @@ import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.
     AlgorithmPanelComponent,
     StatisticAnalysisPanelComponent,
     RouterLink,
-    FilterConfigModalComponent,
     ExperimentStudioGuideComponent
   ],
   templateUrl: './experiment-studio.component.html',
@@ -64,7 +62,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     return this.algorithmPanel?.isRunButtonDisabled() ?? true;
   }
 
-  goToDescriptiveStep(section: 'raw' | 'setup' | 'processed'): void {
+  goToDescriptiveStep(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
     void this.router.navigate([], {
       fragment: 'statistics-section',
       queryParamsHandling: 'preserve',

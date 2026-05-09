@@ -169,10 +169,6 @@ export class VariablesPanelComponent implements OnDestroy {
     return this.experimentStudioService.selectedCovariates();
   }
 
-  get selectedFilters(): any[] {
-    return this.experimentStudioService.selectedFilters();
-  }
-
   get hasSelectedDatasets(): boolean {
     return (this.experimentStudioService.selectedDatasets() || []).length > 0;
   }
@@ -183,10 +179,6 @@ export class VariablesPanelComponent implements OnDestroy {
 
   addCovariateFromBubble(): void {
     this.variableFilterSelection?.addCovariate();
-  }
-
-  addFilterFromBubble(): void {
-    this.variableFilterSelection?.addFilter();
   }
 
   findParentNode(currentNode: any, targetNode: any, parent: any = null): any {
@@ -214,10 +206,6 @@ export class VariablesPanelComponent implements OnDestroy {
 
   onCovariateChange(updatedCovariates: any[]): void {
     this.experimentStudioService.setCovariates(updatedCovariates);
-  }
-
-  onFilterChange(updatedFilters: any[]): void {
-    this.experimentStudioService.setFilters(updatedFilters);
   }
 
   loadDataModels(): void {
@@ -328,6 +316,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.experimentStudioService.setVariables([]);
     this.experimentStudioService.setCovariates([]);
     this.experimentStudioService.setFilters([]);
+    this.experimentStudioService.setFilterLogic(null);
 
     this.filteredVariables.set([]);
     this.filteredGroups.set([]);

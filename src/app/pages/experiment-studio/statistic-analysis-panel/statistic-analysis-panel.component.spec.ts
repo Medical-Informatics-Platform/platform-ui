@@ -5,6 +5,7 @@ import { ChartBuilderService } from '../visualisations/charts/chart-builder.serv
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { of } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { provideEchartsCore } from 'ngx-echarts';
 
 describe('StatisticAnalysisPanelComponent', () => {
     let component: StatisticAnalysisPanelComponent;
@@ -18,22 +19,30 @@ describe('StatisticAnalysisPanelComponent', () => {
             'loadDescriptiveOverview',
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
-            'setAppliedDescriptivePreprocessing'
+            'setAppliedDescriptivePreprocessing',
+            'setFilters',
+            'setFilterLogic',
+            'toggleFilterConfigModal'
         ], {
             selectedVariables: signal([]),
             selectedCovariates: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
-            selectedDataModel: signal({ code: 'Stroke', version: '3.7' })
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            filterLogic: signal(null)
         });
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({
             imports: [StatisticAnalysisPanelComponent], // Standalone component
             providers: [
                 provideZonelessChangeDetection(),
+                provideEchartsCore({
+                    echarts: () => import('echarts'),
+                }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
                 { provide: ChartBuilderService, useValue: mockChartBuilder },
                 { provide: PdfExportService, useValue: mockPdfService }
@@ -44,6 +53,29 @@ describe('StatisticAnalysisPanelComponent', () => {
         component = fixture.componentInstance;
         fixture.detectChanges();
     });
+
+    function configureRawSummary(chartOptions: any[] = []) {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        mockChartBuilder.getChartsForAlgorithm.and.returnValue(chartOptions);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                    { dataset: 'dataset-a', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                    { dataset: 'all datasets', variable: 'sex', data: { counts: { female: 6, male: 4 }, num_dtps: 10, num_na: 1, num_total: 11 } },
+                ],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        fixture.detectChanges();
+        return { age, sex };
+    }
+
+    function workflowSection(title: string): HTMLElement {
+        return (Array.from(fixture.nativeElement.querySelectorAll('.workflow-section')) as HTMLElement[])
+            .find((section) => section.textContent?.includes(title)) as HTMLElement;
+    }
 
     it('should create', () => {
         expect(component).toBeTruthy();
@@ -132,7 +164,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(text).toContain('DATA REVIEW & PREPROCESSING');
         expect(text).toContain('Raw Data Summary');
-        expect(text).toContain('Preprocessing Setup');
+        expect(text).toContain('Preprocessing');
+        expect(text).toContain('Filtering');
         expect(text).toContain('Processed Data Summary');
         const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
         const buttonLabels = Array.from(buttons).map((button) => button.textContent?.trim());
@@ -161,14 +194,16 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
 
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).toContain('Longitudinal Preprocessing');
         expect(fixture.nativeElement.textContent).toContain('Required for longitudinal pathologies');
+        expect(fixture.nativeElement.textContent).toContain('Longitudinal Transformation');
+        expect(fixture.nativeElement.textContent).toContain('Longitudinal strategy');
         expect(fixture.nativeElement.textContent).toContain('Diff (Visit 2 - Visit 1)');
         expect(fixture.nativeElement.textContent).not.toContain('Enable longitudinal transformation');
 
         (mockExpService.selectedDataModel as any).set({ code: 'dm', label: 'Data Model', longitudinal: false });
         fixture.detectChanges();
-        expect(fixture.nativeElement.textContent).not.toContain('Longitudinal Preprocessing');
+        expect(fixture.nativeElement.textContent).not.toContain('Longitudinal Transformation');
+        expect(fixture.nativeElement.textContent).not.toContain('Longitudinal strategy');
     });
 
     it('filters preprocessing rows by variable search', () => {
@@ -205,9 +240,119 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         fixture.detectChanges();
 
-        const longitudinalSection = fixture.nativeElement.querySelector('.longitudinal-preprocessing') as HTMLElement;
-        expect(longitudinalSection.querySelector('.empty-state-block')).toBeTruthy();
-        expect(longitudinalSection.querySelector('.longitudinal-table')).toBeFalsy();
+        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        expect(preprocessingSection.querySelector('.empty-state-block')).toBeTruthy();
+        expect(preprocessingSection.textContent).toContain('No variables match the current search.');
+        expect(preprocessingSection.querySelector('.longitudinal-table')).toBeFalsy();
+    });
+
+    it('renders missing values as a selected-variable workspace', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        fixture.detectChanges();
+
+        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const missingStep = (Array.from(preprocessingSection.querySelectorAll('.preprocessing-step-card')) as HTMLElement[])
+            .find((step) => step.textContent?.includes('Missing Values')) as HTMLElement;
+
+        expect(missingStep.querySelector('.preprocessing-browser')).toBeTruthy();
+        expect(missingStep.querySelector('.preprocessing-detail-panel')).toBeTruthy();
+        expect(missingStep.querySelector('.preprocessing-table')).toBeFalsy();
+        expect(missingStep.querySelector('.preprocessing-detail-panel h4')?.textContent).toContain('Age');
+        expect(missingStep.textContent).toContain('Missing value handling');
+    });
+
+    it('updates preprocessing detail controls when a variable is selected', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        fixture.detectChanges();
+
+        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const sexButton = (Array.from(preprocessingSection.querySelectorAll('.preprocessing-variable-btn')) as HTMLButtonElement[])
+            .find((button) => button.textContent?.includes('Sex'));
+        sexButton?.click();
+        fixture.detectChanges();
+
+        expect(component.selectedPreprocessingVariable()?.code).toBe('sex');
+        expect(preprocessingSection.querySelector('.preprocessing-detail-panel h4')?.textContent).toContain('Sex');
+    });
+
+    it('uses independent selected variables for missing values and longitudinal transformation', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        (mockExpService.selectedDataModel as any).set({
+            code: 'longitudinal_dm',
+            label: 'Longitudinal Data Model',
+            longitudinal: true,
+            variables: [
+                {
+                    code: 'visitid',
+                    label: 'Visit ID',
+                    enumerations: [
+                        { code: 'BL', label: 'Baseline' },
+                        { code: 'FL1', label: 'Follow-up 1' },
+                    ],
+                },
+            ],
+        });
+        fixture.detectChanges();
+
+        component.selectPreprocessingVariable(sex);
+        component.selectLongitudinalPreprocessingVariable(age);
+        fixture.detectChanges();
+
+        expect(component.selectedPreprocessingVariable()?.code).toBe('sex');
+        expect(component.selectedLongitudinalPreprocessingVariable()?.code).toBe('age');
+    });
+
+    it('counts pending preprocessing by step instead of by variable rule', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        (mockExpService.selectedDataModel as any).set({
+            code: 'longitudinal_dm',
+            label: 'Longitudinal Data Model',
+            longitudinal: true,
+            variables: [
+                {
+                    code: 'visitid',
+                    label: 'Visit ID',
+                    enumerations: [
+                        { code: 'BL', label: 'Baseline' },
+                        { code: 'FL1', label: 'Follow-up 1' },
+                    ],
+                },
+            ],
+        });
+        fixture.detectChanges();
+
+        expect(component.pendingChangeCount).toBe(2);
+        expect(component.preprocessingStatusLabel).toBe('2 pending steps');
+        expect(fixture.nativeElement.textContent).toContain('2 pending steps');
+    });
+
+    it('shows category choices for categorical constant preprocessing values', () => {
+        const variable = {
+            code: 'pad',
+            label: 'PAD',
+            type: 'nominal',
+            enumerations: [
+                { code: '0', label: 'No' },
+                { code: '1', label: 'Yes' },
+            ],
+        };
+        (mockExpService.selectedVariables as any).set([variable]);
+        component.onMissingActionChange(variable, 'constant');
+        fixture.detectChanges();
+
+        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const options = Array.from(preprocessingSection.querySelectorAll('.preprocessing-detail-panel option')) as HTMLOptionElement[];
+
+        expect(options.map((option) => option.textContent?.trim())).toContain('No');
+        expect(options.map((option) => option.textContent?.trim())).toContain('Yes');
     });
 
     it('splits preprocessing rows by applied and not applied state', () => {
@@ -270,7 +415,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
     });
 
-    it('expands processed summary accordions after preprocessing is applied', () => {
+    it('selects the first processed statistic after preprocessing is applied', () => {
         const variable = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([variable]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({
@@ -294,7 +439,165 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.applyPreprocessing();
 
         expect(component.sectionOpen.processed).toBeTrue();
-        expect(component.isAccordionOpen('processed', 'Age')).toBeTrue();
+        expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+    });
+
+    it('renders raw statistics as a grouped analysis workspace', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'age',
+                        data: {
+                            num_dtps: 10,
+                            num_na: 0,
+                            num_total: 10,
+                            mean: 71,
+                        },
+                    },
+                    {
+                        dataset: 'all datasets',
+                        variable: 'sex',
+                        data: {
+                            counts: { female: 6, male: 4 },
+                            num_dtps: 10,
+                            num_na: 1,
+                            num_total: 11,
+                        },
+                    },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+
+        const workspace = fixture.nativeElement.querySelector('.statistics-workspace') as HTMLElement;
+        const text = workspace.textContent ?? '';
+
+        expect(workspace).toBeTruthy();
+        expect(text).toContain('Numerical');
+        expect(text).toContain('Categorical');
+        expect(text).toContain('Age');
+        expect(text).toContain('Sex');
+        expect(text).toContain('Export');
+        expect(text).toContain('CSV');
+        const variableButtons = Array.from(workspace.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
+        const ageButtonText = variableButtons.find((button) => button.textContent?.includes('Age'))?.textContent ?? '';
+        expect(ageButtonText).toContain('10 datapoints');
+        expect(ageButtonText).toContain('0 missing');
+        expect(ageButtonText).not.toContain('Numerical');
+    });
+
+    it('filters raw statistics browser by variable label or code', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                    { dataset: 'all datasets', variable: 'sex', data: { counts: { female: 6 }, num_dtps: 6, num_na: 0, num_total: 6 } },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+
+        const search = fixture.nativeElement.querySelector('input[aria-label="Search raw summary variables"]') as HTMLInputElement;
+        search.value = 'sex';
+        search.dispatchEvent(new Event('input'));
+        fixture.detectChanges();
+
+        expect(component.filteredStatisticBlocks('raw').map((block) => block.name)).toEqual(['Sex']);
+        expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
+        const text = fixture.nativeElement.querySelector('.statistics-workspace')?.textContent ?? '';
+        expect(text).toContain('Sex');
+        expect(text).not.toContain('Age');
+    });
+
+    it('updates the statistics detail panel when a variable is selected', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                    { dataset: 'all datasets', variable: 'sex', data: { counts: { female: 6 }, num_dtps: 6, num_na: 0, num_total: 6 } },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+
+        const buttons = Array.from(fixture.nativeElement.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
+        const sexButton = buttons.find((button) => button.textContent?.includes('Sex'));
+        sexButton?.click();
+        fixture.detectChanges();
+
+        expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
+        expect(fixture.nativeElement.querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+    });
+
+    it('keeps the raw variable browser visible when the right panel switches to charts', () => {
+        configureRawSummary([{ title: { text: 'Age chart' }, series: [] }]);
+
+        component.setSummaryTab('raw', 'Charts');
+        fixture.detectChanges();
+
+        const rawSection = workflowSection('Raw Data Summary');
+        expect(rawSection.querySelectorAll('.statistics-browser').length).toBe(1);
+        expect(rawSection.querySelector('.chart-browser')).toBeNull();
+        expect(rawSection.querySelector('.statistics-browser')?.textContent).toContain('Age');
+        expect(rawSection.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
+        expect(rawSection.querySelector('app-chart-renderer')).toBeTruthy();
+    });
+
+    it('preserves the selected raw variable across Statistics and Charts tabs', () => {
+        configureRawSummary();
+
+        const buttons = Array.from(fixture.nativeElement.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
+        buttons.find((button) => button.textContent?.includes('Sex'))?.click();
+        fixture.detectChanges();
+
+        component.setSummaryTab('raw', 'Charts');
+        fixture.detectChanges();
+        expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
+        expect(workflowSection('Raw Data Summary').querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+
+        component.setSummaryTab('raw', 'Statistics');
+        fixture.detectChanges();
+        expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
+        expect(workflowSection('Raw Data Summary').querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+    });
+
+    it('shows a chart empty state for a selected variable without chart options', () => {
+        configureRawSummary([]);
+
+        component.setSummaryTab('raw', 'Charts');
+        fixture.detectChanges();
+
+        const rawSection = workflowSection('Raw Data Summary');
+        expect(component.selectedStatisticBlock('raw')?.name).toBe('Age');
+        expect(rawSection.textContent).toContain('No chart available for Age.');
+        expect(rawSection.querySelector('.statistics-browser')).toBeTruthy();
+    });
+
+    it('uses the same selected-variable workspace for processed summaries', () => {
+        const { age } = configureRawSummary([{ title: { text: 'Age chart' }, series: [] }]);
+
+        component.onMissingActionChange(age, 'mean');
+        component.applyPreprocessing();
+        component.setSummaryTab('processed', 'Charts');
+        fixture.detectChanges();
+
+        const processedSection = workflowSection('Processed Data Summary');
+        expect(processedSection.querySelector('.statistics-browser')).toBeTruthy();
+        expect(processedSection.querySelector('.chart-browser')).toBeNull();
+        expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+        expect(processedSection.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
     });
 
     it('applies longitudinal preprocessing with visit pair and per-variable strategies', () => {
@@ -321,6 +624,12 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.applyPreprocessing();
 
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'sex'], {
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                    sex: 'drop',
+                },
+            },
             longitudinal_transformer: {
                 visit1: 'BL',
                 visit2: 'FL1',
@@ -331,6 +640,12 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         });
         expect(mockExpService.setAppliedDescriptivePreprocessing).toHaveBeenCalledWith({
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                    sex: 'drop',
+                },
+            },
             longitudinal_transformer: {
                 visit1: 'BL',
                 visit2: 'FL1',
@@ -340,5 +655,42 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             },
         });
+    });
+
+    it('resets missing value and longitudinal pending state together', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        (mockExpService.selectedDataModel as any).set({
+            code: 'longitudinal_dm',
+            label: 'Longitudinal Data Model',
+            longitudinal: true,
+            variables: [
+                {
+                    code: 'visitid',
+                    label: 'Visit ID',
+                    enumerations: [
+                        { code: 'BL', label: 'Baseline' },
+                        { code: 'FL1', label: 'Follow-up 1' },
+                    ],
+                },
+            ],
+        });
+        component.appliedPreprocessingRules = {
+            age: { variableCode: 'age', action: 'mean', value: '', enabled: true },
+            sex: { variableCode: 'sex', action: 'drop', value: '', enabled: true },
+        };
+        component.appliedLongitudinalEnabled = true;
+        component.appliedLongitudinalVisit1 = 'BL';
+        component.appliedLongitudinalVisit2 = 'FL1';
+        component.appliedLongitudinalStrategies = { age: 'diff', sex: 'first' };
+        component.onMissingActionChange(age, 'median');
+        component.onLongitudinalStrategyChange(sex, 'second');
+
+        component.resetChanges();
+
+        expect(component.ruleFor(age).action).toBe('mean');
+        expect(component.longitudinalStrategyFor(sex)).toBe('first');
+        expect(component.pendingChangeCount).toBe(0);
     });
 });
