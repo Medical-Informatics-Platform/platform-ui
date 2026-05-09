@@ -15,13 +15,10 @@ import { D3HierarchyNode } from '../../../../models/data-model.interface';
 export class VariableFilterSelectionComponent {
   @Input() selectedNode: any; // Selected node from the bubble chart
   @Input() groupVariables: any[] = [];
-  @Output() filtersChange = new EventEmitter<any[]>();
   @Output() variableClicked = new EventEmitter<any>();
 
-  filterLogic: any;
   readonly variables = computed(() => this.expStudioService.selectedVariables());
   readonly covariates = computed(() => this.expStudioService.selectedCovariates());
-  readonly filters = computed(() => this.expStudioService.selectedFilters());
 
   constructor(private expStudioService: ExperimentStudioService) {
     effect(() => {
@@ -55,7 +52,7 @@ export class VariableFilterSelectionComponent {
     return (this.expStudioService.selectedDatasets() || []).length > 0;
   }
 
-  addItem(listName: 'variables' | 'covariates' | 'filters'): void {
+  addItem(listName: 'variables' | 'covariates'): void {
     const datasets = this.expStudioService.selectedDatasets();
     if (!datasets || datasets.length === 0) {
       return;
@@ -64,12 +61,6 @@ export class VariableFilterSelectionComponent {
 
     // Select all leaves from selected node
     let itemsToAdd = this.selectedNode.children ? this.getLeafNodes(this.selectedNode) : [this.selectedNode];
-
-    // Safety: don't add hundreds of filters at once if a group is selected by mistake
-    if (listName === 'filters' && itemsToAdd.length > 5) {
-      console.warn(`[VariableFilterSelection] Blocking bulk filter addition (${itemsToAdd.length} items). Please select individual variables.`);
-      return;
-    }
 
     const list = this.getListByName(listName);
     const updated = [
@@ -84,7 +75,7 @@ export class VariableFilterSelectionComponent {
     }
   }
 
-  drop(event: CdkDragDrop<any[]>, listName: 'variables' | 'covariates' | 'filters') {
+  drop(event: CdkDragDrop<any[]>, listName: 'variables' | 'covariates') {
     if (event.previousContainer === event.container) return;
 
     const item = event.previousContainer.data[event.previousIndex];
@@ -103,7 +94,6 @@ export class VariableFilterSelectionComponent {
     // Sync all lists after move so availability recalculates correctly
     this.expStudioService.setVariables([...this.variables()]);
     this.expStudioService.setCovariates([...this.covariates()]);
-    this.expStudioService.setFilters([...this.filters()]);
   }
 
   addVariable(): void {
@@ -114,11 +104,7 @@ export class VariableFilterSelectionComponent {
     this.addItem('covariates');
   }
 
-  addFilter(): void {
-    this.addItem('filters');
-  }
-
-  isNodeSelectedAndNotInList(listName: 'variables' | 'covariates' | 'filters'): boolean {
+  isNodeSelectedAndNotInList(listName: 'variables' | 'covariates'): boolean {
     if (!this.selectedNode || this.selectedNode.children) return false;
     const list = this.getListByName(listName);
     return !list.some(item => item.code === this.selectedNode.code);
@@ -131,9 +117,6 @@ export class VariableFilterSelectionComponent {
         break;
       case 'covariates':
         this.updateService('covariates', this.covariates().filter((c) => c.label !== item.label));
-        break;
-      case 'filters':
-        this.updateFilters(this.filters().filter((f) => f.label !== item.label));
         break;
       default:
         throw new Error(`Invalid listName: ${listName}`);
@@ -148,34 +131,9 @@ export class VariableFilterSelectionComponent {
       case 'covariates':
         this.updateService('covariates', []);
         break;
-      case 'filters':
-        this.updateService('filters', []);
-        break;
       default:
         throw new Error(`Invalid listName: ${listName}`);
     }
-  }
-
-  openFilterConfig(): void {
-    this.expStudioService.toggleFilterConfigModal(true);
-  }
-
-
-  // Check for redundant code
-  updateFilters(updatedFilters: any[]): void {
-    this.updateService('filters', [...updatedFilters]);
-  }
-
-  onFiltersChange(updatedFilters: any[]): void {
-    if (Array.isArray(updatedFilters)) {
-      const nextFilters = [...updatedFilters];
-      this.filtersChange.emit(nextFilters); // this emits an event if a filter exists
-      this.updateService('filters', nextFilters);
-    }
-  }
-
-  onModalClose(): void {
-    this.expStudioService.toggleFilterConfigModal(false);
   }
 
   // Helper service for VariabeHandlingService
@@ -187,20 +145,15 @@ export class VariableFilterSelectionComponent {
       case 'covariates':
         this.expStudioService.setCovariates(updatedList);
         break;
-      case 'filters':
-        this.expStudioService.setFilters(updatedList);
-        break;
     }
   }
 
-  private getListByName(listName: 'variables' | 'covariates' | 'filters'): any[] {
+  private getListByName(listName: 'variables' | 'covariates'): any[] {
     switch (listName) {
       case 'variables':
         return this.variables();
       case 'covariates':
         return this.covariates();
-      case 'filters':
-        return this.filters();
       default:
         return [];
     }

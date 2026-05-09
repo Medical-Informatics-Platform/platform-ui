@@ -530,6 +530,14 @@
   transform: translateY(-1px);
 }
 
+.filter-preview-tag {
+  max-width: min(820px, 100%);
+  border-radius: 8px;
+  white-space: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .parameter-list {
   gap: 8px;
 }

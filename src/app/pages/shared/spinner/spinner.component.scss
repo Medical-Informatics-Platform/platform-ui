@@ -17,19 +17,18 @@
   position: static;
   background: transparent;
   inset: auto;
-  min-height: 120px;
+  min-height: 96px;
 }
 
 .lds-spinner {
-  color: #008080;
   display: inline-block;
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: var(--spinner-size, 64px);
+  height: var(--spinner-size, 64px);
 }
 
 .lds-spinner div {
-  transform-origin: 32px 32px;
+  transform-origin: calc(var(--spinner-size, 64px) / 2) calc(var(--spinner-size, 64px) / 2);
   animation: fade 1.2s linear infinite;
 }
 
@@ -37,12 +36,12 @@
   content: "";
   display: block;
   position: absolute;
-  top: 3px;
-  left: 29px;
-  width: 6px;
-  height: 18px;
+  top: calc(var(--spinner-size, 64px) * 0.047);
+  left: calc(var(--spinner-size, 64px) * 0.453);
+  width: calc(var(--spinner-size, 64px) * 0.094);
+  height: calc(var(--spinner-size, 64px) * 0.281);
   border-radius: 20%;
-  background: #008080;
+  background: var(--spinner-color, #2b33e9);
 }
 
 /* rotation + delay per child */
@@ -66,9 +65,9 @@
 }
 
 .spinner-text {
-  margin-top: 1.2rem;
+  margin-top: 0.75rem;
   letter-spacing: 0.3px;
-  font-weight: 600;
-  color: #006666;
-  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--spinner-color, #2b33e9);
+  font-size: 0.95rem;
 }

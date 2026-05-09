@@ -29,7 +29,7 @@
         <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
           @if (selectedDataModel() && d3Data) {
           <app-bubble-chart [d3Data]="d3Data" [highlightNode]="highlightNode" [selectedVariables]="selectedVariables"
-            [selectedCovariates]="selectedCovariates" [selectedFilters]="selectedFilters"
+            [selectedCovariates]="selectedCovariates"
             (selectedNodeChange)="onBubbleNodeSelected($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">
           </app-bubble-chart>
           }
@@ -41,7 +41,6 @@
         <section class="panel-block variable-filter-container parameters-panel" id="parameters-listing"
           data-guide="variable-containers">
           <app-variable-filter-selection #variableFilterSelection [selectedNode]="selectedNode"
-            (filtersChange)="onFilterChange($event)"
             (variableClicked)="onVariableClicked($event)"></app-variable-filter-selection>
         </section>
 
@@ -107,7 +106,7 @@
                 </div>
                 <div class="hint-item">
                   <i class="fas fa-bolt"></i>
-                  <span><b>Use the right panel</b> to move selected items into Covariates or Filters</span>
+                  <span><b>Use the right panel</b> to move selected items into Variables or Covariates</span>
                 </div>
               </div>
             </div>
