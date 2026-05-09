@@ -150,7 +150,7 @@
           } @else {
           <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
             data-guide="run-experiment"
-            [title]="isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'">
+            [title]="preprocessingRunBlockMessage() || (isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment')">
             {{ isRunning() ? "Running..." : "Run Experiment" }}
           </button>
           }
@@ -314,6 +314,13 @@
         {{ selectedAlgorithm()?.label }} Configuration
       </h5>
       <p class="config-description">{{ selectedAlgorithm()?.description }}</p>
+
+      @if (preprocessingRunBlockMessage()) {
+      <div class="preprocessing-run-warning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ preprocessingRunBlockMessage() }}</span>
+      </div>
+      }
 
       @if (canToggleCrossValidation()) {
       <div class="cross-validation-toggle">
