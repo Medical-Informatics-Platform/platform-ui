@@ -24,6 +24,11 @@ export interface PathologyAccessWarning {
 
 export type PreprocessingConfig = Record<string, unknown>;
 
+export interface PreprocessingSummaryEntry {
+  label: string;
+  value: string;
+}
+
 const MISSING_VALUES_HANDLER = 'missing_values_handler';
 const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__';
 
@@ -44,6 +49,7 @@ export class ExperimentStudioService {
   private selectedVariablesSignal = signal<any[]>(this.sessionStorage.getItem('selectedVariables') || []);
   private selectedCovariatesSignal = signal<any[]>(this.sessionStorage.getItem('selectedCovariates') || []);
   private selectedFiltersSignal = signal<any[]>(this.sessionStorage.getItem('selectedFilters') || []);
+  private _filterLogic = signal<BackendFilter | null>(this.sessionStorage.getItem('filterLogic'));
 
   readonly selectedVariables = computed(() => this.selectedVariablesSignal());
   readonly selectedCovariates = computed(() => this.selectedCovariatesSignal());
@@ -85,7 +91,7 @@ export class ExperimentStudioService {
   private selectedDatasetsSignal = signal<string[]>(this.sessionStorage.getItem('selectedDatasets') || []);
   private transientUrl = '/services/experiments/transient';
 
-  lastUsedAlgorithm = signal<string | null>(null);
+  lastUsedAlgorithm = signal<string | null>(this.sessionStorage.getItem('lastUsedAlgorithm') || null);
   selectedDatasets = computed(() => this.selectedDatasetsSignal());
   backendAlgorithms = signal<Record<string, AlgorithmConfig>>({});
   selectedDataModel = signal<DataModel | null>(this.sessionStorage.getItem('selectedDataModel'));
@@ -213,6 +219,22 @@ export class ExperimentStudioService {
 
     effect(() => {
       this.sessionStorage.setItem('selectedDataModel', this.selectedDataModel());
+    });
+
+    effect(() => {
+      this.sessionStorage.setItem('filterLogic', this._filterLogic());
+    });
+
+    effect(() => {
+      this.sessionStorage.setItem('algorithmConfigurations', this.algorithmConfigurations());
+    });
+
+    effect(() => {
+      this.sessionStorage.setItem('algorithmPreprocessingConfigurations', this.algorithmPreprocessingConfigurations());
+    });
+
+    effect(() => {
+      this.sessionStorage.setItem('lastUsedAlgorithm', this.lastUsedAlgorithm());
     });
   }
 
@@ -369,13 +391,22 @@ export class ExperimentStudioService {
   algorithmConfigurations = signal<Record<string, Record<string, any>>>(
     this.sessionStorage.getItem('algorithmConfigurations') || {}
   );
-  algorithmPreprocessingConfigurations = signal<Record<string, PreprocessingConfig | null>>({});
+  algorithmPreprocessingConfigurations = signal<Record<string, PreprocessingConfig | null>>(
+    this.sessionStorage.getItem('algorithmPreprocessingConfigurations') || {}
+  );
+  readonly appliedPreprocessingConfig = computed(
+    () => this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? null
+  );
 
   setAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
     this.algorithmPreprocessingConfigurations.set({
       ...this.algorithmPreprocessingConfigurations(),
       [APPLIED_DESCRIPTIVE_PREPROCESSING]: this.normalizePreprocessingConfig(preprocessing),
     });
+  }
+
+  getAppliedDescriptivePreprocessing(): PreprocessingConfig | null {
+    return this.normalizePreprocessingConfig(this.appliedPreprocessingConfig());
   }
 
   hasAppliedDescriptivePreprocessing(): boolean {
@@ -588,7 +619,7 @@ export class ExperimentStudioService {
       xVariables ?? this.selectedCovariates().map((c) => c.code);
 
     const allConfigs = this.algorithmConfigurations();
-    const config = { ...(allConfigs[algoConfig.name ?? ''] || {}) };
+    let config = { ...(allConfigs[algoConfig.name ?? ''] || {}) };
     const isCvRequest = this.isCrossValidationAlgorithm(requestAlgorithmName);
     if (isCvRequest && config['n_splits'] === undefined) {
       config['n_splits'] = 5;
@@ -596,6 +627,7 @@ export class ExperimentStudioService {
     if (!isCvRequest && config['n_splits'] !== undefined) {
       delete config['n_splits'];
     }
+    config = this.normalizeParameterConfig(algoConfig, config);
 
 
     // filters logic
@@ -652,6 +684,29 @@ export class ExperimentStudioService {
       ...(mipVersion ? { mipVersion } : {}),
     };
     return body;
+  }
+
+  private normalizeParameterConfig(
+    algoConfig: AlgorithmConfig,
+    config: Record<string, any>
+  ): Record<string, any> {
+    const normalized = { ...config };
+    const numericKeys = new Set(
+      (algoConfig.configSchema ?? [])
+        .filter((field: any) => field?.type === 'number')
+        .map((field: any) => String(field.key))
+    );
+
+    numericKeys.forEach((key) => {
+      const value = normalized[key];
+      if (typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) normalized[key] = parsed;
+    });
+
+    return normalized;
   }
 
   private getStoredPreprocessingConfig(...algorithmNames: Array<string | null | undefined>): PreprocessingConfig | null {
@@ -713,22 +768,95 @@ export class ExperimentStudioService {
       this.selectedCovariates().map((variable) => variable.code),
       this.getStoredPreprocessingConfig(algorithmName)
     );
-    return this.summarizePreprocessingConfig(preprocessing);
+    return this.formatPreprocessingConfig(preprocessing);
   }
 
-  private summarizePreprocessingConfig(preprocessing: PreprocessingConfig | null): string {
-    if (!preprocessing) return 'none';
+  formatPreprocessingConfig(preprocessing: unknown, labelMap: Record<string, string> = {}): string {
+    const entries = this.formatPreprocessingEntries(preprocessing, labelMap);
+    return entries.length
+      ? entries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+      : 'none';
+  }
 
+  formatPreprocessingEntries(
+    preprocessing: unknown,
+    labelMap: Record<string, string> = {}
+  ): PreprocessingSummaryEntry[] {
+    return this.summarizePreprocessingConfig(this.normalizePreprocessingConfig(preprocessing), labelMap);
+  }
+
+  private summarizePreprocessingConfig(
+    preprocessing: PreprocessingConfig | null,
+    labelMap: Record<string, string> = {}
+  ): PreprocessingSummaryEntry[] {
+    if (!preprocessing) return [];
+
+    const entries: PreprocessingSummaryEntry[] = [];
     const missingValues = preprocessing[MISSING_VALUES_HANDLER] as { strategies?: Record<string, unknown> } | undefined;
     const strategies = missingValues?.strategies ?? {};
-    const strategyValues = Object.values(strategies);
-    if (strategyValues.length && strategyValues.every((strategy) => strategy === 'drop')) {
-      return 'Missing values: drop';
+    const strategyEntries = Object.entries(strategies);
+    if (strategyEntries.length) {
+      const labels = strategyEntries.map(([code, strategy]) =>
+        `${this.preprocessingVariableLabel(code, labelMap)}: ${this.humanizePreprocessingValue(String(strategy))}`
+      );
+      entries.push({ label: 'Missing values', value: labels.join(', ') });
     }
 
-    return Object.keys(preprocessing)
-      .map((key) => key.replace(/_/g, ' '))
-      .join(', ');
+    const longitudinal = preprocessing['longitudinal_transformer'] as Record<string, unknown> | undefined;
+    if (longitudinal) {
+      const visit1 = longitudinal['visit1'];
+      const visit2 = longitudinal['visit2'];
+      const visitLabel = visit1 && visit2 ? ` (${visit1} to ${visit2})` : '';
+      const longitudinalStrategies = longitudinal['strategies'] as Record<string, unknown> | undefined;
+      const strategyEntries = Object.entries(longitudinalStrategies ?? {});
+      const strategySummary = strategyEntries.length
+        ? strategyEntries.map(
+          ([code, strategy]) =>
+            `${this.preprocessingVariableLabel(code, labelMap)}: ${this.humanizeLongitudinalStrategy(String(strategy))}`
+        )
+          .join(', ')
+        : 'configured';
+      entries.push({ label: 'Longitudinal transformation', value: `${strategySummary}${visitLabel}` });
+    }
+
+    const knownKeys = new Set([MISSING_VALUES_HANDLER, 'longitudinal_transformer']);
+    Object.keys(preprocessing)
+      .filter((key) => !knownKeys.has(key))
+      .forEach((key) => entries.push({ label: key.replace(/_/g, ' '), value: 'configured' }));
+
+    return entries;
+  }
+
+  private preprocessingVariableLabel(code: string, labelMap: Record<string, string>): string {
+    return labelMap[code] ?? code;
+  }
+
+  private humanizePreprocessingValue(value: string): string {
+    switch (value) {
+      case 'drop':
+        return 'remove rows';
+      case 'mean':
+        return 'mean imputation';
+      case 'median':
+        return 'median imputation';
+      case 'constant':
+        return 'constant value';
+      default:
+        return value.replace(/_/g, ' ');
+    }
+  }
+
+  private humanizeLongitudinalStrategy(value: string): string {
+    switch (value) {
+      case 'diff':
+        return 'difference between visits';
+      case 'first':
+        return 'use first visit';
+      case 'second':
+        return 'use second visit';
+      default:
+        return value.replace(/_/g, ' ');
+    }
   }
 
   loadAllDataModels(): Observable<any[]> {
@@ -1098,9 +1226,6 @@ export class ExperimentStudioService {
     return this.http.patch(`/services/experiments/${uuid}`, { name: newName });
   }
 
-  // Filters and rules
-  private _filterLogic = signal<BackendFilter | null>(null);
-
   get filterLogic() {
     return this._filterLogic.asReadonly();
   }
@@ -1236,6 +1361,7 @@ export class ExperimentStudioService {
         this.algorithmPreprocessingConfigurations.set({
           ...this.algorithmPreprocessingConfigurations(),
           [algoName]: preprocessing,
+          [APPLIED_DESCRIPTIVE_PREPROCESSING]: preprocessing,
         });
 
         this.setAlgorithm(algoConfig);
@@ -1334,6 +1460,9 @@ export class ExperimentStudioService {
     this.sessionStorage.removeItem('selectedDataModel');
     this.sessionStorage.removeItem('selectedAlgorithm');
     this.sessionStorage.removeItem('algorithmConfigurations');
+    this.sessionStorage.removeItem('algorithmPreprocessingConfigurations');
+    this.sessionStorage.removeItem('filterLogic');
+    this.sessionStorage.removeItem('lastUsedAlgorithm');
 
     // cancel any in-flight transient requests
     this.destroy$.next();
