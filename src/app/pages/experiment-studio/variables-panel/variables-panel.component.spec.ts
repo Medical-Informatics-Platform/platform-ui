@@ -22,6 +22,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     setVariables: jasmine.Spy;
     setCovariates: jasmine.Spy;
     setFilters: jasmine.Spy;
+    setFilterLogic: jasmine.Spy;
     addVariableAndEnrich: jasmine.Spy;
   };
 
@@ -42,6 +43,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       setVariables: jasmine.createSpy('setVariables'),
       setCovariates: jasmine.createSpy('setCovariates'),
       setFilters: jasmine.createSpy('setFilters'),
+      setFilterLogic: jasmine.createSpy('setFilterLogic'),
       addVariableAndEnrich: jasmine.createSpy('addVariableAndEnrich'),
     };
 

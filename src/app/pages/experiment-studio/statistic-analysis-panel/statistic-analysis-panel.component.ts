@@ -24,10 +24,13 @@ import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
+import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
+import { CsvExportService } from '../../../services/csv-export.service';
 
-type TabKey = 'Variables' | 'Distributions';
+type TabKey = 'Statistics' | 'Charts';
 type SummaryKind = 'raw' | 'processed';
 type DistributionSubTab = 'Numeric' | 'Nominal';
+type StatisticVariableType = 'numeric' | 'nominal';
 export type PreprocessingStatus = 'none' | 'pending' | 'applied';
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
@@ -48,12 +51,20 @@ interface SummaryView {
   chartsForNominal: EChartsOption[][];
   activeBoxPlotIndex: number;
   activeNominalIndex: number;
+  selectedStatisticKey: string | null;
 }
 
 interface PivotBlock {
+  code?: string;
   name: string;
   columns: string[];
   rows: Array<{ metric: string; values: Record<string, string> }>;
+}
+
+interface StatisticMetadata {
+  label: string;
+  value: string;
+  severity?: 'none' | 'warning' | 'high';
 }
 
 interface VariableRow {
@@ -62,6 +73,11 @@ interface VariableRow {
   label?: string;
   type?: string;
   enumerations?: Array<{ code?: string; label?: string; name?: string }>;
+}
+
+interface EnumOption {
+  code: string;
+  label: string;
 }
 
 interface PreprocessingRule {
@@ -77,6 +93,11 @@ interface PreprocessingGroup {
   variables: VariableRow[];
 }
 
+interface PreviewImpactGroup {
+  title: string;
+  items: string[];
+}
+
 export interface DescriptiveProgressState {
   pendingChangeCount: number;
   preprocessingStatus: PreprocessingStatus;
@@ -84,7 +105,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, SpinnerComponent, FormsModule],
+  imports: [ChartRendererComponent, SpinnerComponent, FormsModule, FilterConfigModalComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   styleUrls: ['./statistic-analysis-panel.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -101,12 +122,15 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   rawSection?: ElementRef<HTMLElement>;
   @ViewChild('setupSection')
   setupSection?: ElementRef<HTMLElement>;
+  @ViewChild('filtersSection')
+  filtersSection?: ElementRef<HTMLElement>;
   @ViewChild('processedSection')
   processedSection?: ElementRef<HTMLElement>;
 
-  private expStudioService = inject(ExperimentStudioService);
+  expStudioService = inject(ExperimentStudioService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
+  private csvExportService = inject(CsvExportService);
   private cdr = inject(ChangeDetectorRef);
   private runtimeEnvService = inject(RuntimeEnvService);
   readonly mipVersion = this.runtimeEnvService.mipVersion;
@@ -126,20 +150,29 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   isApplyingPreprocessing = false;
   preprocessingValidationErrors: Record<string, string> = {};
   preprocessingSearch = '';
+  longitudinalPreprocessingSearch = '';
+  selectedMissingPreprocessingCode: string | null = null;
+  selectedLongitudinalPreprocessingCode: string | null = null;
+  statisticsSearch: Record<SummaryKind, string> = {
+    raw: '',
+    processed: '',
+  };
   showPreview = false;
   successMessage = '';
   isExporting = false;
   isLoading = true;
-  showBoxPlots = false;
-  openAccordions: Record<string, boolean> = {};
-  sectionOpen: Record<'raw' | 'setup' | 'processed', boolean> = {
-    raw: true,
-    setup: true,
+  sectionOpen: Record<'raw' | 'setup' | 'filters' | 'processed', boolean> = {
+    raw: false,
+    setup: false,
+    filters: true,
     processed: false,
+  };
+  preprocessingStepOpen: Record<'missing' | 'longitudinal', boolean> = {
+    missing: true,
+    longitudinal: true,
   };
 
   readonly missingActions: Array<{ value: MissingAction; label: string }> = [
-    { value: 'no_action', label: 'No action' },
     { value: 'drop', label: 'Remove rows' },
     { value: 'mean', label: 'Mean imputation' },
     { value: 'median', label: 'Median imputation' },
@@ -185,7 +218,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       const variables = this.expStudioService.selectedVariables();
       const covariates = this.expStudioService.selectedCovariates();
       const filters = this.expStudioService.selectedFilters();
-      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters);
+      const filterLogic = this.expStudioService.filterLogic();
+      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters, filterLogic);
 
       if (nextSelectionKey !== this.selectionKey) {
         this.selectionKey = nextSelectionKey;
@@ -196,7 +230,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.rawSummary = this.createEmptySummary(false);
         this.processedSummary = this.createEmptySummary(false);
         this.processedData = [];
-        this.showBoxPlots = false;
         this.isLoading = false;
         this.expStudioService.clearDataExclusionWarnings();
         this.cdr.markForCheck();
@@ -219,20 +252,26 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   get pendingMissingChangeCount(): number {
+    return this.hasPendingMissingChanges ? 1 : 0;
+  }
+
+  get hasPendingMissingChanges(): boolean {
     const currentCodes = this.currentPreprocessingCodeSet();
     const codes = new Set(
       [
+        ...Array.from(currentCodes),
         ...Object.keys(this.pendingPreprocessingRules),
         ...Object.keys(this.appliedPreprocessingRules),
       ].filter((code) => currentCodes.has(code))
     );
-    let count = 0;
-    codes.forEach((code) => {
-      if (this.serializeRule(this.pendingPreprocessingRules[code]) !== this.serializeRule(this.appliedPreprocessingRules[code])) {
-        count += 1;
+    for (const code of codes) {
+      const pendingRule = this.pendingPreprocessingRules[code]
+        ?? (this.appliedPreprocessingRules[code] ? undefined : this.defaultRule(code));
+      if (this.serializeRule(pendingRule) !== this.serializeRule(this.appliedPreprocessingRules[code])) {
+        return true;
       }
-    });
-    return count;
+    }
+    return false;
   }
 
   get pendingLongitudinalChangeCount(): number {
@@ -241,9 +280,9 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   get preprocessingStatusLabel(): string {
-    if (this.pendingChangeCount > 0) return `${this.pendingChangeCount} pending changes`;
+    if (this.pendingChangeCount > 0) return `${this.pendingChangeCount} pending ${this.pendingChangeCount === 1 ? 'step' : 'steps'}`;
     if (this.preprocessingStatus === 'applied') return 'Preprocessing applied';
-    return 'No preprocessing applied';
+    return 'Required';
   }
 
   get preprocessingStatusClass(): string {
@@ -262,6 +301,15 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   get filteredPreprocessingVariables(): VariableRow[] {
     const query = this.preprocessingSearch.trim().toLowerCase();
+    return this.filterPreprocessingVariables(query);
+  }
+
+  get filteredLongitudinalPreprocessingVariables(): VariableRow[] {
+    const query = this.longitudinalPreprocessingSearch.trim().toLowerCase();
+    return this.filterPreprocessingVariables(query);
+  }
+
+  private filterPreprocessingVariables(query: string): VariableRow[] {
     if (!query) return this.preprocessingVariables;
     return this.preprocessingVariables.filter((variable) => {
       const label = this.variableLabel(variable).toLowerCase();
@@ -270,11 +318,25 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   get preprocessingGroups(): PreprocessingGroup[] {
+    return this.buildPreprocessingGroups(this.filteredPreprocessingVariables, (variable) => this.hasAppliedPreprocessing(variable.code));
+  }
+
+  get longitudinalPreprocessingGroups(): PreprocessingGroup[] {
+    return this.buildPreprocessingGroups(
+      this.filteredLongitudinalPreprocessingVariables,
+      (variable) => this.hasAppliedLongitudinalPreprocessing(variable.code)
+    );
+  }
+
+  private buildPreprocessingGroups(
+    variables: VariableRow[],
+    isApplied: (variable: VariableRow) => boolean
+  ): PreprocessingGroup[] {
     const applied: VariableRow[] = [];
     const notApplied: VariableRow[] = [];
 
-    this.filteredPreprocessingVariables.forEach((variable) => {
-      if (this.hasAppliedPreprocessing(variable.code)) applied.push(variable);
+    variables.forEach((variable) => {
+      if (isApplied(variable)) applied.push(variable);
       else notApplied.push(variable);
     });
 
@@ -291,6 +353,96 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       },
     ];
     return groups.filter((group) => group.variables.length > 0);
+  }
+
+  selectedPreprocessingVariable(): VariableRow | null {
+    const filtered = this.filteredPreprocessingVariables;
+    if (!filtered.length) return null;
+    return filtered.find((variable) => variable.code === this.selectedMissingPreprocessingCode) ?? filtered[0];
+  }
+
+  selectPreprocessingVariable(variable: VariableRow): void {
+    this.selectedMissingPreprocessingCode = variable.code;
+    this.cdr.markForCheck();
+  }
+
+  isPreprocessingVariableSelected(variable: VariableRow): boolean {
+    return this.selectedPreprocessingVariable()?.code === variable.code;
+  }
+
+  preprocessingVariableStateLabel(variable: VariableRow): string {
+    if (this.preprocessingVariableHasPendingChange(variable)) return 'Pending';
+    if (this.hasAppliedPreprocessing(variable.code)) return 'Applied';
+    return 'Not applied';
+  }
+
+  preprocessingVariableHasPendingChange(variable: VariableRow): boolean {
+    return this.serializeRule(this.pendingPreprocessingRules[variable.code]) !== this.serializeRule(this.appliedPreprocessingRules[variable.code]);
+  }
+
+  selectedLongitudinalPreprocessingVariable(): VariableRow | null {
+    const filtered = this.filteredLongitudinalPreprocessingVariables;
+    if (!filtered.length) return null;
+    return filtered.find((variable) => variable.code === this.selectedLongitudinalPreprocessingCode) ?? filtered[0];
+  }
+
+  selectLongitudinalPreprocessingVariable(variable: VariableRow): void {
+    this.selectedLongitudinalPreprocessingCode = variable.code;
+    this.cdr.markForCheck();
+  }
+
+  isLongitudinalPreprocessingVariableSelected(variable: VariableRow): boolean {
+    return this.selectedLongitudinalPreprocessingVariable()?.code === variable.code;
+  }
+
+  longitudinalVariableStateLabel(variable: VariableRow): string {
+    if (this.longitudinalVariableHasPendingChange(variable)) return 'Pending';
+    if (this.hasAppliedLongitudinalPreprocessing(variable.code)) return 'Applied';
+    return 'Not applied';
+  }
+
+  longitudinalVariableHasPendingChange(variable: VariableRow): boolean {
+    if (!this.isLongitudinalModel) return false;
+    const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+    const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+    return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
+  }
+
+  get longitudinalVisitPairHasPendingChange(): boolean {
+    return this.longitudinalVisit1 !== this.appliedLongitudinalVisit1 || this.longitudinalVisit2 !== this.appliedLongitudinalVisit2;
+  }
+
+  get missingPreprocessingStatusLabel(): string {
+    if (this.hasPendingMissingChanges) return 'Pending';
+    if (Object.values(this.appliedPreprocessingRules).some((rule) => rule.enabled && rule.action !== 'no_action')) return 'Applied';
+    return 'Required';
+  }
+
+  get longitudinalPreprocessingStatusLabel(): string {
+    if (!this.isLongitudinalModel) return 'Not available';
+    if (this.pendingLongitudinalChangeCount > 0) return 'Pending';
+    if (this.appliedLongitudinalEnabled) return 'Applied';
+    return 'Required';
+  }
+
+  get selectedFilters(): VariableRow[] {
+    return this.expStudioService.selectedFilters() as VariableRow[];
+  }
+
+  get activeFilterRuleCount(): number {
+    return this.countFilterRules(this.expStudioService.filterLogic());
+  }
+
+  get filterStatusLabel(): string {
+    if (this.activeFilterRuleCount > 0) {
+      return `${this.activeFilterRuleCount} active ${this.activeFilterRuleCount === 1 ? 'rule' : 'rules'}`;
+    }
+    return 'Optional';
+  }
+
+  get filterStatusClass(): string {
+    if (this.activeFilterRuleCount > 0) return 'status-green';
+    return 'status-neutral';
   }
 
   get isLongitudinalModel(): boolean {
@@ -310,55 +462,153 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       .filter((item) => item.code);
   }
 
-  get previewImpactItems(): string[] {
+  get previewImpactGroups(): PreviewImpactGroup[] {
     const currentCodes = this.currentPreprocessingCodeSet();
     const rules = Object.values(this.pendingPreprocessingRules).filter(
       (rule) => currentCodes.has(rule.variableCode) && rule.enabled && rule.action !== 'no_action'
     );
-    const items = rules.map((rule) => {
+    const groups: PreviewImpactGroup[] = [];
+    const missingItems = rules.map((rule) => {
       const variable = this.preprocessingVariables.find((row) => row.code === rule.variableCode);
       const label = variable ? this.variableLabel(variable) : rule.variableCode;
       const status = variable ? this.currentStatus(variable) : 'selected values';
       const action = this.missingActionLabel(rule.action).toLowerCase();
       return `${status} for ${label} will use ${action}.`;
     });
+    if (missingItems.length) groups.push({ title: 'Missing Values', items: missingItems });
+
     const longitudinalConfig = this.buildLongitudinalPreprocessingConfig(false);
     if (longitudinalConfig) {
-      items.push(
-        `Longitudinal preprocessing will compare ${longitudinalConfig['visit1']} with ${longitudinalConfig['visit2']}.`
-      );
+      groups.push({
+        title: 'Longitudinal Transformation',
+        items: [
+          `Compare ${longitudinalConfig['visit1']} with ${longitudinalConfig['visit2']}.`,
+          `${Object.keys((longitudinalConfig['strategies'] as Record<string, string>) ?? {}).length} variable strategies will be applied.`,
+        ],
+      });
     }
-    if (!items.length) return ['No preprocessing changes will be applied.'];
-    items.push('Processed Data Summary will be recalculated.');
-    return items;
+    if (!groups.length) return [{ title: 'Preprocessing', items: ['No preprocessing changes will be applied.'] }];
+    groups.push({ title: 'Processed Summary', items: ['Processed Data Summary will be recalculated.'] });
+    return groups;
   }
 
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
     this.getSummary(kind).activeTab = tab;
+    this.cdr.markForCheck();
   }
 
-  setDistributionSubTab(kind: SummaryKind, tab: DistributionSubTab): void {
-    this.getSummary(kind).distributionSubTab = tab;
-  }
-
-  setActiveChart(kind: SummaryKind, chartType: 'numeric' | 'nominal', index: number): void {
+  filteredStatisticBlocks(kind: SummaryKind): PivotBlock[] {
     const summary = this.getSummary(kind);
-    if (chartType === 'numeric') summary.activeBoxPlotIndex = index;
-    else summary.activeNominalIndex = index;
+    const query = this.statisticsSearch[kind].trim().toLowerCase();
+    if (!query) return summary.data;
+    return summary.data.filter((block) => {
+      const variable = this.variableForBlock(block);
+      return [
+        block.name,
+        variable?.code,
+        variable?.label,
+        variable?.name,
+      ].some((value) => String(value ?? '').toLowerCase().includes(query));
+    });
   }
 
-  goToSection(section: 'raw' | 'setup' | 'processed'): void {
+  statisticBlocks(kind: SummaryKind, type: StatisticVariableType): PivotBlock[] {
+    return this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+  }
+
+  selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
+    this.getSummary(kind).selectedStatisticKey = this.statisticBlockKey(block);
+  }
+
+  selectedStatisticBlock(kind: SummaryKind): PivotBlock | null {
+    const filtered = this.filteredStatisticBlocks(kind);
+    if (!filtered.length) return null;
+    const selectedKey = this.getSummary(kind).selectedStatisticKey;
+    return filtered.find((block) => this.statisticBlockKey(block) === selectedKey) ?? filtered[0];
+  }
+
+  isStatisticBlockSelected(kind: SummaryKind, block: PivotBlock): boolean {
+    const selected = this.selectedStatisticBlock(kind);
+    return !!selected && this.statisticBlockKey(selected) === this.statisticBlockKey(block);
+  }
+
+  statisticBlockVariable(block: PivotBlock): VariableRow | null {
+    return this.variableForBlock(block);
+  }
+
+  statisticBlockTypeLabel(kind: SummaryKind, block: PivotBlock): string {
+    return this.statisticBlockType(kind, block) === 'numeric' ? 'Numerical' : 'Categorical';
+  }
+
+  statisticDatapointsLabel(block: PivotBlock): string {
+    const datapoints = this.statisticMetricText(block, 'Datapoints');
+    if (datapoints === 'N/A') return 'Datapoints unavailable';
+    const count = Number(datapoints.replace(/,/g, ''));
+    return count === 1 ? '1 datapoint' : `${datapoints} datapoints`;
+  }
+
+  statisticMissingLabel(block: PivotBlock): string {
+    return `${this.statisticMissingValue(block).toLocaleString()} missing`;
+  }
+
+  statisticMissingSeverity(block: PivotBlock): 'none' | 'warning' | 'high' {
+    const missing = this.statisticMissingValue(block);
+    if (missing <= 0) return 'none';
+    const total = this.statisticMetricNumber(block, 'Total');
+    if (total > 0 && missing / total >= 0.1) return 'high';
+    return 'warning';
+  }
+
+  statisticMetadata(_kind: SummaryKind, block: PivotBlock): StatisticMetadata[] {
+    return [
+      { label: 'Datapoints', value: this.statisticMetricText(block, 'Datapoints') },
+      {
+        label: 'Missing',
+        value: this.statisticMissingValue(block).toLocaleString(),
+        severity: this.statisticMissingSeverity(block),
+      },
+    ];
+  }
+
+  selectedSummaryChartType(kind: SummaryKind, block: PivotBlock): 'numeric' | 'nominal' {
+    return this.statisticBlockType(kind, block);
+  }
+
+  selectedSummaryChartTypeLabel(kind: SummaryKind, block: PivotBlock): string {
+    return this.selectedSummaryChartType(kind, block) === 'numeric' ? 'Numerical' : 'Categorical';
+  }
+
+  selectedSummaryChartOptions(kind: SummaryKind, block: PivotBlock): EChartsOption[] {
+    const variable = this.statisticBlockVariable(block);
+    if (!variable) return [];
+
+    const summary = this.getSummary(kind);
+    if (this.selectedSummaryChartType(kind, block) === 'numeric') {
+      const index = summary.nonNominalVariables.findIndex((item) => item.code === variable.code);
+      return index >= 0 ? summary.chartsForBoxPlot[index] ?? [] : [];
+    }
+
+    const index = summary.nominalVariables.findIndex((item) => item.code === variable.code);
+    return index >= 0 ? summary.chartsForNominal[index] ?? [] : [];
+  }
+
+  goToSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
     this.sectionOpen = {
       raw: section === 'raw',
       setup: section === 'setup',
+      filters: section === 'filters',
       processed: section === 'processed',
     };
     this.cdr.markForCheck();
     setTimeout(() => this.sectionElement(section)?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
-  toggleSection(section: 'raw' | 'setup' | 'processed'): void {
+  toggleSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
     this.sectionOpen[section] = !this.sectionOpen[section];
+  }
+
+  togglePreprocessingStep(step: 'missing' | 'longitudinal'): void {
+    this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
   }
 
   ruleFor(variable: VariableRow): PreprocessingRule {
@@ -370,8 +620,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   onMissingActionChange(variable: VariableRow, action: MissingAction): void {
     const next = { ...this.ruleFor(variable), action };
-    next.enabled = action !== 'no_action';
+    next.enabled = true;
     if (action !== 'constant') next.value = '';
+    if (action === 'constant' && this.isCategoricalVariable(variable)) {
+      const enumValues = this.enumOptions(variable).map((item) => item.code);
+      if (!enumValues.includes(next.value)) next.value = '';
+    }
     this.pendingPreprocessingRules = {
       ...this.pendingPreprocessingRules,
       [variable.code]: next,
@@ -462,6 +716,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   applyPreprocessing(): void {
+    this.ensureDefaultRulesForCurrentSelection();
     this.ensureLongitudinalDefaults();
     if (this.pendingChangeCount === 0) return;
     const validationErrors = this.validatePendingRules();
@@ -495,6 +750,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
     this.isApplyingPreprocessing = true;
+    this.processedSummary = this.createEmptySummary(true);
+    this.goToSection('processed');
     this.preprocessingValidationErrors = {};
     this.cdr.markForCheck();
 
@@ -513,9 +770,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.preprocessingStatus = 'applied';
         this.isApplyingPreprocessing = false;
         this.showPreview = false;
-        this.sectionOpen.processed = true;
-        this.expandAll('processed');
-        this.successMessage = 'Preprocessing applied successfully. Processed Data Summary has been updated.';
+        this.successMessage = '';
         this.emitProgressState();
         this.cdr.markForCheck();
       },
@@ -528,6 +783,15 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   fetchDescriptiveStatistics(): void {
+    if (!this.expStudioService.selectedDataModel() || this.expStudioService.selectedDatasets().length === 0) {
+      this.expStudioService.clearDataExclusionWarnings();
+      this.rawSummary = this.createEmptySummary(false);
+      this.processedData = [];
+      this.isLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.rawSummary = { ...this.rawSummary, isLoading: true };
     this.isLoading = true;
     this.expStudioService.clearDataExclusionWarnings();
@@ -549,7 +813,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.expStudioService.setDataExclusionWarnings([], []);
         this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
         this.processedData = this.rawSummary.data;
-        this.showBoxPlots = this.rawSummary.showDistributions;
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -594,20 +857,17 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return this.missingActions.find((item) => item.value === action)?.label ?? 'No action';
   }
 
-  getSnapshotStats(v: PivotBlock): { label: string; value: string }[] {
-    const stats: { label: string; value: string }[] = [];
-    const dsAll = v.columns.includes('all datasets') ? 'all datasets' : v.columns[0];
-    
-    const dpRow = v.rows.find(r => r.metric === 'Datapoints');
-    if (dpRow) stats.push({ label: 'Datapoints', value: dpRow.values[dsAll] });
-
-    const msRow = v.rows.find(r => r.metric === 'Missing');
-    if (msRow) stats.push({ label: 'Missing', value: msRow.values[dsAll] });
-
-    const variable = this.preprocessingVariables.find(varObj => this.variableLabel(varObj) === v.name);
-    if (variable) stats.push({ label: 'Type', value: this.variableTypeLabel(variable) });
-
-    return stats;
+  enumOptions(variable: VariableRow): EnumOption[] {
+    return (variable.enumerations ?? [])
+      .map((item) => {
+        const raw = item.code ?? item.label ?? item.name;
+        if (raw === undefined || raw === null) return null;
+        return {
+          code: String(raw),
+          label: String(item.label ?? item.name ?? raw),
+        };
+      })
+      .filter((item): item is EnumOption => !!item);
   }
 
   async exportAllDescriptiveToPDF(kind: SummaryKind = 'raw'): Promise<void> {
@@ -644,30 +904,28 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     }
   }
 
-  toggleAccordion(kind: SummaryKind, name: string): void {
-    const key = this.accordionKey(kind, name);
-    this.openAccordions[key] = !this.openAccordions[key];
-  }
+  exportSummaryToCSV(kind: SummaryKind): void {
+    const summary = this.getSummary(kind);
+    if (!summary.data.length) return;
 
-  isAccordionOpen(kind: SummaryKind, name: string): boolean {
-    return !!this.openAccordions[this.accordionKey(kind, name)];
-  }
+    const rows = summary.data.flatMap((variable) =>
+      variable.rows.flatMap((row) =>
+        variable.columns.map((dataset) => ({
+          Variable: variable.name,
+          Metric: row.metric,
+          Dataset: dataset,
+          Value: row.values[dataset] ?? '',
+        }))
+      )
+    );
 
-  expandAll(kind: SummaryKind): void {
-    const data = this.getSummary(kind).data;
-    if (!data.length) return;
-    data.forEach((item) => (this.openAccordions[this.accordionKey(kind, item.name)] = true));
-  }
-
-  collapseAll(kind: SummaryKind): void {
-    const data = this.getSummary(kind).data;
-    if (!data.length) return;
-    data.forEach((item) => (this.openAccordions[this.accordionKey(kind, item.name)] = false));
+    const filename = `${kind === 'raw' ? 'raw' : 'processed'}_data_summary.csv`;
+    this.csvExportService.exportToCsv(rows, ['Variable', 'Metric', 'Dataset', 'Value'], filename);
   }
 
   private createEmptySummary(isLoading: boolean): SummaryView {
     return {
-      activeTab: 'Variables',
+      activeTab: 'Statistics',
       data: [],
       featurewiseRows: [],
       isLoading,
@@ -679,6 +937,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       chartsForNominal: [],
       activeBoxPlotIndex: 0,
       activeNominalIndex: 0,
+      selectedStatisticKey: null,
     };
   }
 
@@ -686,9 +945,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return kind === 'raw' ? this.rawSummary : this.processedSummary;
   }
 
-  private sectionElement(section: 'raw' | 'setup' | 'processed'): ElementRef<HTMLElement> | undefined {
+  private sectionElement(section: 'raw' | 'setup' | 'filters' | 'processed'): ElementRef<HTMLElement> | undefined {
     if (section === 'raw') return this.rawSection;
     if (section === 'setup') return this.setupSection;
+    if (section === 'filters') return this.filtersSection;
     return this.processedSection;
   }
 
@@ -703,13 +963,15 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       .concat('all datasets');
     const variableList = this.preprocessingVariables;
     const data = this.pivotByDataset(featurewise, variableList, datasetOrder);
+    const distributionState = this.buildDistributionState(featurewise, response);
     const summary: SummaryView = {
       ...current,
       data,
       featurewiseRows: featurewise,
       isLoading: false,
-      activeTab: current.activeTab === 'Distributions' && !featurewise.length ? 'Variables' : current.activeTab,
-      ...this.buildDistributionState(featurewise, response),
+      activeTab: current.activeTab,
+      selectedStatisticKey: this.nextStatisticSelection(data, current.selectedStatisticKey),
+      ...distributionState,
     };
     return summary;
   }
@@ -847,6 +1109,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   private reconcilePreprocessingForSelection(): void {
     const currentCodes = this.currentPreprocessingCodeSet();
+    this.ensureDefaultRulesForCurrentSelection(currentCodes);
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
     );
@@ -856,6 +1119,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
     this.updatePreprocessingStatus();
+    this.syncAppliedPreprocessingForCurrentSelection();
+  }
+
+  private ensureDefaultRulesForCurrentSelection(currentCodes = this.currentPreprocessingCodeSet()): void {
+    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
+    let changed = false;
+    currentCodes.forEach((code) => {
+      if (!nextPending[code] && !this.appliedPreprocessingRules[code]) {
+        nextPending[code] = this.defaultRule(code);
+        changed = true;
+      }
+    });
+    if (changed) this.pendingPreprocessingRules = nextPending;
   }
 
   private emitProgressState(): void {
@@ -940,6 +1216,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return !!rule?.enabled && rule.action !== 'no_action';
   }
 
+  private hasAppliedLongitudinalPreprocessing(variableCode: string): boolean {
+    if (!this.isLongitudinalModel || !this.appliedLongitudinalEnabled) return false;
+    if (!this.appliedLongitudinalVisit1 || !this.appliedLongitudinalVisit2) return false;
+    return this.preprocessingVariables.some((variable) => variable.code === variableCode);
+  }
+
   private mergeRulesForCurrentSelection(
     base: Record<string, PreprocessingRule>,
     source: Record<string, PreprocessingRule>
@@ -952,6 +1234,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   private defaultRule(variableCode: string): PreprocessingRule {
+    return { variableCode, action: 'drop', value: '', enabled: true };
+  }
+
+  private emptyRule(variableCode: string): PreprocessingRule {
     return { variableCode, action: 'no_action', value: '', enabled: false };
   }
 
@@ -962,7 +1248,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   private serializeRule(rule: PreprocessingRule | undefined): string {
-    const normalized = rule ?? this.defaultRule('');
+    const normalized = rule ?? this.emptyRule('');
     return JSON.stringify({
       action: normalized.action,
       value: normalized.value,
@@ -970,11 +1256,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     });
   }
 
-  private buildSelectionKey(variables: VariableRow[], covariates: VariableRow[], filters: VariableRow[]): string {
+  private buildSelectionKey(variables: VariableRow[], covariates: VariableRow[], filters: VariableRow[], filterLogic: unknown): string {
     return JSON.stringify({
       variables: variables.map((variable) => variable.code).sort(),
       covariates: covariates.map((variable) => variable.code).sort(),
       filters: filters.map((variable) => variable.code).sort(),
+      filterLogic,
     });
   }
 
@@ -982,7 +1269,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return ['real', 'int', 'integer', 'numeric', 'number'].includes(String(variable.type ?? '').toLowerCase());
   }
 
-  private isCategoricalVariable(variable: VariableRow): boolean {
+  isCategoricalVariable(variable: VariableRow): boolean {
     return String(variable.type ?? '').toLowerCase() === 'nominal' || !!variable.enumerations?.length;
   }
 
@@ -1008,8 +1295,28 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     ].filter((variable): variable is VariableRow => !!variable?.code);
   }
 
+  private countFilterRules(node: any): number {
+    if (!node || !Array.isArray(node.rules)) return 0;
+    return node.rules.reduce((count: number, rule: any) => {
+      if (rule?.condition && Array.isArray(rule.rules)) {
+        return count + this.countFilterRules(rule);
+      }
+      return count + 1;
+    }, 0);
+  }
+
   private getFeaturewiseRowsForRaw(variableCode: string): any[] {
     return this.rawSummary.featurewiseRows.filter((row) => row.variable === variableCode);
+  }
+
+  private variableForBlock(block: PivotBlock): VariableRow | null {
+    const target = block.name.toLowerCase();
+    const code = block.code?.toLowerCase();
+    return this.preprocessingVariables.find((variable) =>
+      (code !== undefined && variable.code.toLowerCase() === code) ||
+      this.variableLabel(variable).toLowerCase() === target ||
+      variable.code.toLowerCase() === target
+    ) ?? null;
   }
 
   private fmt(v: unknown): string {
@@ -1110,12 +1417,44 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
           return { metric: metric.label, values };
         });
       }
-      result.push({ name: varName, columns: datasetOrder, rows });
+      result.push({ code: varCode, name: varName, columns: datasetOrder, rows });
     }
     return result;
   }
 
-  private accordionKey(kind: SummaryKind, name: string): string {
-    return `${kind}:${name}`;
+  private statisticBlockKey(block: PivotBlock): string {
+    return block.code ?? block.name;
   }
+
+  private statisticBlockType(kind: SummaryKind, block: PivotBlock): StatisticVariableType {
+    const summary = this.getSummary(kind);
+    const variable = this.statisticBlockVariable(block);
+    if (variable && summary.nominalVariables.some((item) => item.code === variable.code)) return 'nominal';
+    if (variable && this.isCategoricalVariable(variable)) return 'nominal';
+    const numericMetrics = new Set(['Mean', 'Standard Deviation', 'Minimum', 'Q1', 'Median', 'Q3', 'Maximum']);
+    return block.rows.some((row) => numericMetrics.has(row.metric)) ? 'numeric' : 'nominal';
+  }
+
+  private statisticMetricText(block: PivotBlock, metric: string): string {
+    const row = block.rows.find((item) => item.metric === metric);
+    if (!row) return 'N/A';
+    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
+    return row.values[dataset] ?? 'N/A';
+  }
+
+  private statisticMetricNumber(block: PivotBlock, metric: string): number {
+    const value = Number(this.statisticMetricText(block, metric).replace(/,/g, ''));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  private statisticMissingValue(block: PivotBlock): number {
+    return Math.round(this.statisticMetricNumber(block, 'Missing'));
+  }
+
+  private nextStatisticSelection(data: PivotBlock[], currentKey: string | null): string | null {
+    if (!data.length) return null;
+    if (currentKey && data.some((block) => this.statisticBlockKey(block) === currentKey)) return currentKey;
+    return this.statisticBlockKey(data[0]);
+  }
+
 }
