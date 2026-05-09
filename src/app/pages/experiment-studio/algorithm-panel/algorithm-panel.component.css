@@ -590,6 +590,25 @@
   opacity: 0.7;
 }
 
+.preprocessing-run-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 4px solid #facc15;
+  border-radius: 6px;
+  background: #fefce8;
+  color: #854d0e;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.preprocessing-run-warning i {
+  flex-shrink: 0;
+}
+
 /* SAVE AS UI */
 .save-as-container {
   display: flex;
