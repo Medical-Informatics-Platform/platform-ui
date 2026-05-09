@@ -12,6 +12,8 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 })
 export class DatasetSelectorComponent implements OnChanges {
   @Input() datasets: { code: string; label: string }[] = [];
+  @Input() selectedDatasetCodes: string[] = [];
+  @Input() autoSelectAll = true;
   @Output() selectedDatasetsChange = new EventEmitter<string[]>();
   isDropdownOpen = false;
 
@@ -20,23 +22,21 @@ export class DatasetSelectorComponent implements OnChanges {
 
 
   selectedDatasets = new Set<string>(); // Store selected datasets
+  private hasInitializedDatasets = false;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['datasets'] && this.datasets?.length > 0) {
-      const prevSelection = new Set(this.selectedDatasets);
-      const currentCodes = this.datasets.map(d => d.code);
+    if (!this.datasets?.length) {
+      this.selectedDatasets = new Set();
+      return;
+    }
 
-      // keep only valid selections that still exist
-      this.selectedDatasets = new Set(
-        [...prevSelection].filter(code => currentCodes.includes(code))
-      );
+    if (changes['selectedDatasetCodes'] && !changes['datasets']) {
+      this.syncFromInputSelection();
+      return;
+    }
 
-      // if none left, preselect all (initial mount case)
-      if (this.selectedDatasets.size === 0) {
-        this.preselectAllDatasets();
-      } else {
-        this.emitSelectedDatasets();
-      }
+    if (changes['datasets'] || changes['autoSelectAll']) {
+      this.syncForDatasetOptionsChange();
     }
   }
 
@@ -72,6 +72,35 @@ export class DatasetSelectorComponent implements OnChanges {
   private preselectAllDatasets(): void {
     this.selectedDatasets = new Set(this.datasets.map((dataset) => dataset.code));
     this.emitSelectedDatasets(); // Emit the preselected datasets
+  }
+
+  private syncFromInputSelection(): void {
+    const currentCodes = new Set(this.datasets.map(d => d.code));
+    this.selectedDatasets = new Set(
+      (this.selectedDatasetCodes ?? []).filter(code => currentCodes.has(code))
+    );
+  }
+
+  private syncForDatasetOptionsChange(): void {
+    const currentCodes = new Set(this.datasets.map(d => d.code));
+    const requested = (this.selectedDatasetCodes ?? []).filter(code => currentCodes.has(code));
+
+    if (requested.length > 0 || !this.autoSelectAll) {
+      this.selectedDatasets = new Set(requested);
+      this.hasInitializedDatasets = true;
+      return;
+    }
+
+    const retained = [...this.selectedDatasets].filter(code => currentCodes.has(code));
+    if (retained.length > 0) {
+      this.selectedDatasets = new Set(retained);
+      this.emitSelectedDatasets();
+      this.hasInitializedDatasets = true;
+      return;
+    }
+
+    this.hasInitializedDatasets = true;
+    this.preselectAllDatasets();
   }
 
   toggleDropdown(): void {
