@@ -191,6 +191,23 @@ describe('AlgorithmTableRegistry', () => {
     expect(rowNames).not.toContain('yVar');
   });
 
+  it('formats paired t-test metrics with three digits', () => {
+    const tables = AlgorithmTableRegistry['ttest_paired']({
+      t_stat: 3.888283695725533,
+      df: 12,
+      p: 1.017999869046271e-4,
+      mean_diff: 0.06754973386270802,
+      se_diff: 0.01737263511326778,
+      ci_upper: 0.10160479913374154,
+      ci_lower: 0.033494668591674485,
+    });
+
+    expect(tables[0].rows).toContain(['T-statistic', '3.888']);
+    expect(tables[0].rows).toContain(['Degrees of Freedom', '12.000']);
+    expect(tables[0].rows).toContain(['p-value', '0.000']);
+    expect(tables[0].rows).toContain(['Mean Difference', '0.068']);
+  });
+
   it('renders LMM fixed effects and model summary', () => {
     const tables = AlgorithmTableRegistry['lmm']({
       dependent_var: 'Right hippocampus',

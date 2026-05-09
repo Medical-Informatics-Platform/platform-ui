@@ -45,6 +45,24 @@ function formatDecimal(value: any): string {
   return formatted;
 }
 
+function formatAnovaMetric(value: any): string {
+  if (typeof value !== 'number' || isNaN(value)) return value ?? '';
+  if (!Number.isFinite(value)) return String(value);
+  return value.toFixed(3);
+}
+
+function formatFixedMetric(value: any): string {
+  if (typeof value !== 'number' || isNaN(value)) return value ?? '';
+  if (!Number.isFinite(value)) return String(value);
+  return value.toFixed(3);
+}
+
+function formatAnovaPValue(value: any): string {
+  if (typeof value !== 'number' || isNaN(value)) return value ?? '';
+  if (!Number.isFinite(value)) return String(value);
+  return value.toExponential(3);
+}
+
 function formatTTestKey(key: string): string {
   const map: Record<string, string> = {
     mean_diff: 'Mean Difference',
@@ -69,7 +87,10 @@ function formatTTestKey(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function buildTTestRows(result: Record<string, any>): any[][] {
+function buildTTestRows(
+  result: Record<string, any>,
+  valueFormatter: (value: any) => string = formatDecimal
+): any[][] {
   const ignoredKeys = new Set([
     'title',
     'labelMap',
@@ -89,7 +110,7 @@ function buildTTestRows(result: Record<string, any>): any[][] {
       if (value !== null && typeof value === 'object') return false;
       return true;
     })
-    .map(([k, v]) => [formatTTestKey(k), formatDecimal(v)]);
+    .map(([k, v]) => [formatTTestKey(k), valueFormatter(v)]);
 }
 
 function buildMetricRows(result: Record<string, any>, labels: Record<string, string>, keys: string[]): any[][] {
@@ -733,8 +754,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       title: 'ANOVA Summary',
       columns: ['Source', 'df', 'Sum Sq', 'Mean Sq', 'F', 'Prob>F'],
       rows: [
-        ['Explained', formatDecimal(result.anova_table.df_explained), formatDecimal(result.anova_table.ss_explained), formatDecimal(result.anova_table.ms_explained), formatDecimal(result.anova_table.f_stat), formatDecimal(result.anova_table.p_value)],
-        ['Residual', formatDecimal(result.anova_table.df_residual), formatDecimal(result.anova_table.ss_residual), formatDecimal(result.anova_table.ms_residual), '', '']
+        ['Explained', formatAnovaMetric(result.anova_table.df_explained), formatAnovaMetric(result.anova_table.ss_explained), formatAnovaMetric(result.anova_table.ms_explained), formatAnovaMetric(result.anova_table.f_stat), formatAnovaPValue(result.anova_table.p_value)],
+        ['Residual', formatAnovaMetric(result.anova_table.df_residual), formatAnovaMetric(result.anova_table.ss_residual), formatAnovaMetric(result.anova_table.ms_residual), '', '']
       ]
     };
 
@@ -746,9 +767,9 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         columns: ['Group A', 'Group B', 'Mean A', 'Mean B', 'Diff', 'SE', 't-stat', 'p-value'],
         rows: result.tuckey_test.map(r => [
           r.groupA, r.groupB,
-          formatDecimal(r.meanA), formatDecimal(r.meanB),
-          formatDecimal(r.diff), formatDecimal(r.se),
-          formatDecimal(r.t_stat), formatDecimal(r.p_tuckey)
+          formatAnovaMetric(r.meanA), formatAnovaMetric(r.meanB),
+          formatAnovaMetric(r.diff), formatAnovaMetric(r.se),
+          formatAnovaMetric(r.t_stat), formatAnovaPValue(r.p_tuckey)
         ])
       });
     }
@@ -759,8 +780,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       const maxValues = Array.isArray(result.min_max_per_group.max) ? result.min_max_per_group.max : [];
       const rows = categories.map((category, index) => [
         category,
-        formatDecimal(minValues[index]),
-        formatDecimal(maxValues[index])
+        formatAnovaMetric(minValues[index]),
+        formatAnovaMetric(maxValues[index])
       ]);
       tables.push({
         title: 'Group Min/Max',
@@ -904,7 +925,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     return [{
       title: 'Paired T-Test',
       columns: ['Metric', 'Value'],
-      rows: buildTTestRows(result as Record<string, any>)
+      rows: buildTTestRows(result as Record<string, any>, formatFixedMetric)
     }];
   },
 
