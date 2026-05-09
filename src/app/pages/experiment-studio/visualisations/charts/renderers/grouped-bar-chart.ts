@@ -96,7 +96,7 @@ export function buildGroupedBarChart(
         };
     });
 
-    const isDark = document.body.classList.contains('theme-dark');
+    const isDark = false;
     const textColor = isDark ? '#f1f5f9' : '#0f172a';
     const axisColor = isDark ? 'rgba(255, 255, 255, 0.3)' : '#475569';
     const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0';

@@ -190,4 +190,80 @@ describe('AlgorithmTableRegistry', () => {
     expect(rowNames).not.toContain('enumMaps');
     expect(rowNames).not.toContain('yVar');
   });
+
+  it('renders LMM fixed effects and model summary', () => {
+    const tables = AlgorithmTableRegistry['lmm']({
+      dependent_var: 'Right hippocampus',
+      grouping_var: 'Dataset',
+      indep_vars: ['Intercept', 'Age'],
+      coefficients: [1.2, -0.4],
+      std_err: [0.1, 0.05],
+      t_stats: [12, -8],
+      pvalues: [0.001, 0.002],
+      lower_ci: [1.0, -0.5],
+      upper_ci: [1.4, -0.3],
+      n_obs: 100,
+      n_groups: 3,
+      sigma2: 0.8,
+      sigma_u2: 0.2,
+      converged: true,
+    });
+
+    expect(tables.length).toBeGreaterThan(1);
+    expect(tables[0].title).toBe('Fixed Effects');
+    expect(tables[0].rows[0][0]).toBe('Intercept');
+    expect(tables.some(table => table.title === 'Model Summary')).toBeTrue();
+  });
+
+  it('renders binary and ordinal GLMM result contracts', () => {
+    const binary = AlgorithmTableRegistry['glmm_binary']({
+      dependent_var: 'Gender',
+      grouping_var: 'Dataset',
+      indep_vars: ['Intercept', 'Age'],
+      coefficients: [0.3, -0.2],
+      n_obs: 100,
+      n_groups: 3,
+      sigma_u2: 0.4,
+      converged: true,
+    });
+
+    const ordinal = AlgorithmTableRegistry['glmm_ordinal']({
+      dependent_var: 'Age group',
+      grouping_var: 'Dataset',
+      indep_vars: ['Intercept', 'Gender[Male]'],
+      coefficients: [0.5, 0.1],
+      category_order: ['Under 50', '50-59', '60-69'],
+      cutpoints: [-1.2, 0.8],
+      n_obs: 90,
+      n_groups: 3,
+      sigma_u2: 0.3,
+      converged: true,
+    });
+
+    expect(binary.some(table => table.title === 'Fixed Effects')).toBeTrue();
+    expect(ordinal.some(table => table.title === 'Ordinal Category Order')).toBeTrue();
+    expect(ordinal.some(table => table.title === 'Cutpoints')).toBeTrue();
+  });
+
+  it('renders chi-squared and fisher exact tables', () => {
+    const chiSquared = AlgorithmTableRegistry['chi_squared']({
+      chi2: 3.14,
+      p_value: 0.04,
+      dof: 1,
+      expected: [[5.5, 4.5], [3.5, 6.5]],
+      x_labels: ['AD', 'Other'],
+      y_labels: ['Female', 'Male'],
+    });
+
+    const fisher = AlgorithmTableRegistry['fisher_exact']({
+      odds_ratio: 1.48,
+      p_value: 0.56,
+      x_labels: ['AD', 'Other'],
+      y_labels: ['Female', 'Male'],
+    });
+
+    expect(chiSquared.some(table => table.title === 'Expected Frequencies')).toBeTrue();
+    expect(fisher.some(table => table.title === "Fisher's Exact Test Summary")).toBeTrue();
+    expect(fisher.some(table => table.title === 'Contingency Table Categories')).toBeTrue();
+  });
 });

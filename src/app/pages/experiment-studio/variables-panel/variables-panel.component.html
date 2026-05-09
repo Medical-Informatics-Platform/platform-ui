@@ -27,7 +27,7 @@
 
         <!-- Data model visualization -->
         <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
-          @if (selectedDataModel()) {
+          @if (selectedDataModel() && d3Data) {
           <app-bubble-chart [d3Data]="d3Data" [highlightNode]="highlightNode" [selectedVariables]="selectedVariables"
             [selectedCovariates]="selectedCovariates" [selectedFilters]="selectedFilters"
             (selectedNodeChange)="onBubbleNodeSelected($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">

@@ -1150,6 +1150,11 @@
   padding-right: 30px;
 }
 
+.config-select[multiple] {
+  min-height: 7rem;
+  padding-right: 12px;
+}
+
 .config-input:focus,
 .config-select:focus {
   outline: none;

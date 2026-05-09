@@ -90,6 +90,41 @@ export class AlgorithmRulesService {
             return !invalidType;
         }
 
+        if ([AlgorithmNames.LMM, AlgorithmNames.GLMM_BINARY, AlgorithmNames.GLMM_ORDINAL].includes(name)) {
+            const { y: vars, x: covs } = selections;
+            const yReq = algo.inputdata?.y;
+            const xReq = algo.inputdata?.x;
+
+            if (vars.length !== 1) return false;
+            if (covs.length < 2) return false;
+
+            const covariatesOk = covs.every(c => this.matchesRequirement(c, xReq));
+            if (!covariatesOk) return false;
+
+            if (name === AlgorithmNames.LMM) {
+                return this.matchesRequirement(vars[0], yReq) && this.isNumericSelection(vars[0]);
+            }
+
+            return this.matchesRequirement(vars[0], yReq) && this.isCategoricalSelection(vars[0]) && this.enumCount(vars[0]) >= 2;
+        }
+
+        if (name === AlgorithmNames.CHI_SQUARED || name === AlgorithmNames.FISHER_EXACT) {
+            const { y: vars, x: covs } = selections;
+
+            if (vars.length !== 1) return false;
+            if (covs.length !== 1) return false;
+            if (!this.isCategoricalSelection(vars[0]) || !this.isCategoricalSelection(covs[0])) return false;
+
+            const yCount = this.analysisCategoryCount(vars[0]);
+            const xCount = this.analysisCategoryCount(covs[0]);
+
+            if (name === AlgorithmNames.FISHER_EXACT) {
+                return yCount === 2 && xCount === 2;
+            }
+
+            return yCount >= 2 && xCount >= 2;
+        }
+
         const hasRole = (role: string) => Object.prototype.hasOwnProperty.call(algo.inputdata, role);
 
         const filterReq = hasRole(AlgorithmRoles.FILTERS)
@@ -193,9 +228,80 @@ export class AlgorithmRulesService {
                     y: `Variable: 2+${formatTypes(yTypes ?? [VariableTypes.REAL, VariableTypes.INT])}`,
                     x: 'Covariate: none',
                 };
+            case AlgorithmNames.LMM:
+                return {
+                    y: `Variable: exactly 1${formatTypes([VariableTypes.REAL])}`,
+                    x: 'Covariate: 2+ including one grouping variable and at least one fixed-effect covariate',
+                };
+            case AlgorithmNames.GLMM_BINARY:
+            case AlgorithmNames.GLMM_ORDINAL:
+                return {
+                    y: `Variable: exactly 1 categorical variable with 2+ categories${formatTypes([VariableTypes.NOMINAL, VariableTypes.TEXT])}`,
+                    x: 'Covariate: 2+ including one grouping variable and at least one fixed-effect covariate',
+                };
+            case AlgorithmNames.CHI_SQUARED:
+                return {
+                    y: `Variable: exactly 1 categorical variable with 2+ categories${formatTypes([VariableTypes.NOMINAL, VariableTypes.TEXT])}`,
+                    x: `Covariate: exactly 1 categorical variable with 2+ categories${formatTypes([VariableTypes.NOMINAL, VariableTypes.TEXT])}`,
+                };
+            case AlgorithmNames.FISHER_EXACT:
+                return {
+                    y: `Variable: exactly 1 binary categorical variable${formatTypes([VariableTypes.NOMINAL, VariableTypes.TEXT])}`,
+                    x: `Covariate: exactly 1 binary categorical variable${formatTypes([VariableTypes.NOMINAL, VariableTypes.TEXT])}`,
+                };
             default:
                 return null;
         }
+    }
+
+    private isNumericSelection(node: D3HierarchyNode): boolean {
+        const type = this.normalizeType(node?.type);
+        return [VariableTypes.REAL, VariableTypes.INT].includes(type ?? '');
+    }
+
+    private isCategoricalSelection(node: D3HierarchyNode): boolean {
+        const type = this.normalizeType(node?.type);
+        return !!node?.isCategorical ||
+            this.enumCount(node) > 0 ||
+            type === VariableTypes.TEXT;
+    }
+
+    private enumCount(node: D3HierarchyNode): number {
+        return Array.isArray(node?.enumerations) ? node.enumerations.length : 0;
+    }
+
+    private analysisCategoryCount(node: D3HierarchyNode): number {
+        const enums = Array.isArray(node?.enumerations) ? node.enumerations : [];
+        if (!enums.length) return 0;
+        return enums.filter((entry) => !this.isMissingCategory(entry)).length;
+    }
+
+    private isMissingCategory(entry: any): boolean {
+        const code = String(entry?.code ?? entry?.value ?? '').trim().toLowerCase();
+        const label = String(entry?.label ?? entry?.name ?? '').trim().toLowerCase();
+        const normalized = `${code} ${label}`;
+        return code === '9' ||
+            code === '99' ||
+            code === '999' ||
+            code === 'unknown' ||
+            code === 'na' ||
+            code === 'n/a' ||
+            code === 'missing' ||
+            normalized.includes('unknown') ||
+            normalized.includes('not known') ||
+            normalized.includes('missing');
+    }
+
+    private matchesRequirement(node: D3HierarchyNode, req: any): boolean {
+        if (!req) return false;
+        const reqTypes = Array.isArray(req?.types)
+            ? req.types.map((type: string) => this.normalizeType(type))
+            : [];
+        const type = this.normalizeType(node?.type);
+        const stattypes = Array.isArray(req?.stattypes) ? req.stattypes : [];
+
+        if (type && reqTypes.includes(type)) return true;
+        return this.isCategoricalSelection(node) && stattypes.includes(VariableTypes.NOMINAL);
     }
 
     // helper: normalize types from UI -> backend
