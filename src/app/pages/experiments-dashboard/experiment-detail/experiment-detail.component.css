@@ -533,13 +533,17 @@
 .filter-preview-tag {
   max-width: min(820px, 100%);
   border-radius: 8px;
-  white-space: normal;
+  white-space: pre-line;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .parameter-list {
   gap: 8px;
+}
+
+.preprocessing-list {
+  max-width: min(920px, 100%);
 }
 
 .parameter-item {
@@ -555,6 +559,10 @@
 
 .parameter-item:hover {
   background: rgba(2, 128, 144, 0.1);
+}
+
+.preprocessing-item {
+  grid-template-columns: minmax(190px, max-content) minmax(220px, 1fr);
 }
 
 .parameter-name,

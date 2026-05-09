@@ -225,9 +225,27 @@ export class ExperimentDetailsComponent {
   );
 
   readonly filterPreview = computed(() => {
-    const logic = this.fullExperimentSignal()?.algorithm?.inputdata?.filters;
+    const logic =
+      this.fullExperimentSignal()?.algorithm?.inputdata?.filters ??
+      this.selectedExperiment()?.filterLogic;
     if (!logic || !Array.isArray((logic as any).rules) || !(logic as any).rules.length) return '';
     return this.formatFilterNode(logic);
+  });
+  readonly preprocessingPreview = computed(() => {
+    const preprocessing =
+      this.fullExperimentSignal()?.algorithm?.preprocessing ??
+      this.selectedExperiment()?.preprocessing ??
+      null;
+    const summary = this.expStudioService.formatPreprocessingConfig(preprocessing, this.labelMap());
+    return summary === 'none' ? '' : summary;
+  });
+
+  readonly preprocessingEntries = computed(() => {
+    const preprocessing =
+      this.fullExperimentSignal()?.algorithm?.preprocessing ??
+      this.selectedExperiment()?.preprocessing ??
+      null;
+    return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap());
   });
 
   readonly parameterEntries = computed(() => {
@@ -306,7 +324,7 @@ export class ExperimentDetailsComponent {
         createdAt: this.selectedExperiment()?.dateCreated ?? null,
         algorithm: algoLabel,
         params: fullExperiment?.algorithm?.parameters ?? null,
-        preprocessing: 'none',
+        preprocessing: this.preprocessingPreview() || 'none',
         domain: this.domainLabel(),
         datasets: (this.selectedExperiment()?.datasets ?? []).map(code => this.labelMap()[code] || code),
         variables: this.variablesWithLabels().map((v) => v.label),

@@ -1,3 +1,5 @@
+import { BackendFilter } from './filters.model';
+
 export interface Experiment {
   id: string;
   name: string;
@@ -14,6 +16,8 @@ export interface Experiment {
   variables?: string[];
   covariates?: string[];
   filters?: string[];
+  filterLogic?: BackendFilter | null;
+  preprocessing?: Record<string, unknown> | null;
   mipVersion?: string;
 }
 

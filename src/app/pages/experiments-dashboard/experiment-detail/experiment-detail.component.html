@@ -183,6 +183,19 @@
         </div>
       </div>
       }
+      @if (preprocessingEntries().length) {
+      <div class="config-tags-row">
+        <span class="label">Preprocessing</span>
+        <div class="tag-list parameter-list preprocessing-list">
+          @for (entry of preprocessingEntries(); track entry.label) {
+          <div class="parameter-item preprocessing-item">
+            <span class="parameter-name">{{ entry.label }}</span>
+            <span class="parameter-value">{{ entry.value }}</span>
+          </div>
+          }
+        </div>
+      </div>
+      }
       @if (parameterEntries().length) {
       <div class="config-tags-row">
         <span class="label">Parameters</span>

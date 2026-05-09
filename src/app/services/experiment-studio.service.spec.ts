@@ -22,7 +22,15 @@ describe('ExperimentStudioService', () => {
       x: { label: '', desc: '', types: ['real'] },
       filter: { label: '', desc: '', types: [], required: false, multiple: false }
     },
-    parameters: {}
+    parameters: {
+      alpha: {
+        label: 'Alpha',
+        desc: '',
+        types: ['real'],
+        required: false,
+        default_value: '0.05',
+      },
+    }
   };
 
   const mockHistogramAlgo = {
@@ -69,13 +77,18 @@ describe('ExperimentStudioService', () => {
     code: 'dm',
     version: '1',
     label: 'Data Model',
-    variables: [],
+    variables: [
+      { code: 'age', label: 'Age', type: 'real' } as any,
+      { code: 'sex', label: 'Sex', type: 'nominal' } as any,
+      { code: 'site', label: 'Site', type: 'nominal' } as any,
+    ],
     groups: [],
     datasets: ['ds1'],
     released: true,
   };
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule],
       providers: [provideZonelessChangeDetection(), SessionStorageService, ErrorService]
@@ -90,6 +103,7 @@ describe('ExperimentStudioService', () => {
 
   afterEach(() => {
     httpMock.verify();
+    sessionStorage.clear();
   });
 
   it('builds request body for histogram with active data model and datasets', () => {
@@ -235,6 +249,36 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toEqual(applied);
   });
 
+  it('summarizes preprocessing with variable labels and human-readable actions', () => {
+    const summary = service.formatPreprocessingConfig({
+      missing_values_handler: {
+        strategies: { gender: 'drop', subjectageyears: 'drop' },
+      },
+      longitudinal_transformer: {
+        visit1: 'BL',
+        visit2: 'FL1',
+        strategies: {
+          gender: 'first',
+          subjectageyears: 'diff',
+        },
+      },
+    }, {
+      gender: 'Gender',
+      subjectageyears: 'Subject Age Years',
+    });
+
+    expect(summary).toBe(
+      'Missing values: Gender: remove rows, Subject Age Years: remove rows\nLongitudinal transformation: Gender: use first visit, Subject Age Years: difference between visits (BL to FL1)'
+    );
+    expect(service.formatPreprocessingEntries({
+      missing_values_handler: {
+        strategies: { gender: 'drop' },
+      },
+    }, { gender: 'Gender' })).toEqual([
+      { label: 'Missing values', value: 'Gender: remove rows' },
+    ]);
+  });
+
   it('resetStudioState clears selections and errors', (done) => {
     const errorService = TestBed.inject(ErrorService);
 
@@ -273,5 +317,155 @@ describe('ExperimentStudioService', () => {
     ]);
 
     expect(service.isAlgorithmAvailable('mock_algo')).toBeTrue();
+  });
+
+  it('coerces numeric parameter strings before building request payloads', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.algorithmConfigurations.set({
+      mock_algo: { alpha: '0.05' },
+    });
+
+    const body = service.buildRequestBody('mock_algo', ['age']);
+
+    expect(body.algorithm.parameters.alpha).toBe(0.05);
+  });
+
+  it('keeps enum select parameter strings even when their schema type is int', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const algo = service.backendAlgorithms()['mock_algo'];
+    service.backendAlgorithms.set({
+      ...service.backendAlgorithms(),
+      mock_algo: {
+        ...algo,
+        configSchema: [
+          ...algo.configSchema,
+          {
+            key: 'positive_class',
+            label: 'Positive class (y=1)',
+            type: 'select',
+            types: ['int'],
+            enumType: 'input_var_CDE_enums',
+            enumSource: ['y'],
+            options: [
+              { code: '0', label: '0' },
+              { code: '1', label: '1' },
+              { code: '9', label: '9' },
+            ],
+          },
+        ],
+      },
+    });
+    service.algorithmConfigurations.set({
+      mock_algo: { positive_class: '1' },
+    });
+
+    const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
+
+    expect(body.algorithm.parameters.positive_class).toBe('1');
+  });
+
+  it('keeps enum multi-select parameter values as strings even when their schema type is int', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const algo = service.backendAlgorithms()['mock_algo'];
+    service.backendAlgorithms.set({
+      ...service.backendAlgorithms(),
+      mock_algo: {
+        ...algo,
+        configSchema: [
+          ...algo.configSchema,
+          {
+            key: 'category_order',
+            label: 'Category order',
+            type: 'multi-select',
+            types: ['int'],
+            enumType: 'input_var_CDE_enums',
+            enumSource: ['y'],
+            options: [
+              { code: '0', label: '0' },
+              { code: '1', label: '1' },
+              { code: '9', label: '9' },
+            ],
+          },
+        ],
+      },
+    });
+    service.algorithmConfigurations.set({
+      mock_algo: { category_order: ['0', '1', '9'] },
+    });
+
+    const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
+
+    expect(body.algorithm.parameters.category_order).toEqual(['0', '1', '9']);
+  });
+
+  it('hydrates edit state with filters and applied preprocessing from backend experiment', () => {
+    const filters = {
+      condition: 'AND' as const,
+      rules: [
+        {
+          id: 'site',
+          field: 'site',
+          type: 'string' as const,
+          input: 'select' as const,
+          operator: 'equal',
+          value: 'athens',
+        },
+      ],
+      valid: true,
+    };
+    const preprocessing = {
+      missing_values_handler: {
+        strategies: {
+          age: 'median',
+          sex: 'drop',
+        },
+      },
+    };
+
+    service.hydrateFromBackendExperiment({
+      uuid: 'exp-1',
+      name: 'Saved experiment',
+      created: '',
+      finished: '',
+      shared: true,
+      viewed: false,
+      status: 'success',
+      algorithm: {
+        name: 'mock_algo',
+        inputdata: {
+          data_model: 'dm:1',
+          datasets: ['ds1'],
+          y: ['age'],
+          x: ['sex'],
+          filters,
+        },
+        parameters: { alpha: 0.01 },
+        preprocessing,
+        status: 'success',
+      },
+      createdBy: {
+        username: 'user',
+        fullname: 'User',
+        email: 'user@example.org',
+        subjectId: 'subject',
+        agreeNDA: true,
+      },
+    });
+
+    const req = httpMock.expectOne('/services/data-models');
+    req.flush([mockDataModel]);
+
+    expect(service.selectedDataModel()?.code).toBe('dm');
+    expect(service.selectedDatasets()).toEqual(['ds1']);
+    expect(service.selectedVariables().map((variable) => variable.code)).toEqual(['age']);
+    expect(service.selectedCovariates().map((variable) => variable.code)).toEqual(['sex']);
+    expect(service.selectedFilters().map((variable) => variable.code)).toEqual(['site']);
+    expect(service.filterLogic()).toEqual(filters);
+    expect(service.algorithmConfigurations()['mock_algo']).toEqual({ alpha: 0.01 });
+    expect(service.appliedPreprocessingConfig()).toEqual(preprocessing);
+    expect(service.isShared()).toBeTrue();
   });
 });

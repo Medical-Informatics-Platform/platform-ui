@@ -62,6 +62,8 @@ export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
     variables: normalizeToStringArray(input.y),
     covariates: normalizeToStringArray(input.x),
     filters: collectFilterVariableCodes(filtersLogic),
+    filterLogic: filtersLogic,
+    preprocessing: backend.algorithm?.preprocessing ?? null,
     mipVersion: backend.mipVersion ?? undefined,
   };
 }
