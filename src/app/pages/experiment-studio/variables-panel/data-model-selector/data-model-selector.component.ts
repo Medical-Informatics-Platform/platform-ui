@@ -31,12 +31,15 @@ export class DataModelSelectorComponent implements OnChanges, OnInit {
   }
 
   updateSelectedModel(): void {
-    if (this.isSameModel(this.selectedDataModel, this.defaultModel)) {
+    if (this.selectedDataModel === this.defaultModel) {
       return;
     }
 
+    const shouldEmit = !this.isSameModel(this.selectedDataModel, this.defaultModel);
     this.selectedDataModel = this.defaultModel;
-    this.dataModelChange.emit(this.selectedDataModel);
+    if (shouldEmit) {
+      this.dataModelChange.emit(this.selectedDataModel);
+    }
   }
 
   onDataModelChange(): void {
