@@ -124,12 +124,10 @@ export function buildRegressionLineChart(result: any): EChartsOption[] {
             {
                 type: 'line',
                 data: lineData,
-                smooth: isLogistic, // smooth for sigmoid; straight for linear
+                smooth: true,
                 showSymbol: false,
-                lineStyle: { width: 2.5, color: '#5470c6' },
-                areaStyle: isLogistic
-                    ? { color: 'rgba(84, 112, 198, 0.08)' }
-                    : undefined,
+                lineStyle: { width: 2.5, color: '#2B33E9' },
+                areaStyle: { color: 'rgba(127, 156, 232, 0.12)' },
             },
         ],
     };

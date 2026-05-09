@@ -71,11 +71,11 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   readonly error = signal<string | null>(null); // Holds the current error message
   readonly DEFAULT_PALETTE = {
     variable: '#2b33e9',     // Brand Blue (--variable-color)
-    covariate: '#ccb692',    // Muted Sand (--covariate-color)
-    filter: '#94a3b8',       // Muted Slate (--filter-color)
-    selected: '#1b21a3',     // Brand Blue darker
+    covariate: '#7f9ce8',    // MIP Light Blue
+    filter: '#dfefe4',       // MIP Light Green
+    selected: '#ffba08',     // MIP Orange for highlights
     groupStart: '#dfefe4',   // Light green for groups
-    groupEnd: '#2b33e9',     // Brand Blue for groups
+    groupEnd: '#7f9ce8',     // Light Blue for groups
   };
 
   readonly COLORBLIND_PALETTE = {

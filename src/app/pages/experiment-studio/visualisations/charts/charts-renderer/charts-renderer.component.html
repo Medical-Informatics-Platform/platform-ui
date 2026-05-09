@@ -1,6 +1,6 @@
 @if(charts.length) {
 <div>
-  @for(chart of charts; track chart) {
+  @for(chart of themedCharts; track chart) {
   <div class="chart-container">
     <div echarts [options]="chart" [initOpts]="{ renderer: 'canvas' }" class="chart"></div>
   </div>

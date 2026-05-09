@@ -1,5 +1,11 @@
-<div class="panel-header">
-  <p>Algorithm Selection and Configuration</p>
+<div class="studio-panel-header">
+  <div class="header-main">
+    <i class="fas fa-cogs panel-icon" aria-hidden="true"></i>
+    <div class="header-text">
+      <p>ALGORITHM CONFIGURATION</p>
+      <span class="header-subtitle">Choose an available algorithm, configure parameters, and run the experiment.</span>
+    </div>
+  </div>
 </div>
 
 <div class="experiment-container" data-guide="experiment-workspace">
@@ -147,12 +153,6 @@
               ✕
             </button>
           </div>
-          } @else {
-          <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
-            data-guide="run-experiment"
-            [title]="preprocessingRunBlockMessage() || (isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment')">
-            {{ isRunning() ? "Running..." : "Run Experiment" }}
-          </button>
           }
 
           <div class="floating-group">
@@ -277,7 +277,17 @@
 
     @if (isRunning()) {
     <div class="panel-loader">
-      <app-spinner [overlay]="false"></app-spinner>
+      <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Experiment running">
+        <span class="studio-skeleton-line long"></span>
+        <span class="studio-skeleton-line medium"></span>
+        <div class="studio-skeleton-chart" aria-hidden="true">
+          <span class="studio-skeleton-bar" style="height: 38%"></span>
+          <span class="studio-skeleton-bar" style="height: 56%"></span>
+          <span class="studio-skeleton-bar" style="height: 72%"></span>
+          <span class="studio-skeleton-bar" style="height: 50%"></span>
+          <span class="studio-skeleton-bar" style="height: 82%"></span>
+        </div>
+      </div>
       <p>{{ loadingText() }}</p>
     </div>
     } @else if (result()) {
@@ -415,8 +425,9 @@
       </div>
       } @if (enrichedConfigSchema().length) {
       <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
-        @for (field of enrichedConfigSchema(); track field.key) { @if
-        (configForm().get(field.key)) {
+        @for (field of enrichedConfigSchema(); track field.key; let i = $index) {
+        @if (i < 3 || advancedConfigOpen()) {
+        @if (configForm().get(field.key)) {
         <div class="config-field">
           <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
             {{ prettyFieldLabel(field) }}
@@ -495,9 +506,31 @@
           </div>
           }
         </div>
-        } }
+        }
+        }
+        @if (i === 2 && advancedConfigCount() > 0) {
+        <button
+          type="button"
+          class="advanced-config-toggle"
+          [class.open]="advancedConfigOpen()"
+          (click)="toggleAdvancedConfig()"
+        >
+          <span>{{ advancedConfigOpen() ? 'Hide advanced configuration' : 'Show advanced configuration' }}</span>
+          <small>{{ advancedConfigCount() }} additional {{ advancedConfigCount() === 1 ? 'setting' : 'settings' }}</small>
+          <i class="fas fa-chevron-down" aria-hidden="true"></i>
+        </button>
+        }
+        }
       </form>
       }
+
+      <div class="settings-cta-row">
+        <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
+          data-guide="run-experiment"
+          [title]="preprocessingRunBlockMessage() || (isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment')">
+          {{ isRunning() ? "Running..." : "Run Experiment" }}
+        </button>
+      </div>
     </section>
     } @else {
     <section class="experiment-settings experiment-settings--placeholder">
