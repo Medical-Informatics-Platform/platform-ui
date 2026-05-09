@@ -1,7 +1,7 @@
 <div class="stats-panel-shell" data-guide="analysis-section">
-  <div class="modal-header">
+  <div class="studio-panel-header">
     <div class="header-main">
-      <i class="fa fa-bar-chart panel-icon"></i>
+      <i class="fa fa-bar-chart panel-icon" aria-hidden="true"></i>
       <div class="header-text">
         <p>DATA REVIEW & PREPROCESSING</p>
         <span class="header-subtitle">Inspect variable distributions and configure missing value handling.</span>
@@ -62,7 +62,18 @@
           </div>
 
           @if (rawSummary.isLoading) {
-          <app-spinner text="Raw data summary loading" size="44px" color="#2b33e9" [overlay]="false" />
+          <div class="studio-skeleton-card" role="status" aria-label="Raw data summary loading">
+            <span class="studio-skeleton-line medium"></span>
+            <span class="studio-skeleton-line short"></span>
+            <div class="studio-skeleton-table" aria-hidden="true">
+              @for (_ of [1, 2, 3, 4]; track _) {
+              <span class="studio-skeleton-cell head"></span>
+              }
+              @for (_ of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track _) {
+              <span class="studio-skeleton-cell"></span>
+              }
+            </div>
+          </div>
           }
 
           @if (!rawSummary.isLoading) {
@@ -276,7 +287,7 @@
             <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.missing">
               <div class="preprocessing-default-note">
                 <i class="fa fa-info-circle" aria-hidden="true"></i>
-                <span>New variables are preselected to remove rows with missing values.</span>
+                <span>Review missing value handling before applying preprocessing.</span>
               </div>
 
               @if (preprocessingVariables.length > 0) {
@@ -298,7 +309,6 @@
                     <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPreprocessingVariableSelected(variable)" (click)="selectPreprocessingVariable(variable)">
                       <span>{{ variableLabel(variable) }}</span>
                       <span class="statistics-variable-meta">
-                        <small>{{ currentStatus(variable) }}</small>
                         <span
                           class="preprocessing-state-mini"
                           [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
@@ -334,11 +344,6 @@
                     >
                       {{ preprocessingVariableStateLabel(variable) }}
                     </span>
-                  </div>
-
-                  <div class="preprocessing-detail-meta">
-                    <span class="issue-badge">{{ currentStatus(variable) }}</span>
-                    <span class="issue-badge">{{ missingActionLabel(ruleFor(variable).action) }}</span>
                   </div>
 
                   <div class="preprocessing-detail-section">
@@ -584,7 +589,18 @@
         </button>
         <div class="workflow-section-body" [class.open]="sectionOpen.processed">
           @if (processedSummary.isLoading) {
-          <app-spinner text="Processed data summary loading" size="44px" color="#2b33e9" [overlay]="false" />
+          <div class="studio-skeleton-card" role="status" aria-label="Processed data summary loading">
+            <span class="studio-skeleton-line medium"></span>
+            <span class="studio-skeleton-line short"></span>
+            <div class="studio-skeleton-table" aria-hidden="true">
+              @for (_ of [1, 2, 3, 4]; track _) {
+              <span class="studio-skeleton-cell head"></span>
+              }
+              @for (_ of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]; track _) {
+              <span class="studio-skeleton-cell"></span>
+              }
+            </div>
+          </div>
           }
 
           @if (!processedSummary.isLoading && preprocessingStatus !== 'applied') {
@@ -813,6 +829,9 @@
 
 @if (isExporting) {
 <div class="pdf-overlay">
-  <app-spinner text="Generating PDF..." color="#2b33e9" size="72px" [overlay]="false" />
+  <div class="studio-skeleton-card" role="status" aria-label="Generating PDF">
+    <span class="studio-skeleton-line medium"></span>
+    <span class="studio-skeleton-line short"></span>
+  </div>
 </div>
 }

@@ -1,5 +1,5 @@
 import { SessionStorageService } from './../../../services/session-storage.service';
-import { ChangeDetectionStrategy, Component, inject, signal, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -11,7 +11,6 @@ import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
-import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { VariableTypes } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { RouterLink } from '@angular/router';
@@ -25,7 +24,6 @@ import { RouterLink } from '@angular/router';
     ReactiveFormsModule,
     AlgorithmResultComponent,
     EchartsxModule,
-    SpinnerComponent,
     RouterLink
   ],
   templateUrl: './algorithm-panel.component.html',
@@ -95,7 +93,7 @@ export class AlgorithmPanelComponent {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return null;
     if (this.experimentStudioService.hasAppliedDescriptivePreprocessing()) return null;
-    return 'Apply missing value preprocessing before running algorithms. The recommended default is Remove rows.';
+    return 'Apply missing value preprocessing before running algorithms.';
   });
   readonly labelMap = computed(() => {
     const map: Record<string, string> = {};
@@ -138,6 +136,7 @@ export class AlgorithmPanelComponent {
 
   // UI toggle: show only enabled algorithms
   readonly showOnlyActive = signal(false);
+  readonly advancedConfigOpen = signal(false);
   readonly hasAnyVisibleAlgorithms = computed(() => {
     return this.filteredAlgorithmCategories().some(c => c.algorithms?.length > 0);
   });
@@ -218,8 +217,10 @@ export class AlgorithmPanelComponent {
       const algorithm = this.selectedAlgorithm();
       if (!algorithm) {
         this.crossValidationEnabled.set(false);
+        this.advancedConfigOpen.set(false);
         return;
       }
+      this.advancedConfigOpen.set(false);
       if (this.experimentStudioService.isCrossValidationOnly(algorithm.name)) {
         this.crossValidationEnabled.set(true);
         return;
@@ -293,7 +294,7 @@ export class AlgorithmPanelComponent {
       this.availableAlgorithmCategories();
     });
 
-    effect(() => {
+    effect((onCleanup) => {
       const algorithm = this.selectedAlgorithm();
       const schema = this.enrichedConfigSchema();
 
@@ -303,7 +304,7 @@ export class AlgorithmPanelComponent {
         return;
       }
 
-      const allConfigs = this.experimentStudioService.algorithmConfigurations();
+      const allConfigs = untracked(() => this.experimentStudioService.algorithmConfigurations());
       const stored = allConfigs?.[algorithm.name] || {};
 
       const group: { [key: string]: FormControl } = {};
@@ -370,13 +371,19 @@ export class AlgorithmPanelComponent {
         group[field.key] = control;
       });
 
-      this.configForm.set(new FormGroup(group, { updateOn: 'change' }));
+      const form = new FormGroup(group, { updateOn: 'change' });
+      this.configForm.set(form);
 
       Object.values(this.configForm().controls).forEach(control => {
         if (control.valid) {
           control.markAsTouched({ onlySelf: true });
         }
       });
+
+      const subscription = form.valueChanges.subscribe(() => {
+        this.persistCurrentFormConfig(algorithm.name, schema);
+      });
+      onCleanup(() => subscription.unsubscribe());
 
       this.formKey++;
     });
@@ -496,6 +503,12 @@ export class AlgorithmPanelComponent {
     getOutputSchema(this.selectedAlgorithm()?.name ?? '') ?? []
   );
 
+  readonly advancedConfigCount = computed(() => Math.max(0, this.enrichedConfigSchema().length - 3));
+
+  toggleAdvancedConfig(): void {
+    this.advancedConfigOpen.update(open => !open);
+  }
+
 
 
   readonly filteredAlgorithmCategories = computed(() => {
@@ -555,6 +568,31 @@ export class AlgorithmPanelComponent {
 
   objectKeys(obj: any): string[] {
     return obj ? Object.keys(obj) : [];
+  }
+
+  private persistCurrentFormConfig(algorithmName: string, schema = this.enrichedConfigSchema()): Record<string, any> {
+    const values = this.normalizeFormValues(this.configForm().getRawValue(), schema);
+    this.experimentStudioService.algorithmConfigurations.set({
+      ...this.experimentStudioService.algorithmConfigurations(),
+      [algorithmName]: values,
+    });
+    return values;
+  }
+
+  private normalizeFormValues(values: Record<string, any>, schema: any[]): Record<string, any> {
+    const normalized = { ...values };
+    schema
+      .filter((field) => field?.type === 'number')
+      .forEach((field) => {
+        const key = String(field.key);
+        const value = normalized[key];
+        if (typeof value !== 'string') return;
+        const trimmed = value.trim();
+        if (!trimmed) return;
+        const parsed = Number(trimmed);
+        if (Number.isFinite(parsed)) normalized[key] = parsed;
+      });
+    return normalized;
   }
 
   prettifyKey(key: string): string {
@@ -654,15 +692,15 @@ export class AlgorithmPanelComponent {
     this.experimentStudioService.lastUsedAlgorithm.set(finalAlgorithmName);
     this.errorMsg.set(null);
 
-    const configValues = this.configForm().getRawValue();
+    const configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.enrichedConfigSchema());
     if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
       delete configValues['n_splits'];
     }
     if (useTransformation) {
       const payload = this.buildTransformationPayload();
-      configValues.data_transformation = payload;
-    } else if (configValues.data_transformation) {
-      delete configValues.data_transformation;
+      configValues['data_transformation'] = payload;
+    } else if (configValues['data_transformation']) {
+      delete configValues['data_transformation'];
     }
     this.experimentStudioService.algorithmConfigurations.set({
       ...this.experimentStudioService.algorithmConfigurations(),
@@ -1042,6 +1080,20 @@ export class AlgorithmPanelComponent {
         : baseAlgorithmName;
 
     const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
+    const configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.enrichedConfigSchema());
+    if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
+      delete configValues['n_splits'];
+    }
+    if (useTransformation) {
+      configValues['data_transformation'] = this.buildTransformationPayload();
+    } else if (configValues['data_transformation']) {
+      delete configValues['data_transformation'];
+    }
+    this.experimentStudioService.algorithmConfigurations.set({
+      ...this.experimentStudioService.algorithmConfigurations(),
+      [baseAlgorithmName]: configValues,
+      ...(effectiveAlgorithmName !== baseAlgorithmName ? { [effectiveAlgorithmName]: configValues } : {})
+    });
 
     const result$ = this.experimentStudioService.runSelectedAlgorithm(
       baseAlgorithmName,

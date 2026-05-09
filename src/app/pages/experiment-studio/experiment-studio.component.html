@@ -64,12 +64,13 @@
           </div>
           <a routerLink="." [fragment]="'statistics-section'" queryParamsHandling="preserve" class="studio-rail-item"
             [class.is-active]="activeSection() === 'statistics-section'"
+            [class.is-muted]="!isDataReviewReady()"
             [attr.aria-current]="activeSection() === 'statistics-section' ? 'page' : null">
             <span class="studio-rail-icon"><i class="fas fa-chart-line"></i></span>
-            <span class="studio-rail-label">Descriptive statistics</span>
+            <span class="studio-rail-label">Data review & preprocessing</span>
           </a>
           @if (activeSection() === 'statistics-section') {
-          <div class="studio-descriptive-progress" aria-label="Descriptive statistics progress">
+          <div class="studio-descriptive-progress" aria-label="Data review and preprocessing progress">
             <button
               type="button"
               class="studio-progress-step"
@@ -105,6 +106,7 @@
           }
           <a routerLink="." [fragment]="'algorithm-section'" queryParamsHandling="preserve" class="studio-rail-item"
             [class.is-active]="activeSection() === 'algorithm-section'"
+            [class.is-muted]="!isAlgorithmReady()"
             [attr.aria-current]="activeSection() === 'algorithm-section' ? 'page' : null">
             <span class="studio-rail-icon"><i class="fas fa-cogs"></i></span>
             <span class="studio-rail-label">Algorithm</span>
@@ -116,11 +118,27 @@
 
     <div class="studio-main" [class.sidebar-collapsed]="sidebarCollapsed()">
       <!-- TOP: Variables -->
-      <section class="studio-section studio-section--variables">
+      <section
+        class="studio-section studio-section--variables"
+        [class.is-current]="!isDataReviewReady() || activeSection() === 'variables-top' || activeSection() === 'data-model-visualization'"
+        [class.is-complete]="isDataReviewReady()"
+      >
         <app-variables-panel></app-variables-panel>
       </section>
 
-      <section class="studio-section studio-section--statistics" id="statistics-section">
+      <section
+        class="studio-section studio-section--statistics"
+        id="statistics-section"
+        [class.is-muted]="!isDataReviewReady()"
+        [class.is-current]="isDataReviewReady() && activeSection() === 'statistics-section'"
+        [class.is-complete]="descriptiveProgress().preprocessingStatus === 'applied'"
+      >
+        @if (!isDataReviewReady()) {
+        <div class="studio-section-state-note" aria-hidden="true">
+          <i class="fas fa-lock"></i>
+          <span>Select at least one variable or covariate to activate data review.</span>
+        </div>
+        }
         <app-statistic-analysis-panel (progressStateChange)="descriptiveProgress.set($event)"></app-statistic-analysis-panel>
       </section>
 
@@ -146,7 +164,19 @@
       }
 
       <!-- BOTTOM: Algorithm -->
-      <section class="studio-section studio-section--algorithm" id="algorithm-section" data-guide="experiment-section">
+      <section
+        class="studio-section studio-section--algorithm"
+        id="algorithm-section"
+        data-guide="experiment-section"
+        [class.is-muted]="!isAlgorithmReady()"
+        [class.is-current]="isAlgorithmReady() && activeSection() === 'algorithm-section'"
+      >
+        @if (!isAlgorithmReady()) {
+        <div class="studio-section-state-note" aria-hidden="true">
+          <i class="fas fa-lock"></i>
+          <span>Algorithm configuration becomes relevant after variable selection.</span>
+        </div>
+        }
         <app-algorithm-panel></app-algorithm-panel>
       </section>
     </div>

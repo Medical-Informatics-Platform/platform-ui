@@ -11,7 +11,6 @@ import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.co
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { VariableFilterSelectionComponent } from './variable-filter-selection/variable-filter-selection.component';
 import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
-import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -32,7 +31,6 @@ import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-gu
     DatasetSelectorComponent,
     SearchBarComponent,
     VariableFilterSelectionComponent,
-    SpinnerComponent,
   ]
 })
 export class VariablesPanelComponent implements OnDestroy {
@@ -98,7 +96,9 @@ export class VariablesPanelComponent implements OnDestroy {
 
 
   ngOnInit(): void {
-    this.selectedDataModel.set(this.defaultModel);
+    if (this.defaultModel) {
+      this.selectedDataModel.set(this.defaultModel);
+    }
     this.loadDataModels();
   }
 
@@ -231,7 +231,10 @@ export class VariablesPanelComponent implements OnDestroy {
             && String(model.version) === String(current.version)
         ) ?? null
         : null;
-      this.selectedDataModel.set(next ?? models[0] ?? null);
+      const fallback = this.experimentStudioService.editingExistingExperiment()
+        ? null
+        : models[0] ?? null;
+      this.selectedDataModel.set(next ?? fallback);
       this.experimentStudioService.selectedDataModel.set(this.selectedDataModel() ?? null);
       return;
     }
@@ -281,6 +284,7 @@ export class VariablesPanelComponent implements OnDestroy {
         code: String(dataset?.code ?? ''),
         label: String(dataset?.label ?? dataset?.name ?? dataset?.code ?? ''),
       }));
+    this.experimentStudioService.availableDatasets.set(this.availableDatasets);
   }
 
   fetchFederationHistogram(): void {
@@ -316,6 +320,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.experimentStudioService.setVariables([]);
     this.experimentStudioService.setCovariates([]);
     this.experimentStudioService.setFilters([]);
+    this.experimentStudioService.setSelectedDatasets([]);
     this.experimentStudioService.setFilterLogic(null);
 
     this.filteredVariables.set([]);

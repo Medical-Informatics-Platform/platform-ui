@@ -3,7 +3,7 @@ import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.comp
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 
@@ -20,6 +20,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
             'setAppliedDescriptivePreprocessing',
+            'getAppliedDescriptivePreprocessing',
             'setFilters',
             'setFilterLogic',
             'toggleFilterConfigModal'
@@ -29,11 +30,13 @@ describe('StatisticAnalysisPanelComponent', () => {
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
-            filterLogic: signal(null)
+            filterLogic: signal(null),
+            appliedPreprocessingConfig: signal(null)
         });
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({
@@ -355,19 +358,22 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(options.map((option) => option.textContent?.trim())).toContain('Yes');
     });
 
-    it('splits preprocessing rows by applied and not applied state', () => {
+    it('splits preprocessing rows by pending and applied state', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         component.appliedPreprocessingRules = {
             age: { variableCode: 'age', action: 'drop', value: '', enabled: true },
         };
+        component.pendingPreprocessingRules = {
+            age: { variableCode: 'age', action: 'drop', value: '', enabled: true },
+        };
 
+        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
         const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
-        const notAppliedGroup = component.preprocessingGroups.find((group) => group.key === 'not-applied');
 
+        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
         expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
-        expect(notAppliedGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
 
     it('keeps preprocessing rules when variables are removed and re-added', () => {
@@ -390,9 +396,37 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
-        const notAppliedGroup = component.preprocessingGroups.find((group) => group.key === 'not-applied');
+        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
         expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
-        expect(notAppliedGroup?.variables.map((v) => v.code)).toEqual(['sex']);
+        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
+    });
+
+    it('marks variables added after applied preprocessing as pending', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                },
+            },
+        };
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        expect(component.preprocessingVariableStateLabel(age)).toBe('Applied');
+        expect(component.pendingChangeCount).toBe(0);
+
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        fixture.detectChanges();
+
+        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
+        expect(component.preprocessingVariableStateLabel(sex)).toBe('Pending');
+        expect(component.preprocessingVariableHasPendingChange(sex)).toBeTrue();
+        expect(component.pendingChangeCount).toBe(1);
+        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
 
     it('creates pending state when a missing value action changes', () => {
@@ -440,6 +474,76 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.sectionOpen.processed).toBeTrue();
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+    });
+
+    it('opens and scrolls to the processed summary while preprocessing is loading', (done) => {
+        const { age } = configureRawSummary();
+        const response$ = new Subject<unknown>();
+        const scrollSpy = spyOn(HTMLElement.prototype, 'scrollIntoView');
+        mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+
+        component.onMissingActionChange(age, 'mean');
+        component.applyPreprocessing();
+        fixture.detectChanges();
+
+        const processedSection = workflowSection('Processed Data Summary');
+        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.processedSummary.isLoading).toBeTrue();
+        expect(processedSection.textContent).toContain('Processed data summary loading');
+
+        setTimeout(() => {
+            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+            response$.next({
+                result: {
+                    featurewise: [
+                        {
+                            dataset: 'all datasets',
+                            variable: 'age',
+                            data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 },
+                        },
+                    ],
+                },
+            });
+            response$.complete();
+            fixture.detectChanges();
+
+            expect(component.sectionOpen.processed).toBeTrue();
+            expect(component.processedSummary.isLoading).toBeFalse();
+            expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                missing_values_handler: {
+                    strategies: { age: 'mean' },
+                },
+            });
+            fixture.detectChanges();
+            expect(component.sectionOpen.processed).toBeTrue();
+            expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+            done();
+        });
+    });
+
+    it('keeps the processed summary open and stops the spinner when preprocessing fails', () => {
+        const { age } = configureRawSummary();
+        const response$ = new Subject<unknown>();
+        spyOn(console, 'error');
+        mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+
+        component.onMissingActionChange(age, 'mean');
+        component.applyPreprocessing();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.processedSummary.isLoading).toBeTrue();
+
+        response$.error(new Error('preprocessing failed'));
+        fixture.detectChanges();
+
+        const processedSection = workflowSection('Processed Data Summary');
+        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.processedSummary.isLoading).toBeFalse();
+        expect(processedSection.textContent).not.toContain('Processed data summary loading');
     });
 
     it('renders raw statistics as a grouped analysis workspace', () => {
@@ -692,5 +796,67 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.ruleFor(age).action).toBe('mean');
         expect(component.longitudinalStrategyFor(sex)).toBe('first');
         expect(component.pendingChangeCount).toBe(0);
+    });
+
+    it('hydrates saved preprocessing as applied without pending changes', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: {
+                    age: 'median',
+                    sex: 'drop',
+                },
+            },
+        };
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.selectedVariables as any).set([age, sex]);
+
+        fixture.detectChanges();
+
+        expect(component.ruleFor(age).action).toBe('median');
+        expect(component.ruleFor(sex).action).toBe('drop');
+        expect(component.preprocessingStatus).toBe('applied');
+        expect(component.pendingChangeCount).toBe(0);
+    });
+
+    it('loads the processed summary when saved preprocessing is hydrated', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: {
+                    age: 'median',
+                },
+            },
+        };
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.loadDescriptiveOverview.and.returnValues(
+            of({ result: { featurewise: [] } }),
+            of({
+                result: {
+                    featurewise: [
+                        {
+                            dataset: 'all datasets',
+                            variable: 'age',
+                            data: {
+                                num_dtps: 10,
+                                num_na: 0,
+                                num_total: 10,
+                                mean: 71,
+                            },
+                        },
+                    ],
+                },
+            })
+        );
+
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age'], preprocessing);
+        expect(component.processedSummary.data.length).toBe(1);
+        expect(component.processedSummary.data[0].name).toBe('Age');
     });
 });

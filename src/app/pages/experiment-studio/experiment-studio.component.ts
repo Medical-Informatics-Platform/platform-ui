@@ -74,6 +74,15 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   errorMessage = computed(() => this.errorService.error() ?? '');
   activeSection = signal('variables-top');
   sidebarCollapsed = signal(false);
+  readonly hasDatasetContext = computed(() => (
+    !!this.selectedDataModel() && this.selectedDatasets().length > 0
+  ));
+  readonly hasAnalysisSelection = computed(() => (
+    this.expStudioService.selectedVariables().length > 0 ||
+    this.expStudioService.selectedCovariates().length > 0
+  ));
+  readonly isDataReviewReady = computed(() => this.hasDatasetContext() && this.hasAnalysisSelection());
+  readonly isAlgorithmReady = computed(() => this.isDataReviewReady());
   descriptiveProgress = signal<DescriptiveProgressState>({
     pendingChangeCount: 0,
     preprocessingStatus: 'none',
@@ -108,6 +117,11 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     this.errorService.clearError();
     this.dismissedPathologyWarning.set(false);
     this.expStudioService.clearDataExclusionWarnings();
+    const initialMode = this.route.snapshot.queryParamMap.get('mode');
+    const initialExperimentId = this.route.snapshot.queryParamMap.get('experimentId');
+    if (initialMode === 'edit' && initialExperimentId) {
+      this.expStudioService.setEditingExistingExperiment(true);
+    }
     this.expStudioService.loadAndCategorizeModels().subscribe();
 
     this.route.queryParamMap
@@ -222,6 +236,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private loadExperimentForEdit(uuid: string): void {
+    this.expStudioService.setEditingExistingExperiment(true);
     this.dashboardService.getExperiment(uuid).subscribe({
       next: (backendExp) => {
         // Prefill Experiment Studio (datasets, domain, variables, filters, algo, params)

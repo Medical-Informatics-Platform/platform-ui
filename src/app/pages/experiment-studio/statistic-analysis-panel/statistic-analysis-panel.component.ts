@@ -11,6 +11,7 @@ import {
   effect,
   inject,
   QueryList,
+  signal,
   ViewChild,
   ViewChildren,
 } from '@angular/core';
@@ -20,7 +21,6 @@ import { ExperimentStudioService, PreprocessingConfig } from '../../../services/
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { PdfExportService } from '../../../services/pdf-export.service';
-import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
@@ -29,6 +29,7 @@ import { CsvExportService } from '../../../services/csv-export.service';
 
 type TabKey = 'Statistics' | 'Charts';
 type SummaryKind = 'raw' | 'processed';
+type SectionKey = 'raw' | 'setup' | 'filters' | 'processed';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
 export type PreprocessingStatus = 'none' | 'pending' | 'applied';
@@ -88,7 +89,7 @@ interface PreprocessingRule {
 }
 
 interface PreprocessingGroup {
-  key: 'applied' | 'not-applied';
+  key: 'pending' | 'applied' | 'not-applied';
   title: string;
   variables: VariableRow[];
 }
@@ -105,7 +106,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, SpinnerComponent, FormsModule, FilterConfigModalComponent],
+  imports: [ChartRendererComponent, FormsModule, FilterConfigModalComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   styleUrls: ['./statistic-analysis-panel.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -164,7 +165,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   sectionOpen: Record<'raw' | 'setup' | 'filters' | 'processed', boolean> = {
     raw: false,
     setup: false,
-    filters: true,
+    filters: false,
     processed: false,
   };
   preprocessingStepOpen: Record<'missing' | 'longitudinal', boolean> = {
@@ -212,6 +213,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   };
 
   private selectionKey = '';
+  private processedSummaryKey = '';
+  private scrollRequestId = 0;
+  private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
+  private keepProcessedSectionOpenOnNextReconcile = false;
 
   constructor() {
     effect(() => {
@@ -219,7 +224,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       const covariates = this.expStudioService.selectedCovariates();
       const filters = this.expStudioService.selectedFilters();
       const filterLogic = this.expStudioService.filterLogic();
-      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters, filterLogic);
+      const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
+      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters, filterLogic, appliedPreprocessing);
 
       if (nextSelectionKey !== this.selectionKey) {
         this.selectionKey = nextSelectionKey;
@@ -237,6 +243,20 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       }
 
       this.fetchDescriptiveStatistics();
+      this.fetchProcessedSummaryForAppliedPreprocessing();
+    });
+
+    effect(() => {
+      const request = this.scrollSectionRequest();
+      if (!request) return;
+
+      setTimeout(() => {
+        if (this.scrollSectionRequest()?.requestId !== request.requestId) return;
+        this.scrollSectionIntoView(request.section);
+        if (this.scrollSectionRequest()?.requestId === request.requestId) {
+          this.scrollSectionRequest.set(null);
+        }
+      });
     });
   }
 
@@ -318,29 +338,42 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   get preprocessingGroups(): PreprocessingGroup[] {
-    return this.buildPreprocessingGroups(this.filteredPreprocessingVariables, (variable) => this.hasAppliedPreprocessing(variable.code));
+    return this.buildPreprocessingGroups(
+      this.filteredPreprocessingVariables,
+      (variable) => this.preprocessingVariableHasPendingChange(variable),
+      (variable) => this.hasAppliedPreprocessing(variable.code)
+    );
   }
 
   get longitudinalPreprocessingGroups(): PreprocessingGroup[] {
     return this.buildPreprocessingGroups(
       this.filteredLongitudinalPreprocessingVariables,
+      (variable) => this.longitudinalVariableHasPendingChange(variable),
       (variable) => this.hasAppliedLongitudinalPreprocessing(variable.code)
     );
   }
 
   private buildPreprocessingGroups(
     variables: VariableRow[],
+    isPending: (variable: VariableRow) => boolean,
     isApplied: (variable: VariableRow) => boolean
   ): PreprocessingGroup[] {
+    const pending: VariableRow[] = [];
     const applied: VariableRow[] = [];
     const notApplied: VariableRow[] = [];
 
     variables.forEach((variable) => {
-      if (isApplied(variable)) applied.push(variable);
+      if (isPending(variable)) pending.push(variable);
+      else if (isApplied(variable)) applied.push(variable);
       else notApplied.push(variable);
     });
 
     const groups: PreprocessingGroup[] = [
+      {
+        key: 'pending',
+        title: 'Pending',
+        variables: pending,
+      },
       {
         key: 'applied',
         title: 'Applied preprocessing',
@@ -377,7 +410,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   preprocessingVariableHasPendingChange(variable: VariableRow): boolean {
-    return this.serializeRule(this.pendingPreprocessingRules[variable.code]) !== this.serializeRule(this.appliedPreprocessingRules[variable.code]);
+    const appliedRule = this.appliedPreprocessingRules[variable.code];
+    const pendingRule = this.pendingPreprocessingRules[variable.code]
+      ?? (appliedRule ? undefined : this.defaultRule(variable.code));
+    return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
   }
 
   selectedLongitudinalPreprocessingVariable(): VariableRow | null {
@@ -404,7 +440,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   longitudinalVariableHasPendingChange(variable: VariableRow): boolean {
     if (!this.isLongitudinalModel) return false;
     const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
-    const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+    const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? null;
     return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
   }
 
@@ -471,9 +507,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     const missingItems = rules.map((rule) => {
       const variable = this.preprocessingVariables.find((row) => row.code === rule.variableCode);
       const label = variable ? this.variableLabel(variable) : rule.variableCode;
-      const status = variable ? this.currentStatus(variable) : 'selected values';
-      const action = this.missingActionLabel(rule.action).toLowerCase();
-      return `${status} for ${label} will use ${action}.`;
+      return `Missing values for ${label} will be handled.`;
     });
     if (missingItems.length) groups.push({ title: 'Missing Values', items: missingItems });
 
@@ -592,7 +626,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return index >= 0 ? summary.chartsForNominal[index] ?? [] : [];
   }
 
-  goToSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
+  goToSection(section: SectionKey): void {
     this.sectionOpen = {
       raw: section === 'raw',
       setup: section === 'setup',
@@ -600,7 +634,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       processed: section === 'processed',
     };
     this.cdr.markForCheck();
-    setTimeout(() => this.sectionElement(section)?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
   }
 
   toggleSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
@@ -758,6 +792,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
       next: (response) => {
         this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+        this.processedSummaryKey = JSON.stringify({ variableCodes, preprocessing });
         this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
           this.appliedPreprocessingRules,
           this.pendingPreprocessingRules
@@ -766,17 +801,21 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
         this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
         this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+        this.keepProcessedSectionOpenOnNextReconcile = true;
         this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
         this.preprocessingStatus = 'applied';
         this.isApplyingPreprocessing = false;
         this.showPreview = false;
         this.successMessage = '';
         this.emitProgressState();
+        this.sectionOpen.processed = true;
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error(err);
         this.isApplyingPreprocessing = false;
+        this.processedSummary = this.createEmptySummary(false);
+        this.sectionOpen.processed = true;
         this.cdr.markForCheck();
       },
     });
@@ -839,18 +878,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     if (this.isNumericVariable(variable)) return 'Numeric';
     if (this.isCategoricalVariable(variable)) return 'Categorical';
     return variable.type ?? 'Unknown';
-  }
-
-  currentStatus(variable: VariableRow): string {
-    const allRows = this.getFeaturewiseRowsForRaw(variable.code);
-    const aggregate = allRows.find((row) => row.dataset === 'all datasets') ?? allRows[0];
-    const data = aggregate?.data ?? null;
-    if (!data) return 'No summary available';
-    const missing = Number(data.num_na ?? 0);
-    if (Number.isFinite(missing) && missing > 0) return `${Math.round(missing).toLocaleString()} missing`;
-    if (data.min !== undefined || data.max !== undefined) return `min ${this.fmt(data.min)} / max ${this.fmt(data.max)}`;
-    if (data.counts) return `${Object.keys(data.counts).length} categories`;
-    return 'No issue detected';
   }
 
   missingActionLabel(action: MissingAction): string {
@@ -945,11 +972,27 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return kind === 'raw' ? this.rawSummary : this.processedSummary;
   }
 
-  private sectionElement(section: 'raw' | 'setup' | 'filters' | 'processed'): ElementRef<HTMLElement> | undefined {
+  private sectionElement(section: SectionKey): ElementRef<HTMLElement> | undefined {
     if (section === 'raw') return this.rawSection;
     if (section === 'setup') return this.setupSection;
     if (section === 'filters') return this.filtersSection;
     return this.processedSection;
+  }
+
+  private scrollSectionIntoView(section: SectionKey): void {
+    const element = this.sectionElement(section)?.nativeElement;
+    if (!element) return;
+
+    const target =
+      section === 'processed'
+        ? element.querySelector<HTMLElement>('.workflow-section-header') ?? element
+        : element;
+
+    target.scrollIntoView({
+      behavior: 'smooth',
+      block: section === 'processed' ? 'center' : 'start',
+      inline: 'nearest',
+    });
   }
 
   private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
@@ -1109,17 +1152,134 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   private reconcilePreprocessingForSelection(): void {
     const currentCodes = this.currentPreprocessingCodeSet();
-    this.ensureDefaultRulesForCurrentSelection(currentCodes);
+    const appliedPreprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
+    if (appliedPreprocessing) {
+      this.hydrateAppliedPreprocessing(appliedPreprocessing, currentCodes);
+    } else {
+      this.ensureDefaultRulesForCurrentSelection(currentCodes);
+    }
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
     );
-    this.processedSummary = this.createEmptySummary(false);
-    this.sectionOpen.processed = false;
+    if (this.keepProcessedSectionOpenOnNextReconcile) {
+      this.sectionOpen.processed = true;
+      this.keepProcessedSectionOpenOnNextReconcile = false;
+    } else {
+      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummaryKey = '';
+      this.sectionOpen.processed = false;
+    }
     this.showPreview = false;
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
     this.updatePreprocessingStatus();
     this.syncAppliedPreprocessingForCurrentSelection();
+  }
+
+  private fetchProcessedSummaryForAppliedPreprocessing(): void {
+    if (this.preprocessingStatus !== 'applied') return;
+
+    const preprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
+    if (!preprocessing) return;
+
+    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    if (!variableCodes.length) return;
+
+    const nextKey = JSON.stringify({ variableCodes, preprocessing });
+    if (nextKey === this.processedSummaryKey) return;
+
+    this.processedSummaryKey = nextKey;
+    this.processedSummary = this.createEmptySummary(true);
+    this.cdr.markForCheck();
+
+    this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
+      next: (response) => {
+        this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+        this.preprocessingStatus = 'applied';
+        this.emitProgressState();
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error(err);
+        this.processedSummary = this.createEmptySummary(false);
+        this.processedSummaryKey = '';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private hydrateAppliedPreprocessing(
+    preprocessing: PreprocessingConfig,
+    currentCodes = this.currentPreprocessingCodeSet()
+  ): void {
+    const missingValues = preprocessing['missing_values_handler'] as {
+      strategies?: Record<string, unknown>;
+      fill_values?: Record<string, unknown>;
+    } | undefined;
+    const strategies = missingValues?.strategies ?? {};
+    const fillValues = missingValues?.fill_values ?? {};
+    const nextApplied = this.cloneRules(this.appliedPreprocessingRules);
+    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
+
+    currentCodes.forEach((code) => {
+      const strategy = String(strategies[code] ?? '');
+      const action = this.isMissingAction(strategy) ? strategy : 'no_action';
+      const rule: PreprocessingRule = action === 'no_action'
+        ? this.emptyRule(code)
+        : {
+          variableCode: code,
+          action,
+          value: fillValues[code] === undefined || fillValues[code] === null ? '' : String(fillValues[code]),
+          enabled: true,
+        };
+      nextApplied[code] = rule;
+      const existingPending = nextPending[code];
+      nextPending[code] = action === 'no_action'
+        ? {
+          ...(existingPending && this.serializeRule(existingPending) !== this.serializeRule(rule)
+            ? existingPending
+            : this.defaultRule(code)),
+        }
+        : { ...rule };
+    });
+
+    this.appliedPreprocessingRules = nextApplied;
+    this.pendingPreprocessingRules = nextPending;
+
+    const longitudinal = preprocessing['longitudinal_transformer'] as {
+      visit1?: unknown;
+      visit2?: unknown;
+      strategies?: Record<string, unknown>;
+    } | undefined;
+
+    if (!longitudinal || !this.isLongitudinalModel) {
+      this.appliedLongitudinalEnabled = false;
+      this.appliedLongitudinalVisit1 = '';
+      this.appliedLongitudinalVisit2 = '';
+      this.appliedLongitudinalStrategies = {};
+    } else {
+      this.appliedLongitudinalEnabled = true;
+      this.appliedLongitudinalVisit1 = longitudinal.visit1 === undefined || longitudinal.visit1 === null ? '' : String(longitudinal.visit1);
+      this.appliedLongitudinalVisit2 = longitudinal.visit2 === undefined || longitudinal.visit2 === null ? '' : String(longitudinal.visit2);
+      this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
+      this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
+      const longitudinalStrategies = longitudinal.strategies ?? {};
+      const appliedStrategies: Record<string, LongitudinalStrategy> = {};
+      currentCodes.forEach((code) => {
+        const strategy = String(longitudinalStrategies[code] ?? '');
+        if (this.isLongitudinalStrategy(strategy)) appliedStrategies[code] = strategy;
+      });
+      this.appliedLongitudinalStrategies = appliedStrategies;
+      this.pendingLongitudinalStrategies = { ...appliedStrategies };
+    }
+  }
+
+  private isMissingAction(value: string): value is MissingAction {
+    return ['drop', 'mean', 'median', 'constant'].includes(value);
+  }
+
+  private isLongitudinalStrategy(value: string): value is LongitudinalStrategy {
+    return ['first', 'second', 'diff'].includes(value);
   }
 
   private ensureDefaultRulesForCurrentSelection(currentCodes = this.currentPreprocessingCodeSet()): void {
@@ -1166,7 +1326,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
     this.preprocessingVariables.forEach((variable) => {
       if (!allowedCodes.has(variable.code)) return;
-      strategies[variable.code] = sourceStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+      const strategy = sourceStrategies[variable.code] ?? (applied ? null : this.defaultLongitudinalStrategy(variable));
+      if (strategy) strategies[variable.code] = strategy;
     });
 
     if (!visit1 || !visit2 || !Object.keys(strategies).length) return null;
@@ -1205,7 +1366,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         .filter((variable) => allowedCodes.has(variable.code))
         .map((variable) => [
           variable.code,
-          sourceStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable),
+          sourceStrategies[variable.code] ?? (applied ? null : this.defaultLongitudinalStrategy(variable)),
         ])
     );
     return JSON.stringify({ enabled, visit1, visit2, strategies });
@@ -1219,7 +1380,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   private hasAppliedLongitudinalPreprocessing(variableCode: string): boolean {
     if (!this.isLongitudinalModel || !this.appliedLongitudinalEnabled) return false;
     if (!this.appliedLongitudinalVisit1 || !this.appliedLongitudinalVisit2) return false;
-    return this.preprocessingVariables.some((variable) => variable.code === variableCode);
+    return !!this.appliedLongitudinalStrategies[variableCode];
   }
 
   private mergeRulesForCurrentSelection(
@@ -1256,12 +1417,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     });
   }
 
-  private buildSelectionKey(variables: VariableRow[], covariates: VariableRow[], filters: VariableRow[], filterLogic: unknown): string {
+  private buildSelectionKey(
+    variables: VariableRow[],
+    covariates: VariableRow[],
+    filters: VariableRow[],
+    filterLogic: unknown,
+    appliedPreprocessing: unknown
+  ): string {
     return JSON.stringify({
       variables: variables.map((variable) => variable.code).sort(),
       covariates: covariates.map((variable) => variable.code).sort(),
       filters: filters.map((variable) => variable.code).sort(),
       filterLogic,
+      appliedPreprocessing,
     });
   }
 

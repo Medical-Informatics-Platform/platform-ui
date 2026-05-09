@@ -2,16 +2,10 @@ import { EChartsOption } from 'echarts';
 
 // Color palette for bar chart segments - MIP brand colors
 const BAR_COLORS = [
-    '#2b33e9',  // MIP primary blue
-    '#026d6d',  // MIP teal
-    '#ffba08',  // MIP orange/yellow
-    '#06d6a0',  // MIP green
-    '#ef476f',  // accent pink
-    '#118ab2',  // accent blue
-    '#073b4c',  // dark teal
-    '#ffd166',  // soft yellow
-    '#8338ec',  // purple
-    '#ff6b6b',  // coral
+    '#2b33e9',  // MIP Dark Blue
+    '#7f9ce8',  // MIP Light Blue
+    '#ffba08',  // MIP Orange
+    '#dfefe4',  // MIP Light Green
 ];
 
 /**
