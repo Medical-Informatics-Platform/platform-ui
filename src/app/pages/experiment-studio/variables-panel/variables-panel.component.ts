@@ -297,8 +297,6 @@ export class VariablesPanelComponent implements OnDestroy {
     const federationGroups = this.d3Data.children || [];
     const groupCodes = federationGroups.map((g: any) => g.code);
 
-    const algorithmName = "histogram";
-
     this.queueHistogramRequest(groupCodes, 'Federation');
   }
 

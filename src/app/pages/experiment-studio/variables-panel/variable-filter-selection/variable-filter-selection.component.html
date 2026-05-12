@@ -26,7 +26,7 @@
       <div class="panel-container">
         <div class="panel">
           <ul class="horizontal-list" cdkDropList #varList="cdkDropList" [cdkDropListData]="variables()"
-            [cdkDropListConnectedTo]="[covList]" (cdkDropListDropped)="drop($event, 'variables')">
+            [cdkDropListConnectedTo]="[covList]" (cdkDropListDropped)="drop($event)">
             @for (variable of variables(); track variable) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable': selectedNode?.code === variable.code
@@ -67,7 +67,7 @@
       <div class="panel-container">
         <div class="panel">
           <ul class="horizontal-list" cdkDropList #covList="cdkDropList" [cdkDropListData]="covariates()"
-            [cdkDropListConnectedTo]="[varList]" (cdkDropListDropped)="drop($event, 'covariates')">
+            [cdkDropListConnectedTo]="[varList]" (cdkDropListDropped)="drop($event)">
             @for (covariate of covariates(); track covariate) {
             <li class="horizontal-item" [ngClass]="{
                 'highlighted-variable highlighted-covariate':

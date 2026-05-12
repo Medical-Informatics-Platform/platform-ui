@@ -46,7 +46,7 @@ export function buildTTestChart(result: any): EChartsOption[] {
         series: [
             {
                 type: 'custom',
-                renderItem: (params: any, api: any) => {
+                renderItem: (_params: any, api: any) => {
                     const y = api.coord([0, 0])[1]; // y index 0
 
                     const val = api.value(0);

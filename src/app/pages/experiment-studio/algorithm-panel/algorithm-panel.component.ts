@@ -6,7 +6,6 @@ import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, 
 import { buildFormControl } from '../../shared/utils/form-control.factory';
 import { AlgorithmResultComponent } from './algorithm-result/algorithm-result.component';
 import { getOutputSchema } from '../../../core/algorithm-mappers';
-import { EchartsxModule } from 'echarts-for-angular';
 import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
@@ -23,7 +22,6 @@ import { RouterLink } from '@angular/router';
     FormsModule,
     ReactiveFormsModule,
     AlgorithmResultComponent,
-    EchartsxModule,
     RouterLink
   ],
   templateUrl: './algorithm-panel.component.html',
@@ -614,10 +612,6 @@ export class AlgorithmPanelComponent {
 
   onAlgorithmClick(algorithm: AlgorithmConfig) {
     if (algorithm.isDisabled) {
-      console.log(
-        '[AlgorithmPanel] click on disabled algorithm blocked:',
-        algorithm.name
-      );
       return;
     }
 

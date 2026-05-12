@@ -205,8 +205,6 @@ export class AlgorithmRulesService {
             return normalized.length ? ` • types: ${normalized.join(',')}` : '';
         };
         const yTypes = Array.isArray(algo?.inputdata?.y?.types) ? algo?.inputdata?.y?.types : null;
-        const xTypes = Array.isArray(algo?.inputdata?.x?.types) ? algo?.inputdata?.x?.types : null;
-
         switch (name) {
             case AlgorithmNames.ANOVA_ONEWAY:
                 return {

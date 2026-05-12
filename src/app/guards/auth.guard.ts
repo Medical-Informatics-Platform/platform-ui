@@ -10,7 +10,7 @@ export class AuthGuard implements CanActivate {
 
   constructor() { }
 
-  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+  canActivate(_route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
     // wait for intitialisationt to finish
     return this.authService.authState$.pipe(
       filter((authState) => authState.status !== 'checking'), // wait to stop checking

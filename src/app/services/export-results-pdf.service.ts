@@ -394,7 +394,7 @@ export class ResultsPdfExportService {
     doc: jsPDF,
     options: { pageWidth: number; margin: { left: number; right: number; top: number } }
   ): void {
-    const { pageWidth, margin } = options;
+    const { margin } = options;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.text('Results', margin.left, margin.top + 6);

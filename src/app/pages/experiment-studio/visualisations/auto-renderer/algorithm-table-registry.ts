@@ -424,7 +424,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       tables.push({
         title: 'Class Summary',
         columns: ['Class', 'Count', 'Prior'],
-        rows: rawClasses.map((cls, i) => [
+        rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count?.[i]),
           formatDecimal(result.class_prior?.[i]),
@@ -599,7 +599,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       tables.push({
         title: 'Class Summary',
         columns: ['Class', 'Count', 'Log Prior'],
-        rows: rawClasses.map((cls, i) => [
+        rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count[i]),
           formatDecimal(result.class_log_prior[i]),

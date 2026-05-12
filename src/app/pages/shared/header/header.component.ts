@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
-import { ThemeService } from '../../../services/theme.service';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 
 @Component({
@@ -14,8 +13,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 export class HeaderComponent {
   constructor(
     private router: Router,
-    public authService: AuthService,
-    public themeService: ThemeService
+    public authService: AuthService
   ) { }
 
   isLoggedIn(): boolean {
@@ -32,7 +30,4 @@ export class HeaderComponent {
     this.router.navigate(['/experiments-dashboard']);
   }
 
-  logout(): void {
-    this.authService.logout();
-  }
 }

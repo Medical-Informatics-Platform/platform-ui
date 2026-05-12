@@ -3,7 +3,7 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { catchError, map, tap, filter } from 'rxjs/operators';
+import { catchError, tap, filter } from 'rxjs/operators';
 import { User } from '../models/user.interface';
 
 export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
