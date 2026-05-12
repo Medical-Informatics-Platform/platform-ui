@@ -28,7 +28,8 @@ import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.
   styleUrls: ['./experiment-studio.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '(window:resize)': 'onResize()'
+    '(window:resize)': 'onResize()',
+    '(window:scroll)': 'onScroll()',
   }
 })
 export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewInit {
@@ -87,7 +88,13 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     pendingChangeCount: 0,
     preprocessingStatus: 'none',
   });
+  private readonly sectionIds = [
+    'variables-top',
+    'statistics-section',
+    'algorithm-section',
+  ] as const;
   private sectionObserver?: IntersectionObserver;
+  private observedSections: HTMLElement[] = [];
 
 
 
@@ -95,6 +102,11 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
 
   onResize() {
     this.checkSidebarCollapse();
+    this.updateActiveSection();
+  }
+
+  onScroll() {
+    this.updateActiveSection();
   }
 
   private checkSidebarCollapse() {
@@ -171,47 +183,26 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private setupSectionObserver(): void {
-    const sectionIds = [
-      'variables-top',
-      'data-model-visualization',
-      'distribution-graph',
-      'parameters-listing',
-      'statistics-section',
-      'algorithm-section',
-    ];
-
-    const observerCallback: IntersectionObserverCallback = (entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting);
-      if (!visible.length) return;
-
-      const inView = visible
-        .map((entry) => ({
-          id: entry.target.id,
-          top: entry.boundingClientRect.top,
-        }))
-        .sort((a, b) => a.top - b.top);
-
-      const firstBelowTop = inView.find((entry) => entry.top >= 0);
-      this.activeSection.set((firstBelowTop ?? inView[0]).id);
-    };
+    const observerCallback: IntersectionObserverCallback = () => this.updateActiveSection();
 
     // Retry setup for dynamic content
     let attempts = 0;
     const tryObserve = () => {
-      const targets = sectionIds
+      const targets = this.sectionIds
         .map((id) => document.getElementById(id))
         .filter((el): el is HTMLElement => !!el);
 
-      if (targets.length === sectionIds.length || attempts > 5) {
+      if (targets.length === this.sectionIds.length || attempts > 5) {
         if (this.sectionObserver) this.sectionObserver.disconnect();
+        this.observedSections = targets;
 
         this.sectionObserver = new IntersectionObserver(observerCallback, {
           root: null,
-          threshold: [0.1, 0.2, 0.4],
-          rootMargin: '0px 0px -60% 0px',
+          threshold: [0, 0.25, 0.5, 1],
         });
 
         targets.forEach((el) => this.sectionObserver?.observe(el));
+        this.updateActiveSection();
       } else {
         attempts++;
         setTimeout(tryObserve, 200);
@@ -223,11 +214,46 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
 
   private scrollToHash(fragment: string | null): void {
     if (!fragment) return;
-    const target = document.getElementById(fragment);
+    const target = document.getElementById(this.getScrollTargetId(fragment));
     if (!target) return;
     requestAnimationFrame(() => {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+  }
+
+  private updateActiveSection(): void {
+    const sections = this.observedSections.length
+      ? this.observedSections
+      : this.sectionIds
+        .map((id) => document.getElementById(id))
+        .filter((el): el is HTMLElement => !!el);
+    if (!sections.length) return;
+
+    if (this.isScrolledToPageBottom()) {
+      this.activeSection.set(sections[sections.length - 1].id);
+      return;
+    }
+
+    const offset = this.getActiveSectionOffset();
+    const currentSection = [...sections]
+      .reverse()
+      .find((section) => section.getBoundingClientRect().top <= offset);
+
+    this.activeSection.set((currentSection ?? sections[0]).id);
+  }
+
+  private getActiveSectionOffset(): number {
+    return 112 + (this.visiblePathologyAccessWarning() ? 96 : 0);
+  }
+
+  private isScrolledToPageBottom(): boolean {
+    const scrollBottom = window.scrollY + window.innerHeight;
+    const pageHeight = document.documentElement.scrollHeight;
+    return scrollBottom >= pageHeight - 2;
+  }
+
+  private getScrollTargetId(fragment: string): string {
+    return fragment === 'studio-top' ? 'variables-top' : fragment;
   }
 
   // Clean create mode.

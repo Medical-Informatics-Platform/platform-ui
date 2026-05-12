@@ -425,8 +425,7 @@
       </div>
       } @if (enrichedConfigSchema().length) {
       <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
-        @for (field of enrichedConfigSchema(); track field.key; let i = $index) {
-        @if (i < 3 || advancedConfigOpen()) {
+        @for (field of enrichedConfigSchema(); track field.key) {
         @if (configForm().get(field.key)) {
         <div class="config-field">
           <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
@@ -506,19 +505,6 @@
           </div>
           }
         </div>
-        }
-        }
-        @if (i === 2 && advancedConfigCount() > 0) {
-        <button
-          type="button"
-          class="advanced-config-toggle"
-          [class.open]="advancedConfigOpen()"
-          (click)="toggleAdvancedConfig()"
-        >
-          <span>{{ advancedConfigOpen() ? 'Hide advanced configuration' : 'Show advanced configuration' }}</span>
-          <small>{{ advancedConfigCount() }} additional {{ advancedConfigCount() === 1 ? 'setting' : 'settings' }}</small>
-          <i class="fas fa-chevron-down" aria-hidden="true"></i>
-        </button>
         }
         }
       </form>

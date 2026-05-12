@@ -479,7 +479,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('opens and scrolls to the processed summary while preprocessing is loading', (done) => {
         const { age } = configureRawSummary();
         const response$ = new Subject<unknown>();
-        const scrollSpy = spyOn(HTMLElement.prototype, 'scrollIntoView');
+        const scrollSpy = spyOn(window, 'scrollTo');
         mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
 
         component.onMissingActionChange(age, 'mean');
@@ -487,12 +487,17 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const processedSection = workflowSection('Processed Data Summary');
+        const processedHeader = processedSection.querySelector('.workflow-section-header') as HTMLElement;
+        const processedBody = processedSection.querySelector('.workflow-section-body.open') as HTMLElement;
         expect(component.sectionOpen.processed).toBeTrue();
         expect(component.processedSummary.isLoading).toBeTrue();
-        expect(processedSection.textContent).toContain('Processed data summary loading');
+        expect(processedHeader.textContent).toContain('Processed Data Summary');
+        expect(processedBody).toBeTruthy();
 
         setTimeout(() => {
-            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
+            expect(scrollOptions.behavior).toBe('smooth');
+            expect(scrollOptions.top).toBe(processedHeader.getBoundingClientRect().top + window.scrollY - 96);
 
             response$.next({
                 result: {
