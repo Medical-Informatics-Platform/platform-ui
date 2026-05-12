@@ -1277,6 +1277,32 @@ button:disabled {
   font-weight: 650;
 }
 
+.statistics-table-wrapper.statistics-table-wrapper--numeric {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.statistics-table-wrapper--numeric .statistics-table th {
+  padding: 7px 12px;
+  line-height: 1.2;
+}
+
+.statistics-table-wrapper--numeric .statistics-table td {
+  padding: 9px 12px;
+  line-height: 1.25;
+}
+
+.statistics-table-wrapper--numeric .statistics-table td:first-child,
+.statistics-table-wrapper--numeric .metric-cell {
+  padding-left: 14px;
+  white-space: nowrap;
+}
+
+.statistics-table-wrapper--numeric .metric-cell:hover {
+  padding-left: 11px;
+}
+
 .chart-container {
   width: 100%;
   max-width: none;
