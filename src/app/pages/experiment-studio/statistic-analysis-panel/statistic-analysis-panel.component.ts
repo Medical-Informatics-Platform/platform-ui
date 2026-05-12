@@ -26,6 +26,7 @@ import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
+import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 
 type TabKey = 'Statistics' | 'Charts';
 type SummaryKind = 'raw' | 'processed';
@@ -983,23 +984,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     const element = this.sectionElement(section)?.nativeElement;
     if (!element) return;
 
-    const target =
-      section === 'processed'
-        ? element.querySelector<HTMLElement>('.workflow-section-header') ?? element
-        : element;
-
-    if (section === 'processed') {
+    const target = element.querySelector<HTMLElement>('.workflow-section-header') ?? element;
+    requestAnimationFrame(() => {
       window.scrollTo({
-        top: target.getBoundingClientRect().top + window.scrollY - 96,
+        top: Math.max(target.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0),
         behavior: 'smooth',
       });
-      return;
-    }
-
-    target.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-      inline: 'nearest',
     });
   }
 
@@ -1479,10 +1469,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       }
       return count + 1;
     }, 0);
-  }
-
-  private getFeaturewiseRowsForRaw(variableCode: string): any[] {
-    return this.rawSummary.featurewiseRows.filter((row) => row.variable === variableCode);
   }
 
   private variableForBlock(block: PivotBlock): VariableRow | null {

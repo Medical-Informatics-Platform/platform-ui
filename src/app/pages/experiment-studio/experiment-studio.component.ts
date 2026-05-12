@@ -1,5 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, inject, OnDestroy, OnInit, signal, ViewChild, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, ViewportScroller } from '@angular/common';
 import { VariablesPanelComponent } from './variables-panel/variables-panel.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ExperimentStudioService } from '../../services/experiment-studio.service';
@@ -13,6 +13,7 @@ import {
 } from './statistic-analysis-panel/statistic-analysis-panel.component';
 import { Subject, takeUntil } from 'rxjs';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
+import { getExperimentStudioScrollOffset } from './experiment-studio-scroll.util';
 
 @Component({
   selector: 'app-experiment-studio',
@@ -38,6 +39,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   private dashboardService = inject(ExperimentsDashboardService);
   public auth = inject(AuthService);
   private errorService = inject(ErrorService);
+  private viewportScroller = inject(ViewportScroller);
 
   // Public service for telemetry/ribbon signals
   public expStudioService = inject(ExperimentStudioService);
@@ -67,8 +69,10 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     void this.router.navigate([], {
       fragment: 'statistics-section',
       queryParamsHandling: 'preserve',
-    });
-    this.statisticPanel?.goToSection(section);
+    }).then(
+      () => this.scrollToDescriptiveStep(section),
+      () => this.scrollToDescriptiveStep(section),
+    );
   }
 
   private destroy$ = new Subject<void>();
@@ -124,6 +128,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   ngOnInit(): void {
+    this.viewportScroller.setOffset(() => [0, this.getSectionScrollOffset()]);
     this.checkSidebarCollapse();
     // Reset any lingering global errors when arriving on the studio
     this.errorService.clearError();
@@ -162,6 +167,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   ngOnDestroy(): void {
+    this.viewportScroller.setOffset([0, 0]);
     this.sectionObserver?.disconnect();
     this.destroy$.next();
     this.destroy$.complete();
@@ -217,7 +223,8 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     const target = document.getElementById(this.getScrollTargetId(fragment));
     if (!target) return;
     requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const top = Math.max(window.scrollY + target.getBoundingClientRect().top - this.getSectionScrollOffset(), 0);
+      window.scrollTo({ top, behavior: 'smooth' });
     });
   }
 
@@ -243,7 +250,15 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private getActiveSectionOffset(): number {
-    return 112 + (this.visiblePathologyAccessWarning() ? 96 : 0);
+    return this.getSectionScrollOffset();
+  }
+
+  private getSectionScrollOffset(): number {
+    return getExperimentStudioScrollOffset();
+  }
+
+  private scrollToDescriptiveStep(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
+    requestAnimationFrame(() => this.statisticPanel?.goToSection(section));
   }
 
   private isScrolledToPageBottom(): boolean {

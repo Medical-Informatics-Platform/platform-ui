@@ -6,6 +6,7 @@ import { PdfExportService } from '../../../services/pdf-export.service';
 import { of, Subject } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
+import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 
 describe('StatisticAnalysisPanelComponent', () => {
     let component: StatisticAnalysisPanelComponent;
@@ -480,6 +481,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         const { age } = configureRawSummary();
         const response$ = new Subject<unknown>();
         const scrollSpy = spyOn(window, 'scrollTo');
+        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            void Promise.resolve().then(() => callback(0));
+            return 0;
+        });
         mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
 
         component.onMissingActionChange(age, 'mean');
@@ -497,7 +502,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         setTimeout(() => {
             const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
             expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(processedHeader.getBoundingClientRect().top + window.scrollY - 96);
+            expect(scrollOptions.top).toBe(Math.max(processedHeader.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
 
             response$.next({
                 result: {
@@ -525,6 +530,26 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             expect(component.sectionOpen.processed).toBeTrue();
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+            done();
+        });
+    });
+
+    it('uses the same header-aware offset for every workflow subsection', (done) => {
+        configureRawSummary();
+        const scrollSpy = spyOn(window, 'scrollTo');
+        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            void Promise.resolve().then(() => callback(0));
+            return 0;
+        });
+
+        component.goToSection('filters');
+        fixture.detectChanges();
+
+        setTimeout(() => {
+            const filtersHeader = workflowSection('Filtering').querySelector('.workflow-section-header') as HTMLElement;
+            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
+            expect(scrollOptions.behavior).toBe('smooth');
+            expect(scrollOptions.top).toBe(Math.max(filtersHeader.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
             done();
         });
     });
@@ -599,6 +624,29 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(ageButtonText).toContain('10 datapoints');
         expect(ageButtonText).toContain('0 missing');
         expect(ageButtonText).not.toContain('Numerical');
+    });
+
+    it('marks only numeric summary tables for the compact no-scroll layout', () => {
+        const { age } = configureRawSummary();
+
+        const rawSection = workflowSection('Raw Data Summary');
+        const rawWrapper = rawSection.querySelector('.statistics-table-wrapper') as HTMLElement;
+        expect(rawWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeTrue();
+
+        component.onMissingActionChange(age, 'mean');
+        component.applyPreprocessing();
+        fixture.detectChanges();
+
+        const processedWrapper = workflowSection('Processed Data Summary').querySelector('.statistics-table-wrapper') as HTMLElement;
+        expect(processedWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeTrue();
+
+        const sexButton = (Array.from(workflowSection('Raw Data Summary').querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[])
+            .find((button) => button.textContent?.includes('Sex'));
+        sexButton?.click();
+        fixture.detectChanges();
+
+        const nominalWrapper = workflowSection('Raw Data Summary').querySelector('.statistics-table-wrapper') as HTMLElement;
+        expect(nominalWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeFalse();
     });
 
     it('filters raw statistics browser by variable label or code', () => {

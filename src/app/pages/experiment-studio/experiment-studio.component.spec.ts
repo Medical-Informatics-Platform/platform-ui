@@ -1,6 +1,7 @@
+import { ViewportScroller } from '@angular/common';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { ErrorService } from '../../services/error.service';
 import { ExperimentStudioService } from '../../services/experiment-studio.service';
@@ -36,6 +37,8 @@ class MockIntersectionObserver {
 describe('ExperimentStudioComponent sidebar tracking', () => {
   let fixture: ComponentFixture<ExperimentStudioComponent>;
   let component: ExperimentStudioComponent;
+  let router: Router;
+  let viewportScroller: jasmine.SpyObj<ViewportScroller>;
   let originalIntersectionObserver: typeof IntersectionObserver;
   let experimentStudioService: {
     isRunning: ReturnType<typeof signal<boolean>>;
@@ -57,6 +60,14 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
     MockIntersectionObserver.instances = [];
     window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver;
     setScrollState(0, 800, 5000);
+    viewportScroller = jasmine.createSpyObj<ViewportScroller>('ViewportScroller', [
+      'setOffset',
+      'getScrollPosition',
+      'scrollToPosition',
+      'scrollToAnchor',
+      'setHistoryScrollRestoration',
+    ]);
+    viewportScroller.getScrollPosition.and.returnValue([0, 0]);
 
     experimentStudioService = {
       isRunning: signal(false),
@@ -78,6 +89,7 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),
+        { provide: ViewportScroller, useValue: viewportScroller },
         { provide: ExperimentStudioService, useValue: experimentStudioService },
         { provide: ExperimentsDashboardService, useValue: { getExperiment: jasmine.createSpy('getExperiment') } },
         { provide: ErrorService, useValue: { error: signal(null), clearError: jasmine.createSpy('clearError') } },
@@ -89,6 +101,7 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
 
     fixture = TestBed.createComponent(ExperimentStudioComponent);
     component = fixture.componentInstance;
+    router = TestBed.inject(Router);
   });
 
   afterEach(() => {
@@ -137,6 +150,53 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
   it('maps the legacy studio-top fragment to the variables section', () => {
     expect((component as any).getScrollTargetId('studio-top')).toBe('variables-top');
     expect((component as any).getScrollTargetId('algorithm-section')).toBe('algorithm-section');
+  });
+
+  it('registers the header-aware router scroll offset while active', () => {
+    fixture.detectChanges();
+
+    const offsetFactory = viewportScroller.setOffset.calls.first().args[0] as () => [number, number];
+    expect(offsetFactory()).toEqual([0, 112]);
+
+    fixture.destroy();
+
+    expect(viewportScroller.setOffset).toHaveBeenCalledWith([0, 0]);
+  });
+
+  it('scrolls fragment targets below the fixed header', () => {
+    createSection('variables-top', 250);
+    setScrollState(300, 800, 5000);
+    spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 0;
+    });
+    const scrollSpy = spyOn(window, 'scrollTo');
+
+    (component as any).scrollToHash('variables-top');
+
+    expect(scrollSpy).toHaveBeenCalled();
+    expect(scrollSpy.calls.mostRecent().args[0] as ScrollToOptions).toEqual({ top: 438, behavior: 'smooth' });
+  });
+
+  it('waits for statistics fragment navigation before scrolling a nested descriptive step', async () => {
+    const statisticPanel = { goToSection: jasmine.createSpy('goToSection') };
+    (component as any).statisticPanel = statisticPanel;
+    const navigateSpy = spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+    spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 0;
+    });
+
+    component.goToDescriptiveStep('processed');
+
+    expect(statisticPanel.goToSection).not.toHaveBeenCalled();
+    await Promise.resolve();
+
+    expect(navigateSpy).toHaveBeenCalledWith([], {
+      fragment: 'statistics-section',
+      queryParamsHandling: 'preserve',
+    });
+    expect(statisticPanel.goToSection).toHaveBeenCalledWith('processed');
   });
 
   function createSection(id: string, top: number): HTMLElement {

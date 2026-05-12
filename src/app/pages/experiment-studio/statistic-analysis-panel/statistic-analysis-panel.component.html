@@ -172,7 +172,7 @@
                   }
                 </div>
 
-                <div class="table-wrapper statistics-table-wrapper">
+                <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType('raw', selectedBlock) === 'numeric'">
                   <table class="data-table pivot-table statistics-table">
                     <thead>
                       <tr>
@@ -717,7 +717,7 @@
                   }
                 </div>
 
-                <div class="table-wrapper statistics-table-wrapper">
+                <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType('processed', selectedBlock) === 'numeric'">
                   <table class="data-table pivot-table statistics-table">
                     <thead>
                       <tr>
