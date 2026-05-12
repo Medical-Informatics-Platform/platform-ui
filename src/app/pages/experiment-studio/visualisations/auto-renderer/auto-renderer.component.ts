@@ -24,7 +24,7 @@ export class AutoRendererComponent implements OnChanges {
 
   private lastKey: string | null = null;
 
-  ngOnChanges(changes: SimpleChanges) {
+  ngOnChanges(_changes: SimpleChanges) {
     if (!this.algorithm) {
       this.tableSpec.set(null);
       this.error.set(null);

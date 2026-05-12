@@ -184,18 +184,15 @@ export class ExperimentStudioService {
       if (!currentAlgo) return;
 
       // Read these to establish reactive dependencies
-      const _variables = this.selectedVariables();
-      const _covariates = this.selectedCovariates();
-      const _filters = this.selectedFilters();
-      const _filterLogic = this._filterLogic();
+      this.selectedVariables();
+      this.selectedCovariates();
+      this.selectedFilters();
+      this._filterLogic();
 
       // Check if the currently selected algorithm is still available
       const isStillAvailable = this.isAlgorithmAvailable(currentAlgo.name);
 
       if (!isStillAvailable) {
-        console.log(
-          `[ExperimentStudioService] Algorithm "${currentAlgo.name}" is no longer available — deselecting.`
-        );
         this.clearSelectedAlgorithm();
       }
     });
@@ -264,14 +261,6 @@ export class ExperimentStudioService {
 
         const model = active[0];
         this.selectedDataModel.set(model);
-
-        const converted = this.convertToD3Hierarchy(model);
-
-        // enrich variables
-        const enrichedVariables = converted.allVariables.map(v => ({
-          ...v,
-          supportedAlgos: this.algorithmEnabled(v.type ?? 'unknown')
-        }));
 
         this.selectedDataModel.set(model);
       });
@@ -516,10 +505,10 @@ export class ExperimentStudioService {
     // Explicitly read selection signals to establish reactive dependencies.
     // Without this, the computed only re-runs when backendAlgorithms() changes,
     // not when variable/covariate/filter selections change.
-    const _variables = this.selectedVariables();
-    const _covariates = this.selectedCovariates();
-    const _filters = this.selectedFilters();
-    const _filterLogic = this._filterLogic();
+    this.selectedVariables();
+    this.selectedCovariates();
+    this.selectedFilters();
+    this._filterLogic();
 
     // Hide quick-preview algorithms from the selection list.
     const hidden = new Set([
@@ -1102,9 +1091,6 @@ export class ExperimentStudioService {
     const requestBody = this.buildDescriptiveRequestBody(variableCodes, preprocessing);
 
     return this.submitTransientRequest(requestBody).pipe(
-      tap((response) => {
-        console.log("Raw descriptive overview response:", response);
-      }),
       map(resp => this.normalizeResponse("describe", resp)),
       catchError((error) => {
         console.error("Error fetching descriptive overview:", error);
@@ -1251,7 +1237,7 @@ export class ExperimentStudioService {
       this.availableDatasets.set([]);
       return;
     }
-    const { hierarchy, allVariables } = this.convertToD3Hierarchy(model);
+    const { allVariables } = this.convertToD3Hierarchy(model);
     const datasetVariable = allVariables.find(
       (variable: any) => String(variable?.code ?? '').toLowerCase() === 'dataset'
     );

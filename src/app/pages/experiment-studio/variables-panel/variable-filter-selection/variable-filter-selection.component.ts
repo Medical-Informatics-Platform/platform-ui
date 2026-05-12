@@ -75,7 +75,7 @@ export class VariableFilterSelectionComponent {
     }
   }
 
-  drop(event: CdkDragDrop<any[]>, listName: 'variables' | 'covariates') {
+  drop(event: CdkDragDrop<any[]>) {
     if (event.previousContainer === event.container) return;
 
     const item = event.previousContainer.data[event.previousIndex];

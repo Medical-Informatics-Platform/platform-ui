@@ -48,71 +48,11 @@
   transform: scale(1.02);
 }
 
-.branding-text {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.branding-text h1 {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--primary-color);
-  opacity: 0.8;
-  white-space: nowrap;
-}
-
-.branding-text p {
-  margin: 0.1rem 0 0;
-  font-size: 0.75rem;
-  opacity: 0.8;
-}
-
-/* NAVBAR (CENTER) */
-.navbar-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
-.navbar-wrapper>app-navbar {
-  max-width: 100%;
-}
-
 /* HEADER ACTIONS (right side) */
 .header-actions {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-/* THEME TOGGLE BUTTON */
-.theme-toggle-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: 16px;
-  transition: all 0.2s ease;
-}
-
-.theme-toggle-btn:hover {
-  background: var(--primary-color);
-  color: #fff;
-  border-color: var(--primary-color);
-  transform: rotate(15deg);
 }
 
 /* USER AREA */
@@ -175,14 +115,6 @@
     height: 46px;
   }
 
-  .branding-text h1 {
-    font-size: 1rem;
-  }
-
-  .branding-text p {
-    font-size: 0.7rem;
-  }
-
   .account-picture,
   .sign-in-btn img {
     width: 34px;
@@ -201,10 +133,6 @@
     gap: 0;
   }
 
-  .branding-text {
-    display: none !important;
-  }
-
   .branding {
     display: flex !important;
     gap: 0;
@@ -214,11 +142,4 @@
     display: flex !important;
   }
 
-  .navbar-wrapper {
-    flex: 1;
-    width: 100%;
-    justify-content: stretch;
-    margin-top: 0;
-    order: initial;
-  }
 }

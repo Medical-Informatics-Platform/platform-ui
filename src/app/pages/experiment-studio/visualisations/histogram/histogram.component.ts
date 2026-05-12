@@ -33,13 +33,8 @@ export class HistogramComponent implements OnChanges {
       return;
     }
 
-    const binsCount = this.data.bins.length;
-    const baseRect = container.parentElement?.getBoundingClientRect();
-    const baseWidth = baseRect?.width;
-    const baseHeight = baseRect?.height;
     createHistogram(this.data, container, {
       ...this.config,
-      skipEveryOtherLabel: binsCount > 6,
     }); // Call D3 rendering logic
 
   }

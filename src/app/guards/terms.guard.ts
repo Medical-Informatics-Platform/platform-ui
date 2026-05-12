@@ -13,7 +13,7 @@ export class TermsGuard implements CanActivate {
 
   constructor() { }
 
-  canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+  canActivate(_route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
     const currentAuthState = this.authService.authState();
     if (currentAuthState.status === 'authenticated' && this.termsService.hasAgreed(currentAuthState.user)) {
       return of(true);

@@ -22,7 +22,6 @@ export class DatasetSelectorComponent implements OnChanges {
 
 
   selectedDatasets = new Set<string>(); // Store selected datasets
-  private hasInitializedDatasets = false;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.datasets?.length) {
@@ -87,7 +86,6 @@ export class DatasetSelectorComponent implements OnChanges {
 
     if (requested.length > 0 || !this.autoSelectAll) {
       this.selectedDatasets = new Set(requested);
-      this.hasInitializedDatasets = true;
       return;
     }
 
@@ -95,11 +93,9 @@ export class DatasetSelectorComponent implements OnChanges {
     if (retained.length > 0) {
       this.selectedDatasets = new Set(retained);
       this.emitSelectedDatasets();
-      this.hasInitializedDatasets = true;
       return;
     }
 
-    this.hasInitializedDatasets = true;
     this.preselectAllDatasets();
   }
 
