@@ -12,7 +12,6 @@ export function createHistogram(
   container: HTMLElement,
   config: {
     color?: string;
-    skipEveryOtherLabel?: boolean;
   } = {}
 ): void {
   const isDark = false;
@@ -23,10 +22,6 @@ export function createHistogram(
   const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
 
   const { bins, counts } = data;
-  const {
-    skipEveryOtherLabel = false,
-  } = config;
-
   // Base container dimensions
   const containerRect = container.getBoundingClientRect();
   const containerWidth = containerRect.width || 0;
@@ -165,7 +160,7 @@ export function createHistogram(
     .attr('height', (d) => innerHeight - yScale(d))
     .attr('fill', barColor)
     .attr('opacity', 0.85)
-    .on('mouseover', function (event, d) {
+    .on('mouseover', function (_event, d) {
       d3.select(this).attr('opacity', 1).attr('filter', 'brightness(1.1)');
       const i = counts.indexOf(d);
       const binLabel = bins[i];

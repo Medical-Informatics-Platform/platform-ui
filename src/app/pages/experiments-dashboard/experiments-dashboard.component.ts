@@ -63,28 +63,8 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   });
   private destroy$ = new Subject<void>();
 
-  constructor() { }
-
-  hasDeepLink = signal(false);
-
-  ngOnInit(): void {
-    this.errorService.clearError();
-    this.dismissedPathologyWarning.set(false);
-    this.experimentStudioService.getAllDataModels()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe();
-
-    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
-      const expId = params.get('experiment');
-      if (expId) {
-        this.sharedExperimentId.set(expId);
-        this.hasDeepLink.set(true);
-      }
-    });
-  }
-
-  private selectSharedExperimentEffect = effect(
-    () => {
+  constructor() {
+    effect(() => {
       const targetId = this.sharedExperimentId();
       const list = this.experimentsService.experiments();
 
@@ -122,8 +102,26 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
       this.compareIds.set([]);
 
       this.sharedExperimentId.set(null);
-    }
-  );
+    });
+  }
+
+  hasDeepLink = signal(false);
+
+  ngOnInit(): void {
+    this.errorService.clearError();
+    this.dismissedPathologyWarning.set(false);
+    this.experimentStudioService.getAllDataModels()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe();
+
+    this.route.queryParamMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
+      const expId = params.get('experiment');
+      if (expId) {
+        this.sharedExperimentId.set(expId);
+        this.hasDeepLink.set(true);
+      }
+    });
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();

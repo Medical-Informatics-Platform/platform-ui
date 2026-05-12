@@ -3,7 +3,7 @@
 The Platform UI for the Medical Informatics Platform (MIP). An Angular 21 standalone frontend application for composing, running, and analyzing data science experiments, featuring algorithmic configurations. It integrates with a backend over `/services` (proxied in dev) and uses Keycloak for robust OAuth2 authentication.
 
 ## Highlights
-- **Experiment Studio** (`src/app/pages/experiment-studio`): select data models/datasets, pick variables and filters (QueryBuilder), configure algorithms, run jobs, view charts/tables.
+- **Experiment Studio** (`src/app/pages/experiment-studio`): select data models/datasets, pick variables and filters, configure algorithms, run jobs, view charts/tables.
 - **Experiments Dashboard** (`src/app/pages/experiments-dashboard`): list/search/paginate, share links, compare results side by side, export to PDF.
 - **Auth**: Keycloak-based session via `/services/activeUser`; guard protects routes and redirects to login if unauthenticated.
 
@@ -53,8 +53,8 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 - `src/app/pages/experiment-studio/` – variables panel, filter modal, algorithm panel, visualisations (charts/histograms/bubble).
 - `src/app/pages/experiments-dashboard/` – list/search, detail, compare, mapper.
 - `src/app/pages/account-page/` – basic profile view.
-- `src/app/pages/shared/` – header/footer/navbar/accordion/spinner utilities.
-- `src/styles.css` – global styles and QueryBuilder theming; assets in `src/assets/`.
+- `src/app/pages/shared/` – header/footer/spinner utilities.
+- `src/styles.css` – global styles; assets in `src/assets/`.
 - `Dockerfile` / `nginx.conf.template` – container build and runtime proxy (`PLATFORM_BACKEND_SERVER`, `PLATFORM_BACKEND_CONTEXT` envs).
 
 

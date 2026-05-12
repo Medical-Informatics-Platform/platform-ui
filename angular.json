@@ -20,7 +20,6 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [
               "src/assets",
-              "src/favicon.ico",
               {
                 "glob": "**/*",
                 "input": "public"
@@ -29,14 +28,9 @@
             "styles": [
               "@angular/material/prebuilt-themes/azure-blue.css",
               "node_modules/@fortawesome/fontawesome-free/css/all.min.css",
-              "node_modules/jQuery-QueryBuilder/dist/css/query-builder.default.css",
               "src/styles.css"
             ],
-            "scripts": [
-              "node_modules/jquery/dist/jquery.min.js",
-              "node_modules/jquery-ui-dist/jquery-ui.min.js",
-              "node_modules/jQuery-QueryBuilder/dist/js/query-builder.standalone.js"
-            ],
+            "scripts": [],
             "allowedCommonJsDependencies": [
               "canvg",
               "core-js",

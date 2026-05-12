@@ -41,9 +41,6 @@ export function buildGroupedBarChart(
     const remainingCategories = [...allCategories].filter(k => !orderedCategories.includes(k));
     const categoryOrder = [...orderedCategories, ...remainingCategories];
 
-    // Category labels for legend
-    const categoryLabels = categoryOrder.map(k => enumMap?.get(k) ?? k);
-
     // Pre-calculate totals for each dataset
     const datasetTotals: Record<string, number> = {};
     for (const entry of variableData) {

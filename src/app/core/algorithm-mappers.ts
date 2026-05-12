@@ -10,9 +10,9 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "ttest_paired": "Statistical Tests",
   "linear_regression": "Regression",
   "logistic_regression": "Regression",
-  "lmm": "Mixed Models",
-  "glmm_binary": "Mixed Models",
-  "glmm_ordinal": "Mixed Models",
+  "lmm": "Regression",
+  "glmm_binary": "Regression",
+  "glmm_ordinal": "Regression",
   "naive_bayes_categorical": "Classification",
   "naive_bayes_gaussian": "Classification",
   "kmeans": "Clustering",
@@ -31,14 +31,6 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "linear_svm": "Classification",
   "longitudinal_transformer": "Transformers",
 };
-
-function guessVariableType(ioField?: { types?: string[] }): string {
-  if (!ioField) return "None";
-  if (ioField?.types?.includes('int')) return "Numerical";
-  if (ioField?.types?.includes('real')) return "Numerical";
-  if (ioField?.types?.includes('text')) return "Nominal";
-  return "Any";
-}
 
 function normalizeBool(value: boolean | string | undefined | null): boolean {
   if (typeof value === 'boolean') return value;

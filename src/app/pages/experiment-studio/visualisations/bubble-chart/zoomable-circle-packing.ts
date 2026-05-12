@@ -202,7 +202,6 @@ export function createZoomableCirclePacking(
   // Create a perfectly square pack layout based on the minimum dimension
   const packSize = size;
   const packHeight = packSize;
-  const topMargin = 0; // Handled by zoom radius buffer now
 
   const root = d3.pack<any>().size([packSize, packHeight]).padding(3)(
     d3.hierarchy<any>(data, (d: any) => d.children)
