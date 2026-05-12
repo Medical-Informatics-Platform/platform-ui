@@ -1,0 +1,133 @@
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { AuthService } from '../../../services/auth.service';
+import { ErrorService } from '../../../services/error.service';
+import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
+import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { SessionStorageService } from '../../../services/session-storage.service';
+import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
+import { AlgorithmPanelComponent } from './algorithm-panel.component';
+
+describe('AlgorithmPanelComponent', () => {
+  let fixture: ComponentFixture<AlgorithmPanelComponent>;
+  let experimentStudioService: {
+    selectedAlgorithm: ReturnType<typeof signal<AlgorithmConfig | null>>;
+    selectedVariables: ReturnType<typeof signal<any[]>>;
+    selectedCovariates: ReturnType<typeof signal<any[]>>;
+    selectedFilters: ReturnType<typeof signal<any[]>>;
+    selectedDatasets: ReturnType<typeof signal<string[]>>;
+    selectedDataModel: ReturnType<typeof signal<any>>;
+    algorithmConfigurations: ReturnType<typeof signal<Record<string, any>>>;
+    availableGroupedAlgorithms: ReturnType<typeof signal<Record<string, AlgorithmConfig[]>>>;
+    backendAlgorithms: ReturnType<typeof signal<Record<string, AlgorithmConfig>>>;
+    isRunning: ReturnType<typeof signal<boolean>>;
+    currentExperimentUUID: ReturnType<typeof signal<string | null>>;
+    lastUsedAlgorithm: ReturnType<typeof signal<string>>;
+    availableDatasets: ReturnType<typeof signal<any[]>>;
+    getCategoricalEnumMaps: jasmine.Spy;
+    isCrossValidationOnly: jasmine.Spy;
+    getCrossValidationBase: jasmine.Spy;
+    getCrossValidationVariant: jasmine.Spy;
+    getTransformationBase: jasmine.Spy;
+    getTransformationVariant: jasmine.Spy;
+    hasAppliedDescriptivePreprocessing: jasmine.Spy;
+    getAlgorithmRequirementOverrides: jasmine.Spy;
+    isAlgorithmAvailable: jasmine.Spy;
+    setAlgorithm: jasmine.Spy;
+    setRunning: jasmine.Spy;
+    runSelectedAlgorithmTransient: jasmine.Spy;
+    runSelectedAlgorithm: jasmine.Spy;
+    getEffectivePreprocessingSummary: jasmine.Spy;
+  };
+
+  const algorithm: AlgorithmConfig = {
+    name: 'flat_config_algorithm',
+    label: 'Flat Config Algorithm',
+    description: 'Algorithm with more than three configuration fields.',
+    category: 'Test',
+    requiredVariable: [],
+    covariate: [],
+    configSchema: [
+      { key: 'first', label: 'First', type: 'number', default: 1 },
+      { key: 'second', label: 'Second', type: 'number', default: 2 },
+      { key: 'third', label: 'Third', type: 'number', default: 3 },
+      { key: 'fourth', label: 'Fourth', type: 'number', default: 4 },
+    ],
+    isDisabled: false,
+  };
+
+  beforeEach(async () => {
+    experimentStudioService = {
+      selectedAlgorithm: signal<AlgorithmConfig | null>(algorithm),
+      selectedVariables: signal<any[]>([{ code: 'y', label: 'Y variable' }]),
+      selectedCovariates: signal<any[]>([]),
+      selectedFilters: signal<any[]>([]),
+      selectedDatasets: signal<string[]>([]),
+      selectedDataModel: signal<any>(null),
+      algorithmConfigurations: signal<Record<string, any>>({}),
+      availableGroupedAlgorithms: signal<Record<string, AlgorithmConfig[]>>({ Test: [algorithm] }),
+      backendAlgorithms: signal<Record<string, AlgorithmConfig>>({ flat_config_algorithm: algorithm }),
+      isRunning: signal(false),
+      currentExperimentUUID: signal<string | null>(null),
+      lastUsedAlgorithm: signal(''),
+      availableDatasets: signal<any[]>([]),
+      getCategoricalEnumMaps: jasmine.createSpy('getCategoricalEnumMaps').and.returnValue({}),
+      isCrossValidationOnly: jasmine.createSpy('isCrossValidationOnly').and.returnValue(false),
+      getCrossValidationBase: jasmine.createSpy('getCrossValidationBase').and.returnValue(null),
+      getCrossValidationVariant: jasmine.createSpy('getCrossValidationVariant').and.returnValue(null),
+      getTransformationBase: jasmine.createSpy('getTransformationBase').and.returnValue(null),
+      getTransformationVariant: jasmine.createSpy('getTransformationVariant').and.returnValue(null),
+      hasAppliedDescriptivePreprocessing: jasmine.createSpy('hasAppliedDescriptivePreprocessing').and.returnValue(true),
+      getAlgorithmRequirementOverrides: jasmine.createSpy('getAlgorithmRequirementOverrides').and.returnValue(null),
+      isAlgorithmAvailable: jasmine.createSpy('isAlgorithmAvailable').and.returnValue(true),
+      setAlgorithm: jasmine.createSpy('setAlgorithm').and.callFake((next: AlgorithmConfig) => {
+        experimentStudioService.selectedAlgorithm.set(next);
+      }),
+      setRunning: jasmine.createSpy('setRunning'),
+      runSelectedAlgorithmTransient: jasmine.createSpy('runSelectedAlgorithmTransient'),
+      runSelectedAlgorithm: jasmine.createSpy('runSelectedAlgorithm'),
+      getEffectivePreprocessingSummary: jasmine.createSpy('getEffectivePreprocessingSummary').and.returnValue(null),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AlgorithmPanelComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ExperimentStudioService, useValue: experimentStudioService },
+        { provide: ErrorService, useValue: { clearError: jasmine.createSpy('clearError') } },
+        { provide: AuthService, useValue: { currentUser: null } },
+        { provide: ResultsPdfExportService, useValue: { exportExperimentPdf: jasmine.createSpy('exportExperimentPdf') } },
+        { provide: RuntimeEnvService, useValue: { mipVersion: 'test' } },
+        { provide: SessionStorageService, useValue: {} },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(AlgorithmPanelComponent);
+    fixture.detectChanges();
+  });
+
+  it('renders all algorithm configuration fields without an advanced toggle', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const fields = nativeElement.querySelectorAll('.config-field');
+
+    expect(fields.length).toBe(4);
+    expect(nativeElement.textContent).toContain('Fourth');
+    expect(nativeElement.textContent).not.toContain('Show advanced configuration');
+    expect(nativeElement.textContent).not.toContain('Hide advanced configuration');
+  });
+
+  it('keeps fields after the old advanced cutoff in the persisted form config', async () => {
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    component.configForm().get('fourth')?.setValue('42');
+
+    expect(experimentStudioService.algorithmConfigurations()['flat_config_algorithm']['fourth']).toBe(42);
+  });
+});

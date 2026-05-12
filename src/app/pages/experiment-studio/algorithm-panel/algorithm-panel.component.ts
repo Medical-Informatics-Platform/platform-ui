@@ -136,7 +136,6 @@ export class AlgorithmPanelComponent {
 
   // UI toggle: show only enabled algorithms
   readonly showOnlyActive = signal(false);
-  readonly advancedConfigOpen = signal(false);
   readonly hasAnyVisibleAlgorithms = computed(() => {
     return this.filteredAlgorithmCategories().some(c => c.algorithms?.length > 0);
   });
@@ -217,10 +216,8 @@ export class AlgorithmPanelComponent {
       const algorithm = this.selectedAlgorithm();
       if (!algorithm) {
         this.crossValidationEnabled.set(false);
-        this.advancedConfigOpen.set(false);
         return;
       }
-      this.advancedConfigOpen.set(false);
       if (this.experimentStudioService.isCrossValidationOnly(algorithm.name)) {
         this.crossValidationEnabled.set(true);
         return;
@@ -502,14 +499,6 @@ export class AlgorithmPanelComponent {
   readonly outputSchema = computed(() =>
     getOutputSchema(this.selectedAlgorithm()?.name ?? '') ?? []
   );
-
-  readonly advancedConfigCount = computed(() => Math.max(0, this.enrichedConfigSchema().length - 3));
-
-  toggleAdvancedConfig(): void {
-    this.advancedConfigOpen.update(open => !open);
-  }
-
-
 
   readonly filteredAlgorithmCategories = computed(() => {
     const grouped = this.experimentStudioService.availableGroupedAlgorithms();

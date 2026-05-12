@@ -46,10 +46,10 @@
       <div class="studio-rail-scroll">
         <div class="studio-rail-section">
           <div class="studio-rail-section-title"
-            [class.is-active]="activeSection() === 'variables-top' || activeSection() === 'data-model-visualization'">
+            [class.is-active]="activeSection() === 'variables-top'">
             Studio
           </div>
-          <a routerLink="." [fragment]="'studio-top'" queryParamsHandling="preserve" class="studio-rail-item"
+          <a routerLink="." [fragment]="'variables-top'" queryParamsHandling="preserve" class="studio-rail-item"
             [class.is-active]="activeSection() === 'variables-top'"
             [attr.aria-current]="activeSection() === 'variables-top' ? 'page' : null">
             <span class="studio-rail-icon"><i class="fas fa-database"></i></span>
@@ -119,8 +119,9 @@
     <div class="studio-main" [class.sidebar-collapsed]="sidebarCollapsed()">
       <!-- TOP: Variables -->
       <section
+        id="variables-top"
         class="studio-section studio-section--variables"
-        [class.is-current]="!isDataReviewReady() || activeSection() === 'variables-top' || activeSection() === 'data-model-visualization'"
+        [class.is-current]="!isDataReviewReady() || activeSection() === 'variables-top'"
         [class.is-complete]="isDataReviewReady()"
       >
         <app-variables-panel></app-variables-panel>

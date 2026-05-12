@@ -988,9 +988,17 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         ? element.querySelector<HTMLElement>('.workflow-section-header') ?? element
         : element;
 
+    if (section === 'processed') {
+      window.scrollTo({
+        top: target.getBoundingClientRect().top + window.scrollY - 96,
+        behavior: 'smooth',
+      });
+      return;
+    }
+
     target.scrollIntoView({
       behavior: 'smooth',
-      block: section === 'processed' ? 'center' : 'start',
+      block: 'start',
       inline: 'nearest',
     });
   }
