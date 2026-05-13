@@ -17,7 +17,6 @@ import {
   ViewChild,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { createZoomableCirclePacking } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 
@@ -25,7 +24,6 @@ import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio
   selector: 'app-bubble-chart',
   templateUrl: './bubble-chart.component.html',
   styleUrls: ['./bubble-chart.component.css'],
-  imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 
@@ -69,15 +67,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
 
   readonly error = signal<string | null>(null); // Holds the current error message
-  readonly DEFAULT_PALETTE = {
-    variable: '#2b33e9',     // Brand Blue (--variable-color)
-    covariate: '#7f9ce8',    // MIP Light Blue
-    filter: '#dfefe4',       // MIP Light Green
-    selected: '#ffba08',     // MIP Orange for highlights
-    groupStart: '#dfefe4',   // Light green for groups
-    groupEnd: '#7f9ce8',     // Light Blue for groups
-  };
-
   readonly COLORBLIND_PALETTE = {
     variable: '#ffba08',     // MIP golden yellow (from portal-frontend)
     covariate: '#bba66f',    // MIP tan/beige (from portal-frontend)
@@ -87,8 +76,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     groupEnd: '#3340e8',     // Deep blue (from portal-frontend)
   };
 
-  colorMode: 'default' | 'colorBlind' | 'custom' = 'default';
-
   colors: {
     variable: string;
     covariate: string;
@@ -96,59 +83,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     selected: string;
     groupStart: string;
     groupEnd: string;
-  } = { ...this.DEFAULT_PALETTE };
-
-  readonly showSettings = signal(false);
-
-  toggleSettings(): void {
-    this.showSettings.update((open) => !open);
-  }
-
-  applyColorMode(mode: 'default' | 'colorBlind' | 'custom'): void {
-    this.colorMode = mode;
-    if (mode === 'default') {
-      this.colors = { ...this.DEFAULT_PALETTE };
-      document.body.classList.remove('colorblind-mode');
-    } else if (mode === 'colorBlind') {
-      this.colors = { ...this.COLORBLIND_PALETTE };
-      document.body.classList.add('colorblind-mode');
-    } else {
-      document.body.classList.remove('colorblind-mode');
-    }
-    this.saveSettings();
-    this.onColorChange();
-  }
-
-  private readonly STORAGE_KEY = 'bubble_chart_colors';
-
-  private saveSettings(): void {
-    const settings = {
-      mode: this.colorMode,
-      colors: this.colors
-    };
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
-  }
-
-  private loadSettings(): void {
-    const saved = localStorage.getItem(this.STORAGE_KEY);
-    if (saved) {
-      try {
-        const settings = JSON.parse(saved);
-        if (settings.mode) {
-          this.colorMode = settings.mode;
-          // Apply colorblind class if mode was saved as colorBlind
-          if (settings.mode === 'colorBlind') {
-            document.body.classList.add('colorblind-mode');
-          } else {
-            document.body.classList.remove('colorblind-mode');
-          }
-        }
-        if (settings.colors) this.colors = { ...settings.colors };
-      } catch (e) {
-        console.error('Failed to load chart settings', e);
-      }
-    }
-  }
+  } = { ...this.COLORBLIND_PALETTE };
 
   constructor(
     private elementRef: ElementRef,
@@ -168,7 +103,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   }
 
   ngOnInit(): void {
-    this.loadSettings();
     this.renderChart();
   }
 
@@ -321,13 +255,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     } else {
       console.warn('refreshColorsFn not ready yet.');
     }
-  }
-
-  onColorChange(): void {
-    if (this.refreshColorsFn) {
-      this.refreshColorsFn(this.buildRefreshOptions());
-    }
-    this.saveSettings();
   }
 
   private buildRefreshOptions(): {
