@@ -24,12 +24,12 @@
   --studio-card-header-border: rgba(43, 51, 233, 0.08);
 
   /* Low Profile Semantic Colors */
-  --covariate-color: #ccb692;
-  /* Desaturated Sand */
-  --filter-color: #94a3b8;
-  /* Muted Slate */
-  --variable-color: #2b33e9;
-  /* Brand Blue */
+  --covariate-color: #bba66f;
+  /* Color-blind default tan/beige */
+  --filter-color: #483300;
+  /* Color-blind default dark brown */
+  --variable-color: #ffba08;
+  /* Color-blind default golden yellow */
 
   --chart-label-color: #334155;
   /* Darker for better visibility */
@@ -52,16 +52,6 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --header-height: 64px;
-}
-
-/* Colorblind Mode Overrides (matches portal-frontend colors) */
-body.colorblind-mode {
-  --variable-color: #ffba08;
-  /* MIP golden yellow */
-  --covariate-color: #bba66f;
-  /* MIP tan/beige */
-  --filter-color: #483300;
-  /* MIP dark brown */
 }
 
 html,
