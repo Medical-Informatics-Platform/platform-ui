@@ -109,7 +109,6 @@ export class VariablesPanelComponent implements OnDestroy {
   errorMessage = signal<string | null>(null);
   isExporting = signal(false);
   refreshKey = signal(0);
-  histogramBins = signal<number | null>(null);
   metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
@@ -462,8 +461,6 @@ export class VariablesPanelComponent implements OnDestroy {
     this.histogramVariants.set([]);
     this.selectedHistogramVariantKey.set(null);
     this.groupHistogramMeta.set(null);
-    this.histogramBins.set(null); // Reset bins on new selection
-
     if (!node) {
       this.isLoadingHistogram.set(false);
       this.errorMessage.set('No variable selected.');
@@ -619,16 +616,6 @@ export class VariablesPanelComponent implements OnDestroy {
     }
   }
 
-  onBinsChange(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    const bins = value ? parseInt(value, 10) : null;
-    this.histogramBins.set(bins);
-
-    if (this.selectedNode) {
-      this.queueHistogramRequest([this.selectedNode.code], this.selectedNode.label, bins);
-    }
-  }
-
   getPathNodes(node: any): Array<{ code: string; label: string }> {
     const code = node?.code;
     if (!code) {
@@ -680,12 +667,6 @@ export class VariablesPanelComponent implements OnDestroy {
 
   showGroupVariableSelectionMessage(): boolean {
     return !!this.groupHistogramData() && this.groupHistogramMeta()?.hasGroups === false;
-  }
-
-  showBinSelector(): boolean {
-    if (!this.selectedNode || !this.selectedNode.type) return false;
-    const type = String(this.selectedNode.type).toLowerCase();
-    return ['real', 'integer', 'int'].includes(type);
   }
 
   async exportHistogramPdf(): Promise<void> {

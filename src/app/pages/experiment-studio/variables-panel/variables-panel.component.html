@@ -134,14 +134,6 @@
           <div class="histogram-tab-content">
             <div class="histogram-actions-bar">
               <div class="histogram-actions-group">
-                @if (showBinSelector()) {
-                <div class="bin-selector">
-                  <label for="bins-input">Bins:</label>
-                  <input id="bins-input" type="number" min="1" max="100" [class.disabled]="isLoadingHistogram()"
-                    [disabled]="isLoadingHistogram()" [value]="histogramBins() || ''" (change)="onBinsChange($event)"
-                    placeholder="Auto">
-                </div>
-                }
                 @if (!groupHistogramData() && histogramVariants().length > 1) {
                 <div class="bin-selector">
                   <label for="histogram-variant-select">View:</label>
