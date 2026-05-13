@@ -1,0 +1,217 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+.ontology-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text-main, #0f172a);
+}
+
+.ontology-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 36%) minmax(320px, 64%);
+  min-height: 0;
+  flex: 1;
+}
+
+.tree-pane,
+.contents-pane {
+  min-width: 0;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.tree-pane,
+.contents-pane {
+  border-right: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.pane-title {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  z-index: 1;
+}
+
+.pane-title small {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.tree-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.9);
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree-row:hover,
+.tree-row:focus-visible,
+.tree-row.selected {
+  background: #eef2ff;
+  outline: none;
+}
+
+.tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+.tree-toggle .fa-circle {
+  color: #cbd5e1;
+  font-size: 0.35rem;
+}
+
+.tree-label {
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-count {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.content-section-title {
+  padding: 12px 12px 6px;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.content-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.95);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.content-row:hover,
+.content-row:focus-visible,
+.content-row.selected {
+  background: #eef2ff;
+  outline: none;
+}
+
+.row-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.row-label {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta,
+.row-description {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-badge,
+.unit-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.type-badge {
+  background: #dfefe4;
+  color: #14532d;
+}
+
+.unit-badge {
+  background: #fff7ed;
+  color: #9a3412;
+  text-transform: none;
+}
+
+.search-empty,
+.empty-state {
+  padding: 12px;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 1000px) {
+  .ontology-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tree-pane,
+  .contents-pane {
+    min-height: 260px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  }
+}

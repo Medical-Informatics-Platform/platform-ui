@@ -1,0 +1,8 @@
+<div class="collapsible-tree-browser">
+  <div class="chart-shell">
+    <div #chartCanvas class="chart-canvas" aria-label="Collapsible metadata hierarchy"></div>
+    @if (error()) {
+    <div class="tree-error" role="status">{{ error() }}</div>
+    }
+  </div>
+</div>
