@@ -617,7 +617,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(text).toContain('Categorical');
         expect(text).toContain('Age');
         expect(text).toContain('Sex');
-        expect(text).toContain('Export');
+        expect(text).toContain('PDF');
         expect(text).toContain('CSV');
         const variableButtons = Array.from(workspace.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
         const ageButtonText = variableButtons.find((button) => button.textContent?.includes('Age'))?.textContent ?? '';
