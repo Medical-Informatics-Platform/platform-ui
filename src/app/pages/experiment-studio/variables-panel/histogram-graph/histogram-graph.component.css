@@ -9,8 +9,7 @@
   flex-grow: 1;
   height: 100%;
   min-height: 450px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .histogram-graph-full {
@@ -22,7 +21,7 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-  padding: 10px;
+  padding: 8px 10px 16px;
   box-sizing: border-box;
   overflow: hidden;
 }
