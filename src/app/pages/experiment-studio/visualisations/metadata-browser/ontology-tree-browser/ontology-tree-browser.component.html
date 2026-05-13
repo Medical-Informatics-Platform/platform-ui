@@ -1,0 +1,82 @@
+<div class="ontology-browser">
+  <div class="ontology-layout">
+    <section class="tree-pane" aria-label="Metadata hierarchy">
+      <div class="pane-title">Hierarchy</div>
+      <div class="tree" role="tree" aria-label="Pathology metadata tree">
+        @for (row of visibleTreeRows(); track row.group.id; let i = $index) {
+        <button
+          #treeRowButton
+          type="button"
+          class="tree-row"
+          role="treeitem"
+          [class.selected]="row.selected"
+          [attr.aria-expanded]="row.hasChildren ? row.expanded : null"
+          [attr.tabindex]="activeTreeIndex() === i ? 0 : -1"
+          [style.padding-left.px]="treePadding(row.depth)"
+          (click)="selectGroup(row.group)"
+          (keydown)="onTreeKeydown($event, row, i)"
+        >
+          <span class="tree-toggle" (click)="row.hasChildren ? toggleGroup(row.group, $event) : null">
+            @if (row.hasChildren) {
+            <i [class]="row.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" aria-hidden="true"></i>
+            } @else {
+            <i class="fas fa-circle" aria-hidden="true"></i>
+            }
+          </span>
+          <span class="tree-label">{{ row.group.label }}</span>
+          <span class="tree-count">{{ row.group.totalVariableCount }}</span>
+        </button>
+        }
+      </div>
+    </section>
+
+    <section class="contents-pane" aria-label="Selected group contents">
+      <div class="pane-title">
+        <span>{{ selectedGroup().label }}</span>
+        <small>{{ selectedGroup().directGroupCount }} groups · {{ selectedGroup().directVariableCount }} direct variables</small>
+      </div>
+
+      @if (!selectedChildGroups().length && !selectedVariables().length) {
+      <div class="empty-state">No child groups or direct variables.</div>
+      }
+
+      @if (selectedChildGroups().length) {
+      <div class="content-section-title">Child groups</div>
+      @for (group of selectedChildGroups(); track group.id) {
+      <button type="button" class="content-row group-row" (click)="selectGroup(group)">
+        <span class="row-main">
+          <span class="row-label">{{ group.label }}</span>
+          <span class="row-meta">{{ group.directGroupCount }} groups · {{ group.totalVariableCount }} variables</span>
+        </span>
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+      </button>
+      }
+      }
+
+      @if (selectedVariables().length) {
+      <div class="content-section-title">Direct variables</div>
+      @for (variable of selectedVariables(); track variable.id) {
+      <button
+        type="button"
+        class="content-row variable-row"
+        [class.selected]="isVariableSelected(variable.id)"
+        (click)="selectVariable(variable)"
+        (dblclick)="openVariable(variable)"
+      >
+        <span class="row-main">
+          <span class="row-label">{{ variable.label }}</span>
+          @if (variable.description) {
+          <span class="row-description">{{ variable.description }}</span>
+          }
+        </span>
+        <span class="type-badge">{{ variable.type }}</span>
+        @if (variable.units) {
+        <span class="unit-badge">{{ variable.units }}</span>
+        }
+      </button>
+      }
+      }
+    </section>
+
+  </div>
+</div>

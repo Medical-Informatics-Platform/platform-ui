@@ -1,0 +1,161 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+.collapsible-tree-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
+  color: #0f172a;
+}
+
+.chart-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.tree-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #64748b;
+  font-size: 0.84rem;
+  text-align: center;
+}
+
+:host ::ng-deep .collapsible-tree-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  background:
+    linear-gradient(rgba(226, 232, 240, 0.48) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.48) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+:host ::ng-deep .collapsible-tree-svg:active {
+  cursor: grabbing;
+}
+
+:host ::ng-deep .tree-link {
+  fill: none;
+  stroke: #cbd5e1;
+  stroke-width: 1.7px;
+}
+
+:host ::ng-deep .collapsible-node {
+  cursor: pointer;
+  outline: none;
+}
+
+:host ::ng-deep .collapsible-node .node-card {
+  fill: #ffffff;
+  stroke: #dbe3ef;
+  stroke-width: 1px;
+  filter: url(#collapsible-node-glow);
+}
+
+:host ::ng-deep .collapsible-node.group-node .node-card {
+  fill: #f8fafc;
+}
+
+:host ::ng-deep .collapsible-node.variable-node .node-card {
+  fill: #ffffff;
+}
+
+:host ::ng-deep .collapsible-node:hover .node-card,
+:host ::ng-deep .collapsible-node:focus-visible .node-card {
+  stroke: #2b33e9;
+  stroke-width: 1.8px;
+}
+
+:host ::ng-deep .collapsible-node.highlighted .node-card {
+  fill: #eef2ff;
+  stroke: #2b33e9;
+  stroke-width: 2px;
+}
+
+:host ::ng-deep .collapsible-node.selected-variable .node-card {
+  fill: #fff7ed;
+  stroke: #ffba08;
+}
+
+:host ::ng-deep .collapsible-node.selected-covariate .node-card {
+  fill: #eff6ff;
+  stroke: #7f9ce8;
+}
+
+:host ::ng-deep .node-anchor {
+  fill: #94a3b8;
+}
+
+:host ::ng-deep .group-node .node-anchor {
+  fill: #2b33e9;
+}
+
+:host ::ng-deep .variable-node .node-anchor {
+  fill: #16a34a;
+}
+
+:host ::ng-deep .node-label {
+  fill: #0f172a;
+  font-size: 11px;
+  font-weight: 760;
+  pointer-events: none;
+}
+
+:host ::ng-deep .node-meta {
+  fill: #64748b;
+  font-size: 9px;
+  font-weight: 620;
+  pointer-events: none;
+}
+
+:host ::ng-deep .node-chevron {
+  fill: #64748b;
+  font-size: 15px;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+:host ::ng-deep .collapsible-node.collapsed .node-chevron {
+  fill: #2b33e9;
+}
+
+:host ::ng-deep .collapsible-node.expanded .node-chevron {
+  fill: #64748b;
+}
+
+::ng-deep .collapsible-tree-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}
