@@ -250,7 +250,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private getActiveSectionOffset(): number {
-    return this.getSectionScrollOffset();
+    return this.getSectionScrollOffset() + 100;
   }
 
   private getSectionScrollOffset(): number {

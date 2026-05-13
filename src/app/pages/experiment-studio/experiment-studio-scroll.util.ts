@@ -1,5 +1,5 @@
 const FALLBACK_HEADER_HEIGHT = 64;
-const SECTION_SCROLL_GAP = 48;
+const SECTION_SCROLL_GAP = 80;
 
 function cssPixelValue(value: string, fallback: number): number {
   const parsed = Number.parseFloat(value);
