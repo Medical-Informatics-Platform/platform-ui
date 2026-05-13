@@ -41,10 +41,56 @@
         <!-- Data model visualization -->
         <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
           @if (selectedDataModel() && d3Data) {
-          <app-bubble-chart [d3Data]="d3Data" [highlightNode]="highlightNode" [selectedVariables]="selectedVariables"
-            [selectedCovariates]="selectedCovariates"
-            (selectedNodeChange)="onBubbleNodeSelected($event)" (nodeDoubleClicked)="onNodeDoubleClicked($event)">
-          </app-bubble-chart>
+          <div class="metadata-browser-shell">
+            <div class="metadata-browser-switcher" role="group" aria-label="Metadata browser view">
+              @for (mode of metadataBrowserModes; track mode.value) {
+              <button
+                type="button"
+                class="metadata-mode-btn"
+                [class.active]="metadataBrowserMode() === mode.value"
+                [attr.aria-pressed]="metadataBrowserMode() === mode.value"
+                [title]="mode.title"
+                (click)="setMetadataBrowserMode(mode.value)"
+              >
+                <i [class]="mode.icon" aria-hidden="true"></i>
+                <span>{{ mode.label }}</span>
+              </button>
+              }
+            </div>
+
+            <div class="metadata-browser-content">
+              @switch (metadataBrowserMode()) {
+                @case ('ontology') {
+                <app-ontology-tree-browser
+                  [data]="d3Data"
+                  [highlightNode]="highlightNode"
+                  (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
+                  (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+                </app-ontology-tree-browser>
+                }
+                @case ('collapsible') {
+                <app-collapsible-tree-browser
+                  [data]="d3Data"
+                  [highlightNode]="highlightNode"
+                  [selectedVariables]="selectedVariables"
+                  [selectedCovariates]="selectedCovariates"
+                  (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
+                  (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+                </app-collapsible-tree-browser>
+                }
+                @default {
+                <app-bubble-chart
+                  [d3Data]="d3Data"
+                  [highlightNode]="highlightNode"
+                  [selectedVariables]="selectedVariables"
+                  [selectedCovariates]="selectedCovariates"
+                  (selectedNodeChange)="onBubbleNodeSelected($event)"
+                  (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+                </app-bubble-chart>
+                }
+              }
+            </div>
+          </div>
           }
         </section>
       </div>
@@ -57,144 +103,130 @@
             (variableClicked)="onVariableClicked($event)"></app-variable-filter-selection>
         </section>
 
-        <!-- Histogram graph -->
+        <!-- Node details: histogram + metadata -->
         <section class="panel-block histogram-panel" id="histogram-graph" data-guide="variable-details">
-          <div class="histogram-header">
-            {{ groupHistogramData() ? 'Group Information' : 'Histogram' }}
-          </div>
-          <!-- Histogram Actions Bar -->
-          <div class="histogram-actions-bar">
-            <div class="histogram-actions-group">
-              @if (showBinSelector()) {
-              <div class="bin-selector">
-                <label for="bins-input">Bins:</label>
-                <input id="bins-input" type="number" min="1" max="100" [class.disabled]="isLoadingHistogram()"
-                  [disabled]="isLoadingHistogram()" [value]="histogramBins() || ''" (change)="onBinsChange($event)"
-                  placeholder="Auto">
-              </div>
-              }
-              @if (!groupHistogramData() && histogramVariants().length > 1) {
-              <div class="bin-selector">
-                <label for="histogram-variant-select">View:</label>
-                <select id="histogram-variant-select" [value]="selectedHistogramVariantKey() || ''"
-                  (change)="onHistogramVariantChange($event)">
-                  @for (variant of histogramVariants(); track variant.key) {
-                  <option [value]="variant.key">{{ variant.label }}</option>
-                  }
-                </select>
-              </div>
-              }
-              <button class="histogram-action-btn csv-btn" [disabled]="isExportDisabled() || isExporting()"
-                (click)="exportHistogramCsv()" title="Export CSV">
-                <i class="fas fa-file-csv"></i>
+          <div class="details-panel-header">
+            <div class="details-tabs" role="tablist" aria-label="Selected node details">
+              <button
+                type="button"
+                class="details-tab"
+                role="tab"
+                [class.active]="activeDetailsTab() === 'histogram'"
+                [attr.aria-selected]="activeDetailsTab() === 'histogram'"
+                (click)="setActiveDetailsTab('histogram')">
+                <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                <span>Histogram</span>
               </button>
-              <button class="histogram-action-btn pdf-btn" [disabled]="isExportDisabled() || isExporting()"
-                (click)="exportHistogramPdf()" title="Export PDF">
-                <i class="fas fa-file-pdf"></i>
+              <button
+                type="button"
+                class="details-tab"
+                role="tab"
+                [class.active]="activeDetailsTab() === 'info'"
+                [attr.aria-selected]="activeDetailsTab() === 'info'"
+                (click)="setActiveDetailsTab('info')">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                <span>Info</span>
               </button>
             </div>
           </div>
 
-          <div class="histogram-graph" #histogramExport>
-            @if (isLoadingHistogram()) {
-            <div class="histogram-loader">
-              <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
-                <span class="studio-skeleton-line medium"></span>
-                <div class="studio-skeleton-chart" aria-hidden="true">
-                  <span class="studio-skeleton-bar" style="height: 42%"></span>
-                  <span class="studio-skeleton-bar" style="height: 68%"></span>
-                  <span class="studio-skeleton-bar" style="height: 56%"></span>
-                  <span class="studio-skeleton-bar" style="height: 84%"></span>
-                  <span class="studio-skeleton-bar" style="height: 48%"></span>
-                  <span class="studio-skeleton-bar" style="height: 64%"></span>
-                </div>
-              </div>
-            </div>
-            } @else if (errorMessage()) {
-            <div class="message-container error">
-              <p>{{ errorMessage() }}</p>
-            </div>
-            } @else if (!selectedNode) {
-            <div class="message-container empty-state-welcome">
-              <div class="empty-state-icon">
-                <i class="fas fa-magic"></i>
-              </div>
-              <h3>Welcome to Experiment Studio</h3>
-              <p>Explore your pathology by clicking the bubbles in the chart or use the search bar to find specific
-                variables.</p>
-              <div class="empty-state-actions">
-                <div class="hint-item">
-                  <i class="fas fa-mouse-pointer"></i>
-                  <span><b>Single-click</b> to view details and histogram. <b>Double-click</b> to add a variable</span>
-                </div>
-                <div class="hint-item">
-                  <i class="fas fa-bolt"></i>
-                  <span><b>Use the right panel</b> to move selected items into Variables or Covariates</span>
-                </div>
-              </div>
-            </div>
-            } @else if (groupHistogramData()) {
-            <div class="group-summary">
-              <div class="group-summary-header">
-                <p class="group-summary-path">
-                  <span class="group-summary-label">Path</span>
-                  <span class="group-summary-value">
-                    @for (node of groupHistogramMeta()?.pathNodes; track node.code; let i = $index) {
-                    <button type="button" class="group-summary-link group-summary-path-link"
-                      (click)="onGroupSummaryClick(node)">
-                      @if (i === 0) { <i class="fas fa-home" style="font-size: 0.75rem; opacity: 0.7;"></i> }
-                      {{ node.label }}
-                    </button>
-                    }
-                  </span>
-                </p>
-                <p class="group-summary-count-row">
-                  <span class="group-summary-label">
-                    {{ groupHistogramMeta()?.hasGroups ? 'Number of groups in' : 'Number of variables in' }}
-                  </span>
-                  <span class="group-summary-value">{{ selectedNode?.label }}</span>
-                  <span class="group-summary-count">{{ groupHistogramMeta()?.groupCount }}</span>
-                </p>
-              </div>
-            </div>
-            @if (showGroupVariableSelectionMessage()) {
-            <div class="message-container info">
-              <p>Please select one of the variables in the representation on the left to see its histogram in the
-                selected centers</p>
-            </div>
-            } @else {
-            <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
-            }
-            } @else if (histogramData()) {
-            <div class="group-summary">
-              <div class="group-summary-header">
-                @if (selectedNode?.description) {
-                <div class="group-summary-path" style="margin-bottom: 8px;">
-                  <span class="group-summary-label">Description</span>
-                  <span class="group-summary-value" style="font-weight: 400;">
-                    {{ selectedNode?.description }}
-                  </span>
+          @if (activeDetailsTab() === 'histogram') {
+          <div class="histogram-tab-content">
+            <div class="histogram-actions-bar">
+              <div class="histogram-actions-group">
+                @if (showBinSelector()) {
+                <div class="bin-selector">
+                  <label for="bins-input">Bins:</label>
+                  <input id="bins-input" type="number" min="1" max="100" [class.disabled]="isLoadingHistogram()"
+                    [disabled]="isLoadingHistogram()" [value]="histogramBins() || ''" (change)="onBinsChange($event)"
+                    placeholder="Auto">
                 </div>
                 }
-                <p class="group-summary-path">
-                  <span class="group-summary-label">Path</span>
-                  <span class="group-summary-value">
-                    @for (node of getPathNodes(selectedNode); track node.code; let i = $index) {
-                    <button type="button" class="group-summary-link group-summary-path-link"
-                      (click)="onGroupSummaryClick(node)">
-                      @if (i === 0) { <i class="fas fa-home" style="font-size: 0.75rem; opacity: 0.7;"></i> }
-                      {{ node.label }}
-                    </button>
+                @if (!groupHistogramData() && histogramVariants().length > 1) {
+                <div class="bin-selector">
+                  <label for="histogram-variant-select">View:</label>
+                  <select id="histogram-variant-select" [value]="selectedHistogramVariantKey() || ''"
+                    (change)="onHistogramVariantChange($event)">
+                    @for (variant of histogramVariants(); track variant.key) {
+                    <option [value]="variant.key">{{ variant.label }}</option>
                     }
-                  </span>
-                </p>
+                  </select>
+                </div>
+                }
+                <div class="histogram-export-group" aria-label="Export histogram">
+                  <button class="histogram-export-btn"
+                    [disabled]="isExportDisabled() || isExporting()"
+                    (click)="exportHistogramCsv()" title="Export CSV">
+                    CSV
+                  </button>
+                  <button class="histogram-export-btn" [disabled]="isExportDisabled() || isExporting()"
+                    (click)="exportHistogramPdf()" title="Export PDF">
+                    PDF
+                  </button>
+                </div>
               </div>
             </div>
-            <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
-            }
+
+            <div class="histogram-graph" #histogramExport>
+              @if (isLoadingHistogram()) {
+              <div class="histogram-loader">
+                <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
+                  <span class="studio-skeleton-line medium"></span>
+                  <div class="studio-skeleton-chart" aria-hidden="true">
+                    <span class="studio-skeleton-bar" style="height: 42%"></span>
+                    <span class="studio-skeleton-bar" style="height: 68%"></span>
+                    <span class="studio-skeleton-bar" style="height: 56%"></span>
+                    <span class="studio-skeleton-bar" style="height: 84%"></span>
+                    <span class="studio-skeleton-bar" style="height: 48%"></span>
+                    <span class="studio-skeleton-bar" style="height: 64%"></span>
+                  </div>
+                </div>
+              </div>
+              } @else if (errorMessage()) {
+              <div class="message-container error">
+                <p>{{ errorMessage() }}</p>
+              </div>
+              } @else if (!selectedNode) {
+              <div class="message-container empty-state-welcome">
+                <div class="empty-state-icon">
+                  <i class="fas fa-magic"></i>
+                </div>
+                <h3>Welcome to Experiment Studio</h3>
+                <p>Explore your pathology by clicking the chart or use the search bar to find variables.</p>
+                <div class="empty-state-actions">
+                  <div class="hint-item">
+                    <i class="fas fa-mouse-pointer"></i>
+                    <span><b>Single-click</b> to view the histogram. <b>Double-click</b> to add a variable</span>
+                  </div>
+                  <div class="hint-item">
+                    <i class="fas fa-info-circle"></i>
+                    <span><b>Open Info</b> to inspect metadata and enumerations</span>
+                  </div>
+                </div>
+              </div>
+              } @else if (groupHistogramData()) {
+              @if (showGroupVariableSelectionMessage()) {
+              <div class="message-container info">
+                <p>Please select one of the variables in the representation on the left to see its histogram in the
+                  selected centers.</p>
+              </div>
+              } @else {
+              <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
+              }
+              } @else if (histogramData()) {
+              <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
+              }
+            </div>
           </div>
-
-
+          } @else {
+          <div class="metadata-tab-content">
+            <app-metadata-info-panel
+              [selectedNode]="selectedNode"
+              [pathNodes]="getPathNodes(selectedNode)"
+              [groupInfo]="groupHistogramMeta()">
+            </app-metadata-info-panel>
+          </div>
+          }
 
           @if (isExporting()) {
           <div class="pdf-export-overlay">

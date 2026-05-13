@@ -103,6 +103,65 @@
   height: 100%;
 }
 
+.metadata-browser-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.metadata-browser-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(248, 250, 252, 0.84);
+}
+
+.metadata-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.metadata-mode-btn:hover,
+.metadata-mode-btn:focus-visible {
+  border-color: rgba(43, 51, 233, 0.5);
+  color: #2b33e9;
+  outline: none;
+}
+
+.metadata-mode-btn.active {
+  border-color: #2b33e9;
+  background: #eef2ff;
+  color: #2b33e9;
+}
+
+.metadata-browser-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.metadata-browser-content app-bubble-chart,
+.metadata-browser-content app-ontology-tree-browser,
+.metadata-browser-content app-collapsible-tree-browser {
+  display: block;
+  height: 100%;
+}
+
 .bubble-actions {
   display: flex;
   flex-wrap: wrap;
@@ -193,10 +252,10 @@
   background: var(--studio-card-bg, rgba(255, 255, 255, 0.88));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid var(--studio-card-border, rgba(148, 163, 184, 0.35));
   padding: 16px 20px;
-  box-shadow: var(--studio-card-shadow, 0 8px 32px rgba(15, 23, 42, 0.08));
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
   box-sizing: border-box;
 }
 
@@ -227,7 +286,7 @@
 /* Histogram graph card */
 .histogram-graph {
   position: relative;
-  min-height: 240px;
+  min-height: 520px;
   margin: 0;
   flex: 1 1 auto;
   display: flex;
@@ -237,31 +296,76 @@
 }
 
 .histogram-panel {
+  flex: 1 1 0;
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  max-height: 800px;
+  max-height: min(800px, 85vh);
   overflow-y: auto;
+  padding: 0;
 }
 
-.histogram-header {
-  font-size: 0.92rem;
-  color: var(--primary-color);
-  margin: -16px -20px 10px;
-  /* Counteract panel default padding */
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  padding: 8px 20px;
-  background: var(--studio-card-header-bg, rgba(241, 245, 249, 0.85));
-  border-bottom: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  /* Make sure header stays at top if sticky is desired */
+.details-panel-header {
   position: sticky;
   top: 0;
   z-index: 10;
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  background: rgba(248, 250, 252, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.details-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.details-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.details-tab:hover,
+.details-tab:focus-visible {
+  color: var(--primary-color);
+  outline: none;
+}
+
+.details-tab.active {
+  border-color: rgba(43, 51, 233, 0.34);
+  background: #eef2ff;
+  color: var(--primary-color);
+}
+
+.histogram-tab-content,
+.metadata-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 20px 18px;
 }
 
 
@@ -316,71 +420,64 @@
 /* ---------- HISTOGRAM ACTIONS BAR ---------- */
 
 .histogram-actions-bar {
-  position: absolute;
-  top: 16px;
-  right: 20px;
-  z-index: 10;
   display: flex;
   justify-content: flex-end;
+  min-height: 40px;
+  min-width: 0;
 }
 
 .histogram-actions-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-.histogram-action-btn {
+.histogram-export-group {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px;
+  border: 1px solid #d8ddff;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.histogram-export-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  min-width: 56px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #2b33e9;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-size: 0.76rem;
+  font-weight: 800;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.histogram-action-btn i {
-  font-size: 1.15rem;
+.histogram-export-btn--primary {
+  border: 1px solid #c8ceff;
+  background: #eef2ff;
+  box-shadow: none;
 }
 
-.csv-btn {
-  color: #059669;
-  border-color: rgba(5, 150, 105, 0.2);
+.histogram-export-btn:hover:not(:disabled),
+.histogram-export-btn:focus-visible {
+  background: #eef2ff;
+  color: #1f25ba;
+  outline: none;
 }
 
-.csv-btn:hover:not(:disabled) {
-  background: #ecfdf5;
-  border-color: #059669;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
-}
-
-.pdf-btn {
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.2);
-}
-
-.pdf-btn:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #dc2626;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
-}
-
-.histogram-action-btn:disabled {
+.histogram-export-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  filter: grayscale(1);
-  background: #f1f5f9;
-  border-color: #e2e8f0;
   color: #94a3b8;
 }
 
@@ -643,7 +740,7 @@
   justify-content: center;
   gap: 8px;
   padding: 24px;
-  border-radius: 0px;
+  border-radius: 12px;
   text-align: center;
   font-size: 1rem;
   font-weight: 500;
@@ -700,7 +797,7 @@
 }
 
 .empty-state-welcome h3 {
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: #0f172a;
   margin-bottom: 12px;
@@ -709,7 +806,7 @@
 .empty-state-welcome p {
   color: #64748b;
   line-height: 1.6;
-  max-width: 400px;
+  max-width: 260px;
   margin: 0 auto 30px;
 }
 

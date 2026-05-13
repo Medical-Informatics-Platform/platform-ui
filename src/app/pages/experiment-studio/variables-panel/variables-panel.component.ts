@@ -11,10 +11,16 @@ import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.co
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { VariableFilterSelectionComponent } from './variable-filter-selection/variable-filter-selection.component';
 import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
+import { MetadataInfoPanelComponent } from './metadata-info-panel/metadata-info-panel.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import { OntologyTreeBrowserComponent } from '../visualisations/metadata-browser/ontology-tree-browser/ontology-tree-browser.component';
+import { CollapsibleTreeBrowserComponent } from '../visualisations/metadata-browser/collapsible-tree-browser/collapsible-tree-browser.component';
+import { MetadataBrowserMode } from '../visualisations/metadata-browser/metadata-browser.model';
+
+type DetailsPanelTab = 'histogram' | 'info';
 
 @Component({
   selector: 'app-variables-panel',
@@ -26,7 +32,10 @@ import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-gu
     MatChipsModule,
     MatIconModule,
     BubbleChartComponent,
+    OntologyTreeBrowserComponent,
+    CollapsibleTreeBrowserComponent,
     HistogramGraphComponent,
+    MetadataInfoPanelComponent,
     DataModelSelectorComponent,
     DatasetSelectorComponent,
     SearchBarComponent,
@@ -34,6 +43,33 @@ import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-gu
   ]
 })
 export class VariablesPanelComponent implements OnDestroy {
+  private readonly metadataBrowserModeStorageKey = 'metadata_browser_mode';
+  readonly metadataBrowserModes: Array<{
+    value: MetadataBrowserMode;
+    label: string;
+    icon: string;
+    title: string;
+  }> = [
+      {
+        value: 'ontology',
+        label: 'Tree',
+        icon: 'fas fa-sitemap',
+        title: 'Ontology tree metadata browser',
+      },
+      {
+        value: 'collapsible',
+        label: 'Collapsible',
+        icon: 'fas fa-project-diagram',
+        title: 'Collapsible hierarchy visualization',
+      },
+      {
+        value: 'bubble',
+        label: 'Bubble',
+        icon: 'fas fa-circle-nodes',
+        title: 'Bubble chart overview',
+      },
+    ];
+
   @Input() defaultModel: DataModel | null = null;
   @Input() dataModelHierarchy: any;
   @ViewChild('histogramExport') histogramExport?: ElementRef<HTMLElement>;
@@ -74,6 +110,8 @@ export class VariablesPanelComponent implements OnDestroy {
   isExporting = signal(false);
   refreshKey = signal(0);
   histogramBins = signal<number | null>(null);
+  metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
+  activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
   private histogramRequest$ = new Subject<{ codes: string[]; label?: string; bins?: number | null }>();
   private lastModelKey: string | null = null;
@@ -155,6 +193,11 @@ export class VariablesPanelComponent implements OnDestroy {
     this.onSelectedNodeChange(node);
   }
 
+  onMetadataBrowserNodeSelected(node: any): void {
+    this.highlightNode = node;
+    this.onSelectedNodeChange(node);
+  }
+
   onNodeDoubleClicked(node: any): void {
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();
@@ -171,6 +214,19 @@ export class VariablesPanelComponent implements OnDestroy {
 
   get hasSelectedDatasets(): boolean {
     return (this.experimentStudioService.selectedDatasets() || []).length > 0;
+  }
+
+  setMetadataBrowserMode(mode: MetadataBrowserMode): void {
+    this.metadataBrowserMode.set(mode);
+    try {
+      localStorage.setItem(this.metadataBrowserModeStorageKey, mode);
+    } catch {
+      // Ignore private-mode or quota failures; the UI can still use the in-memory signal.
+    }
+  }
+
+  setActiveDetailsTab(tab: DetailsPanelTab): void {
+    this.activeDetailsTab.set(tab);
   }
 
   addVariableFromBubble(): void {
@@ -246,10 +302,12 @@ export class VariablesPanelComponent implements OnDestroy {
     this.filteredGroups.set([]);
     this.d3Data = null;
     this.selectedNode = null;
+    this.activeDetailsTab.set('histogram');
     this.guideState.setSelectedHierarchyNode(null);
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
+    this.activeDetailsTab.set('histogram');
   }
 
   loadVisualizationData(): void {
@@ -326,6 +384,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
+    this.activeDetailsTab.set('histogram');
 
     // reload new model data
     this.loadVisualizationData();
@@ -384,6 +443,7 @@ export class VariablesPanelComponent implements OnDestroy {
       this.groupHistogramMeta.set(null);
       this.isLoadingHistogram.set(false);
       this.errorMessage.set('No variable selected.');
+      this.activeDetailsTab.set('histogram');
       return;
     }
 
@@ -393,6 +453,7 @@ export class VariablesPanelComponent implements OnDestroy {
     }
 
     this.selectedNode = { ...node };
+    this.activeDetailsTab.set('histogram');
     this.guideState.setSelectedHierarchyNode(this.selectedNode);
     this.cdr.detectChanges();
     this.errorMessage.set(null);
@@ -711,4 +772,15 @@ export class VariablesPanelComponent implements OnDestroy {
     return String(match?.label ?? match?.name ?? value);
   }
 
+  private loadMetadataBrowserMode(): MetadataBrowserMode {
+    try {
+      const saved = localStorage.getItem(this.metadataBrowserModeStorageKey);
+      if (saved === 'ontology' || saved === 'collapsible' || saved === 'bubble') {
+        return saved;
+      }
+    } catch {
+      // Fall through to the clinical browser default.
+    }
+    return 'ontology';
+  }
 }

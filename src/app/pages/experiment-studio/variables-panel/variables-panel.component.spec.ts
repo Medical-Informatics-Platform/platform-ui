@@ -22,6 +22,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     setVariables: jasmine.Spy;
     setCovariates: jasmine.Spy;
     setFilters: jasmine.Spy;
+    setSelectedDatasets: jasmine.Spy;
     setFilterLogic: jasmine.Spy;
     addVariableAndEnrich: jasmine.Spy;
   };
@@ -43,6 +44,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       setVariables: jasmine.createSpy('setVariables'),
       setCovariates: jasmine.createSpy('setCovariates'),
       setFilters: jasmine.createSpy('setFilters'),
+      setSelectedDatasets: jasmine.createSpy('setSelectedDatasets'),
       setFilterLogic: jasmine.createSpy('setFilterLogic'),
       addVariableAndEnrich: jasmine.createSpy('addVariableAndEnrich'),
     };
@@ -70,6 +72,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     TestBed.overrideComponent(VariablesPanelComponent, {
       set: { template: '' },
     });
+    localStorage.removeItem('metadata_browser_mode');
   });
 
   it('does not auto-add a variable on single bubble click', () => {
@@ -99,5 +102,77 @@ describe('VariablesPanelComponent bubble selection', () => {
 
     expect(selectSpy).toHaveBeenCalledWith(node);
     expect(addSpy).toHaveBeenCalled();
+  });
+
+  it('defaults the metadata browser mode to ontology tree', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    expect(component.metadataBrowserMode()).toBe('ontology');
+  });
+
+  it('persists metadata browser mode changes', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    component.setMetadataBrowserMode('collapsible');
+
+    expect(component.metadataBrowserMode()).toBe('collapsible');
+    expect(localStorage.getItem('metadata_browser_mode')).toBe('collapsible');
+  });
+
+  it('falls back to ontology tree for an invalid saved metadata browser mode', () => {
+    localStorage.setItem('metadata_browser_mode', 'columns');
+
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    expect(component.metadataBrowserMode()).toBe('ontology');
+  });
+
+  it('includes collapsible tree as an alternative metadata browser mode', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    expect(component.metadataBrowserModes.map((mode) => mode.value)).toEqual(['ontology', 'collapsible', 'bubble']);
+  });
+
+  it('resets selected-node details to the histogram tab on variable selection', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    const node = { code: 'age_value', label: 'Age', type: 'real' };
+
+    component.setActiveDetailsTab('info');
+    component.onSelectedNodeChange(node);
+
+    expect(component.activeDetailsTab()).toBe('histogram');
+  });
+
+  it('shows the bin selector only for numeric variables', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    expect(component.showBinSelector()).toBeTrue();
+
+    component.selectedNode = { code: 'sex', label: 'Sex', type: 'nominal' };
+    expect(component.showBinSelector()).toBeFalse();
+  });
+
+  it('switches grouped histogram variants without changing metadata state', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    const data = { bins: ['A'], counts: [1], variableName: 'Age' };
+
+    component.histogramVariants.set([
+      { key: 'overall', label: 'Overall', data },
+      { key: 'group:female', label: 'Sex: Female', data: { ...data, variableName: 'Female age' } },
+    ]);
+    component.setActiveDetailsTab('info');
+
+    component.onHistogramVariantChange({ target: { value: 'group:female' } } as unknown as Event);
+
+    expect(component.histogramData()?.variableName).toBe('Female age');
+    expect(component.activeDetailsTab()).toBe('info');
   });
 });
