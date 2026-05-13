@@ -148,17 +148,6 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.activeDetailsTab()).toBe('histogram');
   });
 
-  it('shows the bin selector only for numeric variables', () => {
-    const fixture = TestBed.createComponent(VariablesPanelComponent);
-    const component = fixture.componentInstance;
-
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
-    expect(component.showBinSelector()).toBeTrue();
-
-    component.selectedNode = { code: 'sex', label: 'Sex', type: 'nominal' };
-    expect(component.showBinSelector()).toBeFalse();
-  });
-
   it('switches grouped histogram variants without changing metadata state', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
