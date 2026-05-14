@@ -555,10 +555,6 @@ export class ExperimentStudioService {
     });
   }
 
-  getAlgorithmRequirementOverrides(algo: { name?: string; inputdata?: any } | null | undefined): { y?: string; x?: string; filters?: string } | null {
-    return this.algorithmRulesService.getAlgorithmRequirementOverrides(algo);
-  }
-
   private rolePayload(
     algo: AlgorithmConfig,
     role: 'y' | 'x',

@@ -33,7 +33,6 @@ describe('AlgorithmPanelComponent', () => {
     getTransformationBase: jasmine.Spy;
     getTransformationVariant: jasmine.Spy;
     hasAppliedDescriptivePreprocessing: jasmine.Spy;
-    getAlgorithmRequirementOverrides: jasmine.Spy;
     isAlgorithmAvailable: jasmine.Spy;
     setAlgorithm: jasmine.Spy;
     setRunning: jasmine.Spy;
@@ -80,7 +79,6 @@ describe('AlgorithmPanelComponent', () => {
       getTransformationBase: jasmine.createSpy('getTransformationBase').and.returnValue(null),
       getTransformationVariant: jasmine.createSpy('getTransformationVariant').and.returnValue(null),
       hasAppliedDescriptivePreprocessing: jasmine.createSpy('hasAppliedDescriptivePreprocessing').and.returnValue(true),
-      getAlgorithmRequirementOverrides: jasmine.createSpy('getAlgorithmRequirementOverrides').and.returnValue(null),
       isAlgorithmAvailable: jasmine.createSpy('isAlgorithmAvailable').and.returnValue(true),
       setAlgorithm: jasmine.createSpy('setAlgorithm').and.callFake((next: AlgorithmConfig) => {
         experimentStudioService.selectedAlgorithm.set(next);

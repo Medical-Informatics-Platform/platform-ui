@@ -1013,20 +1013,11 @@ export class AlgorithmPanelComponent {
 
   getVariableRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
-    const override = this.experimentStudioService.getAlgorithmRequirementOverrides(target);
-    if (override?.y) return override.y;
     return this.getRoleRequirement(target?.inputdata?.y, 'Variable');
   }
 
   getCovariateRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
-    const override = this.experimentStudioService.getAlgorithmRequirementOverrides(target);
-    if (override?.x) {
-      if (/:\s*none$/i.test(override.x)) {
-        return null;
-      }
-      return override.x;
-    }
     return this.getRoleRequirement(target?.inputdata?.x, 'Covariate');
   }
 
