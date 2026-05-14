@@ -43,12 +43,12 @@
             <div class="algo-badges">
               @if (algorithm.isDisabled) {
               @if (getVariableRequirement(algorithm)) {
-              <span class="algo-badge algo-badge--req" title="Variable Requirement">
+              <span class="algo-badge algo-badge--req algo-badge--variable" title="Variable Requirement">
                 <i class="fas fa-database"></i>
               </span>
               }
               @if (getCovariateRequirement(algorithm)) {
-              <span class="algo-badge algo-badge--req" title="Covariate Requirement">
+              <span class="algo-badge algo-badge--req algo-badge--covariate" title="Covariate Requirement">
                 <i class="fas fa-sliders-h"></i>
               </span>
               }
@@ -74,13 +74,13 @@
     <!-- Legend for requirement icons -->
     <div class="algo-legend">
       <div class="legend-item" title="Data requirements (e.g. types, count)">
-        <span class="algo-badge algo-badge--req legend-icon">
+        <span class="algo-badge algo-badge--req algo-badge--variable legend-icon">
           <i class="fas fa-database"></i>
         </span>
         <span class="legend-label">Variable Req.</span>
       </div>
       <div class="legend-item" title="Covariate requirements">
-        <span class="algo-badge algo-badge--req legend-icon">
+        <span class="algo-badge algo-badge--req algo-badge--covariate legend-icon">
           <i class="fas fa-sliders-h"></i>
         </span>
         <span class="legend-label">Covariate Req.</span>
@@ -97,15 +97,15 @@
     @if (getVariableRequirement() || getCovariateRequirement()) {
     <div class="tooltip-requirements">
       <div class="tooltip-requirements-header">Requirements</div>
-      @if (getVariableRequirement()) {
+    @if (getVariableRequirement()) {
       <div class="req-item">
-        <i class="fas fa-database req-icon"></i>
+        <i class="fas fa-database req-icon req-icon--variable"></i>
         <span class="req-text">{{ getVariableRequirement() }}</span>
       </div>
       }
       @if (getCovariateRequirement()) {
       <div class="req-item">
-        <i class="fas fa-sliders-h req-icon"></i>
+        <i class="fas fa-sliders-h req-icon req-icon--covariate"></i>
         <span class="req-text">{{ getCovariateRequirement() }}</span>
       </div>
       }
