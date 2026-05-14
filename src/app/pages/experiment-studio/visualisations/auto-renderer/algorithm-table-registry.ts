@@ -57,6 +57,11 @@ function formatFixedMetric(value: any): string {
   return value.toFixed(3);
 }
 
+function formatNullableOutlierValue(value: any): string {
+  if (value === null || value === undefined) return 'Unavailable';
+  return formatDecimal(value);
+}
+
 function formatAnovaPValue(value: any): string {
   if (typeof value !== 'number' || isNaN(value)) return value ?? '';
   if (!Number.isFinite(value)) return String(value);
@@ -893,6 +898,49 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     }
 
     return tables;
+  },
+
+  outlier_report: (result: any) => {
+    const featurewise = Array.isArray(result?.featurewise)
+      ? result.featurewise
+      : Array.isArray(result?.result?.featurewise)
+        ? result.result.featurewise
+        : [];
+    if (!featurewise.length) return [];
+
+    return [{
+      title: 'Outlier Report',
+      columns: [
+        'Variable',
+        'Dataset',
+        'Strategy',
+        'Tail',
+        'Fold',
+        'Lower bound',
+        'Upper bound',
+        'Lower outliers',
+        'Upper outliers',
+        'Total outliers',
+        'Outlier %',
+      ],
+      rows: featurewise.map((row: any) => {
+        const data = row?.data ?? {};
+        return [
+          row?.variable ?? '',
+          row?.dataset ?? '',
+          data.strategy ?? 'Unavailable',
+          data.tail ?? 'Unavailable',
+          formatNullableOutlierValue(data.fold),
+          formatNullableOutlierValue(data.lower_bound),
+          formatNullableOutlierValue(data.upper_bound),
+          formatNullableOutlierValue(data.lower_outlier_count),
+          formatNullableOutlierValue(data.upper_outlier_count),
+          formatNullableOutlierValue(data.total_outlier_count),
+          formatNullableOutlierValue(data.total_outlier_percentage),
+        ];
+      }),
+      layout: 'full',
+    }];
   },
 
   histogram: (result: HistogramResult) => {

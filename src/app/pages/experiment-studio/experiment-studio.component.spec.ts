@@ -8,6 +8,7 @@ import { ExperimentStudioService } from '../../services/experiment-studio.servic
 import { ExperimentsDashboardService } from '../../services/experiments-dashboard.service';
 import { AuthService } from '../../services/auth.service';
 import { ExperimentStudioComponent } from './experiment-studio.component';
+import { getExperimentStudioScrollOffset } from './experiment-studio-scroll.util';
 
 class MockIntersectionObserver {
   static instances: MockIntersectionObserver[] = [];
@@ -156,7 +157,7 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
     fixture.detectChanges();
 
     const offsetFactory = viewportScroller.setOffset.calls.first().args[0] as () => [number, number];
-    expect(offsetFactory()).toEqual([0, 112]);
+    expect(offsetFactory()).toEqual([0, getExperimentStudioScrollOffset()]);
 
     fixture.destroy();
 
@@ -175,7 +176,10 @@ describe('ExperimentStudioComponent sidebar tracking', () => {
     (component as any).scrollToHash('variables-top');
 
     expect(scrollSpy).toHaveBeenCalled();
-    expect(scrollSpy.calls.mostRecent().args[0] as ScrollToOptions).toEqual({ top: 438, behavior: 'smooth' });
+    expect(scrollSpy.calls.mostRecent().args[0] as ScrollToOptions).toEqual({
+      top: Math.max(window.scrollY + 250 - getExperimentStudioScrollOffset(), 0),
+      behavior: 'smooth',
+    });
   });
 
   it('waits for statistics fragment navigation before scrolling a nested descriptive step', async () => {

@@ -89,8 +89,53 @@ describe('algorithm mappers', () => {
     expect(chiSquared.configSchema).toEqual([]);
   });
 
+  it('maps dictionary parameter metadata for outlier contracts', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      name: 'outlier_report',
+      label: 'Outlier Report',
+      parameters: {
+        folds: {
+          label: 'Folds',
+          desc: '',
+          types: ['dict'],
+          required: false,
+          multiple: false,
+          dict_keys_enums: { type: 'input_var_names', source: ['x', 'y'] },
+          dict_values_type: 'real',
+        },
+        strategies: {
+          label: 'Strategies',
+          desc: '',
+          types: ['dict'],
+          required: true,
+          multiple: false,
+          dict_keys_enums: { type: 'input_var_names', source: ['x', 'y'] },
+          dict_values_enums: { type: 'list', source: ['gaussian', 'iqr', 'mad', 'quantile'] },
+        },
+      },
+      preprocessing: [
+        { name: 'longitudinal_transformer', label: 'Longitudinal', desc: '', order: 3, parameters: {} },
+        { name: 'outlier_winsorizer', label: 'Outlier Winsorizer', desc: '', order: 2, parameters: {} },
+      ],
+    }));
+
+    expect(config.category).toBe('Descriptive Statistics');
+    expect(config.configSchema.find(field => field.key === 'folds')).toEqual(jasmine.objectContaining({
+      type: 'dict',
+      dictKeyEnumType: 'input_var_names',
+      dictKeyEnumSource: ['x', 'y'],
+      dictValueType: 'real',
+    }));
+    expect(config.configSchema.find(field => field.key === 'strategies')).toEqual(jasmine.objectContaining({
+      type: 'dict',
+      dictValueEnumType: 'list',
+      dictValueOptions: ['gaussian', 'iqr', 'mad', 'quantile'],
+    }));
+    expect(config.preprocessing?.map((step) => step.name)).toEqual(['outlier_winsorizer', 'longitudinal_transformer']);
+  });
+
   it('provides output schemas for new Exaflow algorithms', () => {
-    ['lmm', 'glmm_binary', 'glmm_ordinal', 'chi_squared', 'fisher_exact'].forEach((name) => {
+    ['lmm', 'glmm_binary', 'glmm_ordinal', 'chi_squared', 'fisher_exact', 'outlier_report'].forEach((name) => {
       const schema = getOutputSchema(name);
       expect(schema).toBeTruthy();
       expect(schema?.length).toBeGreaterThan(0);

@@ -13,6 +13,7 @@ import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
 import { AlgorithmNames, VariableTypes } from '../core/constants/algorithm.constants';
 import { RuntimeEnvService } from './runtime-env.service';
+import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 
 export type PathologyAccessWarningKind = 'no-pathologies' | 'no-access';
 
@@ -30,6 +31,7 @@ export interface PreprocessingSummaryEntry {
 }
 
 const MISSING_VALUES_HANDLER = 'missing_values_handler';
+const OUTLIER_WINSORIZER = 'outlier_winsorizer';
 const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__';
 
 @Injectable({ providedIn: 'root' })
@@ -787,6 +789,23 @@ export class ExperimentStudioService {
       entries.push({ label: 'Missing values', value: labels.join(', ') });
     }
 
+    const outlier = preprocessing[OUTLIER_WINSORIZER] as {
+      strategies?: Record<string, unknown>;
+      tails?: Record<string, unknown>;
+      folds?: Record<string, unknown>;
+    } | undefined;
+    const outlierStrategies = outlier?.strategies ?? {};
+    const outlierEntries = Object.entries(outlierStrategies);
+    if (outlierEntries.length) {
+      const labels = outlierEntries.map(([code, strategy]) => {
+        const tail = String(outlier?.tails?.[code] ?? 'both');
+        const fold = outlier?.folds?.[code];
+        const foldText = fold === undefined || fold === null || fold === '' ? 'fold unavailable' : `fold ${fold}`;
+        return `${this.preprocessingVariableLabel(code, labelMap)}: ${outlierStrategyLabel(String(strategy))}, ${outlierTailLabel(tail)} ${tail === 'both' ? 'tails' : 'tail'}, ${foldText}`;
+      });
+      entries.push({ label: 'Outlier winsorizer', value: labels.join('; ') });
+    }
+
     const longitudinal = preprocessing['longitudinal_transformer'] as Record<string, unknown> | undefined;
     if (longitudinal) {
       const visit1 = longitudinal['visit1'];
@@ -804,7 +823,7 @@ export class ExperimentStudioService {
       entries.push({ label: 'Longitudinal transformation', value: `${strategySummary}${visitLabel}` });
     }
 
-    const knownKeys = new Set([MISSING_VALUES_HANDLER, 'longitudinal_transformer']);
+    const knownKeys = new Set([MISSING_VALUES_HANDLER, OUTLIER_WINSORIZER, 'longitudinal_transformer']);
     Object.keys(preprocessing)
       .filter((key) => !knownKeys.has(key))
       .forEach((key) => entries.push({ label: key.replace(/_/g, ' '), value: 'configured' }));
@@ -1080,6 +1099,35 @@ export class ExperimentStudioService {
     };
   }
 
+  private buildOutlierReportRequestBody(
+    variableCodes: string[],
+    parameters: Record<string, unknown>,
+    preprocessing: PreprocessingConfig | null = null
+  ): any {
+    const filters = this.filterLogic();
+    const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
+    const selectedVariableCodes = new Set(this.selectedVariables().map((variable) => String(variable?.code ?? '')));
+    const selectedCovariateCodes = new Set(this.selectedCovariates().map((variable) => String(variable?.code ?? '')));
+    const y = variableCodes.filter((code) => selectedVariableCodes.has(code));
+    const x = variableCodes.filter((code) => selectedCovariateCodes.has(code));
+
+    return {
+      name: `experiment_outlier_report_${variableCodes.join('_')}`,
+      algorithm: {
+        name: AlgorithmNames.OUTLIER_REPORT,
+        inputdata: {
+          data_model: this.getActiveDataModelCode(),
+          y: y.length ? y : variableCodes,
+          x: x.length ? x : null,
+          datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
+          filters: hasFilters ? filters : null,
+        },
+        parameters,
+        preprocessing: this.normalizePreprocessingConfig(preprocessing),
+      },
+    };
+  }
+
   loadDescriptiveOverview(
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null
@@ -1091,6 +1139,23 @@ export class ExperimentStudioService {
       catchError((error) => {
         console.error("Error fetching descriptive overview:", error);
         this.errorService.setError('Failed to load descriptive statistics.');
+        return of(null);
+      })
+    );
+  }
+
+  loadOutlierReportPreview(
+    variableCodes: string[],
+    parameters: Record<string, unknown>,
+    preprocessing: PreprocessingConfig | null = null
+  ): Observable<any> {
+    const requestBody = this.buildOutlierReportRequestBody(variableCodes, parameters, preprocessing);
+
+    return this.submitTransientRequest(requestBody).pipe(
+      map(resp => this.normalizeTransientResponse(resp)),
+      catchError((error) => {
+        console.error("Error fetching outlier report preview:", error);
+        this.errorService.setError('Failed to load outlier report preview.');
         return of(null);
       })
     );

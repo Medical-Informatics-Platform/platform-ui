@@ -163,6 +163,34 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables.some((t) => t.title?.includes('Model-based'))).toBeFalse();
   });
 
+  it('renders outlier_report and preserves zero counts separately from null values', () => {
+    const tables = AlgorithmTableRegistry['outlier_report']({
+      featurewise: [
+        {
+          variable: 'age',
+          dataset: 'ds1',
+          data: {
+            strategy: 'iqr',
+            tail: 'both',
+            fold: 1.5,
+            lower_bound: null,
+            upper_bound: 90,
+            lower_outlier_count: 0,
+            upper_outlier_count: null,
+            total_outlier_count: 0,
+            total_outlier_percentage: 0,
+          },
+        },
+      ],
+    });
+
+    expect(tables.length).toBe(1);
+    expect(tables[0].columns).toContain('Outlier %');
+    expect(tables[0].rows[0][5]).toBe('Unavailable');
+    expect(tables[0].rows[0][7]).toBe('0');
+    expect(tables[0].rows[0][9]).toBe('0');
+  });
+
   it('filters frontend metadata keys from ttest results', () => {
     const tables = AlgorithmTableRegistry['ttest_independent']({
       t_stat: 3.888283695725533,

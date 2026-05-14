@@ -838,6 +838,15 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.outlier-rule-toggle {
+  margin-bottom: 14px;
+  color: var(--text-main);
+}
+
+.outlier-control-grid {
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+}
+
 .preprocessing-control {
   display: grid;
   gap: 7px;
