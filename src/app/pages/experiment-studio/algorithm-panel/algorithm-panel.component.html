@@ -423,9 +423,85 @@
           </p>
         </div>
       </div>
-      } @if (enrichedConfigSchema().length) {
+      } @if (isOutlierReportSelected()) {
+      <section class="outlier-report-editor" aria-label="Outlier report configuration">
+        <div class="outlier-editor-header">
+          <div>
+            <h6>Per-variable Outlier Rules</h6>
+          </div>
+          <span class="outlier-count">{{ outlierReportVariables().length }} numerical</span>
+        </div>
+
+        @if (outlierReportVariables().length > 0) {
+        <div class="outlier-table-wrapper">
+          <table class="outlier-table">
+            <thead>
+              <tr>
+                <th>Variable</th>
+                <th>Enabled</th>
+                <th>Strategy</th>
+                <th>Tail</th>
+                <th>Fold</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (variable of outlierReportVariables(); track variable.code) {
+              <tr>
+                <td>
+                  <span class="outlier-variable-label">{{ outlierVariableLabel(variable) }}</span>
+                  <small>{{ variable.code }}</small>
+                </td>
+                <td>
+                  <label class="checkbox-wrapper outlier-enable">
+                    <input type="checkbox" [checked]="outlierReportRuleFor(variable).enabled"
+                      (change)="onOutlierReportEnabledChange(variable, $any($event.target).checked)"
+                      [attr.aria-label]="'Enable ' + outlierVariableLabel(variable)" />
+                  </label>
+                </td>
+                <td>
+                  <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).strategy"
+                    (ngModelChange)="onOutlierReportStrategyChange(variable, $event)">
+                    @for (strategy of outlierStrategies; track strategy.value) {
+                    <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).tail"
+                    (ngModelChange)="onOutlierReportTailChange(variable, $event)">
+                    @for (tail of outlierTails; track tail.value) {
+                    <option [ngValue]="tail.value">{{ tail.label }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  <input class="config-input compact-input" type="number" step="any"
+                    [ngModel]="outlierReportRuleFor(variable).fold"
+                    (ngModelChange)="onOutlierReportFoldChange(variable, $event)"
+                    [class.input-error]="outlierReportRuleError(variable)" />
+                  @if (outlierReportRuleError(variable)) {
+                  <div class="validation-message config-error">{{ outlierReportRuleError(variable) }}</div>
+                  }
+                </td>
+              </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        } @else {
+        <div class="config-placeholder config-placeholder--minimal">
+          <div class="config-placeholder-icon" aria-hidden="true">
+            <i class="fas fa-chart-line"></i>
+          </div>
+          <div class="config-placeholder-content">
+            <h6>No numerical variables selected</h6>
+          </div>
+        </div>
+        }
+      </section>
+      } @if (visibleConfigSchema().length) {
       <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
-        @for (field of enrichedConfigSchema(); track field.key) {
+        @for (field of visibleConfigSchema(); track field.key) {
         @if (configForm().get(field.key)) {
         <div class="config-field">
           <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">

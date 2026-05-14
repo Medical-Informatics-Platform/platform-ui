@@ -51,6 +51,12 @@ export class VariablesPanelComponent implements OnDestroy {
     title: string;
   }> = [
       {
+        value: 'bubble',
+        label: 'Bubble',
+        icon: 'fas fa-circle-nodes',
+        title: 'Bubble chart overview',
+      },
+      {
         value: 'ontology',
         label: 'Tree',
         icon: 'fas fa-sitemap',
@@ -61,12 +67,6 @@ export class VariablesPanelComponent implements OnDestroy {
         label: 'Collapsible',
         icon: 'fas fa-project-diagram',
         title: 'Collapsible hierarchy visualization',
-      },
-      {
-        value: 'bubble',
-        label: 'Bubble',
-        icon: 'fas fa-circle-nodes',
-        title: 'Bubble chart overview',
       },
     ];
 
@@ -762,6 +762,6 @@ export class VariablesPanelComponent implements OnDestroy {
     } catch {
       // Fall through to the clinical browser default.
     }
-    return 'ontology';
+    return 'bubble';
   }
 }

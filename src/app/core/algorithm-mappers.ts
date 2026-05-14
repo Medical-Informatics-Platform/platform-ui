@@ -28,6 +28,7 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "fisher_exact": "Statistical Tests",
   "describe": "Descriptive Statistics",
   "histogram": "Descriptive Statistics",
+  "outlier_report": "Descriptive Statistics",
   "linear_svm": "Classification",
   "longitudinal_transformer": "Transformers",
 };
@@ -50,6 +51,10 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
   for (const [key, param] of Object.entries(parameters)) {
     const enumType = param.enums?.type;
     const enumSource = enumSourceToArray(param.enums?.source);
+    const dictKeyEnumType = param.dict_keys_enums?.type;
+    const dictKeyEnumSource = enumSourceToArray(param.dict_keys_enums?.source);
+    const dictValueEnumType = param.dict_values_enums?.type;
+    const dictValueOptions = enumSourceToArray(param.dict_values_enums?.source);
     const isMultiple = normalizeBool(param.multiple);
     const baseField: any = {
       key,
@@ -66,6 +71,20 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
       ...(param.default !== undefined ? { default: param.default } : {}),
       ...(param.default === undefined && param.default_value !== undefined ? { default: param.default_value } : {}),
     };
+
+    // --- Dictionary fields ---
+    if (param.types?.includes('dict')) {
+      schema.push({
+        ...baseField,
+        type: 'dict',
+        ...(dictKeyEnumType ? { dictKeyEnumType } : {}),
+        ...(dictKeyEnumSource.length ? { dictKeyEnumSource } : {}),
+        ...(dictValueEnumType ? { dictValueEnumType } : {}),
+        ...(dictValueOptions.length ? { dictValueOptions } : {}),
+        ...(param.dict_values_type ? { dictValueType: param.dict_values_type } : {}),
+      });
+      continue;
+    }
 
     // --- Select fields ---
     if (param.enums) {
@@ -518,6 +537,27 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
         { key: 'p_value', label: 'p-value', type: 'number', format: 'pval' },
         { key: 'x_labels', label: 'Factor Categories', type: 'array', elementType: 'string' },
         { key: 'y_labels', label: 'Outcome Categories', type: 'array', elementType: 'string' }
+      ];
+    case 'outlier_report':
+      return [
+        {
+          key: 'featurewise',
+          label: 'Outlier Report',
+          type: 'table',
+          columns: [
+            { key: 'variable', label: 'Variable' },
+            { key: 'dataset', label: 'Dataset' },
+            { key: 'data.strategy', label: 'Strategy' },
+            { key: 'data.tail', label: 'Tail' },
+            { key: 'data.fold', label: 'Fold', format: 'float' },
+            { key: 'data.lower_bound', label: 'Lower bound', format: 'float' },
+            { key: 'data.upper_bound', label: 'Upper bound', format: 'float' },
+            { key: 'data.lower_outlier_count', label: 'Lower outliers' },
+            { key: 'data.upper_outlier_count', label: 'Upper outliers' },
+            { key: 'data.total_outlier_count', label: 'Total outliers' },
+            { key: 'data.total_outlier_percentage', label: 'Outlier %', format: 'percent' },
+          ]
+        }
       ];
     case 'ttest_independent':
       return [

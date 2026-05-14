@@ -130,6 +130,25 @@ describe('AutoRendererComponent', () => {
         x_labels: ['A', 'B'],
         y_labels: ['C', 'D'],
       },
+      outlier_report: {
+        featurewise: [
+          {
+            variable: 'age',
+            dataset: 'ds1',
+            data: {
+              strategy: 'iqr',
+              tail: 'both',
+              fold: 1.5,
+              lower_bound: null,
+              upper_bound: 90,
+              lower_outlier_count: 0,
+              upper_outlier_count: 1,
+              total_outlier_count: 1,
+              total_outlier_percentage: 5,
+            },
+          },
+        ],
+      },
     };
 
     Object.entries(payloads).forEach(([algorithm, value]) => {

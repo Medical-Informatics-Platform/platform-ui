@@ -10,9 +10,22 @@ import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
-import { VariableTypes } from '../../../core/constants/algorithm.constants';
+import { AlgorithmNames, VariableTypes } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { RouterLink } from '@angular/router';
+import {
+  createDefaultOutlierRule,
+  defaultFoldForStrategy,
+  hydrateOutlierRules,
+  isOutlierEligibleVariable,
+  OUTLIER_STRATEGIES,
+  OUTLIER_TAILS,
+  OutlierRule,
+  OutlierStrategy,
+  OutlierTail,
+  serializeOutlierRules,
+  validateOutlierRule,
+} from '../../../core/outlier-rules';
 
 
 @Component({
@@ -71,6 +84,10 @@ export class AlgorithmPanelComponent {
   });
   readonly transformationTypes = ['standardize', 'center', 'exp'] as const;
   transformationAssignments: Record<string, string> = {};
+  readonly outlierStrategies = OUTLIER_STRATEGIES;
+  readonly outlierTails = OUTLIER_TAILS;
+  outlierReportRules: Record<string, OutlierRule> = {};
+  outlierReportValidationErrors: Record<string, string> = {};
   readonly canToggleCrossValidation = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return false;
@@ -81,8 +98,12 @@ export class AlgorithmPanelComponent {
       !!this.experimentStudioService.backendAlgorithms()[baseName]
     );
   });
+  readonly isOutlierReportSelected = computed(
+    () => this.selectedAlgorithm()?.name === AlgorithmNames.OUTLIER_REPORT
+  );
   readonly hasAlgorithmParameterControls = computed(() => (
-    this.enrichedConfigSchema().length > 0 ||
+    this.visibleConfigSchema().length > 0 ||
+    this.isOutlierReportSelected() ||
     this.canToggleCrossValidation() ||
     this.isCrossValidationOnly() ||
     this.canToggleTransformation()
@@ -90,6 +111,7 @@ export class AlgorithmPanelComponent {
   readonly preprocessingRunBlockMessage = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return null;
+    if (algorithm.name === AlgorithmNames.OUTLIER_REPORT) return null;
     if (this.experimentStudioService.hasAppliedDescriptivePreprocessing()) return null;
     return 'Apply missing value preprocessing before running algorithms.';
   });
@@ -284,6 +306,17 @@ export class AlgorithmPanelComponent {
     });
 
     effect(() => {
+      const algorithm = this.selectedAlgorithm();
+      const variables = this.outlierReportVariables();
+      if (!algorithm || algorithm.name !== AlgorithmNames.OUTLIER_REPORT) {
+        this.outlierReportValidationErrors = {};
+        return;
+      }
+      const stored = untracked(() => this.experimentStudioService.algorithmConfigurations()[algorithm.name] ?? {});
+      this.reconcileOutlierReportRules(variables, stored);
+    });
+
+    effect(() => {
       const groups = this.experimentStudioService.availableGroupedAlgorithms();
       if (!groups) return;
       this.availableAlgorithmCategories();
@@ -291,7 +324,7 @@ export class AlgorithmPanelComponent {
 
     effect((onCleanup) => {
       const algorithm = this.selectedAlgorithm();
-      const schema = this.enrichedConfigSchema();
+      const schema = this.visibleConfigSchema();
 
       if (!algorithm) {
         // if no algorithm,clean form
@@ -494,6 +527,22 @@ export class AlgorithmPanelComponent {
     return enriched;
   });
 
+  readonly visibleConfigSchema = computed(() => {
+    const schema = this.enrichedConfigSchema();
+    if (!this.isOutlierReportSelected()) return schema;
+    return schema.filter((field) => field.type !== 'dict' && !['strategies', 'tails', 'folds'].includes(String(field.key)));
+  });
+
+  readonly outlierReportVariables = computed(() => {
+    const selectedVars = this.experimentStudioService.selectedVariables();
+    const selectedCovars = this.experimentStudioService.selectedCovariates();
+    const unique = new Map<string, any>();
+    [...selectedVars, ...selectedCovars].forEach((variable: any) => {
+      if (variable?.code) unique.set(String(variable.code), variable);
+    });
+    return Array.from(unique.values()).filter((variable) => isOutlierEligibleVariable(variable));
+  });
+
   readonly outputSchema = computed(() =>
     getOutputSchema(this.selectedAlgorithm()?.name ?? '') ?? []
   );
@@ -557,13 +606,16 @@ export class AlgorithmPanelComponent {
     return obj ? Object.keys(obj) : [];
   }
 
-  private persistCurrentFormConfig(algorithmName: string, schema = this.enrichedConfigSchema()): Record<string, any> {
+  private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, any> {
     const values = this.normalizeFormValues(this.configForm().getRawValue(), schema);
+    const nextValues = algorithmName === AlgorithmNames.OUTLIER_REPORT
+      ? this.mergeOutlierReportConfig(values)
+      : values;
     this.experimentStudioService.algorithmConfigurations.set({
       ...this.experimentStudioService.algorithmConfigurations(),
-      [algorithmName]: values,
+      [algorithmName]: nextValues,
     });
-    return values;
+    return nextValues;
   }
 
   private normalizeFormValues(values: Record<string, any>, schema: any[]): Record<string, any> {
@@ -578,8 +630,167 @@ export class AlgorithmPanelComponent {
         if (!trimmed) return;
         const parsed = Number(trimmed);
         if (Number.isFinite(parsed)) normalized[key] = parsed;
-      });
+    });
     return normalized;
+  }
+
+  private mergeOutlierReportConfig(configValues: Record<string, any>): Record<string, any> {
+    if (!this.isOutlierReportSelected()) return configValues;
+    delete configValues['strategies'];
+    delete configValues['tails'];
+    delete configValues['folds'];
+    const payload = serializeOutlierRules(
+      this.outlierReportRules,
+      new Set(this.outlierReportVariables().map((variable) => variable.code))
+    );
+    return payload ? { ...configValues, ...payload } : configValues;
+  }
+
+  private persistOutlierReportConfig(): void {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm || algorithm.name !== AlgorithmNames.OUTLIER_REPORT) return;
+    const visibleValues = this.normalizeFormValues(this.configForm().getRawValue(), this.visibleConfigSchema());
+    const nextConfig = this.mergeOutlierReportConfig(visibleValues);
+    this.experimentStudioService.algorithmConfigurations.set({
+      ...this.experimentStudioService.algorithmConfigurations(),
+      [algorithm.name]: nextConfig,
+    });
+  }
+
+  private reconcileOutlierReportRules(variables: any[], stored: Record<string, any>): void {
+    const allowedCodes = new Set(variables.map((variable) => variable.code));
+    const hydrated = hydrateOutlierRules(stored, allowedCodes);
+    const hasStoredRules = !!stored && typeof stored === 'object' && Object.keys(stored?.['strategies'] ?? {}).length > 0;
+    const hasExistingRules = Object.keys(this.outlierReportRules).length > 0;
+    const next: Record<string, OutlierRule> = {};
+
+    variables.forEach((variable) => {
+      const code = variable.code;
+      next[code] = this.outlierReportRules[code]
+        ? { ...this.outlierReportRules[code] }
+        : hydrated[code]
+          ? { ...hydrated[code] }
+          : createDefaultOutlierRule(code, hasExistingRules || !hasStoredRules);
+    });
+
+    this.outlierReportRules = next;
+    this.outlierReportValidationErrors = Object.fromEntries(
+      Object.entries(this.outlierReportValidationErrors).filter(([code]) => allowedCodes.has(code))
+    );
+  }
+
+  outlierReportRuleFor(variable: any): OutlierRule {
+    if (!this.outlierReportRules[variable.code]) {
+      this.outlierReportRules = {
+        ...this.outlierReportRules,
+        [variable.code]: createDefaultOutlierRule(variable.code, true),
+      };
+    }
+    return this.outlierReportRules[variable.code];
+  }
+
+  outlierVariableLabel(variable: any): string {
+    return variable?.label ?? variable?.name ?? variable?.code ?? '';
+  }
+
+  onOutlierReportEnabledChange(variable: any, enabled: boolean): void {
+    const existing = this.outlierReportRuleFor(variable);
+    this.outlierReportRules = {
+      ...this.outlierReportRules,
+      [variable.code]: { ...existing, enabled },
+    };
+    this.outlierReportValidationErrors = {
+      ...this.outlierReportValidationErrors,
+      [variable.code]: '',
+    };
+    this.persistOutlierReportConfig();
+  }
+
+  onOutlierReportStrategyChange(variable: any, strategy: OutlierStrategy): void {
+    const existing = this.outlierReportRuleFor(variable);
+    this.outlierReportRules = {
+      ...this.outlierReportRules,
+      [variable.code]: {
+        ...existing,
+        enabled: true,
+        strategy,
+        fold: defaultFoldForStrategy(strategy),
+      },
+    };
+    this.outlierReportValidationErrors = {
+      ...this.outlierReportValidationErrors,
+      [variable.code]: '',
+    };
+    this.persistOutlierReportConfig();
+  }
+
+  onOutlierReportTailChange(variable: any, tail: OutlierTail): void {
+    const existing = this.outlierReportRuleFor(variable);
+    this.outlierReportRules = {
+      ...this.outlierReportRules,
+      [variable.code]: { ...existing, enabled: true, tail },
+    };
+    this.persistOutlierReportConfig();
+  }
+
+  onOutlierReportFoldChange(variable: any, rawValue: string | number): void {
+    const existing = this.outlierReportRuleFor(variable);
+    const value = String(rawValue ?? '').trim();
+    const fold = value === '' ? null : Number(value);
+    this.outlierReportRules = {
+      ...this.outlierReportRules,
+      [variable.code]: {
+        ...existing,
+        enabled: true,
+        fold: typeof fold === 'number' && Number.isFinite(fold) ? fold : null,
+      },
+    };
+    const error = validateOutlierRule(this.outlierReportRules[variable.code]);
+    this.outlierReportValidationErrors = {
+      ...this.outlierReportValidationErrors,
+      [variable.code]: error ?? '',
+    };
+    this.persistOutlierReportConfig();
+  }
+
+  outlierReportRuleError(variable: any): string {
+    const rule = this.outlierReportRuleFor(variable);
+    return this.outlierReportValidationErrors[variable.code] || validateOutlierRule(rule) || '';
+  }
+
+  private validateOutlierReportConfig(): boolean {
+    if (!this.isOutlierReportSelected()) return true;
+
+    const variables = this.outlierReportVariables();
+    if (!variables.length) {
+      this.errorMsg.set('Select at least one numerical variable or covariate for the outlier report.');
+      return false;
+    }
+
+    const errors: Record<string, string> = {};
+    variables.forEach((variable) => {
+      const rule = this.outlierReportRuleFor(variable);
+      const error = validateOutlierRule(rule);
+      if (error) errors[variable.code] = error;
+    });
+
+    this.outlierReportValidationErrors = errors;
+    if (Object.keys(errors).length > 0) {
+      this.errorMsg.set('Fix the outlier report configuration before running.');
+      return false;
+    }
+
+    const serialized = serializeOutlierRules(
+      this.outlierReportRules,
+      new Set(variables.map((variable) => variable.code))
+    );
+    if (!serialized) {
+      this.errorMsg.set('Enable at least one numerical variable for the outlier report.');
+      return false;
+    }
+
+    this.persistOutlierReportConfig();
+    return true;
   }
 
   prettifyKey(key: string): string {
@@ -649,6 +860,11 @@ export class AlgorithmPanelComponent {
       return;
     }
 
+    if (!this.validateOutlierReportConfig()) {
+      this.experimentStudioService.setRunning(false);
+      return;
+    }
+
     const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
     const baseAlgorithmName = isCvOnly
       ? algo.name
@@ -675,7 +891,8 @@ export class AlgorithmPanelComponent {
     this.experimentStudioService.lastUsedAlgorithm.set(finalAlgorithmName);
     this.errorMsg.set(null);
 
-    const configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.enrichedConfigSchema());
+    let configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.visibleConfigSchema());
+    configValues = this.mergeOutlierReportConfig(configValues);
     if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
       delete configValues['n_splits'];
     }
@@ -1033,6 +1250,8 @@ export class AlgorithmPanelComponent {
     const algo = this.experimentStudioService.selectedAlgorithm();
     if (!algo) return;
 
+    if (!this.validateOutlierReportConfig()) return;
+
     this.experimentStudioService.setRunning(true);
 
     const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
@@ -1054,7 +1273,8 @@ export class AlgorithmPanelComponent {
         : baseAlgorithmName;
 
     const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
-    const configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.enrichedConfigSchema());
+    let configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.visibleConfigSchema());
+    configValues = this.mergeOutlierReportConfig(configValues);
     if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
       delete configValues['n_splits'];
     }

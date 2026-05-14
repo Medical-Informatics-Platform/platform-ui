@@ -12,6 +12,7 @@ export const AlgorithmNames = {
     GLMM_ORDINAL: 'glmm_ordinal',
     CHI_SQUARED: 'chi_squared',
     FISHER_EXACT: 'fisher_exact',
+    OUTLIER_REPORT: 'outlier_report',
     LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER: 'logistic_regression_fedaverage_flower',
 };
 
