@@ -398,6 +398,218 @@
             </div>
           </div>
 
+          <div class="preprocessing-step-card outlier-preprocessing">
+            <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('outlier')">
+              <div class="preprocessing-section-heading">
+                <i class="fa fa-line-chart" aria-hidden="true"></i>
+                <span>Outlier Handling</span>
+              </div>
+              <span
+                class="preprocessing-state-chip"
+                [class.state-pending]="hasPendingOutlierChanges"
+                [class.state-applied]="outlierPreprocessingStatusLabel === 'Applied'"
+              >
+                {{ outlierPreprocessingStatusLabel }}
+              </span>
+              <span class="accordion-icon" [class.open]="preprocessingStepOpen.outlier">▾</span>
+            </button>
+            <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.outlier">
+              @if (outlierPreprocessingVariables.length > 0) {
+              <section class="statistics-workspace preprocessing-workspace">
+                <aside class="statistics-browser preprocessing-browser" aria-label="Outlier preprocessing variables">
+                  <div class="statistics-browser-header">
+                    <span>Variables</span>
+                    <small>{{ filteredOutlierPreprocessingVariables.length }} shown</small>
+                  </div>
+                  <div class="search-inline chart-search">
+                    <i class="fa fa-search search-inline-icon" aria-hidden="true"></i>
+                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="outlierPreprocessingSearch" />
+                  </div>
+
+                  @for (group of outlierPreprocessingGroups; track group.key) {
+                  <div class="statistics-variable-group preprocessing-variable-group">
+                    <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+                    @for (variable of group.variables; track variable.code) {
+                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isOutlierPreprocessingVariableSelected(variable)" (click)="selectOutlierPreprocessingVariable(variable)">
+                      <span>{{ variableLabel(variable) }}</span>
+                      <span class="statistics-variable-meta">
+                        <span
+                          class="preprocessing-state-mini"
+                          [class.state-pending]="outlierVariableHasPendingChange(variable)"
+                          [class.state-applied]="outlierVariableStateLabel(variable) === 'Applied'"
+                        >
+                          {{ outlierVariableStateLabel(variable) }}
+                        </span>
+                      </span>
+                    </button>
+                    }
+                  </div>
+                  }
+                  @if (outlierPreprocessingGroups.length === 0) {
+                  <div class="empty-state-block compact-empty">
+                    <i class="fa fa-search"></i>
+                    <p>No variables match the current search.</p>
+                    <span>Clear the search field to show selected numerical variables.</span>
+                  </div>
+                  }
+                </aside>
+
+                <div class="statistics-panel preprocessing-detail-panel">
+                  @if (selectedOutlierPreprocessingVariable(); as variable) {
+                  <div class="statistics-panel-header">
+                    <div>
+                      <span class="statistics-panel-kicker">Numerical variable</span>
+                      <h4>{{ variableLabel(variable) }}</h4>
+                    </div>
+                    <span
+                      class="preprocessing-state-chip"
+                      [class.state-pending]="outlierVariableHasPendingChange(variable)"
+                      [class.state-applied]="outlierVariableStateLabel(variable) === 'Applied'"
+                    >
+                      {{ outlierVariableStateLabel(variable) }}
+                    </span>
+                  </div>
+
+                  <div class="preprocessing-detail-section">
+                    <div class="preprocessing-detail-heading">
+                      <i class="fa fa-line-chart" aria-hidden="true"></i>
+                      <span>Outlier winsorizer</span>
+                    </div>
+                    <label class="checkbox-wrapper outlier-rule-toggle">
+                      <input type="checkbox" [checked]="outlierRuleFor(variable).enabled" (change)="onOutlierEnabledChange(variable, $any($event.target).checked)" />
+                      <span>Enable for {{ variableLabel(variable) }}</span>
+                    </label>
+                    <div class="preprocessing-control-grid outlier-control-grid">
+                      <label class="preprocessing-control">
+                        <span>Strategy</span>
+                        <select class="table-select" [ngModel]="outlierRuleFor(variable).strategy" (ngModelChange)="onOutlierStrategyChange(variable, $event)">
+                          @for (strategy of outlierStrategies; track strategy.value) {
+                          <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label class="preprocessing-control">
+                        <span>Tail</span>
+                        <select class="table-select" [ngModel]="outlierRuleFor(variable).tail" (ngModelChange)="onOutlierTailChange(variable, $event)">
+                          @for (tail of outlierTails; track tail.value) {
+                          <option [ngValue]="tail.value">{{ tail.label }}</option>
+                          }
+                        </select>
+                      </label>
+                      <label class="preprocessing-control">
+                        <span>Fold</span>
+                        <input class="table-input" type="number" step="any" [ngModel]="outlierRuleFor(variable).fold" (ngModelChange)="onOutlierFoldChange(variable, $event)" />
+                      </label>
+                    </div>
+                    @if (outlierRuleError(variable)) {
+                    <div class="row-error">{{ outlierRuleError(variable) }}</div>
+                    }
+                  </div>
+
+                  } @else {
+                  <div class="empty-state-block compact-empty">
+                    <i class="fa fa-search"></i>
+                    <p>No variables match the current search.</p>
+                    <span>Clear the search field to choose a numerical variable.</span>
+                  </div>
+                  }
+                </div>
+              </section>
+              <div class="preprocessing-footer" [class.has-pending]="hasOutlierRulesForPreview">
+                <div class="pending-count">
+                  <span class="pending-chip">{{ outlierPreviewRows.length }}</span>
+                  preview {{ outlierPreviewRows.length === 1 ? 'row' : 'rows' }}
+                </div>
+                <div class="preprocessing-actions">
+                  <button
+                    type="button"
+                    class="toolbar-icon-btn"
+                    [disabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
+                    (click)="previewOutlierReport()"
+                  >
+                    <i class="fa fa-eye"></i>
+                    @if (isLoadingOutlierPreview) { Previewing... } @else { Preview Outlier Report }
+                  </button>
+                </div>
+              </div>
+
+              @if (isLoadingOutlierPreview) {
+              <div class="studio-skeleton-card" role="status" aria-label="Outlier report preview loading">
+                <span class="studio-skeleton-line medium"></span>
+                <span class="studio-skeleton-line short"></span>
+                <div class="studio-skeleton-table" aria-hidden="true">
+                  @for (_ of [1, 2, 3, 4]; track _) {
+                  <span class="studio-skeleton-cell head"></span>
+                  }
+                  @for (_ of [1, 2, 3, 4, 5, 6, 7, 8]; track _) {
+                  <span class="studio-skeleton-cell"></span>
+                  }
+                </div>
+              </div>
+              }
+
+              @if (!isLoadingOutlierPreview && outlierPreviewError) {
+              <div class="row-error">{{ outlierPreviewError }}</div>
+              }
+
+              @if (!isLoadingOutlierPreview && outlierPreviewRows.length > 0) {
+              <div class="preview-panel glass-feedback" role="status">
+                <div class="feedback-header">
+                  <i class="fa fa-eye" aria-hidden="true"></i>
+                  <h4>Outlier Report Preview</h4>
+                </div>
+                <div class="federated-info-note chart-note">
+                  <i class="fa fa-info-circle"></i>
+                  <span>Zero counts mean no outliers. Unavailable values can be privacy-suppressed or not applicable.</span>
+                </div>
+                <div class="table-wrapper">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Variable</th>
+                        <th>Dataset</th>
+                        <th>Strategy</th>
+                        <th>Tail</th>
+                        <th>Fold</th>
+                        <th>Lower bound</th>
+                        <th>Upper bound</th>
+                        <th>Lower outliers</th>
+                        <th>Upper outliers</th>
+                        <th>Total outliers</th>
+                        <th>Outlier %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of outlierPreviewRows; track row.variable + '-' + row.dataset) {
+                      <tr>
+                        <td>{{ row.variable }}</td>
+                        <td>{{ row.dataset }}</td>
+                        <td>{{ row.strategy }}</td>
+                        <td>{{ row.tail }}</td>
+                        <td>{{ row.fold }}</td>
+                        <td>{{ row.lowerBound }}</td>
+                        <td>{{ row.upperBound }}</td>
+                        <td>{{ row.lowerOutliers }}</td>
+                        <td>{{ row.upperOutliers }}</td>
+                        <td>{{ row.totalOutliers }}</td>
+                        <td>{{ row.outlierPercentage }}</td>
+                      </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              }
+              } @else {
+              <div class="empty-state-block compact-empty">
+                <i class="fa fa-table"></i>
+                <p>No numerical variables selected.</p>
+                <span>Outlier handling is available for selected numerical variables and covariates.</span>
+              </div>
+              }
+            </div>
+          </div>
+
           @if (isLongitudinalModel) {
           <div class="preprocessing-step-card longitudinal-preprocessing">
             <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('longitudinal')">

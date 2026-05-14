@@ -27,6 +27,23 @@ import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils'
 import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
+import {
+  cloneOutlierRules,
+  createDefaultOutlierRule,
+  defaultFoldForStrategy,
+  hydrateOutlierRules,
+  isOutlierEligibleVariable,
+  OUTLIER_STRATEGIES,
+  OUTLIER_TAILS,
+  OutlierRule,
+  OutlierStrategy,
+  OutlierTail,
+  outlierStrategyLabel,
+  outlierTailLabel,
+  serializeOutlierRule,
+  serializeOutlierRules,
+  validateOutlierRule,
+} from '../../../core/outlier-rules';
 
 type TabKey = 'Statistics' | 'Charts';
 type SummaryKind = 'raw' | 'processed';
@@ -100,6 +117,20 @@ interface PreviewImpactGroup {
   items: string[];
 }
 
+interface OutlierPreviewRow {
+  variable: string;
+  dataset: string;
+  strategy: string;
+  tail: string;
+  fold: string;
+  lowerBound: string;
+  upperBound: string;
+  lowerOutliers: string;
+  upperOutliers: string;
+  totalOutliers: string;
+  outlierPercentage: string;
+}
+
 export interface DescriptiveProgressState {
   pendingChangeCount: number;
   preprocessingStatus: PreprocessingStatus;
@@ -148,12 +179,20 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   appliedLongitudinalVisit2 = '';
   pendingLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
   appliedLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
+  pendingOutlierRules: Record<string, OutlierRule> = {};
+  appliedOutlierRules: Record<string, OutlierRule> = {};
   preprocessingStatus: PreprocessingStatus = 'none';
   isApplyingPreprocessing = false;
   preprocessingValidationErrors: Record<string, string> = {};
+  outlierValidationErrors: Record<string, string> = {};
+  outlierPreviewRows: OutlierPreviewRow[] = [];
+  outlierPreviewError = '';
+  isLoadingOutlierPreview = false;
   preprocessingSearch = '';
+  outlierPreprocessingSearch = '';
   longitudinalPreprocessingSearch = '';
   selectedMissingPreprocessingCode: string | null = null;
+  selectedOutlierPreprocessingCode: string | null = null;
   selectedLongitudinalPreprocessingCode: string | null = null;
   statisticsSearch: Record<SummaryKind, string> = {
     raw: '',
@@ -169,8 +208,9 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     filters: false,
     processed: false,
   };
-  preprocessingStepOpen: Record<'missing' | 'longitudinal', boolean> = {
+  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal', boolean> = {
     missing: true,
+    outlier: true,
     longitudinal: true,
   };
 
@@ -186,6 +226,8 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     { value: 'first', label: 'Use visit 1' },
     { value: 'second', label: 'Use visit 2' },
   ];
+  readonly outlierStrategies = OUTLIER_STRATEGIES;
+  readonly outlierTails = OUTLIER_TAILS;
 
   readonly metricOrder: Array<{ key: string; label: string }> = [
     { key: 'num_datapoints', label: 'Datapoints' },
@@ -269,7 +311,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
   }
 
   get pendingChangeCount(): number {
-    return this.pendingMissingChangeCount + this.pendingLongitudinalChangeCount;
+    return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount;
   }
 
   get pendingMissingChangeCount(): number {
@@ -289,6 +331,29 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       const pendingRule = this.pendingPreprocessingRules[code]
         ?? (this.appliedPreprocessingRules[code] ? undefined : this.defaultRule(code));
       if (this.serializeRule(pendingRule) !== this.serializeRule(this.appliedPreprocessingRules[code])) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  get pendingOutlierChangeCount(): number {
+    return this.hasPendingOutlierChanges ? 1 : 0;
+  }
+
+  get hasPendingOutlierChanges(): boolean {
+    const currentCodes = this.currentOutlierPreprocessingCodeSet();
+    const codes = new Set(
+      [
+        ...Array.from(currentCodes),
+        ...Object.keys(this.pendingOutlierRules),
+        ...Object.keys(this.appliedOutlierRules),
+      ].filter((code) => currentCodes.has(code))
+    );
+    for (const code of codes) {
+      const pendingRule = this.pendingOutlierRules[code]
+        ?? (this.appliedOutlierRules[code] ? undefined : this.defaultOutlierRule(code));
+      if (serializeOutlierRule(pendingRule) !== serializeOutlierRule(this.appliedOutlierRules[code])) {
         return true;
       }
     }
@@ -330,6 +395,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return this.filterPreprocessingVariables(query);
   }
 
+  get outlierPreprocessingVariables(): VariableRow[] {
+    return this.preprocessingVariables.filter((variable) => isOutlierEligibleVariable(variable));
+  }
+
+  get filteredOutlierPreprocessingVariables(): VariableRow[] {
+    const query = this.outlierPreprocessingSearch.trim().toLowerCase();
+    if (!query) return this.outlierPreprocessingVariables;
+    return this.outlierPreprocessingVariables.filter((variable) => {
+      const label = this.variableLabel(variable).toLowerCase();
+      return label.includes(query) || String(variable.code).toLowerCase().includes(query);
+    });
+  }
+
   private filterPreprocessingVariables(query: string): VariableRow[] {
     if (!query) return this.preprocessingVariables;
     return this.preprocessingVariables.filter((variable) => {
@@ -351,6 +429,14 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       this.filteredLongitudinalPreprocessingVariables,
       (variable) => this.longitudinalVariableHasPendingChange(variable),
       (variable) => this.hasAppliedLongitudinalPreprocessing(variable.code)
+    );
+  }
+
+  get outlierPreprocessingGroups(): PreprocessingGroup[] {
+    return this.buildPreprocessingGroups(
+      this.filteredOutlierPreprocessingVariables,
+      (variable) => this.outlierVariableHasPendingChange(variable),
+      (variable) => this.hasAppliedOutlierPreprocessing(variable.code)
     );
   }
 
@@ -417,6 +503,34 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
   }
 
+  selectedOutlierPreprocessingVariable(): VariableRow | null {
+    const filtered = this.filteredOutlierPreprocessingVariables;
+    if (!filtered.length) return null;
+    return filtered.find((variable) => variable.code === this.selectedOutlierPreprocessingCode) ?? filtered[0];
+  }
+
+  selectOutlierPreprocessingVariable(variable: VariableRow): void {
+    this.selectedOutlierPreprocessingCode = variable.code;
+    this.cdr.markForCheck();
+  }
+
+  isOutlierPreprocessingVariableSelected(variable: VariableRow): boolean {
+    return this.selectedOutlierPreprocessingVariable()?.code === variable.code;
+  }
+
+  outlierVariableStateLabel(variable: VariableRow): string {
+    if (this.outlierVariableHasPendingChange(variable)) return 'Pending';
+    if (this.hasAppliedOutlierPreprocessing(variable.code)) return 'Applied';
+    return 'Not applied';
+  }
+
+  outlierVariableHasPendingChange(variable: VariableRow): boolean {
+    const appliedRule = this.appliedOutlierRules[variable.code];
+    const pendingRule = this.pendingOutlierRules[variable.code]
+      ?? (appliedRule ? undefined : this.defaultOutlierRule(variable.code));
+    return serializeOutlierRule(pendingRule) !== serializeOutlierRule(appliedRule);
+  }
+
   selectedLongitudinalPreprocessingVariable(): VariableRow | null {
     const filtered = this.filteredLongitudinalPreprocessingVariables;
     if (!filtered.length) return null;
@@ -453,6 +567,17 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     if (this.hasPendingMissingChanges) return 'Pending';
     if (Object.values(this.appliedPreprocessingRules).some((rule) => rule.enabled && rule.action !== 'no_action')) return 'Applied';
     return 'Required';
+  }
+
+  get outlierPreprocessingStatusLabel(): string {
+    if (!this.outlierPreprocessingVariables.length) return 'Not available';
+    if (this.hasPendingOutlierChanges) return 'Pending';
+    if (Object.values(this.appliedOutlierRules).some((rule) => rule.enabled)) return 'Applied';
+    return 'Optional';
+  }
+
+  get hasOutlierRulesForPreview(): boolean {
+    return !!this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
   }
 
   get longitudinalPreprocessingStatusLabel(): string {
@@ -511,6 +636,16 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       return `Missing values for ${label} will be handled.`;
     });
     if (missingItems.length) groups.push({ title: 'Missing Values', items: missingItems });
+
+    const outlierConfig = this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
+    if (outlierConfig) {
+      groups.push({
+        title: 'Outlier Handling',
+        items: [
+          `${Object.keys((outlierConfig['strategies'] as Record<string, string>) ?? {}).length} variable rules will be applied.`,
+        ],
+      });
+    }
 
     const longitudinalConfig = this.buildLongitudinalPreprocessingConfig(false);
     if (longitudinalConfig) {
@@ -642,7 +777,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.sectionOpen[section] = !this.sectionOpen[section];
   }
 
-  togglePreprocessingStep(step: 'missing' | 'longitudinal'): void {
+  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal'): void {
     this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
   }
 
@@ -711,6 +846,85 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.emitProgressState();
   }
 
+  outlierRuleFor(variable: VariableRow): OutlierRule {
+    if (!this.pendingOutlierRules[variable.code]) {
+      this.pendingOutlierRules = {
+        ...this.pendingOutlierRules,
+        [variable.code]: this.defaultOutlierRule(variable.code),
+      };
+    }
+    return this.pendingOutlierRules[variable.code];
+  }
+
+  onOutlierEnabledChange(variable: VariableRow, enabled: boolean): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: { ...existing, enabled },
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierStrategyChange(variable: VariableRow, strategy: OutlierStrategy): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: {
+        ...existing,
+        enabled: true,
+        strategy,
+        fold: defaultFoldForStrategy(strategy),
+      },
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierTailChange(variable: VariableRow, tail: OutlierTail): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: { ...existing, enabled: true, tail },
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierFoldChange(variable: VariableRow, rawValue: string | number): void {
+    const existing = this.outlierRuleFor(variable);
+    const value = String(rawValue ?? '').trim();
+    const fold = value === '' ? null : Number(value);
+    const next: OutlierRule = {
+      ...existing,
+      enabled: true,
+      fold: typeof fold === 'number' && Number.isFinite(fold) ? fold : null,
+    };
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: next,
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: validateOutlierRule(next) ?? '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  outlierRuleError(variable: VariableRow): string {
+    const rule = this.outlierRuleFor(variable);
+    return this.outlierValidationErrors[variable.code] || validateOutlierRule(rule) || '';
+  }
+
   longitudinalStrategyFor(variable: VariableRow): LongitudinalStrategy {
     if (!this.pendingLongitudinalStrategies[variable.code]) {
       this.pendingLongitudinalStrategies[variable.code] = this.defaultLongitudinalStrategy(variable);
@@ -734,11 +948,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         : this.defaultRule(code);
     });
     this.pendingPreprocessingRules = nextPending;
+    const nextOutlierPending = cloneOutlierRules(this.pendingOutlierRules);
+    this.currentOutlierPreprocessingCodeSet().forEach((code) => {
+      nextOutlierPending[code] = this.appliedOutlierRules[code]
+        ? { ...this.appliedOutlierRules[code] }
+        : this.defaultOutlierRule(code);
+    });
+    this.pendingOutlierRules = nextOutlierPending;
     this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
     this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
     this.pendingLongitudinalStrategies = { ...this.appliedLongitudinalStrategies };
     this.ensureLongitudinalDefaults();
     this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
     this.showPreview = false;
     this.updatePreprocessingStatus();
     this.emitProgressState();
@@ -750,16 +972,84 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.showPreview = !this.showPreview;
   }
 
+  previewOutlierReport(): void {
+    this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
+    const validationErrors = {
+      ...this.validatePendingMissingRules(),
+      ...this.validatePendingOutlierRules(),
+    };
+    if (Object.keys(validationErrors).length > 0) {
+      this.preprocessingValidationErrors = validationErrors;
+      const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+      this.outlierValidationErrors = Object.fromEntries(
+        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
+      );
+      this.outlierPreviewRows = [];
+      this.outlierPreviewError = 'Fix the outlier preprocessing rules before previewing.';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const outlierParameters = this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
+    if (!outlierParameters) {
+      this.outlierPreviewRows = [];
+      this.outlierPreviewError = 'Enable at least one outlier rule before previewing.';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const variableCodes = Object.keys((outlierParameters['strategies'] as Record<string, string>) ?? {});
+    const missingValuesHandler = this.buildMissingPreprocessingConfig(
+      this.pendingPreprocessingRules,
+      new Set(variableCodes)
+    );
+    const preprocessing = missingValuesHandler
+      ? { missing_values_handler: missingValuesHandler }
+      : null;
+
+    this.isLoadingOutlierPreview = true;
+    this.outlierPreviewRows = [];
+    this.outlierPreviewError = '';
+    this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
+    this.cdr.markForCheck();
+
+    this.expStudioService.loadOutlierReportPreview(variableCodes, outlierParameters, preprocessing).subscribe({
+      next: (response) => {
+        this.outlierPreviewRows = this.buildOutlierPreviewRows(response);
+        this.outlierPreviewError = this.outlierPreviewRows.length
+          ? ''
+          : 'No outlier report rows were returned for the enabled rules.';
+        this.isLoadingOutlierPreview = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error(err);
+        this.outlierPreviewRows = [];
+        this.outlierPreviewError = 'Outlier report preview failed.';
+        this.isLoadingOutlierPreview = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   applyPreprocessing(): void {
     this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
     this.ensureLongitudinalDefaults();
     if (this.pendingChangeCount === 0) return;
     const validationErrors = this.validatePendingRules();
     if (Object.keys(validationErrors).length > 0) {
       this.preprocessingValidationErrors = validationErrors;
+      const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+      this.outlierValidationErrors = Object.fromEntries(
+        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
+      );
       this.cdr.markForCheck();
       return;
     }
+    this.clearOutlierPreview();
 
     const currentCodes = this.currentPreprocessingCodeSet();
     const preprocessing = this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes);
@@ -767,6 +1057,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
         this.appliedPreprocessingRules,
         this.pendingPreprocessingRules
+      );
+      this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+        this.appliedOutlierRules,
+        this.pendingOutlierRules
       );
       this.appliedLongitudinalEnabled = this.isLongitudinalModel;
       this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
@@ -788,6 +1082,7 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.processedSummary = this.createEmptySummary(true);
     this.goToSection('processed');
     this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
     this.cdr.markForCheck();
 
     this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
@@ -797,6 +1092,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
           this.appliedPreprocessingRules,
           this.pendingPreprocessingRules
+        );
+        this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+          this.appliedOutlierRules,
+          this.pendingOutlierRules
         );
         this.appliedLongitudinalEnabled = this.isLongitudinalModel;
         this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
@@ -1074,10 +1373,71 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     };
   }
 
+  private buildOutlierPreviewRows(response: unknown): OutlierPreviewRow[] {
+    const payload = (response as { result?: unknown })?.result ?? response;
+    const featurewise = Array.isArray((payload as { featurewise?: unknown })?.featurewise)
+      ? ((payload as { featurewise: unknown[] }).featurewise)
+      : [];
+
+    return featurewise.map((row) => {
+      const item = row as { variable?: unknown; dataset?: unknown; data?: Record<string, unknown> };
+      const data = item.data ?? {};
+      const variableCode = String(item.variable ?? '');
+      return {
+        variable: this.variableLabelForCode(variableCode),
+        dataset: this.formatOutlierPreviewValue(item.dataset),
+        strategy: outlierStrategyLabel(String(data['strategy'] ?? '')),
+        tail: outlierTailLabel(String(data['tail'] ?? '')),
+        fold: this.formatOutlierPreviewValue(data['fold']),
+        lowerBound: this.formatOutlierPreviewValue(data['lower_bound']),
+        upperBound: this.formatOutlierPreviewValue(data['upper_bound']),
+        lowerOutliers: this.formatOutlierPreviewValue(data['lower_outlier_count']),
+        upperOutliers: this.formatOutlierPreviewValue(data['upper_outlier_count']),
+        totalOutliers: this.formatOutlierPreviewValue(data['total_outlier_count']),
+        outlierPercentage: this.formatOutlierPreviewValue(data['total_outlier_percentage']),
+      };
+    });
+  }
+
+  private variableLabelForCode(code: string): string {
+    const variable = this.preprocessingVariables.find((item) => item.code === code);
+    return variable ? this.variableLabel(variable) : code;
+  }
+
+  private formatOutlierPreviewValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') return 'Unavailable';
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Number.isInteger(value)
+        ? value.toLocaleString()
+        : value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+    }
+    return String(value);
+  }
+
   private buildPreprocessingConfig(
     rules: Record<string, PreprocessingRule>,
     allowedCodes = this.currentPreprocessingCodeSet()
   ): PreprocessingConfig | null {
+    const config: PreprocessingConfig = {};
+    const missingValuesHandler = this.buildMissingPreprocessingConfig(rules, allowedCodes);
+    if (missingValuesHandler) config['missing_values_handler'] = missingValuesHandler;
+
+    const outlier = this.buildOutlierPreprocessingConfig(
+      rules === this.appliedPreprocessingRules ? this.appliedOutlierRules : this.pendingOutlierRules,
+      allowedCodes
+    );
+    if (outlier) config['outlier_winsorizer'] = outlier;
+
+    const longitudinal = this.buildLongitudinalPreprocessingConfig(rules === this.appliedPreprocessingRules, allowedCodes);
+    if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+
+    return Object.keys(config).length ? config : null;
+  }
+
+  private buildMissingPreprocessingConfig(
+    rules: Record<string, PreprocessingRule>,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
     const strategies: Record<string, string> = {};
     const fillValues: Record<string, string> = {};
 
@@ -1088,20 +1448,32 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       if (rule.action === 'constant') fillValues[rule.variableCode] = rule.value;
     });
 
-    const config: PreprocessingConfig = {};
-    if (Object.keys(strategies).length) {
-      const missingValuesHandler: Record<string, unknown> = { strategies };
-      if (Object.keys(fillValues).length) missingValuesHandler['fill_values'] = fillValues;
-      config['missing_values_handler'] = missingValuesHandler;
-    }
+    if (!Object.keys(strategies).length) return null;
+    const missingValuesHandler: Record<string, unknown> = { strategies };
+    if (Object.keys(fillValues).length) missingValuesHandler['fill_values'] = fillValues;
+    return missingValuesHandler;
+  }
 
-    const longitudinal = this.buildLongitudinalPreprocessingConfig(rules === this.appliedPreprocessingRules, allowedCodes);
-    if (longitudinal) config['longitudinal_transformer'] = longitudinal;
-
-    return Object.keys(config).length ? config : null;
+  private buildOutlierPreprocessingConfig(
+    rules: Record<string, OutlierRule>,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    const outlierCodes = new Set(
+      Array.from(this.currentOutlierPreprocessingCodeSet()).filter((code) => allowedCodes.has(code))
+    );
+    const serialized = serializeOutlierRules(rules, outlierCodes);
+    return serialized ? { ...serialized } : null;
   }
 
   private validatePendingRules(): Record<string, string> {
+    return {
+      ...this.validatePendingMissingRules(),
+      ...this.validatePendingOutlierRules(),
+      ...this.validatePendingLongitudinalRules(),
+    };
+  }
+
+  private validatePendingMissingRules(): Record<string, string> {
     const errors: Record<string, string> = {};
     const currentCodes = this.currentPreprocessingCodeSet();
     Object.values(this.pendingPreprocessingRules).forEach((rule) => {
@@ -1124,6 +1496,22 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         }
       }
     });
+    return errors;
+  }
+
+  private validatePendingOutlierRules(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    Object.values(this.pendingOutlierRules).forEach((rule) => {
+      if (!outlierCodes.has(rule.variableCode)) return;
+      const error = validateOutlierRule(rule);
+      if (error) errors[rule.variableCode] = error;
+    });
+    return errors;
+  }
+
+  private validatePendingLongitudinalRules(): Record<string, string> {
+    const errors: Record<string, string> = {};
     if (this.isLongitudinalModel) {
       if (!this.longitudinalVisit1 || !this.longitudinalVisit2) {
         errors['__longitudinal__'] = 'Both longitudinal visits are required.';
@@ -1146,6 +1534,13 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     else if (this.buildPreprocessingConfig(this.appliedPreprocessingRules)) this.preprocessingStatus = 'applied';
     else this.preprocessingStatus = 'none';
     this.successMessage = '';
+    this.clearOutlierPreview();
+  }
+
+  private clearOutlierPreview(): void {
+    this.outlierPreviewRows = [];
+    this.outlierPreviewError = '';
+    this.isLoadingOutlierPreview = false;
   }
 
   private reconcilePreprocessingForSelection(): void {
@@ -1155,9 +1550,14 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       this.hydrateAppliedPreprocessing(appliedPreprocessing, currentCodes);
     } else {
       this.ensureDefaultRulesForCurrentSelection(currentCodes);
+      this.ensureOutlierDefaultsForCurrentSelection();
     }
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
+    );
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    this.outlierValidationErrors = Object.fromEntries(
+      Object.entries(this.outlierValidationErrors).filter(([code]) => outlierCodes.has(code))
     );
     if (this.keepProcessedSectionOpenOnNextReconcile) {
       this.sectionOpen.processed = true;
@@ -1244,6 +1644,19 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.appliedPreprocessingRules = nextApplied;
     this.pendingPreprocessingRules = nextPending;
 
+    const outlier = preprocessing['outlier_winsorizer'];
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    const hydratedOutlier = hydrateOutlierRules(outlier, outlierCodes);
+    const nextAppliedOutlier = cloneOutlierRules(this.appliedOutlierRules);
+    const nextPendingOutlier = cloneOutlierRules(this.pendingOutlierRules);
+    outlierCodes.forEach((code) => {
+      const rule = hydratedOutlier[code] ?? this.defaultOutlierRule(code);
+      nextAppliedOutlier[code] = { ...rule };
+      nextPendingOutlier[code] = { ...rule };
+    });
+    this.appliedOutlierRules = nextAppliedOutlier;
+    this.pendingOutlierRules = nextPendingOutlier;
+
     const longitudinal = preprocessing['longitudinal_transformer'] as {
       visit1?: unknown;
       visit2?: unknown;
@@ -1292,6 +1705,18 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     if (changed) this.pendingPreprocessingRules = nextPending;
   }
 
+  private ensureOutlierDefaultsForCurrentSelection(currentCodes = this.currentOutlierPreprocessingCodeSet()): void {
+    const nextPending = cloneOutlierRules(this.pendingOutlierRules);
+    let changed = false;
+    currentCodes.forEach((code) => {
+      if (!nextPending[code] && !this.appliedOutlierRules[code]) {
+        nextPending[code] = this.defaultOutlierRule(code);
+        changed = true;
+      }
+    });
+    if (changed) this.pendingOutlierRules = nextPending;
+  }
+
   private emitProgressState(): void {
     this.progressStateChange.emit({
       pendingChangeCount: this.pendingChangeCount,
@@ -1307,6 +1732,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   private currentPreprocessingCodeSet(): Set<string> {
     return new Set(this.preprocessingVariables.map((variable) => variable.code));
+  }
+
+  private currentOutlierPreprocessingCodeSet(): Set<string> {
+    return new Set(this.outlierPreprocessingVariables.map((variable) => variable.code));
   }
 
   private buildLongitudinalPreprocessingConfig(
@@ -1381,6 +1810,10 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return !!this.appliedLongitudinalStrategies[variableCode];
   }
 
+  private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
+    return !!this.appliedOutlierRules[variableCode]?.enabled;
+  }
+
   private mergeRulesForCurrentSelection(
     base: Record<string, PreprocessingRule>,
     source: Record<string, PreprocessingRule>
@@ -1392,8 +1825,23 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     return next;
   }
 
+  private mergeOutlierRulesForCurrentSelection(
+    base: Record<string, OutlierRule>,
+    source: Record<string, OutlierRule>
+  ): Record<string, OutlierRule> {
+    const next = cloneOutlierRules(base);
+    this.currentOutlierPreprocessingCodeSet().forEach((code) => {
+      next[code] = source[code] ? { ...source[code] } : this.defaultOutlierRule(code);
+    });
+    return next;
+  }
+
   private defaultRule(variableCode: string): PreprocessingRule {
     return { variableCode, action: 'drop', value: '', enabled: true };
+  }
+
+  private defaultOutlierRule(variableCode: string): OutlierRule {
+    return createDefaultOutlierRule(variableCode, false);
   }
 
   private emptyRule(variableCode: string): PreprocessingRule {

@@ -18,6 +18,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     beforeEach(async () => {
         mockExpService = jasmine.createSpyObj('ExperimentStudioService', [
             'loadDescriptiveOverview',
+            'loadOutlierReportPreview',
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
             'setAppliedDescriptivePreprocessing',
@@ -37,6 +38,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadOutlierReportPreview.and.returnValue(of({ result: { featurewise: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
@@ -814,6 +816,134 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
     });
 
+    it('applies outlier winsorizer together with missing values for numerical variables only', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        (mockExpService.selectedCovariates as any).set([bmi]);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        fixture.detectChanges();
+        mockExpService.loadDescriptiveOverview.calls.reset();
+
+        expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age', 'bmi']);
+
+        component.onOutlierStrategyChange(age, 'quantile');
+        component.onOutlierFoldChange(age, 0.05);
+        component.onOutlierEnabledChange(bmi, true);
+        component.applyPreprocessing();
+
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'sex', 'bmi'], {
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                    sex: 'drop',
+                    bmi: 'drop',
+                },
+            },
+            outlier_winsorizer: {
+                strategies: {
+                    age: 'quantile',
+                    bmi: 'iqr',
+                },
+                tails: {
+                    age: 'both',
+                    bmi: 'both',
+                },
+                folds: {
+                    age: 0.05,
+                    bmi: 1.5,
+                },
+            },
+        });
+    });
+
+    it('previews pending outlier winsorizer rules with an outlier report before applying', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        mockExpService.loadOutlierReportPreview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        variable: 'age',
+                        dataset: 'dataset-a',
+                        data: {
+                            strategy: 'iqr',
+                            tail: 'both',
+                            fold: 1.5,
+                            lower_bound: null,
+                            upper_bound: 90,
+                            lower_outlier_count: 0,
+                            upper_outlier_count: 2,
+                            total_outlier_count: 2,
+                            total_outlier_percentage: 0.2,
+                        },
+                    },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+
+        component.onOutlierEnabledChange(age, true);
+        component.previewOutlierReport();
+
+        expect(mockExpService.loadOutlierReportPreview).toHaveBeenCalledWith(
+            ['age'],
+            {
+                strategies: { age: 'iqr' },
+                tails: { age: 'both' },
+                folds: { age: 1.5 },
+            },
+            {
+                missing_values_handler: {
+                    strategies: {
+                        age: 'drop',
+                    },
+                },
+            }
+        );
+        expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
+        expect(component.outlierPreviewRows).toEqual([
+            jasmine.objectContaining({
+                variable: 'Age',
+                dataset: 'dataset-a',
+                strategy: 'IQR',
+                lowerBound: 'Unavailable',
+                lowerOutliers: '0',
+                totalOutliers: '2',
+            }),
+        ]);
+
+        fixture.detectChanges();
+        const preview = fixture.nativeElement.querySelector('.preview-panel') as HTMLElement;
+        expect(preview.textContent).toContain('Outlier Report Preview');
+        expect(preview.textContent).toContain('Unavailable');
+        expect(preview.textContent).toContain('0');
+    });
+
+    it('validates outlier fold boundaries before applying preprocessing', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        mockExpService.loadDescriptiveOverview.calls.reset();
+
+        component.onOutlierStrategyChange(age, 'quantile');
+        component.onOutlierFoldChange(age, 0.5);
+        component.applyPreprocessing();
+
+        expect(component.outlierValidationErrors['age']).toBe('Quantile fold must be greater than 0 and less than 0.5.');
+        expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+
+        component.onOutlierStrategyChange(age, 'iqr');
+        component.onOutlierFoldChange(age, 0);
+        component.applyPreprocessing();
+
+        expect(component.outlierValidationErrors['age']).toBe('Fold must be greater than 0.');
+        expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+    });
+
     it('resets missing value and longitudinal pending state together', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
@@ -870,6 +1000,41 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.ruleFor(age).action).toBe('median');
         expect(component.ruleFor(sex).action).toBe('drop');
+        expect(component.preprocessingStatus).toBe('applied');
+        expect(component.pendingChangeCount).toBe(0);
+    });
+
+    it('hydrates saved outlier preprocessing as applied without enabling categorical variables', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                    sex: 'drop',
+                },
+            },
+            outlier_winsorizer: {
+                strategies: {
+                    age: 'iqr',
+                },
+                tails: {
+                    age: 'both',
+                },
+                folds: {
+                    age: 1.5,
+                },
+            },
+        };
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.selectedVariables as any).set([age, sex]);
+
+        fixture.detectChanges();
+
+        expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age']);
+        expect(component.outlierRuleFor(age).enabled).toBeTrue();
+        expect(component.outlierVariableStateLabel(age)).toBe('Applied');
         expect(component.preprocessingStatus).toBe('applied');
         expect(component.pendingChangeCount).toBe(0);
     });

@@ -9,6 +9,7 @@ import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { SessionStorageService } from '../../../services/session-storage.service';
 import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { AlgorithmPanelComponent } from './algorithm-panel.component';
+import { of } from 'rxjs';
 
 describe('AlgorithmPanelComponent', () => {
   let fixture: ComponentFixture<AlgorithmPanelComponent>;
@@ -127,5 +128,84 @@ describe('AlgorithmPanelComponent', () => {
     component.configForm().get('fourth')?.setValue('42');
 
     expect(experimentStudioService.algorithmConfigurations()['flat_config_algorithm']['fourth']).toBe(42);
+  });
+
+  it('serializes outlier_report rules into dictionary parameters', async () => {
+    const outlierAlgorithm: AlgorithmConfig = {
+      name: 'outlier_report',
+      label: 'Outlier Report',
+      description: '',
+      category: 'Descriptive Statistics',
+      requiredVariable: ['real'],
+      covariate: ['real'],
+      configSchema: [
+        { key: 'strategies', label: 'Strategies', type: 'dict' },
+        { key: 'tails', label: 'Tails', type: 'dict' },
+        { key: 'folds', label: 'Folds', type: 'dict' },
+      ],
+      isDisabled: false,
+    };
+    experimentStudioService.selectedAlgorithm.set(outlierAlgorithm);
+    experimentStudioService.backendAlgorithms.set({ outlier_report: outlierAlgorithm });
+    experimentStudioService.availableGroupedAlgorithms.set({ 'Descriptive Statistics': [outlierAlgorithm] });
+    experimentStudioService.selectedVariables.set([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'sex', label: 'Sex', type: 'nominal' },
+    ]);
+    experimentStudioService.selectedCovariates.set([{ code: 'bmi', label: 'BMI', type: 'real' }]);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    experimentStudioService.runSelectedAlgorithmTransient.and.returnValue(of({
+      status: 'success',
+      result: { featurewise: [] },
+    }));
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    component.onOutlierReportEnabledChange({ code: 'bmi', label: 'BMI', type: 'real' }, false);
+    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
+    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.05);
+    component.onClickRunExp();
+
+    expect(experimentStudioService.algorithmConfigurations()['outlier_report']).toEqual({
+      strategies: { age: 'quantile' },
+      tails: { age: 'both' },
+      folds: { age: 0.05 },
+    });
+    expect(experimentStudioService.runSelectedAlgorithmTransient).toHaveBeenCalledWith('outlier_report', 'outlier_report');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Age');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('BMI');
+  });
+
+  it('blocks invalid outlier_report folds', async () => {
+    const outlierAlgorithm: AlgorithmConfig = {
+      name: 'outlier_report',
+      label: 'Outlier Report',
+      description: '',
+      category: 'Descriptive Statistics',
+      requiredVariable: ['real'],
+      covariate: ['real'],
+      configSchema: [
+        { key: 'strategies', label: 'Strategies', type: 'dict' },
+        { key: 'tails', label: 'Tails', type: 'dict' },
+        { key: 'folds', label: 'Folds', type: 'dict' },
+      ],
+      isDisabled: false,
+    };
+    experimentStudioService.selectedAlgorithm.set(outlierAlgorithm);
+    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
+    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.5);
+    experimentStudioService.runSelectedAlgorithmTransient.calls.reset();
+
+    component.onClickRunExp();
+
+    expect(experimentStudioService.runSelectedAlgorithmTransient).not.toHaveBeenCalled();
+    expect(component.errorMsg()).toBe('Fix the outlier report configuration before running.');
   });
 });

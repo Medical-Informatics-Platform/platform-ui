@@ -40,6 +40,7 @@ export interface RawParameter {
   enums?: RawEnumsDefinition;
   dict_keys_enums?: RawEnumsDefinition;
   dict_values_enums?: RawEnumsDefinition;
+  dict_values_type?: 'real' | 'int' | 'text' | 'boolean';
 }
 
 export interface RawEnumsDefinition {

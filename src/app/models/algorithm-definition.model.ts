@@ -1,7 +1,7 @@
 import { RawInputData, RawPreprocessingStep } from "./backend-algorithms.model";
 
 export interface AlgorithmParameter {
-  type: 'number' | 'string' | 'boolean' | 'select' | 'multi-select';
+  type: 'number' | 'string' | 'boolean' | 'select' | 'multi-select' | 'dict';
   label: string;
   default?: number | string | boolean | Array<string | number>;
   required?: boolean;

@@ -108,7 +108,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
 
-    expect(component.metadataBrowserMode()).toBe('ontology');
+    expect(component.metadataBrowserMode()).toBe('bubble');
   });
 
   it('persists metadata browser mode changes', () => {
@@ -121,20 +121,20 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(localStorage.getItem('metadata_browser_mode')).toBe('collapsible');
   });
 
-  it('falls back to ontology tree for an invalid saved metadata browser mode', () => {
+  it('falls back to bubble chart for an invalid saved metadata browser mode', () => {
     localStorage.setItem('metadata_browser_mode', 'columns');
 
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
 
-    expect(component.metadataBrowserMode()).toBe('ontology');
+    expect(component.metadataBrowserMode()).toBe('bubble');
   });
 
   it('includes collapsible tree as an alternative metadata browser mode', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
 
-    expect(component.metadataBrowserModes.map((mode) => mode.value)).toEqual(['ontology', 'collapsible', 'bubble']);
+    expect(component.metadataBrowserModes.map((mode) => mode.value)).toEqual(['bubble', 'ontology', 'collapsible']);
   });
 
   it('resets selected-node details to the histogram tab on variable selection', () => {

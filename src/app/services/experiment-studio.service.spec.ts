@@ -249,6 +249,26 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toEqual(applied);
   });
 
+  it('forwards applied outlier preprocessing together with missing values', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: {
+        strategies: { age: 'drop' },
+      },
+      outlier_winsorizer: {
+        strategies: { age: 'iqr' },
+        tails: { age: 'both' },
+        folds: { age: 1.5 },
+      },
+    };
+
+    service.setAppliedDescriptivePreprocessing(applied);
+    const body = service.buildRequestBody('mock_algo', ['age']);
+
+    expect(body.algorithm.preprocessing).toEqual(applied);
+  });
+
   it('summarizes preprocessing with variable labels and human-readable actions', () => {
     const summary = service.formatPreprocessingConfig({
       missing_values_handler: {
@@ -277,6 +297,70 @@ describe('ExperimentStudioService', () => {
     }, { gender: 'Gender' })).toEqual([
       { label: 'Missing values', value: 'Gender: remove rows' },
     ]);
+  });
+
+  it('summarizes outlier winsorizer preprocessing explicitly', () => {
+    const summary = service.formatPreprocessingConfig({
+      outlier_winsorizer: {
+        strategies: { age: 'iqr', bmi: 'quantile' },
+        tails: { age: 'both', bmi: 'right' },
+        folds: { age: 1.5, bmi: 0.05 },
+      },
+    }, {
+      age: 'Age',
+      bmi: 'BMI',
+    });
+
+    expect(summary).toBe(
+      'Outlier winsorizer: Age: IQR, both tails, fold 1.5; BMI: Quantile, right tail, fold 0.05'
+    );
+  });
+
+  it('loads outlier report previews with outlier parameters and upstream missing preprocessing', (done) => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setCovariates([{ code: 'bmi', label: 'BMI', type: 'real' } as any]);
+
+    service.loadOutlierReportPreview(
+      ['age', 'bmi'],
+      {
+        strategies: { age: 'iqr', bmi: 'quantile' },
+        tails: { age: 'both', bmi: 'right' },
+        folds: { age: 1.5, bmi: 0.05 },
+      },
+      {
+        missing_values_handler: {
+          strategies: { age: 'median' },
+        },
+      }
+    ).subscribe((response) => {
+      expect(response.result.featurewise).toEqual([]);
+      done();
+    });
+
+    const req = httpMock.expectOne('/services/experiments/transient');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.algorithm).toEqual(jasmine.objectContaining({
+      name: 'outlier_report',
+      inputdata: jasmine.objectContaining({
+        data_model: 'dm:1',
+        y: ['age'],
+        x: ['bmi'],
+        datasets: [],
+        filters: null,
+      }),
+      parameters: {
+        strategies: { age: 'iqr', bmi: 'quantile' },
+        tails: { age: 'both', bmi: 'right' },
+        folds: { age: 1.5, bmi: 0.05 },
+      },
+      preprocessing: {
+        missing_values_handler: {
+          strategies: { age: 'median' },
+        },
+      },
+    }));
+    req.flush({ featurewise: [] });
   });
 
   it('resetStudioState clears selections and errors', (done) => {
