@@ -923,7 +923,9 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         'Total outliers',
         'Outlier %',
       ],
-      rows: featurewise.map((row: any) => {
+      rows: featurewise
+        .filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets')
+        .map((row: any) => {
         const data = row?.data ?? {};
         return [
           row?.variable ?? '',

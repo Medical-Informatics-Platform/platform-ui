@@ -135,14 +135,17 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
 
 export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): AlgorithmConfig {
   const normalizedName = raw.name === 'anova' ? 'anova_twoway' : raw.name;
-  const preprocessing = [...(raw.preprocessing ?? [])].sort(
-    (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
-  );
+  const preprocessing = [...(raw.preprocessing ?? [])]
+    .map((step) => ({ ...step, documentation: step.documentation ?? '' }))
+    .sort(
+      (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
+    );
 
   return {
     name: normalizedName,
     label: raw.label,
     description: raw.desc ?? '',
+    documentation: raw.documentation ?? '',
     inputdata: raw.inputdata ?? {},
     requiredVariable: raw.inputdata?.y?.types || [],
     covariate: raw.inputdata?.x?.types || [],

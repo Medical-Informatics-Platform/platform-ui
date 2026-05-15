@@ -33,7 +33,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             selectedDatasets: signal(['dataset-a']),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
             filterLogic: signal(null),
-            appliedPreprocessingConfig: signal(null)
+            appliedPreprocessingConfig: signal(null),
+            backendAlgorithms: signal({})
         });
         mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
@@ -85,6 +86,25 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy();
+    });
+
+    it('renders preprocessing step documentation from backend algorithm metadata', () => {
+        (mockExpService.backendAlgorithms as any).set({
+            linear_regression: {
+                preprocessing: [
+                    { name: 'missing_values_handler', documentation: 'Missing docs.\nSecond line.' },
+                    { name: 'outlier_winsorizer', documentation: 'Outlier docs.' },
+                ],
+            },
+        });
+
+        fixture.detectChanges();
+
+        const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+        expect(text).toContain('Documentation');
+        expect(text).toContain('Missing docs.');
+        expect(text).toContain('Second line.');
+        expect(text).toContain('Outlier docs.');
     });
 
     it('does not fetch descriptive stats until a model and dataset are ready', () => {
@@ -921,6 +941,33 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(preview.textContent).toContain('Outlier Report Preview');
         expect(preview.textContent).toContain('Unavailable');
         expect(preview.textContent).toContain('0');
+    });
+
+    it('excludes all datasets rows from outlier report preview like descriptive numerical charts', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age]);
+        mockExpService.loadOutlierReportPreview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        variable: 'age',
+                        dataset: 'dataset-a',
+                        data: { strategy: 'iqr', tail: 'both', fold: 1.5 },
+                    },
+                    {
+                        variable: 'age',
+                        dataset: 'all datasets',
+                        data: { strategy: 'iqr', tail: 'both', fold: 1.5 },
+                    },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+
+        component.onOutlierEnabledChange(age, true);
+        component.previewOutlierReport();
+
+        expect(component.outlierPreviewRows.map((row) => row.dataset)).toEqual(['dataset-a']);
     });
 
     it('validates outlier fold boundaries before applying preprocessing', () => {

@@ -781,6 +781,16 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
     this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
   }
 
+  preprocessingStepDocumentation(stepName: string): string {
+    const algorithms = Object.values(this.expStudioService.backendAlgorithms?.() ?? {}) as Array<{
+      preprocessing?: Array<{ name: string; documentation?: string }>;
+    }>;
+    const step = algorithms
+      .flatMap((algorithm) => algorithm.preprocessing ?? [])
+      .find((candidate) => candidate.name === stepName);
+    return step?.documentation?.trim() ?? '';
+  }
+
   ruleFor(variable: VariableRow): PreprocessingRule {
     if (!this.pendingPreprocessingRules[variable.code]) {
       this.pendingPreprocessingRules[variable.code] = this.defaultRule(variable.code);
@@ -1379,7 +1389,12 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
       ? ((payload as { featurewise: unknown[] }).featurewise)
       : [];
 
-    return featurewise.map((row) => {
+    return featurewise
+      .filter((row) => {
+        const item = row as { dataset?: unknown };
+        return String(item.dataset ?? '').trim().toLowerCase() !== 'all datasets';
+      })
+      .map((row) => {
       const item = row as { variable?: unknown; dataset?: unknown; data?: Record<string, unknown> };
       const data = item.data ?? {};
       const variableCode = String(item.variable ?? '');

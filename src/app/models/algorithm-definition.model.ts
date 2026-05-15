@@ -25,6 +25,7 @@ export interface AlgorithmConfig {
   name: string;
   label: string;
   description: string;
+  documentation?: string;
   requiredVariable: string[];
   covariate: string[];
   category: string;
