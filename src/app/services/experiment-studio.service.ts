@@ -7,7 +7,7 @@ import { mapRawAlgorithmToAlgorithmConfig } from '../core/algorithm-mappers';
 import { EnumMaps } from '../core/algorithm-result-enum-mapper';
 import { RawAlgorithmDefinition } from '../models/backend-algorithms.model';
 import { BackendFilter } from '../models/filters.model';
-import { AlgorithmConfig } from '../models/algorithm-definition.model';
+import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-definition.model';
 import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
@@ -454,6 +454,7 @@ export class ExperimentStudioService {
         });
 
         this.backendAlgorithms.set(mapped);
+        this.refreshSelectedAlgorithmFromCatalog(mapped);
         return mapped;
       }),
       catchError((error) => {
@@ -461,6 +462,20 @@ export class ExperimentStudioService {
         return of({});
       })
     );
+  }
+
+  private refreshSelectedAlgorithmFromCatalog(mapped: Record<string, AlgorithmConfig>): void {
+    const selected = this.selectedAlgorithm();
+    if (!selected) return;
+    const fresh = mapped[selected.name];
+    if (!fresh) return;
+
+    const refreshed = {
+      ...fresh,
+      configSchema: selected.configSchema?.length ? selected.configSchema : fresh.configSchema,
+    };
+    this.selectedAlgorithm.set(refreshed);
+    this.sessionStorage.setItem('selectedAlgorithm', refreshed);
   }
 
   getCrossValidationVariant(baseName: string): string | null {
@@ -514,11 +529,9 @@ export class ExperimentStudioService {
   availableGroupedAlgorithms = computed(() => {
     // Explicitly read selection signals to establish reactive dependencies.
     // Without this, the computed only re-runs when backendAlgorithms() changes,
-    // not when variable/covariate/filter selections change.
+    // not when variable/covariate selections change.
     this.selectedVariables();
     this.selectedCovariates();
-    this.selectedFilters();
-    this._filterLogic();
 
     return Object.values(this.backendAlgorithms())
       .filter(algo => !ALGORITHM_PANEL_EXCLUDED.has(algo.name))
@@ -531,47 +544,78 @@ export class ExperimentStudioService {
       .reduce((acc, algo) => {
         const cat = algo.category || 'Other';
         if (!acc[cat]) acc[cat] = [];
+        const availability = this.getAlgorithmAvailability(algo.name);
         acc[cat].push({
           ...algo,
-          isDisabled: !this.isAlgorithmAvailable(algo.name)
+          availability,
+          isDisabled: !availability.available,
         });
         return acc;
       }, {} as Record<string, AlgorithmConfig[]>);
   });
 
-  isAlgorithmAvailable(name: string): boolean {
+  getAlgorithmAvailability(name: string): AlgorithmAvailability {
     const algo = this.backendAlgorithms()[name];
-    if (!algo?.inputdata) return false;
+    const emptyAvailability: AlgorithmAvailability = {
+      available: false,
+      summary: 'Algorithm is not in the backend catalog.',
+      details: [],
+    };
+    if (!algo?.inputdata) return emptyAvailability;
 
-    const filterLogic = this._filterLogic();
-    const hasActiveFilter = !!(
-      filterLogic &&
-      Array.isArray(filterLogic.rules) &&
-      filterLogic.rules.length > 0
-    );
-
-    return this.algorithmRulesService.isAlgorithmAvailable(algo, {
+    return this.algorithmRulesService.evaluateAlgorithmAvailability(algo, {
       y: this.selectedVariables(),
       x: this.selectedCovariates(),
-      filters: this.selectedFilters(),
-      hasActiveFilter,
     });
+  }
+
+  isAlgorithmAvailable(name: string): boolean {
+    return this.getAlgorithmAvailability(name).available;
+  }
+
+  private buildInputDataPayload(
+    algo: AlgorithmConfig,
+    yPayload: string[] | null,
+    xPayload: string[] | null,
+    filtersPayload: BackendFilter | null,
+  ): Record<string, unknown> {
+    const inputdata = algo.inputdata ?? {};
+    const datasets = this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds));
+    const payload: Record<string, unknown> = {};
+
+    if (Object.prototype.hasOwnProperty.call(inputdata, "data_model")) {
+      payload["data_model"] = this.getActiveDataModelCode();
+    }
+    if (Object.prototype.hasOwnProperty.call(inputdata, "datasets")) {
+      payload["datasets"] = datasets;
+    }
+    if (Object.prototype.hasOwnProperty.call(inputdata, "validation_datasets")) {
+      payload["validation_datasets"] = datasets;
+    }
+    if (Object.prototype.hasOwnProperty.call(inputdata, "y")) {
+      payload["y"] = yPayload;
+    }
+    if (Object.prototype.hasOwnProperty.call(inputdata, "x")) {
+      payload["x"] = xPayload;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(inputdata, "filter") ||
+      Object.prototype.hasOwnProperty.call(inputdata, "filters")
+    ) {
+      payload["filters"] = filtersPayload;
+    }
+
+    return payload;
   }
 
   private rolePayload(
     algo: AlgorithmConfig,
     role: 'y' | 'x',
     codes: string[]
-  ): string[] | string | null {
+  ): string[] | null {
     const req = algo.inputdata?.[role];
     if (!req) return null;
-
     if (!codes || codes.length === 0) return null;
-
-    // multiple=false => scalar
-    if (req.multiple === false) return codes[0];
-
-    // multiple=true (undefined) => array
     return codes;
   }
 
@@ -627,6 +671,10 @@ export class ExperimentStudioService {
         filterLogic.rules.length > 0
       );
 
+    const yPayload = this.rolePayload(algoConfig, 'y', variables);
+    const xPayload = this.rolePayload(algoConfig, 'x', covariates);
+    const filtersPayload = hasFilters ? filterLogic : null;
+
     // special case for histogram (no filters, transient)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const histogramY = yVariables?.length ? yVariables : null;
@@ -634,19 +682,12 @@ export class ExperimentStudioService {
         name: expName,
         algorithm: {
           name: requestAlgorithmName,
-          inputdata: {
-            data_model: this.getActiveDataModelCode(),
-            y: histogramY,
-            datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
-            filters: null,
-          },
+          inputdata: this.buildInputDataPayload(algoConfig, histogramY, null, null),
           parameters: bins ? { bins } : {},
           preprocessing: null,
         },
       };
     }
-    const yPayload = this.rolePayload(algoConfig, 'y', variables);
-    const xPayload = this.rolePayload(algoConfig, 'x', covariates);
     const preprocessing = this.resolveRequestPreprocessing(
       requestAlgorithmName,
       yPayload,
@@ -659,13 +700,7 @@ export class ExperimentStudioService {
       name: expName,
       algorithm: {
         name: requestAlgorithmName,
-        inputdata: {
-          data_model: this.getActiveDataModelCode(),
-          y: yPayload,
-          x: xPayload,
-          datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
-          filters: hasFilters ? filterLogic : null,
-        },
+        inputdata: this.buildInputDataPayload(algoConfig, yPayload, xPayload, filtersPayload),
         parameters: config,
         preprocessing,
       },

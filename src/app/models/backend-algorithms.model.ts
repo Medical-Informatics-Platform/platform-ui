@@ -3,6 +3,8 @@ export interface RawAlgorithmDefinition {
   label: string;
   desc: string;
   documentation?: string;
+  type?: string;
+  flags?: string[];
   enabled: boolean;
   inputdata: RawInputData;
   parameters: Record<string, RawParameter> | null;
@@ -15,6 +17,7 @@ export interface RawInputData {
   data_model: RawIOField;
   datasets: RawIOField;
   filter?: RawIOField;
+  validation_datasets?: RawIOField;
 }
 
 export interface RawIOField {
@@ -23,8 +26,8 @@ export interface RawIOField {
   types: string[];
   stattypes?: string[];
   required?: boolean | string;
-  notblank?: boolean | string;
-  multiple?: boolean | string;
+  min_count?: number | string;
+  max_count?: number | string;
 }
 
 export interface RawParameter {
@@ -34,10 +37,10 @@ export interface RawParameter {
   stattypes?: number;
   required?: boolean | string;
   multiple?: boolean | string;
-  default_value?: string | number;
+  default_value?: string | number | boolean;
   min?: string | number;
   max?: string | number;
-  default?: string | number;
+  default?: string | number | boolean;
   enums?: RawEnumsDefinition;
   dict_keys_enums?: RawEnumsDefinition;
   dict_values_enums?: RawEnumsDefinition;

@@ -18,9 +18,9 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true, multiple: false },
+      y: { label: '', desc: '', types: ['real'], required: true, max_count: 1 },
       x: { label: '', desc: '', types: ['real'] },
-      filter: { label: '', desc: '', types: [], required: false, multiple: false }
+      filter: { label: '', desc: '', types: [], required: false, max_count: 1 }
     },
     parameters: {
       alpha: {
@@ -41,7 +41,7 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['text'], required: true, multiple: true },
+      y: { label: '', desc: '', types: ['text'], required: true },
       x: { label: '', desc: '', types: ['text'] },
       filter: { label: '', desc: '', types: [] }
     },
@@ -56,7 +56,7 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true, multiple: true },
+      y: { label: '', desc: '', types: ['real'], required: true },
       x: { label: '', desc: '', types: ['real'] },
       filter: { label: '', desc: '', types: [] }
     },
@@ -80,9 +80,9 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true, multiple: true },
-      x: { label: '', desc: '', types: ['real'], required: false, multiple: true },
-      filter: { label: '', desc: '', types: [], required: false, multiple: false },
+      y: { label: '', desc: '', types: ['real'], required: true },
+      x: { label: '', desc: '', types: ['real'], required: false },
+      filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
     },
     parameters: {},
   };
@@ -152,6 +152,42 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toBeNull();
   });
 
+  it('builds spec-driven inputdata with array roles and validation datasets', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.backendAlgorithms.set({
+      validation_algo: {
+        name: 'validation_algo',
+        label: 'Validation Algo',
+        description: '',
+        requiredVariable: [],
+        covariate: [],
+        category: 'Mock',
+        configSchema: [],
+        isDisabled: false,
+        inputdata: {
+          data_model: { label: '', desc: '', types: [] },
+          datasets: { label: '', desc: '', types: [] },
+          validation_datasets: { label: '', desc: '', types: [] },
+          y: { label: '', desc: '', types: ['real'], max_count: 1 },
+          x: { label: '', desc: '', types: ['real'] },
+          filter: { label: '', desc: '', types: [] },
+        },
+      } as any,
+    });
+
+    const body = service.buildRequestBody('validation_algo', ['y1'], ['x1']);
+
+    expect(body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+      data_model: 'dm:1',
+      datasets: ['ds1'],
+      validation_datasets: ['ds1'],
+      y: ['y1'],
+      x: ['x1'],
+      filters: null,
+    }));
+  });
+
   it('adds default drop preprocessing for non-describe algorithm requests', () => {
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);
@@ -196,6 +232,21 @@ describe('ExperimentStudioService', () => {
     expect(names).not.toContain('histogram');
     expect(names).not.toContain('describe');
     expect(names).not.toContain('outlier_report');
+  });
+
+  it('attaches structured availability details to grouped algorithms', () => {
+    const grouped = service.availableGroupedAlgorithms();
+    const mock = Object.values(grouped).flat().find((algo) => algo.name === 'mock_algo');
+
+    expect(mock?.isDisabled).toBeTrue();
+    expect(mock?.availability?.available).toBeFalse();
+    expect(mock?.availability?.summary).toBe('Variable needs at least 1, selected 0.');
+    expect(mock?.availability?.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+      label: 'Variable',
+      minCount: 1,
+      selectedCount: 0,
+      satisfied: false,
+    }));
   });
 
   it('sends raw descriptive overview requests without preprocessing', () => {

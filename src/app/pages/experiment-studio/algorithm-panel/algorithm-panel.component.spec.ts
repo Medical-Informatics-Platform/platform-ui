@@ -127,8 +127,8 @@ describe('AlgorithmPanelComponent', () => {
       name: 'outlier_report',
       label: 'Outlier Report',
       inputdata: {
-        y: { required: true, multiple: true, types: ['real'] },
-        x: { required: false, multiple: true, types: ['real'] },
+        y: { required: true, types: ['real'] },
+        x: { required: false, types: ['real'] },
       },
     };
 
@@ -147,6 +147,48 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.textContent).toContain('Documentation');
     expect(details?.textContent).toContain('Line one.');
     expect(details?.textContent).toContain('Line two.');
+  });
+
+  it('shows disabled algorithm availability reasons in the list and tooltip', async () => {
+    const disabledAlgorithm: AlgorithmConfig = {
+      ...algorithm,
+      name: 'needs_two_variables',
+      label: 'Needs Two Variables',
+      isDisabled: true,
+      availability: {
+        available: false,
+        summary: 'Variable needs at least 2, selected 1.',
+        details: [
+          {
+            role: 'y',
+            label: 'Variable',
+            selectedCount: 1,
+            minCount: 2,
+            maxCount: 3,
+            required: true,
+            types: ['real'],
+            stattypes: ['nominal'],
+            messages: ['Variable needs at least 2, selected 1.'],
+            satisfied: false,
+          },
+        ],
+      },
+    };
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    component.tooltipVisible.set(true);
+    component.tooltipData.set(disabledAlgorithm);
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    expect(nativeElement.textContent).toContain('Variable needs at least 2, selected 1.');
+    expect(nativeElement.textContent).toContain('Availability');
+    expect(nativeElement.textContent).toContain('Variable: 2-3, selected 1');
+    expect(nativeElement.textContent).toContain('stattypes: nominal');
   });
 
   it('keeps fields after the old advanced cutoff in the persisted form config', async () => {

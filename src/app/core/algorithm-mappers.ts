@@ -44,6 +44,31 @@ function enumSourceToArray(source: string[] | string | undefined): string[] {
   return [source];
 }
 
+function normalizeCount(value: number | string | undefined | null): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeInputField(field: any): any {
+  if (!field) return field;
+  const minCount = normalizeCount(field.min_count);
+  const maxCount = normalizeCount(field.max_count);
+
+  return {
+    ...field,
+    ...(minCount !== undefined ? { min_count: minCount } : {}),
+    ...(maxCount !== undefined ? { max_count: maxCount } : {}),
+  };
+}
+
+function normalizeInputData(inputdata: any): any {
+  if (!inputdata) return {};
+  return Object.fromEntries(
+    Object.entries(inputdata).map(([key, field]) => [key, normalizeInputField(field)])
+  );
+}
+
 function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Array<any> {
   const schema: any[] = [];
   if (!parameters) return schema;
@@ -56,6 +81,8 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
     const dictValueEnumType = param.dict_values_enums?.type;
     const dictValueOptions = enumSourceToArray(param.dict_values_enums?.source);
     const isMultiple = normalizeBool(param.multiple);
+    const min = normalizeCount(param.min);
+    const max = normalizeCount(param.max);
     const baseField: any = {
       key,
       label: param.label ?? key,
@@ -66,8 +93,8 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
       stattypes: param.stattypes ?? [],
       ...(enumType ? { enumType } : {}),
       ...(enumSource.length ? { enumSource } : {}),
-      ...(param.min !== undefined ? { min: +param.min } : {}),
-      ...(param.max !== undefined ? { max: +param.max } : {}),
+      ...(min !== undefined ? { min } : {}),
+      ...(max !== undefined ? { max } : {}),
       ...(param.default !== undefined ? { default: param.default } : {}),
       ...(param.default === undefined && param.default_value !== undefined ? { default: param.default_value } : {}),
     };
@@ -141,14 +168,18 @@ export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): A
       (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
     );
 
+  const inputdata = normalizeInputData(raw.inputdata);
+
   return {
     name: normalizedName,
     label: raw.label,
     description: raw.desc ?? '',
     documentation: raw.documentation ?? '',
-    inputdata: raw.inputdata ?? {},
-    requiredVariable: raw.inputdata?.y?.types || [],
-    covariate: raw.inputdata?.x?.types || [],
+    type: raw.type,
+    flags: raw.flags ?? [],
+    inputdata,
+    requiredVariable: inputdata?.y?.types || [],
+    covariate: inputdata?.x?.types || [],
     category: CATEGORY_MAPPING[normalizedName] ?? 'Uncategorized',
     configSchema: buildConfigSchema(raw.parameters ?? {}),
     preprocessing,

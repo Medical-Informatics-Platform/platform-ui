@@ -6,7 +6,7 @@ import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, 
 import { buildFormControl } from '../../shared/utils/form-control.factory';
 import { AlgorithmResultComponent } from './algorithm-result/algorithm-result.component';
 import { getOutputSchema } from '../../../core/algorithm-mappers';
-import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
+import { AlgorithmAvailabilityDetail, AlgorithmAvailabilityRole, AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
@@ -1078,6 +1078,57 @@ export class AlgorithmPanelComponent {
     return this.experimentStudioService.isAlgorithmAvailable(algorithm);
   }
 
+  availabilityDetails(algorithm: AlgorithmConfig | null = null): AlgorithmAvailabilityDetail[] {
+    return (algorithm ?? this.tooltipData())?.availability?.details ?? [];
+  }
+
+  availabilityFirstReason(algorithm: AlgorithmConfig): string | null {
+    return algorithm.availability?.summary ?? null;
+  }
+
+  hasAvailabilityRoleIssue(algorithm: AlgorithmConfig, role: AlgorithmAvailabilityRole): boolean {
+    return this.availabilityDetails(algorithm).some(
+      (detail) => detail.role === role && detail.messages.length > 0
+    );
+  }
+
+  hasVariableAvailabilityIssue(algorithm: AlgorithmConfig): boolean {
+    return this.hasAvailabilityRoleIssue(algorithm, 'y');
+  }
+
+  hasCovariateAvailabilityIssue(algorithm: AlgorithmConfig): boolean {
+    return this.hasAvailabilityRoleIssue(algorithm, 'x');
+  }
+
+  isVariableAvailabilityDetail(detail: AlgorithmAvailabilityDetail): boolean {
+    return detail.role === 'y';
+  }
+
+  isCovariateAvailabilityDetail(detail: AlgorithmAvailabilityDetail): boolean {
+    return detail.role === 'x';
+  }
+
+  availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
+    const count = this.formatAvailabilityCount(detail);
+    const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
+    if (detail.types.length) {
+      parts.push('types: ' + detail.types.join(','));
+    }
+    if (detail.stattypes.length) {
+      parts.push('stattypes: ' + detail.stattypes.join(','));
+    }
+    return parts.join(' • ');
+  }
+
+  private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {
+    if (detail.minCount === 1 && detail.maxCount === 1) return 'exactly 1';
+    if (detail.minCount === 0 && detail.maxCount === 1) return '0-1';
+    if (detail.minCount > 0 && detail.maxCount !== null) return detail.minCount + '-' + detail.maxCount;
+    if (detail.minCount > 0) return detail.minCount + '+';
+    if (detail.maxCount !== null) return '0-' + detail.maxCount;
+    return detail.required ? 'required' : 'optional';
+  }
+
   toggleInfoPanel() {
     this.infoPanelOpen.update((open) => !open);
   }
@@ -1095,14 +1146,7 @@ export class AlgorithmPanelComponent {
     const offset = 12;
 
     this.tooltipVisible.set(true);
-    this.tooltipData.set(
-      algorithm.isDisabled
-        ? {
-          ...algorithm,
-          description: `${algorithm.description || 'No description available.'}<br><span class='unavailable-warning'> This algorithm is currently unavailable for the selected variables.</span><br>`,
-        }
-        : algorithm
-    );
+    this.tooltipData.set(algorithm);
 
     const initialPosition = this.getTooltipPosition(rect, containerRect, 320, 200, viewportWidth, viewportHeight, padding, offset);
 
@@ -1177,6 +1221,12 @@ export class AlgorithmPanelComponent {
     return null;
   }
 
+  private normalizeCount(value: number | string | undefined | null): number | null {
+    if (value === undefined || value === null || value === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   private normalizeRequirementDisplayType(type: unknown): string | null {
     const normalized = String(type ?? '').trim().toLowerCase();
     if (!normalized) return null;
@@ -1209,14 +1259,20 @@ export class AlgorithmPanelComponent {
   getRoleRequirement(field: any, label: string): string | null {
     if (!field) return null;
 
-    const isRequired = this.normalizeBool(field.required) === true;
-    const multiple = this.normalizeBool(field.multiple);
+    const minCount = this.normalizeCount(field.min_count) ?? (this.normalizeBool(field.required) === true ? 1 : 0);
+    const maxCount = this.normalizeCount(field.max_count);
 
     let count = 'optional';
-    if (multiple === false) {
-      count = isRequired ? 'exactly 1' : '0–1';
-    } else if (isRequired) {
-      count = '1+';
+    if (minCount === 1 && maxCount === 1) {
+      count = 'exactly 1';
+    } else if (minCount === 0 && maxCount === 1) {
+      count = '0-1';
+    } else if (minCount > 0 && maxCount !== null) {
+      count = minCount + '-' + maxCount;
+    } else if (minCount > 0) {
+      count = minCount + '+';
+    } else if (maxCount !== null) {
+      count = '0-' + maxCount;
     }
 
     const types = this.formatRequirementTypes(field.types);
@@ -1237,7 +1293,8 @@ export class AlgorithmPanelComponent {
   getCovariateRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
     const field = target?.inputdata?.x;
-    if (!field || this.normalizeBool(field.required) !== true) {
+    const minCount = this.normalizeCount(field?.min_count) ?? (this.normalizeBool(field?.required) === true ? 1 : 0);
+    if (!field || minCount < 1) {
       return null;
     }
     return this.getRoleRequirement(field, 'Covariate');
