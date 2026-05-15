@@ -159,7 +159,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
-  it('shows disabled algorithm availability reasons in the list and tooltip', async () => {
+  it('shows disabled algorithm availability reasons in the tooltip, not the card', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,
       name: 'needs_two_variables',
@@ -198,13 +198,35 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    expect(nativeElement.textContent).toContain('Variable needs at least 2, selected 1.');
+    const algorithmItem = nativeElement.querySelector('li') as HTMLElement;
+    expect(algorithmItem.textContent).toContain('Needs Two Variables');
+    expect(algorithmItem.textContent).not.toContain('Variable needs at least 2, selected 1.');
+    expect(algorithmItem.querySelector('.algo-unavailable-reason')).toBeNull();
+    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Variable needs at least 2, selected 1.');
     expect(nativeElement.textContent).toContain('Availability');
     expect(nativeElement.textContent).toContain('Variable: 2-3, selected 1');
     expect(nativeElement.textContent).toContain('type: real');
     expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Variable type must be one of real.');
     expect(nativeElement.textContent).not.toContain('type: nominal');
     expect(nativeElement.textContent).not.toContain('stattypes: nominal');
+  });
+
+  it('displays text availability types as nominal in requirement tips', () => {
+    const text = fixture.componentInstance.availabilityRequirementText({
+      role: 'x',
+      label: 'Covariate',
+      selectedCount: 1,
+      minCount: 1,
+      maxCount: null,
+      required: true,
+      types: ['real', 'int', 'text'],
+      stattypes: [],
+      messages: [],
+      satisfied: true,
+    });
+
+    expect(text).toContain('type: real, int, nominal');
+    expect(text).not.toContain('text');
   });
 
   it('hides type-only availability reasons on algorithm cards', async () => {

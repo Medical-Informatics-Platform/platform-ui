@@ -345,15 +345,14 @@
 .table-input,
 .table-select {
   width: 100%;
-  border: 1px solid rgba(43, 51, 233, 0.15);
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: var(--text-main);
-  border-radius: var(--radius-md, 8px);
+  box-sizing: border-box;
   min-height: 34px;
-  padding: 7px 10px;
-  font-size: 0.78rem;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.8rem;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -649,28 +648,19 @@
 }
 
 .preprocessing-step-card {
+  --group-accent: 127, 156, 232;
   margin-top: 18px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(43, 51, 233, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 4px 16px rgba(43, 51, 233, 0.03);
+  background: linear-gradient(90deg, rgba(var(--group-accent), 0.07), rgba(255, 255, 255, 0.68) 34%);
+  border: 1px solid rgba(var(--group-accent), 0.2);
+  border-left: 4px solid rgba(var(--group-accent), 0.72);
+  border-radius: 12px;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
 
 .preprocessing-step-card:first-child {
   margin-top: 0;
-}
-
-.preprocessing-step-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #2B33E9, #7F9CE8);
-  border-radius: 14px 14px 0 0;
 }
 
 .preprocessing-step-header {
@@ -681,7 +671,7 @@
   width: 100%;
   border: 0;
   background: transparent;
-  padding: 22px 22px 16px;
+  padding: 16px 18px;
   color: inherit;
   cursor: pointer;
   text-align: left;
@@ -693,7 +683,7 @@
 
 .preprocessing-step-body {
   display: none;
-  padding: 0 22px 20px;
+  padding: 0 18px 20px;
 }
 
 .preprocessing-step-body.open {
@@ -770,6 +760,30 @@
 
 .preprocessing-browser {
   max-height: 520px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.preprocessing-variable-btn {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.02);
+  transition: all 0.2s ease;
+}
+
+.preprocessing-variable-btn:hover {
+  background: #ffffff;
+  border-color: rgba(127, 156, 232, 0.3);
+  box-shadow: 0 4px 12px rgba(127, 156, 232, 0.06);
+}
+
+.preprocessing-variable-btn.active {
+  background: #ffffff;
+  border-color: rgba(43, 51, 233, 0.3);
+  box-shadow: 0 4px 14px rgba(43, 51, 233, 0.08);
+  border-left: 3px solid var(--primary-color);
 }
 
 .preprocessing-variable-btn .statistics-variable-meta {
@@ -833,10 +847,11 @@
 }
 
 .preprocessing-detail-section {
-  padding: 14px;
-  border: 1px solid rgba(43, 51, 233, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.58);
+  padding: 14px 12px;
+  border: 1px solid rgba(127, 156, 232, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(127, 156, 232, 0.05);
 }
 
 .preprocessing-detail-heading {
@@ -844,11 +859,11 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: #64748b;
-  font-size: 0.76rem;
+  color: #1e293b;
+  font-size: 0.85rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .preprocessing-detail-heading i {
@@ -860,23 +875,24 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.outlier-rule-toggle {
-  margin-bottom: 14px;
-  color: var(--text-main);
+.inline-toggle-container {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
 }
 
 .outlier-control-grid {
-  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  grid-template-columns: max-content repeat(3, minmax(110px, 1fr));
 }
 
 .preprocessing-control {
   display: grid;
-  gap: 7px;
-  color: var(--text-muted);
-  font-size: 0.72rem;
+  gap: 6px;
+  color: #1e293b;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .type-badge,

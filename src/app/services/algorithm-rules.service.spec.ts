@@ -83,7 +83,7 @@ describe('AlgorithmRulesService', () => {
     })).toBeTrue();
   });
 
-  it('does not apply algorithm-name-specific restrictions beyond the JSON specification', () => {
+  it('does not apply algorithm-name-specific restrictions beyond the JSON specification for unspecified algorithms', () => {
     const algo = {
       ...buildAlgo({
         y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
@@ -98,6 +98,32 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(availableWithOneCovariate).toBeTrue();
+  });
+
+  it('limits linear regression to one target variable when backend omits max_count', () => {
+    const algo = {
+      ...buildAlgo({
+        y: { label: 'y', desc: '', types: ['real', 'int'], required: true },
+        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: false },
+      }),
+      name: 'linear_regression',
+    } as AlgorithmConfig;
+
+    const result = service.evaluateAlgorithmAvailability(algo, {
+      y: [
+        { code: 'age', label: 'Age', type: 'real' } as any,
+        { code: 'bmi', label: 'BMI', type: 'real' } as any,
+      ],
+      x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
+    });
+
+    expect(result.available).toBeFalse();
+    expect(result.summary).toBe('Variable allows at most 1, selected 2.');
+    expect(result.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+      selectedCount: 2,
+      maxCount: 1,
+      satisfied: false,
+    }));
   });
 
   it('ignores filter input declarations when evaluating availability', () => {
@@ -154,7 +180,7 @@ describe('AlgorithmRulesService', () => {
     })).toBeFalse();
   });
 
-  it('uses input types as the user-facing type when stattype validation fails', () => {
+  it('displays nominal as the user-facing type when stattype validation fails for text inputs', () => {
     const algo = buildAlgo({
       y: { label: 'y', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
     });
@@ -165,7 +191,22 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(result.available).toBeFalse();
-    expect(result.summary).toBe('Variable type must be one of text.');
+    expect(result.summary).toBe('Variable type must be one of nominal.');
+  });
+
+  it('displays text as nominal in availability type errors', () => {
+    const algo = buildAlgo({
+      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: true },
+    });
+
+    const result = service.evaluateAlgorithmAvailability(algo, {
+      y: [],
+      x: [{ code: 'v1', label: 'var1', type: 'boolean' } as any],
+    });
+
+    expect(result.available).toBeFalse();
+    expect(result.summary).toBe('Covariate type must be one of real, int, nominal.');
+    expect(result.summary).not.toContain('text');
   });
 
 

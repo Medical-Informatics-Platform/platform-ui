@@ -1094,15 +1094,6 @@ export class AlgorithmPanelComponent {
     return (algorithm ?? this.tooltipData())?.availability?.details ?? [];
   }
 
-  algorithmCardAvailabilityReason(algorithm: AlgorithmConfig): string | null {
-    const summary = algorithm.availability?.summary ?? null;
-    if (summary && !this.isTypeRequirementMessage(summary)) return summary;
-
-    return this.availabilityDetails(algorithm)
-      .flatMap((detail) => detail.messages)
-      .find((message) => !this.isTypeRequirementMessage(message)) ?? null;
-  }
-
   hasAvailabilityRoleIssue(algorithm: AlgorithmConfig, role: AlgorithmAvailabilityRole): boolean {
     return this.availabilityDetails(algorithm).some(
       (detail) => detail.role === role && detail.messages.length > 0
@@ -1128,14 +1119,11 @@ export class AlgorithmPanelComponent {
   availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
     const count = this.formatAvailabilityCount(detail);
     const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
-    if (detail.types.length) {
-      parts.push('type: ' + detail.types.join(', '));
+    const types = this.formatRequirementTypes(detail.types);
+    if (types) {
+      parts.push('type: ' + types.join(', '));
     }
     return parts.join(' • ');
-  }
-
-  private isTypeRequirementMessage(message: string): boolean {
-    return /^(Variable|Covariate) type must be one of .+[.]$/.test(message);
   }
 
   private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {
