@@ -96,7 +96,7 @@ export class AlgorithmRulesService {
                 return !!normalized && !reqTypes.includes(normalized);
             });
             if (invalid) {
-                messages.push(label + ' type must be one of ' + types.join(', ') + '.');
+                this.pushUnique(messages, this.typeRequirementMessage(label, types));
             }
         }
 
@@ -107,7 +107,7 @@ export class AlgorithmRulesService {
                 return !!normalized && !reqStatTypes.includes(normalized);
             });
             if (invalid) {
-                messages.push(label + ' stattype must be one of ' + stattypes.join(', ') + '.');
+                this.pushUnique(messages, this.typeRequirementMessage(label, types));
             }
         }
 
@@ -158,6 +158,19 @@ export class AlgorithmRulesService {
 
     private roleLabel(role: AlgorithmAvailabilityRole): string {
         return role === 'y' ? 'Variable' : 'Covariate';
+    }
+
+    private typeRequirementMessage(label: string, types: string[]): string {
+        if (types.length > 0) {
+            return label + ' type must be one of ' + types.join(', ') + '.';
+        }
+        return label + ' type is not accepted by this algorithm.';
+    }
+
+    private pushUnique(messages: string[], message: string): void {
+        if (!messages.includes(message)) {
+            messages.push(message);
+        }
     }
 
     private normalizeType(t: string | undefined | null): string | undefined {

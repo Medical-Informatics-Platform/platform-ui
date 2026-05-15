@@ -35,6 +35,7 @@ describe('AlgorithmPanelComponent', () => {
     getTransformationVariant: jasmine.Spy;
     hasAppliedDescriptivePreprocessing: jasmine.Spy;
     isAlgorithmAvailable: jasmine.Spy;
+    getAlgorithmAvailability: jasmine.Spy;
     setAlgorithm: jasmine.Spy;
     setRunning: jasmine.Spy;
     runSelectedAlgorithmTransient: jasmine.Spy;
@@ -82,6 +83,11 @@ describe('AlgorithmPanelComponent', () => {
       getTransformationVariant: jasmine.createSpy('getTransformationVariant').and.returnValue(null),
       hasAppliedDescriptivePreprocessing: jasmine.createSpy('hasAppliedDescriptivePreprocessing').and.returnValue(true),
       isAlgorithmAvailable: jasmine.createSpy('isAlgorithmAvailable').and.returnValue(true),
+      getAlgorithmAvailability: jasmine.createSpy('getAlgorithmAvailability').and.returnValue({
+        available: true,
+        summary: '',
+        details: [],
+      }),
       setAlgorithm: jasmine.createSpy('setAlgorithm').and.callFake((next: AlgorithmConfig) => {
         experimentStudioService.selectedAlgorithm.set(next);
       }),
@@ -118,6 +124,8 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(fields.length).toBe(4);
     expect(nativeElement.textContent).toContain('Fourth');
+    expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBeFalse();
+    expect((nativeElement.querySelector('[data-guide="run-experiment"]') as HTMLButtonElement)?.disabled).toBeFalse();
     expect(nativeElement.textContent).not.toContain('Show advanced configuration');
     expect(nativeElement.textContent).not.toContain('Hide advanced configuration');
   });
@@ -147,6 +155,8 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.textContent).toContain('Documentation');
     expect(details?.textContent).toContain('Line one.');
     expect(details?.textContent).toContain('Line two.');
+    expect(details?.open).toBeFalse();
+    expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
   it('shows disabled algorithm availability reasons in the list and tooltip', async () => {
@@ -168,7 +178,10 @@ describe('AlgorithmPanelComponent', () => {
             required: true,
             types: ['real'],
             stattypes: ['nominal'],
-            messages: ['Variable needs at least 2, selected 1.'],
+            messages: [
+              'Variable needs at least 2, selected 1.',
+              'Variable type must be one of real.',
+            ],
             satisfied: false,
           },
         ],
@@ -188,7 +201,104 @@ describe('AlgorithmPanelComponent', () => {
     expect(nativeElement.textContent).toContain('Variable needs at least 2, selected 1.');
     expect(nativeElement.textContent).toContain('Availability');
     expect(nativeElement.textContent).toContain('Variable: 2-3, selected 1');
-    expect(nativeElement.textContent).toContain('stattypes: nominal');
+    expect(nativeElement.textContent).toContain('type: real');
+    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Variable type must be one of real.');
+    expect(nativeElement.textContent).not.toContain('type: nominal');
+    expect(nativeElement.textContent).not.toContain('stattypes: nominal');
+  });
+
+  it('hides type-only availability reasons on algorithm cards', async () => {
+    const disabledAlgorithm: AlgorithmConfig = {
+      ...algorithm,
+      name: 'type_only_algorithm',
+      label: 'Type Only Algorithm',
+      isDisabled: true,
+      availability: {
+        available: false,
+        summary: 'Variable type must be one of real.',
+        details: [
+          {
+            role: 'y',
+            label: 'Variable',
+            selectedCount: 1,
+            minCount: 1,
+            maxCount: 1,
+            required: true,
+            types: ['real'],
+            stattypes: [],
+            messages: ['Variable type must be one of real.'],
+            satisfied: false,
+          },
+        ],
+      },
+    };
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const algorithmItem = fixture.nativeElement.querySelector('li') as HTMLElement;
+    expect(algorithmItem.textContent).toContain('Type Only Algorithm');
+    expect(algorithmItem.querySelector('.algo-unavailable-reason')).toBeNull();
+    expect(algorithmItem.textContent).not.toContain('Variable type must be one of real.');
+  });
+
+  it('selects unavailable algorithms as a read-only preview with expandable documentation', async () => {
+    const unavailableAlgorithm: AlgorithmConfig = {
+      ...algorithm,
+      name: 'unavailable_algorithm',
+      label: 'Unavailable Algorithm',
+      documentation: 'Unavailable docs.\nSecond line.',
+      isDisabled: true,
+      configSchema: [
+        { key: 'alpha', label: 'Alpha', type: 'number', default: 0.05 },
+      ],
+      availability: {
+        available: false,
+        summary: 'Variable needs at least 2, selected 1.',
+        details: [],
+      },
+    };
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
+    experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
+    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => name === 'unavailable_algorithm'
+      ? unavailableAlgorithm.availability
+      : { available: true, summary: '', details: [] });
+
+    fixture.componentInstance.openCategories.set(['Test']);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const unavailableListItem = (fixture.nativeElement as HTMLElement).querySelector('li.disabled-algo') as HTMLElement;
+    expect(getComputedStyle(unavailableListItem).cursor).toBe('pointer');
+
+    fixture.componentInstance.onAlgorithmClick(unavailableAlgorithm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const details = nativeElement.querySelector('.documentation-panel') as HTMLDetailsElement;
+    const fieldset = nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement;
+    const previewWarning = nativeElement.querySelector('.algorithm-preview-warning') as HTMLElement;
+    const input = fieldset.querySelector('input.config-input') as HTMLInputElement;
+    const runButton = nativeElement.querySelector('[data-guide="run-experiment"]') as HTMLButtonElement;
+
+    expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
+    expect(details?.textContent).toContain('Unavailable docs.');
+    expect(previewWarning?.textContent).toContain('Preview only');
+    expect(previewWarning?.textContent).toContain('Variable needs at least 2, selected 1.');
+    expect(details?.open).toBeFalse();
+    details.open = true;
+    expect(details.open).toBeTrue();
+    expect(fieldset?.disabled).toBeTrue();
+    expect(getComputedStyle(fieldset).pointerEvents).toBe('none');
+    expect(input?.matches(':disabled')).toBeTrue();
+    expect(runButton?.disabled).toBeTrue();
+
+    fixture.componentInstance.onClickRunExp();
+    expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
+    expect(experimentStudioService.runSelectedAlgorithmTransient).not.toHaveBeenCalled();
   });
 
   it('keeps fields after the old advanced cutoff in the persisted form config', async () => {

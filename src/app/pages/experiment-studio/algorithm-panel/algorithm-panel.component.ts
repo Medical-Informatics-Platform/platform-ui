@@ -65,6 +65,15 @@ export class AlgorithmPanelComponent {
 
   readonly selectedAlgorithm = this.experimentStudioService.selectedAlgorithm;
   readonly selectedAlgorithmDocumentation = computed(() => this.selectedAlgorithm()?.documentation?.trim() ?? '');
+  readonly selectedAlgorithmUnavailable = computed(() => {
+    const algorithm = this.selectedAlgorithm();
+    return !!algorithm && !this.experimentStudioService.isAlgorithmAvailable(algorithm.name);
+  });
+  readonly selectedAlgorithmAvailabilitySummary = computed(() => {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
+    return this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
+  });
   readonly enumMaps = computed(() => this.experimentStudioService.getCategoricalEnumMaps());
   readonly yVar = computed(() => this.experimentStudioService.selectedVariables()[0]?.code ?? null);
   readonly xVar = computed(() => this.experimentStudioService.selectedCovariates()[0]?.code ?? null);
@@ -823,16 +832,17 @@ export class AlgorithmPanelComponent {
   }
 
   onAlgorithmClick(algorithm: AlgorithmConfig) {
-    if (algorithm.isDisabled) {
-      return;
-    }
-
     this.selectAlgorithm(algorithm);
   }
 
   onClickRunExp() {
     this.errorMsg.set(null);
     this.errorService.clearError();
+
+    if (this.selectedAlgorithmUnavailable()) {
+      this.errorMsg.set('This algorithm is unavailable for the current selection.');
+      return;
+    }
 
     const preprocessingMessage = this.preprocessingRunBlockMessage();
     if (preprocessingMessage) {
@@ -968,6 +978,8 @@ export class AlgorithmPanelComponent {
     // if experiment running -> disabled
     if (this.isRunning()) return true;
 
+    if (this.selectedAlgorithmUnavailable()) return true;
+
     if (this.preprocessingRunBlockMessage()) return true;
 
 
@@ -1082,8 +1094,13 @@ export class AlgorithmPanelComponent {
     return (algorithm ?? this.tooltipData())?.availability?.details ?? [];
   }
 
-  availabilityFirstReason(algorithm: AlgorithmConfig): string | null {
-    return algorithm.availability?.summary ?? null;
+  algorithmCardAvailabilityReason(algorithm: AlgorithmConfig): string | null {
+    const summary = algorithm.availability?.summary ?? null;
+    if (summary && !this.isTypeRequirementMessage(summary)) return summary;
+
+    return this.availabilityDetails(algorithm)
+      .flatMap((detail) => detail.messages)
+      .find((message) => !this.isTypeRequirementMessage(message)) ?? null;
   }
 
   hasAvailabilityRoleIssue(algorithm: AlgorithmConfig, role: AlgorithmAvailabilityRole): boolean {
@@ -1112,12 +1129,13 @@ export class AlgorithmPanelComponent {
     const count = this.formatAvailabilityCount(detail);
     const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
     if (detail.types.length) {
-      parts.push('types: ' + detail.types.join(','));
-    }
-    if (detail.stattypes.length) {
-      parts.push('stattypes: ' + detail.stattypes.join(','));
+      parts.push('type: ' + detail.types.join(', '));
     }
     return parts.join(' • ');
+  }
+
+  private isTypeRequirementMessage(message: string): boolean {
+    return /^(Variable|Covariate) type must be one of .+[.]$/.test(message);
   }
 
   private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {

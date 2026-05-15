@@ -195,13 +195,12 @@
 
 /* Disabled algorithms */
 .algorithm-panel li.disabled-algo {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: auto;
+  opacity: 0.62;
+  cursor: pointer;
 }
 
 .algorithm-panel li.disabled-algo:hover {
-  opacity: 0.8;
+  opacity: 0.86;
 }
 
 /* Legend */
@@ -605,6 +604,13 @@
   flex-shrink: 0;
 }
 
+.algorithm-preview-warning {
+  align-items: flex-start;
+  border-left-color: #f59e0b;
+  background: #fff7ed;
+  color: #92400e;
+}
+
 /* SAVE AS UI */
 .save-as-container {
   display: flex;
@@ -731,7 +737,6 @@
   right: 0;
   opacity: 1;
   transform: translateX(0);
-  pointer-events: auto;
 }
 
 /* Header of info panel */
@@ -1714,4 +1719,11 @@
   to {
     opacity: 0;
   }
+}
+
+.algorithm-readonly-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }

@@ -160,10 +160,113 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
   return schema;
 }
 
+
+type DocumentationParameter = Pick<RawParameter, 'dict_values_enums' | 'enums' | 'label'>;
+
+const quotedCodeTokenPattern = /(['"`])([^'"`\n]+)\1/g;
+
+const specialDocumentationLabels: Record<string, string> = {
+  aic: 'AIC',
+  bic: 'BIC',
+  glmm: 'GLMM',
+  iqr: 'IQR',
+  mad: 'MAD',
+  ols: 'OLS',
+  pca: 'PCA',
+  svm: 'SVM',
+};
+
+function normalizeDocumentationToken(token: string): string {
+  return token.trim();
+}
+
+function humanizeDocumentationToken(token: string): string {
+  const normalized = normalizeDocumentationToken(token);
+  const lower = normalized.toLowerCase();
+  const specialLabel = specialDocumentationLabels[lower];
+
+  if (specialLabel) {
+    return specialLabel;
+  }
+
+  const spaced = normalized.replace(/_+/g, ' ').toLowerCase();
+
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function isFallbackCodeToken(token: string): boolean {
+  const normalized = normalizeDocumentationToken(token);
+
+  return /^[A-Za-z][A-Za-z0-9_-]*$/.test(normalized)
+    && (
+      normalized.includes('_')
+      || normalized.includes('-')
+      || /\d/.test(normalized)
+      || /[a-z][A-Z]/.test(normalized)
+    );
+}
+
+function addDocumentationEnumLabels(labelMap: Record<string, string>, enumDefinition?: DocumentationParameter['enums']): void {
+  if (!enumDefinition || enumDefinition.type !== 'list') {
+    return;
+  }
+
+  enumSourceToArray(enumDefinition.source).forEach((value) => {
+    const token = normalizeDocumentationToken(value);
+
+    if (token) {
+      labelMap[token] = humanizeDocumentationToken(token);
+    }
+  });
+}
+
+function buildDocumentationLabelMap(
+  parameters?: Record<string, DocumentationParameter | null | undefined> | null,
+): Record<string, string> {
+  const labelMap: Record<string, string> = {};
+
+  Object.entries(parameters ?? {}).forEach(([key, parameter]) => {
+    const token = normalizeDocumentationToken(key);
+
+    if (token) {
+      labelMap[token] = parameter?.label?.trim() || humanizeDocumentationToken(token);
+    }
+
+    addDocumentationEnumLabels(labelMap, parameter?.enums);
+    addDocumentationEnumLabels(labelMap, parameter?.dict_values_enums);
+  });
+
+  return labelMap;
+}
+
+function sanitizeDocumentation(documentation: string, labelMap: Record<string, string>): string {
+  return documentation.replace(quotedCodeTokenPattern, (_match, quote: string, rawToken: string) => {
+    const token = normalizeDocumentationToken(rawToken);
+    const mappedLabel = labelMap[token];
+
+    if (mappedLabel) {
+      return mappedLabel;
+    }
+
+    if (isFallbackCodeToken(token)) {
+      return humanizeDocumentationToken(token);
+    }
+
+    return `${quote}${rawToken}${quote}`;
+  });
+}
+
 export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): AlgorithmConfig {
   const normalizedName = raw.name === 'anova' ? 'anova_twoway' : raw.name;
+  const algorithmDocumentationLabels = buildDocumentationLabelMap(raw.parameters ?? {});
   const preprocessing = [...(raw.preprocessing ?? [])]
-    .map((step) => ({ ...step, documentation: step.documentation ?? '' }))
+    .map((step) => ({
+      ...step,
+      documentation: sanitizeDocumentation(
+        step.documentation ?? '',
+        buildDocumentationLabelMap(step.parameters ?? {}),
+      ),
+    }))
     .sort(
       (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
     );
@@ -174,7 +277,7 @@ export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): A
     name: normalizedName,
     label: raw.label,
     description: raw.desc ?? '',
-    documentation: raw.documentation ?? '',
+    documentation: sanitizeDocumentation(raw.documentation ?? '', algorithmDocumentationLabels),
     type: raw.type,
     flags: raw.flags ?? [],
     inputdata,

@@ -249,6 +249,20 @@ describe('ExperimentStudioService', () => {
     }));
   });
 
+
+  it('keeps the selected algorithm when current selections make it unavailable', () => {
+    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    const selected = service.backendAlgorithms()['mock_algo'];
+    service.selectedAlgorithm.set(selected);
+
+    expect(service.isAlgorithmAvailable('mock_algo')).toBeTrue();
+
+    service.setVariables([]);
+
+    expect(service.isAlgorithmAvailable('mock_algo')).toBeFalse();
+    expect(service.selectedAlgorithm()?.name).toBe('mock_algo');
+  });
+
   it('sends raw descriptive overview requests without preprocessing', () => {
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);
