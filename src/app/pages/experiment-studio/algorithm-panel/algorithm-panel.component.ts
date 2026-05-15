@@ -72,7 +72,8 @@ export class AlgorithmPanelComponent {
   readonly selectedAlgorithmAvailabilitySummary = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
-    return this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
+    const summary = this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
+    return this.formatAvailabilityMessage(summary);
   });
   readonly enumMaps = computed(() => this.experimentStudioService.getCategoricalEnumMaps());
   readonly yVar = computed(() => this.experimentStudioService.selectedVariables()[0]?.code ?? null);
@@ -1133,6 +1134,18 @@ export class AlgorithmPanelComponent {
     if (detail.minCount > 0) return detail.minCount + '+';
     if (detail.maxCount !== null) return '0-' + detail.maxCount;
     return detail.required ? 'required' : 'optional';
+  }
+
+  private formatAvailabilityMessage(message: string): string {
+    return message.replace(
+      /((?:Variable|Covariate) type must be one of )([^.]*)\./g,
+      (_match, prefix: string, types: string) => {
+        const displayTypes = this.formatRequirementTypes(
+          types.split(',').map((type) => type.trim())
+        );
+        return prefix + (displayTypes ?? []).join(', ') + '.';
+      }
+    );
   }
 
   toggleInfoPanel() {
