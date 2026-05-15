@@ -1019,3 +1019,25 @@ select:required:valid {
     flex-direction: column;
   }
 }
+
+.documentation-panel {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  margin: 0 0 12px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.documentation-panel summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.documentation-content {
+  padding: 0 10px 10px;
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

@@ -137,6 +137,78 @@ describe('algorithm mappers', () => {
     expect(config.preprocessing?.find((step) => step.name === 'outlier_winsorizer')?.documentation).toBe('Outlier docs.');
   });
 
+  it('sanitizes algorithm documentation code names using parameter and enum labels', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      documentation: "Use 'positive_class', \"n_splits\", and `grouping_var`. Choose 'two-sided' or 'less'. Preserve 'plain words'.",
+      parameters: {
+        positive_class: {
+          label: 'Positive class (y=1)',
+          desc: '',
+          types: ['text'],
+          required: true,
+        },
+        n_splits: {
+          label: 'Number of folds',
+          desc: '',
+          types: ['int'],
+          required: false,
+        },
+        grouping_var: {
+          label: 'Grouping variable',
+          desc: '',
+          types: ['text'],
+          required: true,
+        },
+        alt_hypothesis: {
+          label: 'Alternative hypothesis',
+          desc: '',
+          types: ['text'],
+          required: false,
+          enums: { type: 'list', source: ['two-sided', 'less', 'greater'] },
+        },
+      },
+    }));
+
+    expect(config.documentation).toBe("Use Positive class (y=1), Number of folds, and Grouping variable. Choose Two-sided or Less. Preserve 'plain words'.");
+  });
+
+  it('sanitizes preprocessing documentation code names and unknown code-like tokens', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      preprocessing: [
+        {
+          name: 'missing_values_handler',
+          label: 'Missing Values',
+          desc: '',
+          documentation: "Configure 'strategies' and \"fill_values\". Use 'most_frequent', 'iqr', 'mad', and 'backend_code_name'.",
+          parameters: {
+            strategies: {
+              label: 'Strategies',
+              desc: '',
+              types: ['dict'],
+              required: true,
+              dict_values_enums: { type: 'list', source: ['drop', 'most_frequent', 'constant'] },
+            },
+            fill_values: {
+              label: 'Fill Values',
+              desc: '',
+              types: ['dict'],
+              required: false,
+            },
+            tails: {
+              label: 'Tails',
+              desc: '',
+              types: ['dict'],
+              required: false,
+              dict_values_enums: { type: 'list', source: ['iqr', 'mad'] },
+            },
+          },
+        },
+      ],
+    }));
+
+    expect(config.preprocessing?.[0].documentation).toBe('Configure Strategies and Fill Values. Use Most frequent, IQR, MAD, and Backend code name.');
+  });
+
   it('maps missing documentation to empty strings', () => {
     const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
       documentation: undefined,

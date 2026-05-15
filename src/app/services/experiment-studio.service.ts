@@ -188,25 +188,6 @@ export class ExperimentStudioService {
       }
     });
 
-    // Auto-deselect algorithm when it becomes unavailable due to variable/covariate changes
-    effect(() => {
-      const currentAlgo = this.selectedAlgorithm();
-      if (!currentAlgo) return;
-
-      // Read these to establish reactive dependencies
-      this.selectedVariables();
-      this.selectedCovariates();
-      this.selectedFilters();
-      this._filterLogic();
-
-      // Check if the currently selected algorithm is still available
-      const isStillAvailable = this.isAlgorithmAvailable(currentAlgo.name);
-
-      if (!isStillAvailable) {
-        this.clearSelectedAlgorithm();
-      }
-    });
-
     // --- State Persistence ---
     effect(() => {
       this.sessionStorage.setItem('selectedVariables', this.selectedVariablesSignal());

@@ -154,15 +154,18 @@ describe('AlgorithmRulesService', () => {
     })).toBeFalse();
   });
 
-  it('validates stattypes when present on selected variables', () => {
+  it('uses input types as the user-facing type when stattype validation fails', () => {
     const algo = buildAlgo({
       y: { label: 'y', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
     });
 
-    expect(service.isAlgorithmAvailable(algo, {
+    const result = service.evaluateAlgorithmAvailability(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'text', stattype: 'ordinal' } as any],
       x: [],
-    })).toBeFalse();
+    });
+
+    expect(result.available).toBeFalse();
+    expect(result.summary).toBe('Variable type must be one of text.');
   });
 
 

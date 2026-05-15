@@ -41,8 +41,8 @@
           <div class="algo-item-content">
             <div class="algo-label-group">
               <span class="algo-label">{{ algorithm.label }}</span>
-              @if (availabilityFirstReason(algorithm)) {
-              <span class="algo-unavailable-reason">{{ availabilityFirstReason(algorithm) }}</span>
+              @if (algorithmCardAvailabilityReason(algorithm)) {
+              <span class="algo-unavailable-reason">{{ algorithmCardAvailabilityReason(algorithm) }}</span>
               }
             </div>
             <div class="algo-badges">
@@ -336,10 +336,25 @@
       @if (selectedAlgorithmDocumentation()) {
       <details class="documentation-panel">
         <summary>Documentation</summary>
-        <div style="white-space: pre-wrap">{{ selectedAlgorithmDocumentation() }}</div>
+        <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
       </details>
       }
 
+      @if (selectedAlgorithmUnavailable()) {
+      <div class="preprocessing-run-warning algorithm-preview-warning" role="status">
+        <i class="fas fa-eye" aria-hidden="true"></i>
+        <div class="algorithm-preview-warning-copy">
+          @if (selectedAlgorithmAvailabilitySummary()) {
+          <strong>Preview only: </strong>
+          <span>{{ selectedAlgorithmAvailabilitySummary() }}</span>
+          } @else {
+          <strong>Preview only</strong>
+          }
+        </div>
+      </div>
+      }
+
+      <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
       @if (preprocessingRunBlockMessage()) {
       <div class="preprocessing-run-warning">
         <i class="fas fa-exclamation-triangle"></i>
@@ -601,10 +616,12 @@
       </form>
       }
 
+      </fieldset>
+
       <div class="settings-cta-row">
         <button class="primary-action-btn run-button" [disabled]="isRunButtonDisabled()" (click)="onClickRunExp()"
           data-guide="run-experiment"
-          [title]="preprocessingRunBlockMessage() || (isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment')">
+          [title]="selectedAlgorithmUnavailable() ? 'Algorithm unavailable for the current selection' : (preprocessingRunBlockMessage() || (isRunButtonDisabled() ? 'Complete variable and algorithm selection to proceed' : 'Execute experiment'))">
           {{ isRunning() ? "Running..." : "Run Experiment" }}
         </button>
       </div>
