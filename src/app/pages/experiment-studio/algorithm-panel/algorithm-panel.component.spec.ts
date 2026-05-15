@@ -277,7 +277,7 @@ describe('AlgorithmPanelComponent', () => {
       ],
       availability: {
         available: false,
-        summary: 'Variable needs at least 2, selected 1.',
+        summary: 'Variable type must be one of text.',
         details: [],
       },
     };
@@ -309,7 +309,8 @@ describe('AlgorithmPanelComponent', () => {
     expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
     expect(details?.textContent).toContain('Unavailable docs.');
     expect(previewWarning?.textContent).toContain('Preview only');
-    expect(previewWarning?.textContent).toContain('Variable needs at least 2, selected 1.');
+    expect(previewWarning?.textContent).toContain('Variable type must be one of nominal.');
+    expect(previewWarning?.textContent).not.toContain('text');
     expect(details?.open).toBeFalse();
     details.open = true;
     expect(details.open).toBeTrue();
