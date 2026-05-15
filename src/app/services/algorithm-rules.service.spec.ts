@@ -1,12 +1,11 @@
-import { AlgorithmRoles } from '../core/constants/algorithm.constants';
 import { AlgorithmConfig } from '../models/algorithm-definition.model';
 import { AlgorithmRulesService } from './algorithm-rules.service';
 
 describe('AlgorithmRulesService', () => {
   let service: AlgorithmRulesService;
   const baseInputdata = {
-    data_model: { label: 'data_model', desc: '', types: ['text'], required: true, multiple: false },
-    datasets: { label: 'datasets', desc: '', types: ['text'], required: true, multiple: true },
+    data_model: { label: 'data_model', desc: '', types: ['text'], required: true, max_count: 1 },
+    datasets: { label: 'datasets', desc: '', types: ['text'], required: true },
   };
 
   const buildAlgo = (inputdata: Record<string, any>): AlgorithmConfig => ({
@@ -30,21 +29,20 @@ describe('AlgorithmRulesService', () => {
 
   it('validates required roles from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
-      x: { label: 'x', desc: '', types: ['text'], required: false, multiple: true },
+      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+      x: { label: 'x', desc: '', types: ['text'], required: false },
     });
 
-    expect(service.isAlgorithmAvailable(algo, { y: [], x: [], filters: [] })).toBeFalse();
+    expect(service.isAlgorithmAvailable(algo, { y: [], x: [] })).toBeFalse();
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-      filters: [],
     })).toBeTrue();
   });
 
-  it('validates multiple=false from the JSON specification', () => {
+  it('validates max_count from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
+      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
     });
 
     const available = service.isAlgorithmAvailable(algo, {
@@ -53,7 +51,6 @@ describe('AlgorithmRulesService', () => {
         { code: 'v2', label: 'var2', type: 'real' } as any,
       ],
       x: [],
-      filters: [],
     });
 
     expect(available).toBeFalse();
@@ -61,39 +58,36 @@ describe('AlgorithmRulesService', () => {
 
   it('validates selected variable types from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
+      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'text' } as any],
       x: [],
-      filters: [],
     })).toBeFalse();
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-      filters: [],
     })).toBeTrue();
   });
 
   it('uses normalized metadata type aliases only for matching specification types', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['text'], required: true, multiple: false },
+      y: { label: 'y', desc: '', types: ['text'], required: true, max_count: 1 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'nominal' } as any],
       x: [],
-      filters: [],
     })).toBeTrue();
   });
 
   it('does not apply algorithm-name-specific restrictions beyond the JSON specification', () => {
     const algo = {
       ...buildAlgo({
-        y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
-        x: { label: 'x', desc: '', types: ['text'], required: true, multiple: true },
+        y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+        x: { label: 'x', desc: '', types: ['text'], required: true },
       }),
       name: 'anova_twoway',
     } as AlgorithmConfig;
@@ -101,83 +95,98 @@ describe('AlgorithmRulesService', () => {
     const availableWithOneCovariate = service.isAlgorithmAvailable(algo, {
       y: [{ code: 'age', label: 'Age', type: 'real' } as any],
       x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
-      filters: [],
     });
 
     expect(availableWithOneCovariate).toBeTrue();
   });
 
-  it('does not disable an algorithm when a filter variable is selected and filter types are payload metadata', () => {
+  it('ignores filter input declarations when evaluating availability', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
-      x: { label: 'x', desc: '', types: ['real'], required: false, multiple: true },
-      filter: { label: 'filter', desc: '', types: ['json'], required: false, multiple: true },
+      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+      filter: { label: 'filter', desc: '', types: ['json'], required: true, max_count: 1 },
     });
 
-    const available = service.isAlgorithmAvailable(algo, {
+    const result = service.evaluateAlgorithmAvailability(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-      filters: [{ code: 'f1', label: 'filter1', type: 'real' } as any],
     });
 
-    expect(available).toBeTrue();
+    expect(result.available).toBeTrue();
+    expect(result.details.map((detail) => detail.role)).not.toContain('filter' as any);
   });
 
-  it('does not disable an algorithm when multiple filter variables contribute to one filter payload', () => {
+  it('validates canonical min_count and max_count limits', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
-      x: { label: 'x', desc: '', types: ['real'], required: false, multiple: true },
-      filter: { label: 'filter', desc: '', types: ['json'], required: false, multiple: false },
+      y: { label: 'y', desc: '', types: ['real'], min_count: 2, max_count: 3 },
     });
 
-    const available = service.isAlgorithmAvailable(algo, {
+    expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-      filters: [
+    })).toBeFalse();
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [
+        { code: 'v1', label: 'var1', type: 'real' } as any,
+        { code: 'v2', label: 'var2', type: 'real' } as any,
+      ],
+      x: [],
+    })).toBeTrue();
+  });
+
+  it('rejects duplicate selections and y/x overlap', () => {
+    const algo = buildAlgo({
+      y: { label: 'y', desc: '', types: ['real'], required: true },
+      x: { label: 'x', desc: '', types: ['real'], required: false },
+    });
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [
         { code: 'age', label: 'Age', type: 'real' } as any,
-        { code: 'event_type', label: 'Event Type', type: 'text' } as any,
+        { code: 'age', label: 'Age', type: 'real' } as any,
+      ],
+      x: [],
+    })).toBeFalse();
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'age', label: 'Age', type: 'real' } as any],
+      x: [{ code: 'age', label: 'Age', type: 'real' } as any],
+    })).toBeFalse();
+  });
+
+  it('validates stattypes when present on selected variables', () => {
+    const algo = buildAlgo({
+      y: { label: 'y', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
+    });
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'v1', label: 'var1', type: 'text', stattype: 'ordinal' } as any],
+      x: [],
+    })).toBeFalse();
+  });
+
+
+  it('returns structured details for optional covariate max_count failures', () => {
+    const algo = buildAlgo({
+      x: { label: 'x', desc: '', types: ['real'], required: false, max_count: 1 },
+    });
+
+    const result = service.evaluateAlgorithmAvailability(algo, {
+      y: [],
+      x: [
+        { code: 'v1', label: 'var1', type: 'real' } as any,
+        { code: 'v2', label: 'var2', type: 'real' } as any,
       ],
     });
 
-    expect(available).toBeTrue();
+    expect(result.available).toBeFalse();
+    expect(result.summary).toBe('Covariate allows at most 1, selected 2.');
+    expect(result.details.find((detail) => detail.role === 'x')).toEqual(jasmine.objectContaining({
+      label: 'Covariate',
+      selectedCount: 2,
+      maxCount: 1,
+      satisfied: false,
+    }));
   });
 
-  it('requires an active filter payload when filter input is mandatory', () => {
-    const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, multiple: false },
-      [AlgorithmRoles.FILTER]: { label: 'filter', desc: '', types: ['json'], required: true, multiple: true },
-    });
-
-    const withoutActiveFilter = service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
-      x: [],
-      filters: [{ code: 'f1', label: 'filter1', type: 'real' } as any],
-      hasActiveFilter: false,
-    });
-
-    const withActiveFilter = service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
-      x: [],
-      filters: [{ code: 'f1', label: 'filter1', type: 'real' } as any],
-      hasActiveFilter: true,
-    });
-
-    expect(withoutActiveFilter).toBeFalse();
-    expect(withActiveFilter).toBeTrue();
-  });
-
-  it('enforces mandatory role when legacy notblank=true is provided', () => {
-    const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], notblank: true, multiple: false },
-      x: { label: 'x', desc: '', types: ['text'], required: false, multiple: true },
-    });
-
-    const available = service.isAlgorithmAvailable(algo, {
-      y: [],
-      x: [],
-      filters: [],
-    });
-
-    expect(available).toBeFalse();
-  });
 });

@@ -39,15 +39,20 @@
           (mouseenter)="showTooltip(algorithm, $event)" (mouseleave)="hideTooltip()"
           [class.selected]="algorithm.name === selectedAlgorithm()?.name">
           <div class="algo-item-content">
-            <span class="algo-label">{{ algorithm.label }}</span>
+            <div class="algo-label-group">
+              <span class="algo-label">{{ algorithm.label }}</span>
+              @if (availabilityFirstReason(algorithm)) {
+              <span class="algo-unavailable-reason">{{ availabilityFirstReason(algorithm) }}</span>
+              }
+            </div>
             <div class="algo-badges">
               @if (algorithm.isDisabled) {
-              @if (getVariableRequirement(algorithm)) {
+              @if (hasVariableAvailabilityIssue(algorithm)) {
               <span class="algo-badge algo-badge--req algo-badge--variable" title="Variable Requirement">
                 <i class="fas fa-database"></i>
               </span>
               }
-              @if (getCovariateRequirement(algorithm)) {
+              @if (hasCovariateAvailabilityIssue(algorithm)) {
               <span class="algo-badge algo-badge--req algo-badge--covariate" title="Covariate Requirement">
                 <i class="fas fa-sliders-h"></i>
               </span>
@@ -94,19 +99,22 @@
     <h5 class="tooltip-title">{{ tooltipData()?.label }}</h5>
     <div class="tooltip-description" [innerHTML]="tooltipData()?.description"></div>
 
-    @if (getVariableRequirement() || getCovariateRequirement()) {
+    @if (availabilityDetails().length) {
     <div class="tooltip-requirements">
-      <div class="tooltip-requirements-header">Requirements</div>
-    @if (getVariableRequirement()) {
-      <div class="req-item">
-        <i class="fas fa-database req-icon req-icon--variable"></i>
-        <span class="req-text">{{ getVariableRequirement() }}</span>
-      </div>
-      }
-      @if (getCovariateRequirement()) {
-      <div class="req-item">
-        <i class="fas fa-sliders-h req-icon req-icon--covariate"></i>
-        <span class="req-text">{{ getCovariateRequirement() }}</span>
+      <div class="tooltip-requirements-header">Availability</div>
+      @for (detail of availabilityDetails(); track detail.role) {
+      <div class="req-item" [class.req-item--failed]="detail.messages.length > 0">
+        <i class="fas req-icon"
+          [class.fa-database]="isVariableAvailabilityDetail(detail)"
+          [class.fa-sliders-h]="isCovariateAvailabilityDetail(detail)"
+          [class.req-icon--variable]="isVariableAvailabilityDetail(detail)"
+          [class.req-icon--covariate]="isCovariateAvailabilityDetail(detail)"></i>
+        <div class="req-copy">
+          <span class="req-text">{{ availabilityRequirementText(detail) }}</span>
+          @for (message of detail.messages; track message) {
+          <span class="req-error">{{ message }}</span>
+          }
+        </div>
       </div>
       }
     </div>
@@ -328,7 +336,7 @@
       @if (selectedAlgorithmDocumentation()) {
       <details class="documentation-panel">
         <summary>Documentation</summary>
-        <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
+        <div style="white-space: pre-wrap">{{ selectedAlgorithmDocumentation() }}</div>
       </details>
       }
 

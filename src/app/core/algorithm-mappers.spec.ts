@@ -8,10 +8,10 @@ function rawAlgorithm(overrides: Partial<RawAlgorithmDefinition>): RawAlgorithmD
     desc: 'Mock algorithm',
     enabled: true,
     inputdata: {
-      data_model: { label: 'Data model', desc: '', types: ['text'], required: true, multiple: false },
-      datasets: { label: 'Datasets', desc: '', types: ['text'], required: true, multiple: true },
-      y: { label: 'Y', desc: '', types: ['real'], required: true, multiple: false },
-      x: { label: 'X', desc: '', types: ['text'], required: true, multiple: true },
+      data_model: { label: 'Data model', desc: '', types: ['text'], required: true, max_count: 1 },
+      datasets: { label: 'Datasets', desc: '', types: ['text'], required: true },
+      y: { label: 'Y', desc: '', types: ['real'], required: true, max_count: 1 },
+      x: { label: 'X', desc: '', types: ['text'], required: true },
     },
     parameters: {},
     ...overrides,
@@ -147,6 +147,37 @@ describe('algorithm mappers', () => {
 
     expect(config.documentation).toBe('');
     expect(config.preprocessing?.[0].documentation).toBe('');
+  });
+
+  it('maps canonical contract fields and parameter bounds', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      type: 'stats',
+      flags: ['beta'],
+      inputdata: {
+        data_model: { label: 'Data model', desc: '', types: ['text'], required: true },
+        datasets: { label: 'Datasets', desc: '', types: ['text'], required: true },
+        validation_datasets: { label: 'Validation', desc: '', types: ['text'], min_count: '0', max_count: '2' },
+        y: { label: 'Y', desc: '', types: ['real'], required: true, min_count: '1', max_count: '3' },
+        x: { label: 'X', desc: '', types: ['real'], required: false, max_count: 1 },
+      },
+      parameters: {
+        alpha: { label: 'Alpha', desc: '', types: ['real'], min: '0', max: '1', default: 0 },
+        enabled: { label: 'Enabled', desc: '', types: ['boolean'], default: false },
+      },
+    }));
+
+    expect(config.type).toBe('stats');
+    expect(config.flags).toEqual(['beta']);
+    expect(config.inputdata?.y?.min_count).toBe(1);
+    expect(config.inputdata?.y?.max_count).toBe(3);
+    expect(config.inputdata?.x?.max_count).toBe(1);
+    expect(config.inputdata?.validation_datasets?.max_count).toBe(2);
+    expect(config.configSchema.find(field => field.key === 'alpha')).toEqual(jasmine.objectContaining({
+      min: 0,
+      max: 1,
+      default: 0,
+    }));
+    expect(config.configSchema.find(field => field.key === 'enabled')?.default).toBeFalse();
   });
 
   it('provides output schemas for new Exaflow algorithms', () => {
