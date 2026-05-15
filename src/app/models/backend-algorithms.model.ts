@@ -2,6 +2,7 @@ export interface RawAlgorithmDefinition {
   name: string;
   label: string;
   desc: string;
+  documentation?: string;
   enabled: boolean;
   inputdata: RawInputData;
   parameters: Record<string, RawParameter> | null;
@@ -52,6 +53,7 @@ export interface RawPreprocessingStep {
   name: string;
   label: string;
   desc: string;
+  documentation?: string;
   order?: number;
   parameters: Record<string, RawParameter | RawDictParameter>;
 }

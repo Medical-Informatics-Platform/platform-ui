@@ -46,6 +46,7 @@ describe('AlgorithmPanelComponent', () => {
     name: 'flat_config_algorithm',
     label: 'Flat Config Algorithm',
     description: 'Algorithm with more than three configuration fields.',
+    documentation: 'Line one.\nLine two.',
     category: 'Test',
     requiredVariable: [],
     covariate: [],
@@ -119,6 +120,33 @@ describe('AlgorithmPanelComponent', () => {
     expect(nativeElement.textContent).toContain('Fourth');
     expect(nativeElement.textContent).not.toContain('Show advanced configuration');
     expect(nativeElement.textContent).not.toContain('Hide advanced configuration');
+  });
+
+  it('does not surface covariate requirements when covariates are optional', () => {
+    const optionalCovariateAlgorithm = {
+      name: 'outlier_report',
+      label: 'Outlier Report',
+      inputdata: {
+        y: { required: true, multiple: true, types: ['real'] },
+        x: { required: false, multiple: true, types: ['real'] },
+      },
+    };
+
+    expect(fixture.componentInstance.getVariableRequirement(optionalCovariateAlgorithm)).toContain('Variable:');
+    expect(fixture.componentInstance.getCovariateRequirement(optionalCovariateAlgorithm)).toBeNull();
+  });
+
+  it('renders selected algorithm documentation separately from the short description', async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    const details = nativeElement.querySelector('.documentation-panel') as HTMLDetailsElement;
+
+    expect(nativeElement.querySelector('.config-description')?.textContent).toContain('Algorithm with more than three configuration fields.');
+    expect(details?.textContent).toContain('Documentation');
+    expect(details?.textContent).toContain('Line one.');
+    expect(details?.textContent).toContain('Line two.');
   });
 
   it('keeps fields after the old advanced cutoff in the persisted form config', async () => {

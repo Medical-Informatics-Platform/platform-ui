@@ -64,6 +64,7 @@ export class AlgorithmPanelComponent {
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   readonly selectedAlgorithm = this.experimentStudioService.selectedAlgorithm;
+  readonly selectedAlgorithmDocumentation = computed(() => this.selectedAlgorithm()?.documentation?.trim() ?? '');
   readonly enumMaps = computed(() => this.experimentStudioService.getCategoricalEnumMaps());
   readonly yVar = computed(() => this.experimentStudioService.selectedVariables()[0]?.code ?? null);
   readonly xVar = computed(() => this.experimentStudioService.selectedCovariates()[0]?.code ?? null);
@@ -1235,7 +1236,11 @@ export class AlgorithmPanelComponent {
 
   getCovariateRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
-    return this.getRoleRequirement(target?.inputdata?.x, 'Covariate');
+    const field = target?.inputdata?.x;
+    if (!field || this.normalizeBool(field.required) !== true) {
+      return null;
+    }
+    return this.getRoleRequirement(field, 'Covariate');
   }
 
   onSaveAs() {

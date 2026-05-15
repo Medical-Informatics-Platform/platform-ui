@@ -72,6 +72,21 @@ describe('ExperimentStudioService', () => {
     ]
   };
 
+  const mockOutlierReportAlgo = {
+    name: 'outlier_report',
+    label: 'Outlier Report',
+    desc: '',
+    enabled: true,
+    inputdata: {
+      data_model: { label: '', desc: '', types: [] },
+      datasets: { label: '', desc: '', types: [] },
+      y: { label: '', desc: '', types: ['real'], required: true, multiple: true },
+      x: { label: '', desc: '', types: ['real'], required: false, multiple: true },
+      filter: { label: '', desc: '', types: [], required: false, multiple: false },
+    },
+    parameters: {},
+  };
+
   const mockDataModel: DataModel = {
     uuid: 'dm-uuid',
     code: 'dm',
@@ -98,7 +113,7 @@ describe('ExperimentStudioService', () => {
     httpMock = TestBed.inject(HttpTestingController);
 
     const req = httpMock.expectOne('/services/algorithms');
-    req.flush([mockRawAlgo, mockHistogramAlgo, mockDescribeAlgo]);
+    req.flush([mockRawAlgo, mockHistogramAlgo, mockDescribeAlgo, mockOutlierReportAlgo]);
   });
 
   afterEach(() => {
@@ -160,6 +175,27 @@ describe('ExperimentStudioService', () => {
     const body = service.buildRequestBody('describe', ['var1']);
 
     expect(body.algorithm.preprocessing).toBeNull();
+  });
+
+  it('does not add default preprocessing for outlier_report requests', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+
+    const body = service.buildRequestBody('outlier_report', ['age']);
+
+    expect(body.algorithm.name).toBe('outlier_report');
+    expect(body.algorithm.preprocessing).toBeNull();
+  });
+
+  it('excludes histogram, describe, and outlier_report from the algorithm picker', () => {
+    const grouped = service.availableGroupedAlgorithms();
+    const names = Object.values(grouped).flat().map((algo) => algo.name);
+
+    expect(names).toContain('mock_algo');
+    expect(names).not.toContain('histogram');
+    expect(names).not.toContain('describe');
+    expect(names).not.toContain('outlier_report');
   });
 
   it('sends raw descriptive overview requests without preprocessing', () => {

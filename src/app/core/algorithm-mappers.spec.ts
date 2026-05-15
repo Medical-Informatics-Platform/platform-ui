@@ -93,6 +93,7 @@ describe('algorithm mappers', () => {
     const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
       name: 'outlier_report',
       label: 'Outlier Report',
+      documentation: 'Long algorithm documentation.',
       parameters: {
         folds: {
           label: 'Folds',
@@ -114,12 +115,13 @@ describe('algorithm mappers', () => {
         },
       },
       preprocessing: [
-        { name: 'longitudinal_transformer', label: 'Longitudinal', desc: '', order: 3, parameters: {} },
-        { name: 'outlier_winsorizer', label: 'Outlier Winsorizer', desc: '', order: 2, parameters: {} },
+        { name: 'longitudinal_transformer', label: 'Longitudinal', desc: '', documentation: 'Longitudinal docs.', order: 3, parameters: {} },
+        { name: 'outlier_winsorizer', label: 'Outlier Winsorizer', desc: '', documentation: 'Outlier docs.', order: 2, parameters: {} },
       ],
     }));
 
     expect(config.category).toBe('Descriptive Statistics');
+    expect(config.documentation).toBe('Long algorithm documentation.');
     expect(config.configSchema.find(field => field.key === 'folds')).toEqual(jasmine.objectContaining({
       type: 'dict',
       dictKeyEnumType: 'input_var_names',
@@ -132,6 +134,19 @@ describe('algorithm mappers', () => {
       dictValueOptions: ['gaussian', 'iqr', 'mad', 'quantile'],
     }));
     expect(config.preprocessing?.map((step) => step.name)).toEqual(['outlier_winsorizer', 'longitudinal_transformer']);
+    expect(config.preprocessing?.find((step) => step.name === 'outlier_winsorizer')?.documentation).toBe('Outlier docs.');
+  });
+
+  it('maps missing documentation to empty strings', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      documentation: undefined,
+      preprocessing: [
+        { name: 'missing_values_handler', label: 'Missing Values', desc: '', parameters: {} },
+      ],
+    }));
+
+    expect(config.documentation).toBe('');
+    expect(config.preprocessing?.[0].documentation).toBe('');
   });
 
   it('provides output schemas for new Exaflow algorithms', () => {

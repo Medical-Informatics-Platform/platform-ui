@@ -34,6 +34,14 @@ const MISSING_VALUES_HANDLER = 'missing_values_handler';
 const OUTLIER_WINSORIZER = 'outlier_winsorizer';
 const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__';
 
+/** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
+const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
+  AlgorithmNames.HISTOGRAM,
+  AlgorithmNames.DESCRIBE,
+  AlgorithmNames.OUTLIER_REPORT,
+  AlgorithmNames.LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER,
+]);
+
 @Injectable({ providedIn: 'root' })
 export class ExperimentStudioService {
   private http = inject(HttpClient);
@@ -512,15 +520,8 @@ export class ExperimentStudioService {
     this.selectedFilters();
     this._filterLogic();
 
-    // Hide quick-preview algorithms from the selection list.
-    const hidden = new Set([
-      AlgorithmNames.HISTOGRAM,
-      AlgorithmNames.DESCRIBE,
-      AlgorithmNames.LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER
-    ]);
-
     return Object.values(this.backendAlgorithms())
-      .filter(algo => !hidden.has(algo.name))
+      .filter(algo => !ALGORITHM_PANEL_EXCLUDED.has(algo.name))
       .filter(algo => {
         if (!this.isCrossValidationAlgorithm(algo.name)) return true;
         const base = this.getCrossValidationBase(algo.name);
@@ -719,7 +720,12 @@ export class ExperimentStudioService {
     xPayload: string[] | string | null,
     explicitPreprocessing: unknown = null
   ): PreprocessingConfig | null {
-    if (algorithmName === AlgorithmNames.DESCRIBE) return null;
+    if (
+      algorithmName === AlgorithmNames.DESCRIBE ||
+      algorithmName === AlgorithmNames.OUTLIER_REPORT
+    ) {
+      return null;
+    }
 
     const explicit = this.normalizePreprocessingConfig(explicitPreprocessing);
     if (explicit) return explicit;
@@ -1032,7 +1038,11 @@ export class ExperimentStudioService {
 
 
   private isTransientAlgorithm(name: string): boolean {
-    return ['histogram', 'describe'].includes(name);
+    return (
+      name === AlgorithmNames.HISTOGRAM ||
+      name === AlgorithmNames.DESCRIBE ||
+      name === AlgorithmNames.OUTLIER_REPORT
+    );
   }
 
   private normalizeResponse(algoName: string, resp: any): any {

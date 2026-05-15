@@ -325,6 +325,13 @@
       </h5>
       <p class="config-description">{{ selectedAlgorithm()?.description }}</p>
 
+      @if (selectedAlgorithmDocumentation()) {
+      <details class="documentation-panel">
+        <summary>Documentation</summary>
+        <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
+      </details>
+      }
+
       @if (preprocessingRunBlockMessage()) {
       <div class="preprocessing-run-warning">
         <i class="fas fa-exclamation-triangle"></i>
