@@ -41,9 +41,6 @@
           <div class="algo-item-content">
             <div class="algo-label-group">
               <span class="algo-label">{{ algorithm.label }}</span>
-              @if (algorithmCardAvailabilityReason(algorithm)) {
-              <span class="algo-unavailable-reason">{{ algorithmCardAvailabilityReason(algorithm) }}</span>
-              }
             </div>
             <div class="algo-badges">
               @if (algorithm.isDisabled) {

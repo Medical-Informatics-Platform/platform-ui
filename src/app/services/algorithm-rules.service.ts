@@ -15,6 +15,7 @@ type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
     providedIn: 'root'
 })
 export class AlgorithmRulesService {
+    private readonly singleTargetAlgorithms = new Set(['linear_regression', 'linear_regression_cv']);
 
     constructor() { }
 
@@ -34,13 +35,13 @@ export class AlgorithmRulesService {
         const hasRole = (role: string) => Object.prototype.hasOwnProperty.call(algo.inputdata, role);
 
         if (hasRole(AlgorithmRoles.Y)) {
-            details.push(this.evaluateRole('y', (algo.inputdata as any).y, selections.y ?? []));
+            details.push(this.evaluateRole('y', (algo.inputdata as any).y, selections.y ?? [], algo));
         } else if ((selections.y ?? []).length > 0) {
             details.push(this.evaluateUnsupportedRole('y', selections.y.length));
         }
 
         if (hasRole(AlgorithmRoles.X)) {
-            details.push(this.evaluateRole('x', (algo.inputdata as any).x, selections.x ?? []));
+            details.push(this.evaluateRole('x', (algo.inputdata as any).x, selections.x ?? [], algo));
         } else if ((selections.x ?? []).length > 0) {
             details.push(this.evaluateUnsupportedRole('x', selections.x.length));
         }
@@ -68,11 +69,12 @@ export class AlgorithmRulesService {
     private evaluateRole(
         role: Extract<AlgorithmAvailabilityRole, 'y' | 'x'>,
         field: any,
-        selected: D3HierarchyNode[]
+        selected: D3HierarchyNode[],
+        algo: AlgorithmConfig
     ): AlgorithmAvailabilityDetail {
         const label = this.roleLabel(role);
         const minCount = this.getMinCount(field);
-        const maxCount = this.getMaxCount(field);
+        const maxCount = this.getMaxCount(field, role, algo);
         const types = this.normalizeStringList(field?.types);
         const stattypes = this.normalizeStringList(field?.stattypes);
         const messages: string[] = [];
@@ -162,9 +164,33 @@ export class AlgorithmRulesService {
 
     private typeRequirementMessage(label: string, types: string[]): string {
         if (types.length > 0) {
-            return label + ' type must be one of ' + types.join(', ') + '.';
+            return label + ' type must be one of ' + this.formatDisplayTypes(types).join(', ') + '.';
         }
         return label + ' type is not accepted by this algorithm.';
+    }
+
+    private formatDisplayTypes(types: string[]): string[] {
+        return Array.from(new Set(
+            types
+                .map((type) => this.normalizeDisplayType(type))
+                .filter((type): type is string => !!type)
+        ));
+    }
+
+    private normalizeDisplayType(type: string | undefined | null): string | undefined {
+        const normalized = String(type ?? '').trim().toLowerCase();
+        if (!normalized) return undefined;
+
+        switch (normalized) {
+            case VariableTypes.TEXT:
+            case 'polynominal':
+            case 'ordinal':
+                return VariableTypes.NOMINAL;
+            case VariableTypes.INTEGER:
+                return VariableTypes.INT;
+            default:
+                return normalized;
+        }
     }
 
     private pushUnique(messages: string[], message: string): void {
@@ -204,8 +230,15 @@ export class AlgorithmRulesService {
         return this.isFieldRequired(field) ? 1 : 0;
     }
 
-    private getMaxCount(field: any): number | null {
-        return this.normalizeCount(field?.max_count);
+    private getMaxCount(
+        field: any,
+        role: Extract<AlgorithmAvailabilityRole, 'y' | 'x'>,
+        algo: AlgorithmConfig
+    ): number | null {
+        const explicit = this.normalizeCount(field?.max_count);
+        if (explicit !== null) return explicit;
+        if (role === 'y' && this.singleTargetAlgorithms.has(algo.name)) return 1;
+        return null;
     }
 
     private normalizeCount(value: number | string | undefined | null): number | null {

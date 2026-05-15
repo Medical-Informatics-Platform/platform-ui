@@ -489,11 +489,16 @@
                       <i class="fa fa-line-chart" aria-hidden="true"></i>
                       <span>Outlier winsorizer</span>
                     </div>
-                    <label class="checkbox-wrapper outlier-rule-toggle">
-                      <input type="checkbox" [checked]="outlierRuleFor(variable).enabled" (change)="onOutlierEnabledChange(variable, $any($event.target).checked)" />
-                      <span>Enable for {{ variableLabel(variable) }}</span>
-                    </label>
                     <div class="preprocessing-control-grid outlier-control-grid">
+                      <div class="preprocessing-control">
+                        <span>Enabled</span>
+                        <div class="inline-toggle-container">
+                          <label class="toggle-switch">
+                            <input type="checkbox" [checked]="outlierRuleFor(variable).enabled" (change)="onOutlierEnabledChange(variable, $any($event.target).checked)" />
+                            <span class="toggle-slider"></span>
+                          </label>
+                        </div>
+                      </div>
                       <label class="preprocessing-control">
                         <span>Strategy</span>
                         <select class="table-select" [ngModel]="outlierRuleFor(variable).strategy" (ngModelChange)="onOutlierStrategyChange(variable, $event)">
