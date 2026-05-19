@@ -3,17 +3,14 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
-  EventEmitter,
-  Input,
-  SimpleChanges,
-  OnChanges,
-  Output,
   effect,
   inject,
   QueryList,
   signal,
   ViewChild,
   ViewChildren,
+  output,
+  input
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
@@ -140,15 +137,16 @@ export interface DescriptiveProgressState {
   selector: 'app-statistic-analysis-panel',
   imports: [ChartRendererComponent, FormsModule, FilterConfigModalComponent],
   templateUrl: './statistic-analysis-panel.component.html',
-  styleUrls: ['./statistic-analysis-panel.component.css'],
+  styleUrl: './statistic-analysis-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StatisticAnalysisPanelComponent implements OnChanges {
-  @Input() processedData: PivotBlock[] = [];
-  @Input() variables: unknown[] = [];
-  @Input() covariates: unknown[] = [];
-  @Input() filters: unknown[] = [];
-  @Output() progressStateChange = new EventEmitter<DescriptiveProgressState>();
+export class StatisticAnalysisPanelComponent {
+  readonly processedDataInput = input<PivotBlock[]>([], { alias: 'processedData' });
+  processedData: PivotBlock[] = [];
+  readonly variables = input<unknown[]>([]);
+  readonly covariates = input<unknown[]>([]);
+  readonly filters = input<unknown[]>([]);
+  readonly progressStateChange = output<DescriptiveProgressState>();
   @ViewChildren(ChartRendererComponent)
   chartRenderers!: QueryList<ChartRendererComponent>;
   @ViewChild('rawSection')
@@ -263,6 +261,13 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
 
   constructor() {
     effect(() => {
+      const incomingProcessedData = this.processedDataInput();
+      this.processedData = incomingProcessedData;
+      this.isLoading = incomingProcessedData.length === 0;
+      this.cdr.markForCheck();
+    });
+
+    effect(() => {
       const variables = this.expStudioService.selectedVariables();
       const covariates = this.expStudioService.selectedCovariates();
       const filters = this.expStudioService.selectedFilters();
@@ -301,13 +306,6 @@ export class StatisticAnalysisPanelComponent implements OnChanges {
         }
       });
     });
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['processedData']) {
-      this.isLoading = this.processedData.length === 0;
-      this.cdr.markForCheck();
-    }
   }
 
   get pendingChangeCount(): number {

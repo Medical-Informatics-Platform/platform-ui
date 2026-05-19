@@ -269,7 +269,6 @@ describe('StatisticAnalysisPanelComponent', () => {
         const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
         expect(preprocessingSection.querySelector('.empty-state-block')).toBeTruthy();
         expect(preprocessingSection.textContent).toContain('No variables match the current search.');
-        expect(preprocessingSection.querySelector('.longitudinal-table')).toBeFalsy();
     });
 
     it('renders missing values as a selected-variable workspace', () => {
@@ -284,7 +283,6 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(missingStep.querySelector('.preprocessing-browser')).toBeTruthy();
         expect(missingStep.querySelector('.preprocessing-detail-panel')).toBeTruthy();
-        expect(missingStep.querySelector('.preprocessing-table')).toBeFalsy();
         expect(missingStep.querySelector('.preprocessing-detail-panel h4')?.textContent).toContain('Age');
         expect(missingStep.textContent).toContain('Missing value handling');
     });

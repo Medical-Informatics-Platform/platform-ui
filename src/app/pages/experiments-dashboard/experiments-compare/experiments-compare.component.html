@@ -22,10 +22,13 @@
 
 <div class="compare-rows">
   @for (row of experimentRows(); track row.index) {
-  <section class="compare-row" [ngClass]="[
-        'cols-' + layoutCols(),
-        isRowExpanded(row.index) ? 'expanded' : 'collapsed'
-      ]">
+  <section
+    class="compare-row"
+    [class.cols-2]="layoutCols() === 2"
+    [class.cols-3]="layoutCols() === 3"
+    [class.expanded]="isRowExpanded(row.index)"
+    [class.collapsed]="!isRowExpanded(row.index)"
+  >
     <header class="row-header">
       <div class="row-label">
         <span class="row-title"> Set {{ row.index + 1 }} </span>
@@ -38,10 +41,7 @@
 
       <button type="button" class="row-toggle-btn" (click)="toggleRow(row.index)">
         <span>{{ isRowExpanded(row.index) ? "Collapse" : "Expand" }}</span>
-        <i class="fas" [ngClass]="{
-              'fa-chevron-up': isRowExpanded(row.index),
-              'fa-chevron-down': !isRowExpanded(row.index)
-            }"></i>
+        <i class="fas" [class.fa-chevron-up]="isRowExpanded(row.index)" [class.fa-chevron-down]="!isRowExpanded(row.index)"></i>
       </button>
     </header>
 
@@ -86,10 +86,7 @@
         <section class="compare-config">
           <button type="button" class="config-toggle" (click)="toggleConfig(item.exp.id)">
             <span>Configuration</span>
-            <i class="fas" [ngClass]="{
-                  'fa-chevron-up': isConfigExpanded(item.exp.id),
-                  'fa-chevron-down': !isConfigExpanded(item.exp.id)
-                }"></i>
+            <i class="fas" [class.fa-chevron-up]="isConfigExpanded(item.exp.id)" [class.fa-chevron-down]="!isConfigExpanded(item.exp.id)"></i>
           </button>
 
           @if (isConfigExpanded(item.exp.id)) {

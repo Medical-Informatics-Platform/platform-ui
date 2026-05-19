@@ -7,7 +7,7 @@ import { AuthService } from "../../services/auth.service";
   selector: 'app-account-page',
   imports: [CommonModule, RouterModule],
   templateUrl: './account-page.component.html',
-  styleUrls: ['./account-page.component.css'],
+  styleUrl: './account-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AccountPageComponent {

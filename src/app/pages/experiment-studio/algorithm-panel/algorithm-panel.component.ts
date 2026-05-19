@@ -38,7 +38,7 @@ import {
     RouterLink
   ],
   templateUrl: './algorithm-panel.component.html',
-  styleUrls: ['./algorithm-panel.component.css'],
+  styleUrl: './algorithm-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 

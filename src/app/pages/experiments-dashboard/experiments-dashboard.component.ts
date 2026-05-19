@@ -18,7 +18,7 @@ import { ExperimentsDashboardGuideComponent } from './guide/experiments-dashboar
 @Component({
   selector: 'app-experiments-dashboard',
   templateUrl: './experiments-dashboard.component.html',
-  styleUrls: ['./experiments-dashboard.component.css'],
+  styleUrl: './experiments-dashboard.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterModule,

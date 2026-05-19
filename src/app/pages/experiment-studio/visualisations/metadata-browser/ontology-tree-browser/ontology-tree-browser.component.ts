@@ -39,7 +39,7 @@ const EMPTY_METADATA_TREE: D3HierarchyNode = {
 @Component({
   selector: 'app-ontology-tree-browser',
   templateUrl: './ontology-tree-browser.component.html',
-  styleUrls: ['./ontology-tree-browser.component.css'],
+  styleUrl: './ontology-tree-browser.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OntologyTreeBrowserComponent {

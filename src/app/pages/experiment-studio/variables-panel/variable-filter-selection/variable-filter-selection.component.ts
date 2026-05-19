@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, computed, effect } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, output, inject, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CdkDragDrop, DragDropModule, transferArrayItem } from '@angular/cdk/drag-drop'
@@ -8,19 +8,21 @@ import { D3HierarchyNode } from '../../../../models/data-model.interface';
 @Component({
   selector: 'app-variable-filter-selection',
   templateUrl: './variable-filter-selection.component.html',
-  styleUrls: ['./variable-filter-selection.component.css'],
+  styleUrl: './variable-filter-selection.component.css',
   imports: [CommonModule, DragDropModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VariableFilterSelectionComponent {
-  @Input() selectedNode: any; // Selected node from the bubble chart
-  @Input() groupVariables: any[] = [];
-  @Output() variableClicked = new EventEmitter<any>();
+  private expStudioService = inject(ExperimentStudioService);
+
+  readonly selectedNode = input<any>(); // Selected node from the bubble chart
+  readonly groupVariables = input<any[]>([]);
+  readonly variableClicked = output<any>();
 
   readonly variables = computed(() => this.expStudioService.selectedVariables());
   readonly covariates = computed(() => this.expStudioService.selectedCovariates());
 
-  constructor(private expStudioService: ExperimentStudioService) {
+  constructor() {
     effect(() => {
       // todo: check and remove if not bugs appear
       // activates availableGroupedAlgorithms to recalculate available algorithms
@@ -57,10 +59,11 @@ export class VariableFilterSelectionComponent {
     if (!datasets || datasets.length === 0) {
       return;
     }
-    if (!this.selectedNode) return;
+    const selectedNode = this.selectedNode();
+    if (!selectedNode) return;
 
     // Select all leaves from selected node
-    let itemsToAdd = this.selectedNode.children ? this.getLeafNodes(this.selectedNode) : [this.selectedNode];
+    let itemsToAdd = selectedNode.children ? this.getLeafNodes(selectedNode) : [selectedNode];
 
     const list = this.getListByName(listName);
     const updated = [
@@ -105,9 +108,10 @@ export class VariableFilterSelectionComponent {
   }
 
   isNodeSelectedAndNotInList(listName: 'variables' | 'covariates'): boolean {
-    if (!this.selectedNode || this.selectedNode.children) return false;
+    const selectedNode = this.selectedNode();
+    if (!selectedNode || selectedNode.children) return false;
     const list = this.getListByName(listName);
-    return !list.some(item => item.code === this.selectedNode.code);
+    return !list.some(item => item.code === this.selectedNode().code);
   }
 
   removeItem(item: any, listName: string): void {

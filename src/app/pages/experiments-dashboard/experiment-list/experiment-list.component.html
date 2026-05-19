@@ -50,8 +50,8 @@
   <ul class="experiments-list">
     @for (exp of pagedExperiments(); track exp.id) {
     <li class="experiment-row" [class.selected]="
-        (!compareMode && exp.id === selectedExperimentId) ||
-        (compareMode && isInCompare(exp.id))
+        (!compareMode() && exp.id === selectedExperimentId()) ||
+        (compareMode() && isInCompare(exp.id))
       " [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)">
       <!-- LEFT: main info -->
       <div class="row-main">
@@ -60,10 +60,11 @@
             {{ exp.name || "Untitled Investigation" }}
           </span>
 
-          <span class="status-pill" [ngClass]="{
-              completed: exp.status === 'success',
-              error: exp.status === 'error'
-            }">
+          <span
+            class="status-pill"
+            [class.completed]="exp.status === 'success'"
+            [class.error]="exp.status === 'error'"
+          >
             {{ exp.status }}
           </span>
         </div>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
 import { AlgorithmTableRegistry, TableSpec } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
@@ -10,13 +10,13 @@ import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
   styleUrl: './auto-renderer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AutoRendererComponent implements OnChanges {
-  @Input() value: any = null;
-  @Input() algorithm: string | null = null;
-  @Input() fallbackTitle: string | null = null;
-  @Input() labelMap: Record<string, string> | null = null;
-  @Input() enumMaps: EnumMaps | null = null;
-  @Input() yVar: string | null = null;
+export class AutoRendererComponent {
+  readonly value = input<any>(null);
+  readonly algorithm = input<string | null>(null);
+  readonly fallbackTitle = input<string | null>(null);
+  readonly labelMap = input<Record<string, string> | null>(null);
+  readonly enumMaps = input<EnumMaps | null>(null);
+  readonly yVar = input<string | null>(null);
   algorithmToRender: string = '';
 
   tableSpec = signal<TableSpec[] | null>(null);
@@ -24,34 +24,45 @@ export class AutoRendererComponent implements OnChanges {
 
   private lastKey: string | null = null;
 
-  ngOnChanges(_changes: SimpleChanges) {
-    if (!this.algorithm) {
+  constructor() {
+    effect(() => this.updateTableSpec());
+  }
+
+  private updateTableSpec(): void {
+    const algorithm = this.algorithm();
+    const value = this.value();
+    const labelMap = this.labelMap();
+    const enumMaps = this.enumMaps();
+    const yVar = this.yVar();
+    const fallbackTitle = this.fallbackTitle();
+
+    if (!algorithm) {
       this.tableSpec.set(null);
       this.error.set(null);
       return;
     }
 
-    const builder = AlgorithmTableRegistry[this.algorithm];
+    const builder = AlgorithmTableRegistry[algorithm];
     if (!builder) {
       this.tableSpec.set(null);
-      this.error.set(`No renderer for algorithm ${this.algorithm}`);
+      this.error.set(`No renderer for algorithm `);
       return;
     }
 
     const key = JSON.stringify({
-      algorithm: this.algorithm,
-      value: this.value,
-      labelMap: this.labelMap,
-      enumMaps: this.enumMaps,
-      yVar: this.yVar,
-      fallbackTitle: this.fallbackTitle,
+      algorithm,
+      value,
+      labelMap,
+      enumMaps,
+      yVar,
+      fallbackTitle,
     });
     if (key === this.lastKey && this.tableSpec()) return;
 
     try {
-      const enrichedValue = this.value && (this.labelMap || this.enumMaps)
-        ? { ...this.value, __labelMap__: this.labelMap, __enumMaps__: this.enumMaps, __yVar__: this.yVar }
-        : this.value;
+      const enrichedValue = value && (labelMap || enumMaps)
+        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar }
+        : value;
       const spec = builder(enrichedValue);
       const explicitTitle = this.getResultTitle(enrichedValue);
       const resultTitle = explicitTitle ?? this.getFallbackTitle();
@@ -120,15 +131,21 @@ export class AutoRendererComponent implements OnChanges {
   }
 
   getOverrideTables(): TableSpec[] | null {
-    if (!this.algorithm) return null;
-    const builder = AlgorithmTableRegistry[this.algorithm];
+    const algorithm = this.algorithm();
+    const value = this.value();
+    const labelMap = this.labelMap();
+    const enumMaps = this.enumMaps();
+    const yVar = this.yVar();
+
+    if (!algorithm) return null;
+    const builder = AlgorithmTableRegistry[algorithm];
 
     if (!builder) return null;
 
     try {
-      const enrichedValue = this.value && (this.labelMap || this.enumMaps)
-        ? { ...this.value, __labelMap__: this.labelMap, __enumMaps__: this.enumMaps, __yVar__: this.yVar }
-        : this.value;
+      const enrichedValue = value && (labelMap || enumMaps)
+        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar }
+        : value;
       const table = builder(enrichedValue);
       const explicitTitle = this.getResultTitle(enrichedValue);
       const resultTitle = explicitTitle ?? this.getFallbackTitle();
@@ -222,7 +239,7 @@ export class AutoRendererComponent implements OnChanges {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
 
-    const fileName = (table.title || this.algorithm || 'export')
+    const fileName = (table.title || this.algorithm() || 'export')
       .toLowerCase()
       .trim()
       .replace(/\s+/g, '_')
@@ -253,8 +270,9 @@ export class AutoRendererComponent implements OnChanges {
   }
 
   private getFallbackTitle(): string | null {
-    if (typeof this.fallbackTitle !== 'string') return null;
-    const trimmed = this.fallbackTitle.trim();
+    const fallbackTitle = this.fallbackTitle();
+    if (typeof fallbackTitle !== 'string') return null;
+    const trimmed = fallbackTitle.trim();
     return trimmed.length ? trimmed : null;
   }
 

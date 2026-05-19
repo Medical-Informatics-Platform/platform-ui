@@ -23,7 +23,7 @@ interface GuideRect {
   selector: 'app-experiment-studio-guide',
   imports: [CommonModule],
   templateUrl: './experiment-studio-guide.component.html',
-  styleUrls: ['./experiment-studio-guide.component.css'],
+  styleUrl: './experiment-studio-guide.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(window:resize)': 'onViewportChange()',

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
@@ -29,10 +29,13 @@ interface CompareRow {
   selector: 'app-experiments-compare',
   imports: [CommonModule, FormsModule, AlgorithmResultComponent],
   templateUrl: './experiments-compare.component.html',
-  styleUrls: ['./experiments-compare.component.css'],
+  styleUrl: './experiments-compare.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentsCompareComponent {
+  private dashboardService = inject(ExperimentsDashboardService);
+  private labelService = inject(ExperimentLabelService);
+
   experiments = input<Experiment[]>([]);
 
   // Layout (2 or 3)
@@ -75,10 +78,7 @@ export class ExperimentsCompareComponent {
     return rows;
   });
 
-  constructor(
-    private dashboardService: ExperimentsDashboardService,
-    private labelService: ExperimentLabelService
-  ) {
+  constructor() {
     effect(
       () => {
         const exps = this.experiments();

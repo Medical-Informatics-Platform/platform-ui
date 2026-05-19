@@ -1,9 +1,10 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
 import { BubbleChartComponent } from './bubble-chart.component';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 
 describe('BubbleChartComponent tutorial highlighting', () => {
+  let fixture: ComponentFixture<BubbleChartComponent>;
   let component: BubbleChartComponent;
   let guideState: {
     activeStepId: ReturnType<typeof signal<string | null>>;
@@ -11,7 +12,14 @@ describe('BubbleChartComponent tutorial highlighting', () => {
     matchesTutorialCovariate: (node: any, expected?: string | null) => boolean;
   };
 
-  beforeEach(() => {
+  const setInputs = (inputs: Record<string, unknown>): void => {
+    Object.entries(inputs).forEach(([name, value]) => {
+      fixture.componentRef.setInput(name, value);
+    });
+    fixture.detectChanges();
+  };
+
+  beforeEach(async () => {
     guideState = {
       activeStepId: signal<string | null>('select-sex-variable'),
       expectedTutorialCovariate: signal<string | null>('sex'),
@@ -25,27 +33,30 @@ describe('BubbleChartComponent tutorial highlighting', () => {
       },
     };
 
-    TestBed.configureTestingModule({
+    await TestBed.configureTestingModule({
       imports: [BubbleChartComponent],
       providers: [
         provideZonelessChangeDetection(),
         { provide: ExperimentStudioGuideStateService, useValue: guideState },
       ],
-    });
+    }).compileComponents();
 
-    component = TestBed.createComponent(BubbleChartComponent).componentInstance;
-    component.d3Data = {
-      label: 'root',
-      children: [
-        {
-          label: 'Demographics',
-          children: [
-            { code: 'sex', label: 'Sex', type: 'text' },
-            { code: 'age_value', label: 'Age', type: 'real' },
-          ],
-        },
-      ],
-    };
+    fixture = TestBed.createComponent(BubbleChartComponent);
+    component = fixture.componentInstance;
+    setInputs({
+      d3Data: {
+        label: 'root',
+        children: [
+          {
+            label: 'Demographics',
+            children: [
+              { code: 'sex', label: 'Sex', type: 'text' },
+              { code: 'age_value', label: 'Age', type: 'real' },
+            ],
+          },
+        ],
+      },
+    });
   });
 
   it('returns the highlighted tutorial node code when the guide target is still pending', () => {
@@ -54,7 +65,7 @@ describe('BubbleChartComponent tutorial highlighting', () => {
 
   it('removes the tutorial highlight once the target is added to a role list', () => {
     guideState.activeStepId.set('add-sex-covariate');
-    component.selectedCovariates = [{ code: 'sex', label: 'Sex', type: 'text' }];
+    setInputs({ selectedCovariates: [{ code: 'sex', label: 'Sex', type: 'text' }] });
 
     expect((component as any).getPendingTutorialHighlightCode()).toBeNull();
   });
@@ -62,11 +73,11 @@ describe('BubbleChartComponent tutorial highlighting', () => {
   it('keeps Age highlighted until it is added to Variables for the Age add step', () => {
     guideState.activeStepId.set('add-age-variable');
     guideState.expectedTutorialCovariate.set('age');
-    component.selectedCovariates = [{ code: 'age_value', label: 'Age', type: 'real' }];
+    setInputs({ selectedCovariates: [{ code: 'age_value', label: 'Age', type: 'real' }] });
 
     expect((component as any).getPendingTutorialHighlightCode()).toBe('age_value');
 
-    component.selectedVariables = [{ code: 'age_value', label: 'Age', type: 'real' }];
+    setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'real' }] });
 
     expect((component as any).getPendingTutorialHighlightCode()).toBeNull();
   });

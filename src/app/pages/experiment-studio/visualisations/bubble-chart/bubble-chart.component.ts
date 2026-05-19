@@ -4,18 +4,17 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
-  EventEmitter,
-  Input,
   effect,
   inject,
   NgZone,
   OnChanges,
   OnDestroy,
   OnInit,
-  Output,
   SimpleChanges,
   ViewChild,
   signal,
+  output,
+  input
 } from '@angular/core';
 import { createZoomableCirclePacking } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
@@ -23,30 +22,34 @@ import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio
 @Component({
   selector: 'app-bubble-chart',
   templateUrl: './bubble-chart.component.html',
-  styleUrls: ['./bubble-chart.component.css'],
+  styleUrl: './bubble-chart.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 
 export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
+  private elementRef = inject(ElementRef);
+  private ngZone = inject(NgZone);
+  private cdr = inject(ChangeDetectorRef);
+
   private readonly guideState = inject(ExperimentStudioGuideStateService);
   private readonly tutorialHighlightColor = '#22c55e';
 
-  @Input() d3Data: any;
-  @Input() highlightNode: any | null = null;
-  @Input() selectedVariables: any[] = [];
-  @Input() selectedCovariates: any[] = [];
-  @Input() selectedFilters: any[] = [];
-  @Input() bubbleColors?: Partial<{
+  readonly d3Data = input<any | null>(null);
+  readonly highlightNode = input<any | null>(null);
+  readonly selectedVariables = input<any[]>([]);
+  readonly selectedCovariates = input<any[]>([]);
+  readonly selectedFilters = input<any[]>([]);
+  readonly bubbleColors = input<Partial<{
     variable: string;
     covariate: string;
     filter: string;
     selected: string;
     groupStart: string;
     groupEnd: string;
-  }>;
+}>>();
 
-  @Output() selectedNodeChange = new EventEmitter<any>();
-  @Output() nodeDoubleClicked = new EventEmitter<any>();
+  readonly selectedNodeChange = output<any>();
+  readonly nodeDoubleClicked = output<any>();
   @ViewChild('chartCanvas') chartCanvas?: ElementRef<HTMLElement>;
 
   private lastHighlighted: any = null;
@@ -85,11 +88,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     groupEnd: string;
   } = { ...this.COLORBLIND_PALETTE };
 
-  constructor(
-    private elementRef: ElementRef,
-    private ngZone: NgZone,
-    private cdr: ChangeDetectorRef
-  ) {
+  constructor() {
     effect(() => {
       this.guideState.activeStepId();
       this.guideState.expectedTutorialCovariate();
@@ -156,9 +155,10 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     }
 
     if (changes['highlightNode']?.currentValue && this.zoomToNodeFn) {
-      if (!this.lastHighlighted || this.lastHighlighted.code !== this.highlightNode.code) {
-        this.zoomToNodeFn(this.highlightNode);
-        this.lastHighlighted = this.highlightNode;
+      const highlightNode = this.highlightNode();
+      if (!this.lastHighlighted || this.lastHighlighted.code !== highlightNode.code) {
+        this.zoomToNodeFn(highlightNode);
+        this.lastHighlighted = highlightNode;
       }
     }
 
@@ -185,7 +185,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       ?? this.elementRef.nativeElement.querySelector('#chart-canvas');
     if (!container) return;
 
-    if (!this.d3Data) {
+    if (!this.d3Data()) {
       this.error.set('No data available for visualization.');
       this.cdr.markForCheck();
       return;
@@ -197,7 +197,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     this.destroyFn?.();
 
     const { zoomToNode, refreshColors, destroy } = createZoomableCirclePacking(
-      this.d3Data,
+      this.d3Data(),
       container,
       node => this.selectedNodeChange.emit(node),
       node => this.nodeDoubleClicked.emit(node),
@@ -213,9 +213,10 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
 
     // apply pending highlight after chart is created
-    if (this.highlightNode?.code) {
-      this.zoomToNodeFn(this.highlightNode);
-      this.lastHighlighted = this.highlightNode;
+    const highlightNode = this.highlightNode();
+    if (highlightNode?.code) {
+      this.zoomToNodeFn(highlightNode);
+      this.lastHighlighted = highlightNode;
     }
 
   }
@@ -273,9 +274,9 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     tutorialHighlightColor: string;
   } {
     return {
-      selectedVariables: this.selectedVariables,
-      selectedCovariates: this.selectedCovariates,
-      selectedFilters: this.selectedFilters,
+      selectedVariables: this.selectedVariables(),
+      selectedCovariates: this.selectedCovariates(),
+      selectedFilters: this.selectedFilters(),
       colors: this.colors,
       tutorialHighlightCode: this.getPendingTutorialHighlightCode(),
       tutorialHighlightColor: this.tutorialHighlightColor,
@@ -288,18 +289,18 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       return null;
     }
 
-    return this.findTutorialHighlightCode(this.d3Data, expected);
+    return this.findTutorialHighlightCode(this.d3Data(), expected);
   }
 
   private isTutorialStepSatisfied(expected: string): boolean {
     switch (this.guideState.activeStepId()) {
       case 'select-sex-variable':
       case 'select-age-variable':
-        return this.guideState.matchesTutorialCovariate(this.highlightNode, expected);
+        return this.guideState.matchesTutorialCovariate(this.highlightNode(), expected);
       case 'add-sex-covariate':
-        return this.selectedCovariates.some((node) => this.guideState.matchesTutorialCovariate(node, expected));
+        return this.selectedCovariates().some((node) => this.guideState.matchesTutorialCovariate(node, expected));
       case 'add-age-variable':
-        return this.selectedVariables.some((node) => this.guideState.matchesTutorialCovariate(node, expected));
+        return this.selectedVariables().some((node) => this.guideState.matchesTutorialCovariate(node, expected));
       default:
         return false;
     }

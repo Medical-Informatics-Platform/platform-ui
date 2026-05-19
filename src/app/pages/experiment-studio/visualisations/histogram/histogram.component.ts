@@ -1,18 +1,27 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnChanges, SimpleChanges, inject, input } from '@angular/core';
 import { createHistogram } from './histogram-chart';
 
 @Component({
   selector: 'app-histogram',
   templateUrl: './histogram.component.html',
-  styleUrls: ['./histogram.component.css'],
+  styleUrl: './histogram.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HistogramComponent implements OnChanges {
-  @Input() data: { bins: string[]; counts: number[]; variableName: string; variableType?: string } | null = null; // Data for histogram
-  @Input() config: { color?: string; width?: number; height?: number } = {}; // Configuration for the graph
-  isLoading = false;
+  private elementRef = inject(ElementRef);
 
-  constructor(private elementRef: ElementRef) { }
+  readonly data = input<{
+    bins: string[];
+    counts: number[];
+    variableName: string;
+    variableType?: string;
+} | null>(null); // Data for histogram
+  readonly config = input<{
+    color?: string;
+    width?: number;
+    height?: number;
+}>({}); // Configuration for the graph
+  isLoading = false;
 
   ngOnChanges(changes: SimpleChanges): void {
     this.isLoading = true; // Show loading only if empty
@@ -23,7 +32,8 @@ export class HistogramComponent implements OnChanges {
   }
 
   renderHistogram(): void {
-    if (!this.data || !this.data.bins || !this.data.counts) {
+    const data = this.data();
+    if (!data || !data.bins || !data.counts) {
       return;
     }
 
@@ -33,8 +43,8 @@ export class HistogramComponent implements OnChanges {
       return;
     }
 
-    createHistogram(this.data, container, {
-      ...this.config,
+    createHistogram(data, container, {
+      ...this.config(),
     }); // Call D3 rendering logic
 
   }

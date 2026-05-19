@@ -1,30 +1,30 @@
-import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnChanges, SimpleChanges, ElementRef, output, inject, input } from '@angular/core';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 
 @Component({
   selector: 'app-dataset-selector',
   templateUrl: './dataset-selector.component.html',
-  styleUrls: ['./dataset-selector.component.css'],
+  styleUrl: './dataset-selector.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onOutsideClick($event)',
   },
 })
 export class DatasetSelectorComponent implements OnChanges {
-  @Input() datasets: { code: string; label: string }[] = [];
-  @Input() selectedDatasetCodes: string[] = [];
-  @Input() autoSelectAll = true;
-  @Output() selectedDatasetsChange = new EventEmitter<string[]>();
+  private elementRef = inject(ElementRef);
+  private expStudioService = inject(ExperimentStudioService);
+
+  readonly datasets = input<{ code: string; label: string }[]>([]);
+  readonly selectedDatasetCodes = input<string[]>([]);
+  readonly autoSelectAll = input(true);
+  readonly selectedDatasetsChange = output<string[]>();
   isDropdownOpen = false;
-
-
-  constructor(private elementRef: ElementRef, private expStudioService: ExperimentStudioService) { }
 
 
   selectedDatasets = new Set<string>(); // Store selected datasets
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!this.datasets?.length) {
+    if (!this.datasets().length) {
       this.selectedDatasets = new Set();
       return;
     }
@@ -69,22 +69,22 @@ export class DatasetSelectorComponent implements OnChanges {
   }
 
   private preselectAllDatasets(): void {
-    this.selectedDatasets = new Set(this.datasets.map((dataset) => dataset.code));
+    this.selectedDatasets = new Set(this.datasets().map((dataset) => dataset.code));
     this.emitSelectedDatasets(); // Emit the preselected datasets
   }
 
   private syncFromInputSelection(): void {
-    const currentCodes = new Set(this.datasets.map(d => d.code));
+    const currentCodes = new Set(this.datasets().map(d => d.code));
     this.selectedDatasets = new Set(
-      (this.selectedDatasetCodes ?? []).filter(code => currentCodes.has(code))
+      this.selectedDatasetCodes().filter(code => currentCodes.has(code))
     );
   }
 
   private syncForDatasetOptionsChange(): void {
-    const currentCodes = new Set(this.datasets.map(d => d.code));
-    const requested = (this.selectedDatasetCodes ?? []).filter(code => currentCodes.has(code));
+    const currentCodes = new Set(this.datasets().map(d => d.code));
+    const requested = this.selectedDatasetCodes().filter(code => currentCodes.has(code));
 
-    if (requested.length > 0 || !this.autoSelectAll) {
+    if (requested.length > 0 || !this.autoSelectAll()) {
       this.selectedDatasets = new Set(requested);
       return;
     }

@@ -26,7 +26,7 @@ import { getExperimentStudioScrollOffset } from './experiment-studio-scroll.util
     ExperimentStudioGuideComponent
   ],
   templateUrl: './experiment-studio.component.html',
-  styleUrls: ['./experiment-studio.component.css'],
+  styleUrl: './experiment-studio.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(window:resize)': 'onResize()',

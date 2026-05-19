@@ -19,7 +19,7 @@ interface MetadataField {
 @Component({
   selector: 'app-metadata-info-panel',
   templateUrl: './metadata-info-panel.component.html',
-  styleUrls: ['./metadata-info-panel.component.css'],
+  styleUrl: './metadata-info-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetadataInfoPanelComponent {

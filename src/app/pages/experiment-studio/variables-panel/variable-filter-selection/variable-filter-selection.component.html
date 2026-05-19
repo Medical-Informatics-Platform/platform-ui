@@ -28,9 +28,7 @@
           <ul class="horizontal-list" cdkDropList #varList="cdkDropList" [cdkDropListData]="variables()"
             [cdkDropListConnectedTo]="[covList]" (cdkDropListDropped)="drop($event)">
             @for (variable of variables(); track variable) {
-            <li class="horizontal-item" [ngClass]="{
-                'highlighted-variable': selectedNode?.code === variable.code
-              }" cdkDrag (click)="onVariableClick(variable)">
+            <li class="horizontal-item" [class.highlighted-variable]="selectedNode()?.code === variable.code" cdkDrag (click)="onVariableClick(variable)">
               <div class="variable-info">
                 <span class="variable-name">{{ variable.label }}</span>
                 <span class="variable-type">type: {{ variable.type }}</span>
@@ -69,10 +67,11 @@
           <ul class="horizontal-list" cdkDropList #covList="cdkDropList" [cdkDropListData]="covariates()"
             [cdkDropListConnectedTo]="[varList]" (cdkDropListDropped)="drop($event)">
             @for (covariate of covariates(); track covariate) {
-            <li class="horizontal-item" [ngClass]="{
-                'highlighted-variable highlighted-covariate':
-                  selectedNode?.code === covariate.code
-              }" cdkDrag (click)="onVariableClick(covariate)">
+            <li
+              class="horizontal-item"
+              [class.highlighted-variable]="selectedNode()?.code === covariate.code"
+              [class.highlighted-covariate]="selectedNode()?.code === covariate.code"
+              cdkDrag (click)="onVariableClick(covariate)">
               <div class="variable-info">
                 <span class="variable-name">{{ covariate.label }}</span>
                 <span class="variable-type">type: {{ covariate.type }}</span>

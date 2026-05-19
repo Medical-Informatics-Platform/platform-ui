@@ -19,7 +19,7 @@ interface GuideRect {
   selector: 'app-experiments-dashboard-guide',
   imports: [CommonModule],
   templateUrl: './experiments-dashboard-guide.component.html',
-  styleUrls: ['./experiments-dashboard-guide.component.css'],
+  styleUrl: './experiments-dashboard-guide.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(window:resize)': 'onViewportChange()',

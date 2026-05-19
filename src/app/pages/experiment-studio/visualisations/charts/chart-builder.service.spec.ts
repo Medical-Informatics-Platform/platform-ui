@@ -1,4 +1,6 @@
+import { TestBed } from '@angular/core/testing';
 import { ChartBuilderService } from './chart-builder.service';
+import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 
 describe('ChartBuilderService', () => {
   const experimentServiceStub = {
@@ -7,9 +9,16 @@ describe('ChartBuilderService', () => {
     selectedFilters: () => [],
   };
 
-  it('keeps chart-specific title for single-chart algorithms', () => {
-    const service = new ChartBuilderService(experimentServiceStub as any);
+  let service: ChartBuilderService;
 
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: ExperimentStudioService, useValue: experimentServiceStub }],
+    });
+    service = TestBed.inject(ChartBuilderService);
+  });
+
+  it('keeps chart-specific title for single-chart algorithms', () => {
     const charts = service.getChartsForAlgorithm('linear_svm', {
       title: 'Federated SVM Report',
       weights: [0.2, -0.1, 0.3, 0.4],
@@ -21,8 +30,6 @@ describe('ChartBuilderService', () => {
   });
 
   it('keeps chart-specific titles for multi-chart algorithms', () => {
-    const service = new ChartBuilderService(experimentServiceStub as any);
-
     const charts = service.getChartsForAlgorithm('pca', {
       title: 'PCA Run 2026',
       eigenvectors: [
@@ -38,8 +45,6 @@ describe('ChartBuilderService', () => {
   });
 
   it('uses fallback title when result title is missing', () => {
-    const service = new ChartBuilderService(experimentServiceStub as any);
-
     const charts = service.getChartsForAlgorithm(
       'linear_svm',
       {
@@ -54,7 +59,6 @@ describe('ChartBuilderService', () => {
   });
 
   it('renders pearson p-values and CI charts for legacy key aliases', () => {
-    const service = new ChartBuilderService(experimentServiceStub as any);
     const matrix = {
       variables: ['v1', 'v2'],
       v1: [1, 0.25],
@@ -77,8 +81,6 @@ describe('ChartBuilderService', () => {
   });
 
   it('renders describe box plots from featurewise rows', () => {
-    const service = new ChartBuilderService(experimentServiceStub as any);
-
     const charts = service.getChartsForAlgorithm('describe', {
       featurewise: [
         {

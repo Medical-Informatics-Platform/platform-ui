@@ -10,7 +10,7 @@
   <!-- Dropdown menu -->
   @if (isDropdownOpen) {
     <ul class="dataset-dropdown-menu">
-      @for (dataset of datasets; track dataset) {
+      @for (dataset of datasets(); track dataset) {
         <li>
           <label>
             <input

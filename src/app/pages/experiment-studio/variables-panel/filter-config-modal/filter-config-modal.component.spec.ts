@@ -40,7 +40,7 @@ describe('FilterConfigModalComponent block builder', () => {
 
     fixture = TestBed.createComponent(FilterConfigModalComponent);
     component = fixture.componentInstance;
-    component.inline = true;
+    fixture.componentRef.setInput('inline', true);
     fixture.detectChanges();
     component.allFilterVariables.set([
       { code: 'age', label: 'Age', type: 'real' },
@@ -57,14 +57,13 @@ describe('FilterConfigModalComponent block builder', () => {
   });
 
   it('renders an existing nested filter tree as blocks', () => {
-    component.filterLogic = {
+    fixture.componentRef.setInput('filterLogic', {
       condition: 'OR',
       rules: [
         { field: 'age', operator: 'greater', value: 2 },
         { condition: 'AND', rules: [{ field: 'sex', operator: 'equal', value: 'female' }] },
       ],
-    };
-    component.ngOnChanges({ filterLogic: { currentValue: component.filterLogic } as any });
+    });
     fixture.detectChanges();
 
     expect(component.activeRulesCount()).toBe(2);
@@ -173,14 +172,14 @@ describe('FilterConfigModalComponent block builder', () => {
   });
 
   it('renders existing null checks as unary preview expressions', () => {
-    component.filterLogic = {
+    fixture.componentRef.setInput('filterLogic', {
       condition: 'OR',
       rules: [
         { field: 'age', operator: 'greater', value: 2 },
         { field: 'age', operator: 'is_null', value: null },
       ],
-    };
-    component.ngOnChanges({ filterLogic: { currentValue: component.filterLogic } as any });
+    });
+    fixture.detectChanges();
 
     expect(component.previewExpression()).toContain('Age > 2');
     expect(component.previewExpression()).toContain('Age IS NULL');

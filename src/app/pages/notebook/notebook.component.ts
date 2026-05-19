@@ -6,7 +6,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
     selector: 'app-notebook',
     imports: [CommonModule],
     templateUrl: './notebook.component.html',
-    styleUrls: ['./notebook.component.css'],
+    styleUrl: './notebook.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotebookComponent implements OnInit {

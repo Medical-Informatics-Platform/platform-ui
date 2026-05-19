@@ -1,5 +1,5 @@
 import { DataModel, Group, Variable } from '../../../../models/data-model.interface';
-import { ChangeDetectionStrategy, Component, Output, EventEmitter, effect, signal, computed, Input, SimpleChanges, OnChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, signal, computed, output, inject, input } from '@angular/core';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -27,15 +27,17 @@ interface FilterConditionBlock {
   selector: 'app-filter-config-modal',
   imports: [CommonModule, FormsModule],
   templateUrl: './filter-config-modal.component.html',
-  styleUrls: ['./filter-config-modal.component.css'],
+  styleUrl: './filter-config-modal.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FilterConfigModalComponent implements OnChanges {
-  @Input() filterLogic: any | null = null;
-  @Input() inline = false;
-  @Output() closeModal = new EventEmitter<void>();
-  @Output() filtersApplyStarted = new EventEmitter<void>();
-  @Output() filtersApplied = new EventEmitter<void>();
+export class FilterConfigModalComponent {
+  private expStudio = inject(ExperimentStudioService);
+
+  readonly filterLogic = input<any | null>(null);
+  readonly inline = input(false);
+  readonly closeModal = output<void>();
+  readonly filtersApplyStarted = output<void>();
+  readonly filtersApplied = output<void>();
 
   readonly allFilterVariables = signal<any[]>([]);
   readonly rootGroup = signal<FilterGroupBlock>(this.createGroup());
@@ -43,17 +45,15 @@ export class FilterConfigModalComponent implements OnChanges {
   readonly previewExpression = computed(() => this.groupPreview(this.rootGroup()));
   readonly activeRulesCount = computed(() => this.countRules(this.rootGroup()));
 
-  constructor(private expStudio: ExperimentStudioService) {
+  constructor() {
     effect(() => {
       this.allFilterVariables.set(this.flattenDataModelVariables(this.expStudio.selectedDataModel()));
     });
-  }
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['filterLogic']) return;
-    const incoming = changes['filterLogic'].currentValue;
-    this.rootGroup.set(this.backendToGroup(incoming));
-    this.filterError.set(null);
+    effect(() => {
+      this.rootGroup.set(this.backendToGroup(this.filterLogic()));
+      this.filterError.set(null);
+    });
   }
 
   addCondition(groupId: string, index: number): void {
@@ -161,7 +161,7 @@ export class FilterConfigModalComponent implements OnChanges {
   }
 
   saveFilters(): void {
-    this.filtersApplyStarted.emit();
+    this.filtersApplyStarted.emit(undefined);
     const validationError = this.validateGroup(this.rootGroup());
     if (validationError) {
       this.filterError.set(validationError);
@@ -178,13 +178,13 @@ export class FilterConfigModalComponent implements OnChanges {
 
     this.expStudio.setFilters(selectedFilters);
     this.expStudio.setFilterLogic(toStore);
-    this.filtersApplied.emit();
-    this.closeModal.emit();
+    this.filtersApplied.emit(undefined);
+    this.closeModal.emit(undefined);
     this.filterError.set(null);
   }
 
   cancel(): void {
-    this.closeModal.emit();
+    this.closeModal.emit(undefined);
   }
 
   clearFilters(): void {
