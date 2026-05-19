@@ -14,7 +14,7 @@ import { EnumMaps, LabelMap, mapAlgorithmResultEnums } from '../../../../core/al
     ChartRendererComponent,
     NgxEchartsModule],
   templateUrl: './algorithm-result.component.html',
-  styleUrls: ['./algorithm-result.component.css'],
+  styleUrl: './algorithm-result.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AlgorithmResultComponent {

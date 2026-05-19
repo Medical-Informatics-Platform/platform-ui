@@ -9,7 +9,7 @@ import { TermsService } from '../../services/terms.service';
   selector: 'app-terms-page',
   imports: [FormsModule],
   templateUrl: './terms-page.component.html',
-  styleUrls: ['./terms-page.component.css'],
+  styleUrl: './terms-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TermsPageComponent implements OnInit {

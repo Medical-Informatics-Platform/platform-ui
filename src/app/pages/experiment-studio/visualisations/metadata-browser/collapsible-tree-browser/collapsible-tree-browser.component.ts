@@ -28,7 +28,7 @@ const EMPTY_TREE: D3HierarchyNode = {
 @Component({
   selector: 'app-collapsible-tree-browser',
   templateUrl: './collapsible-tree-browser.component.html',
-  styleUrls: ['./collapsible-tree-browser.component.css'],
+  styleUrl: './collapsible-tree-browser.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy {

@@ -1,22 +1,22 @@
-import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter, SimpleChanges, OnChanges, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, SimpleChanges, OnChanges, OnInit, output, input } from '@angular/core';
 import { FormsModule } from "@angular/forms";
 import { DataModel } from '../../../../models/data-model.interface';
 
 @Component({
   selector: 'app-data-model-selector',
   templateUrl: './data-model-selector.component.html',
-  styleUrls: ['./data-model-selector.component.css'],
+  styleUrl: './data-model-selector.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FormsModule,
   ]
 })
 export class DataModelSelectorComponent implements OnChanges, OnInit {
-  @Input() crossSectionalModels: DataModel[] = [];
-  @Input() longitudinalModels: DataModel[] = [];
-  @Input() defaultModel: DataModel | null = null;
+  readonly crossSectionalModels = input<DataModel[]>([]);
+  readonly longitudinalModels = input<DataModel[]>([]);
+  readonly defaultModel = input<DataModel | null>(null);
 
-  @Output() dataModelChange = new EventEmitter<DataModel | null>();
+  readonly dataModelChange = output<DataModel | null>();
 
   selectedDataModel: DataModel | null = null;
 
@@ -31,12 +31,13 @@ export class DataModelSelectorComponent implements OnChanges, OnInit {
   }
 
   updateSelectedModel(): void {
-    if (this.selectedDataModel === this.defaultModel) {
+    const defaultModel = this.defaultModel();
+    if (this.selectedDataModel === defaultModel) {
       return;
     }
 
-    const shouldEmit = !this.isSameModel(this.selectedDataModel, this.defaultModel);
-    this.selectedDataModel = this.defaultModel;
+    const shouldEmit = !this.isSameModel(this.selectedDataModel, defaultModel);
+    this.selectedDataModel = defaultModel;
     if (shouldEmit) {
       this.dataModelChange.emit(this.selectedDataModel);
     }

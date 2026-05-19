@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { input, computed, effect, signal } from '@angular/core';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
@@ -16,16 +16,25 @@ import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
 @Component({
   selector: 'app-experiment-details',
   templateUrl: './experiment-detail.component.html',
-  styleUrls: ['./experiment-detail.component.css'],
+  styleUrl: './experiment-detail.component.css',
   imports: [CommonModule, AlgorithmResultComponent, SpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentDetailsComponent {
+  private dashboardService = inject(ExperimentsDashboardService);
+  private expStudioService = inject(ExperimentStudioService);
+  private pdfExport = inject(ResultsPdfExportService);
+  private router = inject(Router);
+  private labelService = inject(ExperimentLabelService);
+
   selectedExperiment = input<Experiment | null>(null);
 
-  @Output() run = new EventEmitter<string>();
-  @Output() deleteExperiment = new EventEmitter<void>();
-  @Output() nameUpdated = new EventEmitter<{ id: string; name: string }>();
+  readonly run = output<string>();
+  readonly deleteExperiment = output<void>();
+  readonly nameUpdated = output<{
+    id: string;
+    name: string;
+}>();
 
   @ViewChild('resultsCard') resultsCardRef?: ElementRef<HTMLElement>;
 
@@ -98,13 +107,7 @@ export class ExperimentDetailsComponent {
     return algoConfig?.label || algoCode;
   });
 
-  constructor(
-    private dashboardService: ExperimentsDashboardService,
-    private expStudioService: ExperimentStudioService,
-    private pdfExport: ResultsPdfExportService,
-    private router: Router,
-    private labelService: ExperimentLabelService
-  ) {
+  constructor() {
     // sync isShared with selectedExperiment
     effect(
       () => {
@@ -449,6 +452,7 @@ export class ExperimentDetailsComponent {
   }
 
   onDelete() {
+    // TODO: The 'emit' function requires a mandatory void argument
     this.deleteExperiment.emit();
   }
 

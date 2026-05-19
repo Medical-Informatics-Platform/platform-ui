@@ -1,15 +1,15 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 @Component({
   selector: 'app-spinner',
   templateUrl: './spinner.component.html',
-  styleUrls: ['./spinner.component.scss'],
+  styleUrl: './spinner.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SpinnerComponent {
-  @Input() size: string = '64px';
-  @Input() color: string = 'teal';
-  @Input() text?: string;
+  readonly size = input<string>('64px');
+  readonly color = input<string>('teal');
+  readonly text = input<string>();
   // When false, renders inline rather than a full-screen overlay
-  @Input() overlay: boolean = true;
+  readonly overlay = input<boolean>(true);
 }

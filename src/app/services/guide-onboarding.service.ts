@@ -17,7 +17,8 @@ export class GuideOnboardingService {
   markStudioGuideSeen(): void {
     try {
       localStorage.setItem(this.studioSeenStorageKey, 'true');
-      // Keep the legacy key in sync because the guide component still uses it to suppress repeat auto-starts.
+      // Backwards compatibility: users who already dismissed or auto-started the old guide
+      // should not be forced through onboarding after the storage key rename.
       localStorage.setItem(this.legacyStudioAutoStartStorageKey, 'true');
     } catch {
       // Ignore storage failures and keep the guide functional.

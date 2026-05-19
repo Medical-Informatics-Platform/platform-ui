@@ -295,49 +295,6 @@
   overflow: hidden;
 }
 
-.config-header {
-  padding: 8px 10px;
-  background: rgba(224, 242, 254, 0.55);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-
-.config-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #0f172a;
-  letter-spacing: 0.02em;
-}
-
-.config-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.config-table th,
-.config-table td {
-  padding: 7px 10px;
-  font-size: 0.76rem;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
-  vertical-align: top;
-}
-
-.config-table th {
-  width: 42%;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: none;
-}
-
-.config-table td {
-  color: #0f172a;
-  word-break: break-word;
-}
-
-.config-table tr:last-child th,
-.config-table tr:last-child td {
-  border-bottom: none;
-}
-
 .compare-config {
   margin: 10px 0 8px;
   border-radius: 12px;

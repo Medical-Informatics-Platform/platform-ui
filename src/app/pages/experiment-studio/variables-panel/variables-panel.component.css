@@ -162,90 +162,6 @@
   height: 100%;
 }
 
-.bubble-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.bubble-search {
-  width: 100%;
-}
-
-.bubble-controls {
-  display: flex;
-  align-items: center;
-}
-
-.bubble-selectors {
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.bubble-selectors app-data-model-selector :deep(.data-model-select),
-.bubble-selectors app-dataset-selector :deep(.dataset-btn) {
-  height: 36px;
-}
-
-.bubble-action {
-  position: relative;
-  color: #fff;
-  border: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  box-shadow: var(--shadow-md);
-}
-
-.bubble-action--variable {
-  background: var(--primary-color);
-  border-radius: var(--radius-sm);
-}
-
-.bubble-action--covariate {
-  background: #ffeeba;
-  /* Muted pastel orange */
-  color: #0f172a;
-  border-radius: var(--radius-sm);
-}
-
-.bubble-action--filter {
-  background: #c5d4f0;
-  /* Muted pastel blue */
-  color: #0f172a;
-  border-radius: var(--radius-sm);
-}
-
-.bubble-action:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
-  filter: brightness(1.1);
-}
-
-.bubble-action:disabled {
-  background: #e5e7eb !important;
-  color: #9ca3af !important;
-  cursor: not-allowed;
-  box-shadow: none;
-  filter: none;
-}
-
-.bubble-action-count {
-  margin-left: 8px;
-  padding: 1px 7px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.85);
-  color: #0f172a;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
 /* Right column: parameters + histogram */
 /* Common block styling */
 .panel-block {
@@ -389,34 +305,6 @@
   min-height: 180px;
 }
 
-.histogram-placeholder {
-  width: 100%;
-  height: 250px;
-  background: linear-gradient(90deg, #f0f0f0, #e0e0e0, #f0f0f0);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 0px;
-}
-
-.group-components-vertical {
-  display: block;
-  width: 60%;
-}
-
-/* Adjust "No Data Available" Message */
-.no-data-message {
-  min-height: 180px;
-}
-
-/* Wrapper for the floating button */
-.histogam-placeholder {
-  position: relative;
-  width: 100%;
-  padding-bottom: 8px;
-  flex: 1 1 auto;
-  display: flex;
-}
-
 /* ---------- HISTOGRAM ACTIONS BAR ---------- */
 
 .histogram-actions-bar {
@@ -460,12 +348,6 @@
   font-size: 0.76rem;
   font-weight: 800;
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.histogram-export-btn--primary {
-  border: 1px solid #c8ceff;
-  background: #eef2ff;
-  box-shadow: none;
 }
 
 .histogram-export-btn:hover:not(:disabled),
@@ -560,10 +442,6 @@
   -moz-appearance: textfield;
 }
 
-.pdf-exporting .histogram-actions-bar {
-  display: none;
-}
-
 .pdf-export-overlay {
   position: absolute;
   inset: 6px;
@@ -581,154 +459,6 @@
 #variables-top,
 #dataset-selection {
   scroll-margin-top: 90px;
-}
-
-/* Group summary for selected nodes with children */
-.group-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px 6px 6px;
-  min-width: 0;
-}
-
-.group-summary-header {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.95rem;
-  color: #0f172a;
-  font-weight: 600;
-  min-width: 0;
-}
-
-.group-summary-header p {
-  margin: 0;
-}
-
-.group-summary-label {
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  color: #64748b;
-  font-weight: 700;
-}
-
-.group-summary-value {
-  font-weight: 700;
-  color: #0f172a;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.group-summary-count-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.group-summary-count {
-  background: rgba(43, 51, 233, 0.12);
-  color: var(--primary-color);
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-weight: 700;
-}
-
-.group-summary-empty {
-  font-size: 0.85rem;
-  color: #64748b;
-  margin-top: 4px;
-}
-
-.group-summary-path {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.group-summary-separator {
-  display: none;
-}
-
-.group-summary-separator.is-hidden {
-  display: none;
-}
-
-.group-summary-link {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  color: var(--primary-color);
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.group-summary-path-link {
-  color: #0f172a;
-  text-decoration: none;
-  background: rgba(43, 51, 233, 0.06);
-  border: 1px solid rgba(43, 51, 233, 0.15);
-  border-radius: 999px;
-  padding: 4px 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  white-space: normal;
-  word-break: break-word;
-  font-size: 0.82rem;
-  transition: all 0.2s ease;
-}
-
-.group-summary-path-link:hover {
-  color: var(--primary-color);
-  background: rgba(43, 51, 233, 0.18);
-}
-
-.group-summary-list-link {
-  text-decoration: none;
-}
-
-.group-summary-list-link:hover {
-  text-decoration: underline;
-}
-
-.group-summary-link:hover {
-  color: var(--primary-dark, #1b21a3);
-}
-
-.group-summary-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 6px 12px;
-  color: #0f172a;
-  font-size: 0.92rem;
-}
-
-.group-summary-list li {
-  background: rgba(43, 51, 233, 0.06);
-  border: 1px solid rgba(43, 51, 233, 0.12);
-  border-radius: 12px;
-  padding: 8px 12px;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.group-summary-list li:hover {
-  transform: translateY(-2px);
-  background: rgba(43, 51, 233, 0.1);
 }
 
 /* ---------- MESSAGES (no variable / error) ---------- */
@@ -759,11 +489,6 @@
   background: rgba(255, 0, 0, 0.04);
   color: #b00020;
   border: 1px solid rgba(255, 0, 0, 0.2);
-}
-
-.message-icon {
-  font-size: 36px;
-  opacity: 0.85;
 }
 
 @keyframes fadeIn {
@@ -863,11 +588,6 @@
 }
 
 @media (max-width: 768px) {
-  .variables-panel-shell {
-    padding: 8px;
-    border-radius: 0px;
-  }
-
   .selectors-row {
     gap: 10px;
     padding: 6px 0 8px;
@@ -881,13 +601,6 @@
   .bubble-chart-section {
     min-height: 250px;
   }
-
-  .bubble-actions {
-    position: static;
-    justify-content: flex-start;
-    margin-bottom: 6px;
-  }
-
   .bubble-chart-section {
     padding-top: 12px;
   }

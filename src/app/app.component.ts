@@ -8,7 +8,7 @@ import { AuthService } from './services/auth.service';
     selector: 'app-root',
     imports: [HeaderComponent, FooterComponent, RouterModule],
     templateUrl: './app.component.html',
-    styleUrls: ['./app.component.css'],
+    styleUrl: './app.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {

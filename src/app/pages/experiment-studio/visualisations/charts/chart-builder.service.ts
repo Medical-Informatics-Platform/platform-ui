@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { EChartsOption } from 'echarts';
 import { AlgorithmChartRegistry } from './chart-registry';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
@@ -11,7 +11,8 @@ function getByPath(obj: any, path: string): any {
 
 @Injectable({ providedIn: 'root' })
 export class ChartBuilderService {
-  constructor(private experimentService: ExperimentStudioService) { }
+  private experimentService = inject(ExperimentStudioService);
+
 
   getChartsForAlgorithm(algorithm: string, result: any, _fallbackTitle?: string | null): EChartsOption[] {
     const config = AlgorithmChartRegistry[algorithm] || AlgorithmChartRegistry['default'];

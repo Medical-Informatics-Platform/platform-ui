@@ -468,6 +468,7 @@ export function mapAlgorithmResultEnums(
         mapped.correlations = mapMatrixVariables(correlations, labelMap);
       }
 
+      // Backwards compatibility: keep historical Pearson matrix key aliases when remapping labels.
       const matrixKeys = [
         'p-values',
         'p_values',

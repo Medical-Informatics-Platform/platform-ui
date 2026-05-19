@@ -1,10 +1,10 @@
-<div [class.modal-wrapper]="!inline" [class.inline-filter-builder]="inline">
-  @if (!inline) {
+<div [class.modal-wrapper]="!inline()" [class.inline-filter-builder]="inline()">
+  @if (!inline()) {
   <div class="modal-overlay" (click)="cancel()"></div>
   }
 
   <div class="filter-modal">
-    @if (!inline) {
+    @if (!inline()) {
     <div class="filter-modal-header">
       <div class="header-left">
         <i class="fas fa-filter header-icon"></i>
@@ -59,7 +59,7 @@
 
       <div class="filter-actions">
         <button class="btn-secondary" type="button" (click)="clearFilters()">Clear</button>
-        @if (!inline) {
+        @if (!inline()) {
         <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
         }
         <button class="btn-primary-gradient" type="button" [disabled]="activeRulesCount() === 0" (click)="saveFilters()">
@@ -72,7 +72,15 @@
 </div>
 
 <ng-template #groupTemplate let-group="group" let-depth="depth" let-removable="removable">
-  <div class="filter-block-group" [class.is-root]="depth === 0" [ngClass]="'depth-' + (depth > 5 ? 5 : depth)">
+  <div
+    class="filter-block-group"
+    [class.is-root]="depth === 0"
+    [class.depth-1]="depth === 1"
+    [class.depth-2]="depth === 2"
+    [class.depth-3]="depth === 3"
+    [class.depth-4]="depth === 4"
+    [class.depth-5]="depth >= 5"
+  >
     <div class="filter-group-header">
       <div class="filter-group-title">
         <i class="fas fa-layer-group"></i>

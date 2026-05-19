@@ -106,6 +106,7 @@ export function buildMatrixChart(result: any): EChartsOption[] {
   }
 
   // 2. P-Values Matrix
+  // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
   const pValues = pickMatrix('p_values', 'p-values', 'pvalues');
   if (pValues) {
     generateChart(pValues, 'P-Values', 0, 1, ['#d73027', '#fee090', '#ffffbf']);

@@ -1,4 +1,4 @@
-import { Component, Input, AfterViewInit, QueryList, ViewChildren, NgZone, inject, ChangeDetectionStrategy, OnChanges } from '@angular/core';
+import { Component, AfterViewInit, QueryList, ViewChildren, NgZone, inject, ChangeDetectionStrategy, OnChanges, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ECharts, EChartsOption } from 'echarts';
 import { NgxEchartsModule, NgxEchartsDirective } from 'ngx-echarts';
@@ -8,13 +8,13 @@ import { SimpleChanges } from '@angular/core';
   selector: 'app-chart-renderer',
   imports: [CommonModule, NgxEchartsModule],
   templateUrl: './charts-renderer.component.html',
-  styleUrls: ['./charts-renderer.component.css'],
+  styleUrl: './charts-renderer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChartRendererComponent implements AfterViewInit, OnChanges {
   private zone = inject(NgZone);
   private readonly brandChartColors = ['#2B33E9', '#7F9CE8', '#FFBA08', '#DFEFE4'];
-  @Input() charts: EChartsOption[] = [];
+  readonly charts = input<EChartsOption[]>([]);
   themedCharts: EChartsOption[] = [];
   @ViewChildren(NgxEchartsDirective) echartsDirectives!: QueryList<NgxEchartsDirective>;
 
@@ -23,7 +23,7 @@ export class ChartRendererComponent implements AfterViewInit, OnChanges {
   constructor() { }
 
   ngOnChanges(_changes: SimpleChanges): void {
-    this.themedCharts = this.charts.map((chart) => this.applyBrandChartDefaults(chart));
+    this.themedCharts = this.charts().map((chart) => this.applyBrandChartDefaults(chart));
   }
 
   private applyBrandChartDefaults(chart: EChartsOption): EChartsOption {

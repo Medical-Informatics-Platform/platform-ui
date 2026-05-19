@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, OnInit, ElementRef, SimpleChanges, OnChanges, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ElementRef, SimpleChanges, OnChanges, inject, ChangeDetectionStrategy, output, input } from '@angular/core';
 import { FormsModule } from "@angular/forms";
 
 @Component({
@@ -7,7 +7,7 @@ import { FormsModule } from "@angular/forms";
   imports: [
     FormsModule,
   ],
-  styleUrls: ['./search-bar.component.css'],
+  styleUrl: './search-bar.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onOutsideClick($event)',
@@ -16,8 +16,8 @@ import { FormsModule } from "@angular/forms";
 export class SearchBarComponent implements OnInit, OnChanges {
   private eRef = inject(ElementRef);
 
-  @Input() dataModelHierarchy: any;
-  @Output() searchResultSelected = new EventEmitter<string>();
+  readonly dataModelHierarchy = input<any>();
+  readonly searchResultSelected = output<string>();
 
   searchQuery: string = '';
   variables: { label: string; code: string; type: string; path: string }[] = [];
@@ -32,8 +32,9 @@ export class SearchBarComponent implements OnInit, OnChanges {
   constructor() { }
 
   ngOnInit(): void {
-    if (this.dataModelHierarchy) {
-      this.extractVariablesAndGroups(this.dataModelHierarchy);
+    const dataModelHierarchy = this.dataModelHierarchy();
+    if (dataModelHierarchy) {
+      this.extractVariablesAndGroups(dataModelHierarchy);
     }
   }
 
@@ -46,7 +47,7 @@ export class SearchBarComponent implements OnInit, OnChanges {
       this.variableTypes = [];
 
       // Extract variables and groups
-      this.extractVariablesAndGroups(this.dataModelHierarchy);
+      this.extractVariablesAndGroups(this.dataModelHierarchy());
 
     }
   }

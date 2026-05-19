@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Output, EventEmitter, computed, signal, Input, effect, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, signal, effect, OnInit, output, inject, input } from '@angular/core';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { Experiment } from '../../../models/experiments-dashboard.model';
@@ -12,24 +12,24 @@ import { ExperimentFilters } from '../experiment-search/experiment-filter.model'
   selector: 'app-experiments-list',
   imports: [CommonModule, FormsModule, RouterModule, ExperimentSearchComponent],
   templateUrl: './experiment-list.component.html',
-  styleUrls: ['./experiment-list.component.css'],
+  styleUrl: './experiment-list.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentsListComponent implements OnInit {
-  @Output() experimentSelected = new EventEmitter<Experiment>();
-  @Output() deleteRequested = new EventEmitter<string>();
-  @Output() editRequested = new EventEmitter<string>();
+  experimentsService = inject(ExperimentsDashboardService);
+  private expStudio = inject(ExperimentStudioService);
+  private router = inject(Router);
 
-  @Input() selectedExperimentId: string | null = null;
-  @Input() currentUserEmail: string | null = null;
-  @Input() compareIds: string[] = [];
-  @Input() compareMode: boolean = false;
+  readonly experimentSelected = output<Experiment>();
+  readonly deleteRequested = output<string>();
+  readonly editRequested = output<string>();
 
-  constructor(
-    public experimentsService: ExperimentsDashboardService,
-    private expStudio: ExperimentStudioService,
-    private router: Router
-  ) {
+  readonly selectedExperimentId = input<string | null>(null);
+  readonly currentUserEmail = input<string | null>(null);
+  readonly compareIds = input<string[]>([]);
+  readonly compareMode = input<boolean>(false);
+
+  constructor() {
     this.expStudio.loadAllDataModels().subscribe(models => {
       const map: Record<string, string> = {};
       models.forEach(m => {
@@ -52,12 +52,12 @@ export class ExperimentsListComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.onlyMine.set(this.initialOnlyMine);
+    this.onlyMine.set(this.initialOnlyMine());
     this.experimentsService.fetchGlobalTotal();
   }
 
   // toggle
-  @Input() initialOnlyMine = true;
+  readonly initialOnlyMine = input(true);
   readonly onlyMine = signal(true);
 
   // pagination
@@ -89,7 +89,7 @@ export class ExperimentsListComponent implements OnInit {
 
   // compare helper
   isInCompare(id: string): boolean {
-    return this.compareIds.includes(id);
+    return this.compareIds().includes(id);
   }
 
   setTab(isMine: boolean) {
@@ -123,7 +123,7 @@ export class ExperimentsListComponent implements OnInit {
   }
 
   isOwner(exp: Experiment): boolean {
-    const currentEmail = this.currentUserEmail;
+    const currentEmail = this.currentUserEmail();
     if (!currentEmail || !exp.authorEmail) return false;
     return currentEmail === exp.authorEmail;
   }

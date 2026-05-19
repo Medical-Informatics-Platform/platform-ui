@@ -1,8 +1,10 @@
 <div class="histogram-graph-expanded">
 
   <div class="histogram-graph-full" id="histogram-chart-container">
-    @if (data && data.bins && data.counts) {
-    <app-histogram [data]="data" [config]="{ color: '#2b33e9' }"></app-histogram>
+    @if (data(); as histogramData) {
+      @if (histogramData.bins && histogramData.counts) {
+      <app-histogram [data]="histogramData" [config]="{ color: '#2b33e9' }"></app-histogram>
+          }
     }
   </div>
 </div>

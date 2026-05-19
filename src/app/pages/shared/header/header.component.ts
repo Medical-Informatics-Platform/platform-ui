@@ -1,20 +1,19 @@
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 @Component({
   selector: 'app-header',
   imports: [CommonModule, RouterModule],
   templateUrl: './header.component.html',
-  styleUrls: ['./header.component.css'],
+  styleUrl: './header.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HeaderComponent {
-  constructor(
-    private router: Router,
-    public authService: AuthService
-  ) { }
+  private router = inject(Router);
+  authService = inject(AuthService);
+
 
   isLoggedIn(): boolean {
     return this.authService.isLoggedIn();

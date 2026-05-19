@@ -1,7 +1,7 @@
 import { BubbleChartComponent } from './../visualisations/bubble-chart/bubble-chart.component';
 import { ErrorService } from '../../../services/error.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
-import { Component, signal, inject, Input, WritableSignal, OnDestroy, ElementRef, ViewChild, effect, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, signal, inject, WritableSignal, OnDestroy, ElementRef, ViewChild, effect, ChangeDetectionStrategy, ChangeDetectorRef, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
@@ -25,7 +25,7 @@ type DetailsPanelTab = 'histogram' | 'info';
 @Component({
   selector: 'app-variables-panel',
   templateUrl: './variables-panel.component.html',
-  styleUrls: ['./variables-panel.component.css'],
+  styleUrl: './variables-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
@@ -70,8 +70,8 @@ export class VariablesPanelComponent implements OnDestroy {
       },
     ];
 
-  @Input() defaultModel: DataModel | null = null;
-  @Input() dataModelHierarchy: any;
+  readonly defaultModel = input<DataModel | null>(null);
+  readonly dataModelHierarchy = input<any>();
   @ViewChild('histogramExport') histogramExport?: ElementRef<HTMLElement>;
   @ViewChild(VariableFilterSelectionComponent) variableFilterSelection?: VariableFilterSelectionComponent;
   highlightNode: any = null;
@@ -133,8 +133,9 @@ export class VariablesPanelComponent implements OnDestroy {
 
 
   ngOnInit(): void {
-    if (this.defaultModel) {
-      this.selectedDataModel.set(this.defaultModel);
+    const defaultModel = this.defaultModel();
+    if (defaultModel) {
+      this.selectedDataModel.set(defaultModel);
     }
     this.loadDataModels();
   }

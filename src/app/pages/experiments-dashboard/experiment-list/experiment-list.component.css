@@ -27,28 +27,6 @@
   color: #64748b;
 }
 
-.filter-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.filter-label i {
-  font-size: 0.85rem;
-}
-
-.filter-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.count-label {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  white-space: nowrap;
-}
-
 /* EXPERIMENTS TABS */
 .experiments-tabs-row {
   margin-top: 6px;
@@ -265,12 +243,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
-}
-
-.meta-description {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ACTION ICONS (right side) */

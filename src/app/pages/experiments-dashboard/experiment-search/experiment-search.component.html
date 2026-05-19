@@ -2,17 +2,17 @@
   <i class="fas fa-search"></i>
   <input
     type="text"
-    [ngModel]="filters.query"
+    [ngModel]="filters().query"
     (ngModelChange)="onQueryInput($event)"
     placeholder="Search…"
     [title]="
-      filters.query ? '' : 'Search by name, description, author, algorithm…'
+      filters().query ? '' : 'Search by name, description, author, algorithm…'
     "
   />
 
   <select
     class="pill-select"
-    [ngModel]="filters.datePreset"
+    [ngModel]="filters().datePreset"
     (ngModelChange)="onDatePresetChange($event)"
     title="Date range"
   >
