@@ -10,6 +10,50 @@ describe('MetadataInfoPanelComponent', () => {
     });
   });
 
+  it('renders enumeration labels instead of raw codes', () => {
+    const fixture = TestBed.createComponent(MetadataInfoPanelComponent);
+    fixture.componentRef.setInput('selectedNode', {
+      label: 'Hemisphere',
+      code: 'hemisphere',
+      type: 'nominal',
+      enumerations: [
+        { code: 'right', label: 'Right' },
+        { code: 'left', label: 'Left' },
+        { code: 'bilateral', label: 'Bilateral' },
+        { code: 'unknown', label: 'Unknown' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const items = Array.from<HTMLElement>(
+      fixture.nativeElement.querySelectorAll('.enumeration-list li')
+    ).map((el) => el.textContent?.trim() ?? '');
+
+    expect(items).toEqual(['Right', 'Left', 'Bilateral', 'Unknown']);
+  });
+
+  it('humanizes enumeration codes when labels are missing', () => {
+    const fixture = TestBed.createComponent(MetadataInfoPanelComponent);
+    fixture.componentRef.setInput('selectedNode', {
+      label: 'Hemisphere',
+      code: 'hemisphere',
+      type: 'nominal',
+      enumerations: [
+        { code: 'right' },
+        { code: 'left' },
+        { code: 'bilateral' },
+        { code: 'unknown' },
+      ],
+    });
+    fixture.detectChanges();
+
+    const items = Array.from<HTMLElement>(
+      fixture.nativeElement.querySelectorAll('.enumeration-list li')
+    ).map((el) => el.textContent?.trim() ?? '');
+
+    expect(items).toEqual(['Right', 'Left', 'Bilateral', 'Unknown']);
+  });
+
   it('renders variable metadata and enumeration labels without raw variable codes', () => {
     const fixture = TestBed.createComponent(MetadataInfoPanelComponent);
     fixture.componentRef.setInput('selectedNode', {

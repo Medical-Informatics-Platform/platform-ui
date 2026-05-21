@@ -5,80 +5,84 @@
     <p>Select a group or variable to inspect its metadata.</p>
   </div>
   } @else {
+  @if (!hideHeader()) {
   <header class="metadata-info-header">
     <span class="metadata-kind">{{ isGroup() ? 'Group' : 'Variable' }}</span>
     <h3>{{ selectedNode()?.label }}</h3>
     @if (selectedNode()?.description) {
-    <p>{{ selectedNode()?.description }}</p>
+    <p class="metadata-description">{{ selectedNode()?.description }}</p>
     }
   </header>
+  }
 
   @if (pathNodes().length) {
   <section class="metadata-section" aria-label="Hierarchy path">
-    <h4>Path</h4>
-    <div class="metadata-path">
-      @for (node of pathNodes(); track node.code + ':' + node.label; let last = $last) {
-      <span [class.current]="last">{{ node.label }}</span>
-      @if (!last) {
-      <i class="fas fa-chevron-right" aria-hidden="true"></i>
-      }
-      }
+    <div class="metadata-block">
+      <h4>Path</h4>
+      <div class="metadata-path">
+        @for (node of pathNodes(); track node.code + ':' + node.label; let last = $last) {
+        <span [class.current]="last">{{ node.label }}</span>
+        @if (!last) {
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        }
+        }
+      </div>
     </div>
   </section>
   }
 
   @if (isGroup()) {
   <section class="metadata-section" aria-label="Group summary">
-    <h4>Summary</h4>
-    <div class="metadata-metric-grid">
-      <div class="metadata-metric">
-        <span>Child groups</span>
-        <strong>{{ directGroupCount() }}</strong>
-      </div>
-      <div class="metadata-metric">
-        <span>Direct variables</span>
-        <strong>{{ directVariableCount() }}</strong>
-      </div>
-      <div class="metadata-metric">
-        <span>Total variables</span>
-        <strong>{{ totalVariableCount() }}</strong>
-      </div>
-      @if (groupInfo()) {
-      <div class="metadata-metric">
-        <span>{{ groupInfo()?.hasGroups ? 'Chart groups' : 'Chart variables' }}</span>
-        <strong>{{ groupInfo()?.groupCount }}</strong>
-      </div>
-      }
+    <div class="metadata-block">
+      <h4>Summary</h4>
+      <dl class="metadata-metric-grid">
+        <dt>Child groups</dt>
+        <dd>{{ directGroupCount() }}</dd>
+        <dt>Direct variables</dt>
+        <dd>{{ directVariableCount() }}</dd>
+        <dt>Total variables</dt>
+        <dd>{{ totalVariableCount() }}</dd>
+        @if (groupInfo()) {
+        <dt>{{ groupInfo()?.hasGroups ? 'Chart groups' : 'Chart variables' }}</dt>
+        <dd>{{ groupInfo()?.groupCount }}</dd>
+        }
+      </dl>
     </div>
   </section>
   } @else {
+  @if (fields().length) {
   <section class="metadata-section" aria-label="Variable metadata">
-    <h4>Metadata</h4>
-    <div class="metadata-field-grid">
-      @for (field of fields(); track field.label) {
-      <div class="metadata-field">
-        <span>{{ field.label }}</span>
-        <strong>{{ field.value }}</strong>
-      </div>
-      }
+    <div class="metadata-block">
+      <h4>Metadata</h4>
+      <dl class="metadata-field-grid">
+        @for (field of fields(); track field.label) {
+        <dt>{{ field.label }}</dt>
+        <dd>{{ field.value }}</dd>
+        }
+      </dl>
     </div>
   </section>
+  }
 
   @if (selectedNode()?.methodology) {
   <section class="metadata-section" aria-label="Methodology">
-    <h4>Methodology</h4>
-    <p class="metadata-long-text">{{ selectedNode()?.methodology }}</p>
+    <div class="metadata-block">
+      <h4>Methodology</h4>
+      <p class="metadata-long-text">{{ selectedNode()?.methodology }}</p>
+    </div>
   </section>
   }
 
   @if (enumerations().length) {
   <section class="metadata-section" aria-label="Enumerations">
-    <h4>Enumerations</h4>
-    <ul class="enumeration-list">
-      @for (label of enumerations(); track label) {
-      <li>{{ label }}</li>
-      }
-    </ul>
+    <div class="metadata-block">
+      <h4>Enumerations</h4>
+      <ul class="enumeration-list">
+        @for (entry of enumerations(); track entry.code ?? entry.label) {
+        <li>{{ entry.label }}</li>
+        }
+      </ul>
+    </div>
   </section>
   }
   }
