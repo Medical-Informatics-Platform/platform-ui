@@ -332,7 +332,13 @@
 
       @if (selectedAlgorithmDocumentation()) {
       <details class="documentation-panel">
-        <summary>Documentation</summary>
+        <summary class="documentation-summary">
+          <span class="documentation-trigger">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            <span class="documentation-label">Documentation</span>
+            <i class="fas fa-chevron-down documentation-chevron" aria-hidden="true"></i>
+          </span>
+        </summary>
         <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
       </details>
       }

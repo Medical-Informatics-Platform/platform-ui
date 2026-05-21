@@ -54,14 +54,15 @@
 .panel-title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
+  gap: 6px;
+  font-size: 0.74rem;
   font-weight: 700;
   color: #ffffff;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
   border: none;
   cursor: pointer !important;
+  line-height: 1.2;
 }
 
 .panel-title:disabled {
@@ -104,8 +105,8 @@
   position: static;
   width: auto;
   height: auto;
-  padding: 2px 8px;
-  font-size: 0.7rem;
+  padding: 1px 6px;
+  font-size: 0.65rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
@@ -113,12 +114,10 @@
   box-shadow: none;
 }
 
-.counter--variable,
-.counter--covariate,
 /* Clear bin */
 .bin-btn {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
   border: none;
   background: #fee2e2;
@@ -126,7 +125,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   box-shadow: 0 3px 8px rgba(248, 113, 113, 0.45);
   transition: transform 0.2s ease, background 0.2s ease;
   margin-left: 0;
@@ -287,9 +286,9 @@
   }
 
   .bin-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.8rem;
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
   }
 }
 

@@ -18,7 +18,11 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { OntologyTreeBrowserComponent } from '../visualisations/metadata-browser/ontology-tree-browser/ontology-tree-browser.component';
 import { CollapsibleTreeBrowserComponent } from '../visualisations/metadata-browser/collapsible-tree-browser/collapsible-tree-browser.component';
-import { MetadataBrowserMode } from '../visualisations/metadata-browser/metadata-browser.model';
+import { MetadataBrowserMode, MetadataSearchResult } from '../visualisations/metadata-browser/metadata-browser.model';
+import {
+  normalizeMetadataTree,
+  selectionFromSearchResult,
+} from '../visualisations/metadata-browser/metadata-browser-normalizer';
 
 type DetailsPanelTab = 'histogram' | 'info';
 
@@ -152,22 +156,17 @@ export class VariablesPanelComponent implements OnDestroy {
     }
   }
 
-  onSearchSelected(code: string) {
-    const foundVar = this.filteredVariables().find(v => v.code === code);
-    if (foundVar) {
-      this.highlightNode = foundVar;              // zoom + highlight leaf
-      this.onSelectedNodeChange(foundVar);        // histogram for leaf
+  onSearchSelected(result: MetadataSearchResult): void {
+    if (!this.d3Data) {
+      console.warn('[Search] No data model loaded');
       return;
     }
 
-    const foundGroup = this.findNodeByCode(this.d3Data, code);
-    if (foundGroup) {
-      this.highlightNode = { code };
-      this.onSelectedNodeChange(foundGroup);
-      return;
-    }
-
-    console.warn('[Search] No node found for code:', code);
+    const index = normalizeMetadataTree(this.d3Data);
+    const selection = selectionFromSearchResult(index, result);
+    const node = selection.originalNode;
+    this.highlightNode = { ...node, path: result.path };
+    this.onSelectedNodeChange(node);
   }
 
   private findNodeByCode(node: any, code: string): any | null {
@@ -668,6 +667,33 @@ export class VariablesPanelComponent implements OnDestroy {
 
   showGroupVariableSelectionMessage(): boolean {
     return !!this.groupHistogramData() && this.groupHistogramMeta()?.hasGroups === false;
+  }
+
+  isSelectedNodeGroup(): boolean {
+    return !!this.selectedNode?.children?.length;
+  }
+
+  detailsPanelTitle(): string {
+    if (!this.selectedNode) {
+      return 'Select a variable';
+    }
+    const data = this.groupHistogramData() || this.histogramData();
+    return String(data?.variableName ?? this.selectedNode.label ?? '').trim();
+  }
+
+  detailsPanelSubtitle(): string {
+    if (!this.selectedNode) {
+      return '';
+    }
+    if (this.isSelectedNodeGroup()) {
+      const meta = this.groupHistogramMeta();
+      if (meta) {
+        return meta.hasGroups
+          ? `${meta.groupCount} chart groups`
+          : `${meta.groupCount} chart variables`;
+      }
+    }
+    return String(this.selectedNode.description ?? '').trim();
   }
 
   async exportHistogramPdf(): Promise<void> {
