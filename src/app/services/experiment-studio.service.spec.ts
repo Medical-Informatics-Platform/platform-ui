@@ -87,6 +87,21 @@ describe('ExperimentStudioService', () => {
     parameters: {},
   };
 
+  const mockLinearSvmAlgo = {
+    name: 'linear_svm',
+    label: 'Linear SVM',
+    desc: '',
+    enabled: true,
+    inputdata: {
+      data_model: { label: '', desc: '', types: [] },
+      datasets: { label: '', desc: '', types: [] },
+      y: { label: '', desc: '', types: ['real'], required: true },
+      x: { label: '', desc: '', types: ['real'], required: true },
+      filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
+    },
+    parameters: {},
+  };
+
   const mockDataModel: DataModel = {
     uuid: 'dm-uuid',
     code: 'dm',
@@ -113,7 +128,7 @@ describe('ExperimentStudioService', () => {
     httpMock = TestBed.inject(HttpTestingController);
 
     const req = httpMock.expectOne('/services/algorithms');
-    req.flush([mockRawAlgo, mockHistogramAlgo, mockDescribeAlgo, mockOutlierReportAlgo]);
+    req.flush([mockRawAlgo, mockHistogramAlgo, mockDescribeAlgo, mockOutlierReportAlgo, mockLinearSvmAlgo]);
   });
 
   afterEach(() => {
@@ -224,7 +239,7 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toBeNull();
   });
 
-  it('excludes histogram, describe, and outlier_report from the algorithm picker', () => {
+  it('excludes histogram, describe, outlier_report, and linear_svm from the algorithm picker', () => {
     const grouped = service.availableGroupedAlgorithms();
     const names = Object.values(grouped).flat().map((algo) => algo.name);
 
@@ -232,6 +247,7 @@ describe('ExperimentStudioService', () => {
     expect(names).not.toContain('histogram');
     expect(names).not.toContain('describe');
     expect(names).not.toContain('outlier_report');
+    expect(names).not.toContain('linear_svm');
   });
 
   it('attaches structured availability details to grouped algorithms', () => {
@@ -460,6 +476,59 @@ describe('ExperimentStudioService', () => {
           strategies: { age: 'median' },
         },
       },
+    }));
+    req.flush({ featurewise: [] });
+  });
+
+  it('keeps nominal variables and numeric covariates in distinct outlier report input roles', (done) => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setVariables([{ code: 'sex', label: 'Sex', type: 'nominal' } as any]);
+    service.setCovariates([{ code: 'age', label: 'Age', type: 'real' } as any]);
+
+    service.loadOutlierReportPreview(
+      ['age'],
+      {
+        strategies: { age: 'iqr' },
+        tails: { age: 'both' },
+        folds: { age: 1.5 },
+      },
+    ).subscribe((response) => {
+      expect(response.result.featurewise).toEqual([]);
+      done();
+    });
+
+    const req = httpMock.expectOne('/services/experiments/transient');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+      data_model: 'dm:1',
+      y: ['age'],
+      x: null,
+      datasets: [],
+      filters: null,
+    }));
+    req.flush({ featurewise: [] });
+  });
+
+  it('sends covariate-only outlier report codes through y only', (done) => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setCovariates([{ code: 'age', label: 'Age', type: 'real' } as any]);
+
+    service.loadOutlierReportPreview(
+      ['age'],
+      {
+        strategies: { age: 'iqr' },
+        tails: { age: 'both' },
+        folds: { age: 1.5 },
+      },
+    ).subscribe((response) => {
+      expect(response.result.featurewise).toEqual([]);
+      done();
+    });
+
+    const req = httpMock.expectOne('/services/experiments/transient');
+    expect(req.request.body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+      y: ['age'],
+      x: null,
     }));
     req.flush({ featurewise: [] });
   });

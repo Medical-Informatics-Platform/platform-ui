@@ -39,6 +39,7 @@ const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
   AlgorithmNames.HISTOGRAM,
   AlgorithmNames.DESCRIBE,
   AlgorithmNames.OUTLIER_REPORT,
+  AlgorithmNames.LINEAR_SVM,
   AlgorithmNames.LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER,
 ]);
 
@@ -1132,10 +1133,15 @@ export class ExperimentStudioService {
   ): any {
     const filters = this.filterLogic();
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
-    const selectedVariableCodes = new Set(this.selectedVariables().map((variable) => String(variable?.code ?? '')));
+    const selectedVariableCodes = new Set(this.selectedVariables()
+      .map((variable) => String(variable?.code ?? ''))
+      .filter((code) => !!code));
     const selectedCovariateCodes = new Set(this.selectedCovariates().map((variable) => String(variable?.code ?? '')));
     const y = variableCodes.filter((code) => selectedVariableCodes.has(code));
-    const x = variableCodes.filter((code) => selectedCovariateCodes.has(code));
+    const covariateOnly = variableCodes.filter((code) => selectedCovariateCodes.has(code) && !selectedVariableCodes.has(code));
+    const unassigned = variableCodes.filter((code) => !selectedVariableCodes.has(code) && !selectedCovariateCodes.has(code));
+    const yPayload = y.length ? y : [...covariateOnly, ...unassigned];
+    const x = y.length ? covariateOnly : [];
 
     return {
       name: `experiment_outlier_report_${variableCodes.join('_')}`,
@@ -1143,7 +1149,7 @@ export class ExperimentStudioService {
         name: AlgorithmNames.OUTLIER_REPORT,
         inputdata: {
           data_model: this.getActiveDataModelCode(),
-          y: y.length ? y : variableCodes,
+          y: yPayload?.length ? yPayload : null,
           x: x.length ? x : null,
           datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
           filters: hasFilters ? filters : null,
