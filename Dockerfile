@@ -28,8 +28,9 @@ RUN --mount=type=cache,target=/app/.angular/cache \
     npm run build -- --configuration ${BUILD_CONFIGURATION}
 
 # Step 2: Use Nginx to serve the Angular app
-FROM nginx:alpine
-RUN apk add --no-cache gettext
+FROM nginx:alpine-slim
+RUN apk upgrade --no-cache \
+    && apk add --no-cache gettext-envsubst
 ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     PLATFORM_BACKEND_CONTEXT=services \
     NOTEBOOK_ENABLED=0 \
