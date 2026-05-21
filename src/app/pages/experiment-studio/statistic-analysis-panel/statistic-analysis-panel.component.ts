@@ -12,6 +12,7 @@ import {
   output,
   input
 } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
@@ -109,11 +110,6 @@ interface PreprocessingGroup {
   variables: VariableRow[];
 }
 
-interface PreviewImpactGroup {
-  title: string;
-  items: string[];
-}
-
 interface OutlierPreviewRow {
   variable: string;
   dataset: string;
@@ -164,6 +160,7 @@ export class StatisticAnalysisPanelComponent {
   private csvExportService = inject(CsvExportService);
   private cdr = inject(ChangeDetectorRef);
   private runtimeEnvService = inject(RuntimeEnvService);
+  private sanitizer = inject(DomSanitizer);
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   rawSummary = this.createEmptySummary(true);
@@ -196,7 +193,6 @@ export class StatisticAnalysisPanelComponent {
     raw: '',
     processed: '',
   };
-  showPreview = false;
   successMessage = '';
   isExporting = false;
   isLoading = true;
@@ -622,44 +618,6 @@ export class StatisticAnalysisPanelComponent {
       .filter((item) => item.code);
   }
 
-  get previewImpactGroups(): PreviewImpactGroup[] {
-    const currentCodes = this.currentPreprocessingCodeSet();
-    const rules = Object.values(this.pendingPreprocessingRules).filter(
-      (rule) => currentCodes.has(rule.variableCode) && rule.enabled && rule.action !== 'no_action'
-    );
-    const groups: PreviewImpactGroup[] = [];
-    const missingItems = rules.map((rule) => {
-      const variable = this.preprocessingVariables.find((row) => row.code === rule.variableCode);
-      const label = variable ? this.variableLabel(variable) : rule.variableCode;
-      return `Missing values for ${label} will be handled.`;
-    });
-    if (missingItems.length) groups.push({ title: 'Missing Values', items: missingItems });
-
-    const outlierConfig = this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
-    if (outlierConfig) {
-      groups.push({
-        title: 'Outlier Handling',
-        items: [
-          `${Object.keys((outlierConfig['strategies'] as Record<string, string>) ?? {}).length} variable rules will be applied.`,
-        ],
-      });
-    }
-
-    const longitudinalConfig = this.buildLongitudinalPreprocessingConfig(false);
-    if (longitudinalConfig) {
-      groups.push({
-        title: 'Longitudinal Transformation',
-        items: [
-          `Compare ${longitudinalConfig['visit1']} with ${longitudinalConfig['visit2']}.`,
-          `${Object.keys((longitudinalConfig['strategies'] as Record<string, string>) ?? {}).length} variable strategies will be applied.`,
-        ],
-      });
-    }
-    if (!groups.length) return [{ title: 'Preprocessing', items: ['No preprocessing changes will be applied.'] }];
-    groups.push({ title: 'Processed Summary', items: ['Processed Data Summary will be recalculated.'] });
-    return groups;
-  }
-
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
     this.getSummary(kind).activeTab = tab;
     this.cdr.markForCheck();
@@ -787,6 +745,90 @@ export class StatisticAnalysisPanelComponent {
       .flatMap((algorithm) => algorithm.preprocessing ?? [])
       .find((candidate) => candidate.name === stepName);
     return step?.documentation?.trim() ?? '';
+  }
+
+  formatPreprocessingDocumentationHtml(stepName: string): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(
+      this.buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName))
+    );
+  }
+
+  private buildPreprocessingDocumentationHtml(text: string): string {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    const escapeHtml = (value: string): string =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const lines = trimmed.includes('\n')
+      ? trimmed.split(/\r?\n/)
+      : trimmed.split(/\s+-\s+(?=[A-Za-z])/);
+
+    const parts: string[] = [];
+    let listItems: string[] = [];
+    let isIntroParagraph = true;
+
+    const flushList = (): void => {
+      if (!listItems.length) {
+        return;
+      }
+      parts.push(`<ul class="preprocessing-doc-list">${listItems.join('')}</ul>`);
+      listItems = [];
+    };
+
+    const pushParagraph = (line: string): void => {
+      const escaped = escapeHtml(line);
+      if (line.endsWith(':') && line.length <= 120) {
+        parts.push(`<p class="preprocessing-doc-section-title">${escaped}</p>`);
+        isIntroParagraph = false;
+        return;
+      }
+
+      const classes = isIntroParagraph
+        ? 'preprocessing-doc-paragraph preprocessing-doc-intro'
+        : 'preprocessing-doc-paragraph';
+      parts.push(`<p class="${classes}">${escaped}</p>`);
+      isIntroParagraph = false;
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        continue;
+      }
+
+      let itemText = line.startsWith('- ') ? line.slice(2).trim() : line;
+      const colonIndex = itemText.indexOf(':');
+      const looksLikeListItem =
+        line.startsWith('- ') ||
+        (colonIndex > 0 && colonIndex < 40 && itemText.slice(colonIndex + 1).trim().length > 0);
+
+      if (looksLikeListItem && colonIndex > 0) {
+        const term = escapeHtml(itemText.slice(0, colonIndex).trim());
+        const description = escapeHtml(itemText.slice(colonIndex + 1).trim());
+        listItems.push(
+          `<li><span class="preprocessing-doc-term">${term}</span><span class="preprocessing-doc-desc">${description}</span></li>`
+        );
+        continue;
+      }
+
+      if (line.startsWith('- ')) {
+        listItems.push(`<li><span class="preprocessing-doc-desc">${escapeHtml(itemText)}</span></li>`);
+        continue;
+      }
+
+      flushList();
+      pushParagraph(line);
+    }
+
+    flushList();
+    return parts.join('');
   }
 
   ruleFor(variable: VariableRow): PreprocessingRule {
@@ -969,15 +1011,9 @@ export class StatisticAnalysisPanelComponent {
     this.ensureLongitudinalDefaults();
     this.preprocessingValidationErrors = {};
     this.outlierValidationErrors = {};
-    this.showPreview = false;
     this.updatePreprocessingStatus();
     this.emitProgressState();
     this.cdr.markForCheck();
-  }
-
-  previewImpact(): void {
-    if (this.pendingChangeCount === 0) return;
-    this.showPreview = !this.showPreview;
   }
 
   previewOutlierReport(): void {
@@ -1077,7 +1113,6 @@ export class StatisticAnalysisPanelComponent {
       this.processedSummary = this.createEmptySummary(false);
       this.expStudioService.setAppliedDescriptivePreprocessing(null);
       this.preprocessingStatus = 'none';
-      this.showPreview = false;
       this.sectionOpen.processed = false;
       this.successMessage = '';
       this.emitProgressState();
@@ -1113,7 +1148,6 @@ export class StatisticAnalysisPanelComponent {
         this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
         this.preprocessingStatus = 'applied';
         this.isApplyingPreprocessing = false;
-        this.showPreview = false;
         this.successMessage = '';
         this.emitProgressState();
         this.sectionOpen.processed = true;
@@ -1580,7 +1614,6 @@ export class StatisticAnalysisPanelComponent {
       this.processedSummaryKey = '';
       this.sectionOpen.processed = false;
     }
-    this.showPreview = false;
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
     this.updatePreprocessingStatus();
