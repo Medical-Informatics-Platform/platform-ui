@@ -117,7 +117,7 @@
 
 .content-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -161,8 +161,7 @@
   white-space: nowrap;
 }
 
-.type-badge,
-.unit-badge {
+.type-badge {
   display: inline-flex;
   align-items: center;
   min-height: 20px;
@@ -171,17 +170,8 @@
   font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
-}
-
-.type-badge {
   background: #dfefe4;
   color: #14532d;
-}
-
-.unit-badge {
-  background: #fff7ed;
-  color: #9a3412;
-  text-transform: none;
 }
 
 .search-empty,
