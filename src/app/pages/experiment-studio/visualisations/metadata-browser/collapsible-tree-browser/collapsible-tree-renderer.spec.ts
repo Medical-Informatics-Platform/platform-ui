@@ -4,6 +4,7 @@ import {
   cloneNode,
   createCollapsibleTree,
   findHierarchyNode,
+  findHierarchyNodeByPath,
   initializeCollapse,
 } from './collapsible-tree-renderer';
 
@@ -58,6 +59,44 @@ describe('collapsible tree renderer helpers', () => {
     const target = findHierarchyNode(root, { label: 'Glucose', code: 'glucose', type: 'real' });
 
     expect(target?.data.label).toBe('Glucose');
+  });
+
+  it('finds duplicate group labels by full path instead of the first code match', () => {
+    const duplicateModel: typeof model = {
+      label: 'Stroke 3.7',
+      code: 'stroke',
+      children: [
+        {
+          label: 'Vitals',
+          code: 'vitals',
+          children: [
+            {
+              label: 'Arterial',
+              code: 'arterial',
+              children: [{ label: 'MAP', code: 'map', type: 'real' }],
+            },
+          ],
+        },
+        {
+          label: 'Other',
+          code: 'other',
+          children: [
+            {
+              label: 'Arterial',
+              code: 'arterial',
+              children: [{ label: 'DBP', code: 'dbp', type: 'real' }],
+            },
+          ],
+        },
+      ],
+    };
+    const root = d3.hierarchy(cloneNode(duplicateModel), (node) => node.children) as any;
+    initializeCollapse(root);
+
+    const target = findHierarchyNodeByPath(root, 'Stroke 3.7 > Other > Arterial');
+
+    expect(target?.data.label).toBe('Arterial');
+    expect(target?.parent?.data.label).toBe('Other');
   });
 
   it('schedules auto-fit when opening without a highlighted node', () => {

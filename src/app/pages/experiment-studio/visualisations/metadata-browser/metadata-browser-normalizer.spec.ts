@@ -117,6 +117,13 @@ describe('metadata browser normalizer', () => {
     expect(new Set(duplicateVariables.map((variable) => variable.id)).size).toBe(2);
   });
 
+  it('lists all metadata entries when the search query is empty', () => {
+    const index = normalizeMetadataTree(model);
+
+    expect(searchMetadataIndex(index, '').length).toBe(index.variableIds.length + index.groupIds.length);
+    expect(searchMetadataIndex(index, '   ').map((result) => result.label)).toContain('Glucose');
+  });
+
   it('searches labels, codes, descriptions, and enumeration labels', () => {
     const index = normalizeMetadataTree(model);
 
@@ -134,5 +141,18 @@ describe('metadata browser normalizer', () => {
     expect(selection.variableId).toBe(result.id);
     expect(index.groupsById[selection.groupId].label).toBe('Demographics');
     expect(selection.originalNode.code).toBe('sex');
+  });
+
+  it('selects the duplicate group that matches the chosen search path', () => {
+    const index = normalizeMetadataTree(model);
+    const results = searchMetadataIndex(index, 'metabolic');
+    const otherVitalsResult = results.find((result) => result.path.includes('Other Vitals'));
+
+    expect(otherVitalsResult).toBeDefined();
+    const selection = selectionFromSearchResult(index, otherVitalsResult!);
+
+    expect(selection.originalNode.label).toBe('Metabolic');
+    expect(index.groupsById[selection.groupId].pathLabels).toContain('Other Vitals');
+    expect(selection.originalNode).toBe(index.groupsById[otherVitalsResult!.id].original);
   });
 });
