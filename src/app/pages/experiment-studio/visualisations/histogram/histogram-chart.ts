@@ -22,20 +22,18 @@ export function createHistogram(
   const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
 
   const { bins, counts } = data;
-  // Base container dimensions
   const containerRect = container.getBoundingClientRect();
-  const containerWidth = containerRect.width || 0;
-  const containerHeight = Math.max(containerRect.height || 0, 360);
+  const containerWidth = containerRect.width || 640;
 
   // Clear any existing chart
   container.innerHTML = '';
+  container.style.height = 'auto';
+  container.style.minHeight = '0';
 
-  // Create SVG once
+  // Create SVG once; height is computed from plot content below.
   const svg = d3
     .select(container)
-    .append('svg')
-    .attr('width', containerWidth)
-    .attr('height', containerHeight);
+    .append('svg');
 
   // Measure Y-axis label to make left margin dynamic
   const yLabelText = 'Count';
@@ -50,7 +48,7 @@ export function createHistogram(
   const yLabelBBox = (tempLabel.node() as SVGTextElement).getBBox();
   tempLabel.remove();
 
-  const baseMargins = { top: 50, right: 10, bottom: 60, left: 40 };
+  const baseMargins = { top: 16, right: 10, bottom: 60, left: 40 };
   const labelCharsPerLine = 10;
   const maxLabelLength = bins.reduce((max, b) => Math.max(max, String(b).length), 0);
   const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / labelCharsPerLine));
@@ -63,12 +61,9 @@ export function createHistogram(
     return raw.length >= 4 && raw.includes('.');
   });
   const needsRotate = (hasStringBins && estimatedLines > 1) || hasLongNumericBins || (hasStringBins && bins.length > 8);
-  const rotateExtra = needsRotate ? 22 : 0;
-  const bottomMargin = Math.max(
-    70,
-    baseMargins.bottom + estimatedLines * 16 + rotateExtra
-  );
-  const effectiveHeight = containerHeight;
+  const bottomMargin = needsRotate
+    ? Math.max(80, 20 + Math.min(150, maxLabelLength * 4.5))
+    : Math.max(70, baseMargins.bottom + estimatedLines * 16);
 
   // Left margin = base + label width + small padding
   const margin = {
@@ -78,14 +73,20 @@ export function createHistogram(
     left: baseMargins.left + yLabelBBox.width + 8
   };
 
+  const innerHeight = needsRotate
+    ? 240
+    : hasStringBins && bins.length <= 8
+      ? 200
+      : 260;
+  let containerHeight = margin.top + innerHeight + margin.bottom;
+
   // Scale width by bin count to allow horizontal scrolling when needed
   const minPerBinWidth = hasStringBins ? 30 : 20;
   const desiredWidth = Math.max(containerWidth, bins.length * minPerBinWidth);
 
-  svg.attr('width', desiredWidth).attr('height', effectiveHeight);
+  svg.attr('width', desiredWidth).attr('height', containerHeight);
 
   const innerWidth = desiredWidth - margin.left - margin.right;
-  const innerHeight = effectiveHeight - margin.top - margin.bottom - 40;
 
   // Aesthetic: Limit max bar width for small number of bins
   const maxBarWidth = 100;
@@ -248,6 +249,15 @@ export function createHistogram(
     tickText.attr('transform', 'rotate(-35)');
   }
 
+  const xAxisBBox = (xAxisGroup.node() as SVGGElement | null)?.getBBox();
+  if (xAxisBBox) {
+    const axisBottom = margin.top + innerHeight + xAxisBBox.y + xAxisBBox.height + 12;
+    if (axisBottom > containerHeight) {
+      containerHeight = Math.ceil(axisBottom);
+      svg.attr('height', containerHeight);
+    }
+  }
+
   // Y axis
   const yAxis = d3
     .axisLeft(yScale)
@@ -280,18 +290,11 @@ export function createHistogram(
     .style('letter-spacing', '0.08em')
     .style('text-transform', 'uppercase');
 
-  // X label
-  // X label (now at top)
-  if (data.variableName) {
-    chart
-      .append('text')
-      .attr('x', chartWidth / 2)
-      .attr('y', -25) // Position above the grid/chart
-      .attr('text-anchor', 'middle')
-      .text(data.variableName)
-      .style('font-size', '14px')
-      .style('font-weight', '700')
-      .style('fill', textColor)
-    //.style('letter-spacing', '0.08em')
+  const svgBBox = (svg.node() as SVGSVGElement | null)?.getBBox();
+  if (svgBBox) {
+    containerHeight = Math.ceil(svgBBox.y + svgBBox.height + 8);
+    svg.attr('height', containerHeight);
   }
+
+  container.style.height = `${containerHeight}px`;
 }
