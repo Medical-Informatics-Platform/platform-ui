@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, OnChanges, SimpleChanges, inject, input } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, ElementRef, inject, input, OnChanges, SimpleChanges } from '@angular/core';
 import { createHistogram } from './histogram-chart';
 
 @Component({
@@ -15,13 +15,21 @@ export class HistogramComponent implements OnChanges {
     counts: number[];
     variableName: string;
     variableType?: string;
-} | null>(null); // Data for histogram
+  } | null>(null);
   readonly config = input<{
     color?: string;
     width?: number;
     height?: number;
-}>({}); // Configuration for the graph
+  }>({});
   isLoading = false;
+
+  constructor() {
+    afterNextRender(() => {
+      if (this.data()) {
+        this.renderHistogram();
+      }
+    });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     this.isLoading = true; // Show loading only if empty
