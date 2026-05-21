@@ -34,31 +34,35 @@
       {{ filterType === 'variables' ? 'Variables' : 'Groups' }}
     </div>
     <ul>
-      @for (item of filteredItems; track item.code || item.label) {
-      <li class="variable-item" (click)="onItemClick(item)" [title]="generateTooltip(item)">
-        <div class="item-top">
-          <span class="result-name" [innerHTML]="highlight(item.label)"></span>
-          @if (item.path && filterType === 'variables') {
-          <span class="result-group">
-            {{ item.path.split(" > ").slice(-2, -1)[0] }}
-          </span>
+      @for (item of filteredItems; track item.id) {
+      <li
+        class="search-result-item"
+        [class.is-group]="item.kind === 'group'"
+        (click)="onItemClick(item)"
+        [title]="generateTooltip(item)">
+        <div class="search-result-head">
+          <span class="search-result-label" [innerHTML]="highlight(item.label)"></span>
+          @if (item.kind === 'variable') {
+          <span class="search-result-type">{{ variableType(item) }}</span>
+          } @else {
+          <span class="search-result-kind">Group</span>
           }
         </div>
-        <div class="item-bottom">
-          <span class="result-type">
-            @if (filterType === 'variables') {
-            <span class="type-icon">ⓘ</span>
-            type: {{ item.type }}
-            } @else {
-            Group
-            }
-          </span>
-        </div>
+        @if (item.kind === 'variable') {
+        <span class="search-result-parent">{{ parentGroupLabel(item) }}</span>
+        }
+        <span class="search-result-path">{{ item.path }}</span>
       </li>
       }
     </ul>
     } @else {
-    <div class="no-results">No results found for "{{ searchQuery }}"</div>
+    <div class="no-results">
+      @if (searchQuery.trim()) {
+      No results found for "{{ searchQuery }}"
+      } @else {
+      No {{ filterType === 'variables' ? 'variables' : 'groups' }} available
+      }
+    </div>
     }
   </div>
   }

@@ -1,54 +1,52 @@
-import { Component, OnInit, ElementRef, SimpleChanges, OnChanges, inject, ChangeDetectionStrategy, output, input } from '@angular/core';
-import { FormsModule } from "@angular/forms";
+import {
+  Component,
+  ElementRef,
+  SimpleChanges,
+  OnChanges,
+  inject,
+  ChangeDetectionStrategy,
+  output,
+  input,
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import {
+  MetadataSearchResult,
+  NormalizedMetadataIndex,
+} from '../../visualisations/metadata-browser/metadata-browser.model';
+import {
+  normalizeMetadataTree,
+  searchMetadataIndex,
+} from '../../visualisations/metadata-browser/metadata-browser-normalizer';
 
 @Component({
   selector: 'app-search-bar',
   templateUrl: './search-bar.component.html',
-  imports: [
-    FormsModule,
-  ],
+  imports: [FormsModule],
   styleUrl: './search-bar.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '(document:click)': 'onOutsideClick($event)',
-  }
+  },
 })
-export class SearchBarComponent implements OnInit, OnChanges {
+export class SearchBarComponent implements OnChanges {
   private eRef = inject(ElementRef);
 
   readonly dataModelHierarchy = input<any>();
-  readonly searchResultSelected = output<string>();
+  readonly searchResultSelected = output<MetadataSearchResult>();
 
-  searchQuery: string = '';
-  variables: { label: string; code: string; type: string; path: string }[] = [];
-  groups: { label: string; code: string; path: string }[] = [];
-  filteredItems: any[] = [];
+  searchQuery = '';
+  filteredItems: MetadataSearchResult[] = [];
   searchSuggestionsVisible = false;
   isSearchExpanded = false;
-  filterType: string = 'variables'; // Default filter type
-  variableTypeFilter: string = ''; // Additional variable type filter
-  variableTypes: string[] = []; // List of available variable types
+  filterType: 'variables' | 'groups' = 'variables';
+  variableTypeFilter = '';
+  variableTypes: string[] = [];
 
-  constructor() { }
-
-  ngOnInit(): void {
-    const dataModelHierarchy = this.dataModelHierarchy();
-    if (dataModelHierarchy) {
-      this.extractVariablesAndGroups(dataModelHierarchy);
-    }
-  }
+  private metadataIndex: NormalizedMetadataIndex | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['dataModelHierarchy']?.currentValue) {
-
-      // Ensure variables and groups are cleared before reloading
-      this.variables = [];
-      this.groups = [];
-      this.variableTypes = [];
-
-      // Extract variables and groups
-      this.extractVariablesAndGroups(this.dataModelHierarchy());
-
+      this.rebuildIndex(this.dataModelHierarchy());
     }
   }
 
@@ -65,7 +63,7 @@ export class SearchBarComponent implements OnInit, OnChanges {
 
   highlight(name: string): string {
     if (!this.searchQuery) return name;
-    const re = new RegExp(`(${this.searchQuery})`, 'gi');
+    const re = new RegExp(`(${this.escapeRegExp(this.searchQuery)})`, 'gi');
     return name.replace(re, '<mark>$1</mark>');
   }
 
@@ -75,88 +73,91 @@ export class SearchBarComponent implements OnInit, OnChanges {
     }
   }
 
-  // Handles the search query input.
-  extractVariablesAndGroups(hierarchy: any): void {
-    this.variables = [];
-    this.groups = [];
-    this.variableTypes = [];
-
-    const traverse = (node: any, path: string) => {
-      if (!node) return;
-      const currentPath = path ? `${path} > ${node.label}` : node.label;
-
-      // GROUP
-      if (Array.isArray(node.children) && node.children.length > 0) {
-        this.groups.push({
-          label: node.label,
-          code: node.code ?? node.label, // fallback safe
-          path: currentPath
-        });
-        node.children.forEach((child: any) => traverse(child, currentPath));
-        return;
-      }
-
-      // LEAF (variable)
-      if (typeof node.type === 'string' || Array.isArray(node.type)) {
-        this.variables.push({
-          label: node.label,
-          code: node.code ?? node.label, // fallback safe
-          type: node.type as string,
-          path: currentPath
-        });
-
-        const t = node.type as string;
-        if (!this.variableTypes.includes(t)) this.variableTypes.push(t);
-      }
-    };
-
-    traverse(hierarchy, '');
-  }
-
   handleSearch(query: string): void {
-    this.searchQuery = query.toLowerCase();
+    this.searchQuery = query;
     this.applyFilter(this.filterType);
-    this.searchSuggestionsVisible = this.filteredItems.length > 0;
   }
 
-  // Applies the filter for either variables or groups.
-  applyFilter(type: string): void {
-    if (type === 'variables') {
-      this.filteredItems = this.variables.filter(
-        (v) =>
-          v.label.toLowerCase().includes(this.searchQuery) &&
-          (this.variableTypeFilter ? v.type === this.variableTypeFilter : true)
-      );
-    } else if (type === 'groups') {
-      this.filteredItems = this.groups.filter((g) =>
-        g.label.toLowerCase().includes(this.searchQuery)
-      );
+  applyFilter(type: 'variables' | 'groups'): void {
+    this.filterType = type;
+    const index = this.metadataIndex;
+    if (!index) {
+      this.filteredItems = [];
+      return;
     }
+
+    const results = searchMetadataIndex(index, this.searchQuery);
+    this.filteredItems = results.filter((result) => {
+      if (type === 'groups') {
+        return result.kind === 'group';
+      }
+      if (result.kind !== 'variable') {
+        return false;
+      }
+      if (!this.variableTypeFilter) {
+        return true;
+      }
+      return index.variablesById[result.id]?.type === this.variableTypeFilter;
+    });
   }
 
-  // Applies the variable type filter.
   applyVariableTypeFilter(type: string): void {
     this.variableTypeFilter = type;
     this.applyFilter(this.filterType);
   }
 
-  onItemClick(item: any): void {
-    this.searchQuery = item.label || item;
+  onItemClick(item: MetadataSearchResult): void {
+    this.searchQuery = item.label;
     this.searchSuggestionsVisible = false;
-
-    const code = item.code ?? item.label ?? item;
-    this.searchResultSelected.emit(code);
+    this.searchResultSelected.emit(item);
   }
 
-  //  Generates tooltip text for search results.
-  generateTooltip(item: any): string {
-    const parent = item.path.split(' > ').slice(-2, -1)[0] || 'Root';
-    return `Group: ${parent}\nPath: ${item.path}\nType: ${item.type}`;
+  parentGroupLabel(item: MetadataSearchResult): string {
+    if (!item.pathLabels.length) {
+      return 'Root';
+    }
+    if (item.pathLabels.length < 2) {
+      return item.pathLabels[0];
+    }
+    return item.pathLabels[item.pathLabels.length - 2];
   }
 
-  // Handles focus event on the search bar.
+  variableType(item: MetadataSearchResult): string {
+    return this.metadataIndex?.variablesById[item.id]?.type ?? '';
+  }
+
+  generateTooltip(item: MetadataSearchResult): string {
+    if (item.kind === 'group') {
+      return `Group: ${item.label}\nPath: ${item.path}`;
+    }
+    const variable = this.metadataIndex?.variablesById[item.id];
+    return `Variable: ${item.label}\nPath: ${item.path}\nType: ${variable?.type ?? 'unknown'}`;
+  }
+
   onSearchFocus(): void {
     this.searchSuggestionsVisible = true;
     this.handleSearch(this.searchQuery);
+  }
+
+  private rebuildIndex(hierarchy: any): void {
+    if (!hierarchy) {
+      this.metadataIndex = null;
+      this.variableTypes = [];
+      this.filteredItems = [];
+      return;
+    }
+
+    this.metadataIndex = normalizeMetadataTree(hierarchy);
+    this.variableTypes = [
+      ...new Set(
+        this.metadataIndex.variableIds
+          .map((id) => this.metadataIndex!.variablesById[id]?.type)
+          .filter((type): type is string => !!type)
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }
