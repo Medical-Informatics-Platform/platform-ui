@@ -54,6 +54,7 @@ export function createCollapsibleTree(
   let selectedVariables = toCodeSet(options.selectedVariables);
   let selectedCovariates = toCodeSet(options.selectedCovariates);
   let highlightedCode = codeOf(options.highlightNode);
+  let highlightedPath = pathOf(options.highlightNode);
   let bounds = measureContainer(container);
   let treeSize = { width: bounds.width, height: bounds.height };
   let pendingAutoFitFrame: number | null = null;
@@ -294,6 +295,7 @@ export function createCollapsibleTree(
       }
     });
     highlightedCode = codeOf(node);
+    highlightedPath = hierarchyPath(target);
     update(target as TreeDatum);
     centerNode(target as TreeDatum);
   };
@@ -312,7 +314,9 @@ export function createCollapsibleTree(
   const refreshSelection = (selectionOptions?: CollapsibleTreeSelectionOptions): void => {
     selectedVariables = toCodeSet(selectionOptions?.selectedVariables);
     selectedCovariates = toCodeSet(selectionOptions?.selectedCovariates);
-    highlightedCode = codeOf(selectionOptions?.highlightNode ?? null);
+    const highlight = selectionOptions?.highlightNode ?? null;
+    highlightedCode = codeOf(highlight);
+    highlightedPath = pathOf(highlight);
     refreshNodeClasses();
   };
 
@@ -341,7 +345,12 @@ export function createCollapsibleTree(
     if (node.children) classes.push('expanded');
     if (!node.children && node._children) classes.push('collapsed');
     const code = codeOf(node.data);
-    if (code && code === highlightedCode) classes.push('highlighted');
+    const nodePath = hierarchyPath(node);
+    if (highlightedPath && nodePath === highlightedPath) {
+      classes.push('highlighted');
+    } else if (!highlightedPath && code && code === highlightedCode) {
+      classes.push('highlighted');
+    }
     if (code && selectedVariables.has(code)) classes.push('selected-variable');
     if (code && selectedCovariates.has(code)) classes.push('selected-covariate');
     return classes.join(' ');
@@ -365,14 +374,69 @@ export function initializeCollapse(root: TreeDatum): void {
 }
 
 export function findHierarchyNode(root: TreeDatum, target: D3HierarchyNode): TreeDatum | null {
+  const nodes = collectTreeNodes(root);
+  const byReference = nodes.find((node) => node.data === target);
+  if (byReference) {
+    return byReference;
+  }
+
+  const targetPath = pathOf(target);
+  if (targetPath) {
+    const byPath = findHierarchyNodeByPath(root, targetPath);
+    if (byPath) {
+      return byPath;
+    }
+  }
+
   const targetCode = codeOf(target);
   const targetLabel = normalizeString(target.label);
-  return collectTreeNodes(root)
-    .find((node) => {
-      const nodeCode = codeOf(node.data);
-      if (targetCode && nodeCode === targetCode) return true;
-      return !!targetLabel && normalizeString(node.data.label) === targetLabel;
-    }) ?? null;
+  const matches = nodes.filter((node) => {
+    const nodeCode = codeOf(node.data);
+    if (targetCode && nodeCode === targetCode) return true;
+    return !!targetLabel && normalizeString(node.data.label) === targetLabel;
+  });
+
+  return matches.length === 1 ? matches[0] : null;
+}
+
+export function findHierarchyNodeByPath(root: TreeDatum, path: string): TreeDatum | null {
+  const segments = path
+    .split('>')
+    .map((segment) => normalizeString(segment))
+    .filter(Boolean);
+  if (!segments.length) {
+    return null;
+  }
+
+  if (normalizeString(root.data.label) !== segments[0]) {
+    return null;
+  }
+
+  let current: TreeDatum = root;
+  for (let index = 1; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const children = [...(current.children ?? []), ...(current._children ?? [])] as TreeDatum[];
+    const next = children.find((child) => normalizeString(child.data.label) === segment);
+    if (!next) {
+      return null;
+    }
+    current = next;
+  }
+
+  return current;
+}
+
+function hierarchyPath(node: TreeDatum): string {
+  return node
+    .ancestors()
+    .reverse()
+    .map((ancestor) => normalizeString(ancestor.data.label))
+    .filter(Boolean)
+    .join(' > ');
+}
+
+function pathOf(node: D3HierarchyNode | null | undefined): string {
+  return normalizeString((node as D3HierarchyNode & { path?: string } | null | undefined)?.path);
 }
 
 function collectTreeNodes(root: TreeDatum): TreeDatum[] {

@@ -138,22 +138,23 @@ export function normalizeMetadataTree(root: D3HierarchyNode): NormalizedMetadata
   };
 }
 
+export function listMetadataSearchResults(index: NormalizedMetadataIndex): MetadataSearchResult[] {
+  const groupResults = index.groupIds.map((id) => toGroupSearchResult(index.groupsById[id]));
+  const variableResults = index.variableIds.map((id) => toVariableSearchResult(index.variablesById[id]));
+
+  return [...groupResults, ...variableResults].sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export function searchMetadataIndex(index: NormalizedMetadataIndex, query: string): MetadataSearchResult[] {
   const normalizedQuery = normalizeSearchText(query);
-  if (!normalizedQuery) return [];
+  if (!normalizedQuery) {
+    return listMetadataSearchResults(index);
+  }
 
   const groupResults = index.groupIds
     .map((id) => index.groupsById[id])
     .filter((group) => matchesSearch(normalizedQuery, [group.label, group.code]))
-    .map((group) => ({
-      kind: 'group' as const,
-      id: group.id,
-      label: group.label,
-      path: group.pathLabels.join(' > '),
-      pathLabels: group.pathLabels,
-      matchText: group.label,
-      parentGroupId: group.parentId,
-    }));
+    .map((group) => toGroupSearchResult(group));
 
   const variableResults = index.variableIds
     .map((id) => index.variablesById[id])
@@ -164,19 +165,38 @@ export function searchMetadataIndex(index: NormalizedMetadataIndex, query: strin
       ...variable.enumerations.map((item) => item.label),
       ...variable.enumerations.map((item) => item.code),
     ]))
-    .map((variable) => ({
-      kind: 'variable' as const,
-      id: variable.id,
-      label: variable.label,
-      path: variable.pathLabels.join(' > '),
-      pathLabels: variable.pathLabels,
-      matchText: bestMatchText(normalizedQuery, variable),
-      parentGroupId: variable.parentGroupId,
-    }));
+    .map((variable) => toVariableSearchResult(variable, normalizedQuery));
 
   return [...groupResults, ...variableResults]
     .sort((a, b) => a.path.localeCompare(b.path))
     .slice(0, 50);
+}
+
+function toGroupSearchResult(group: NormalizedGroupNode): MetadataSearchResult {
+  return {
+    kind: 'group',
+    id: group.id,
+    label: group.label,
+    path: group.pathLabels.join(' > '),
+    pathLabels: group.pathLabels,
+    matchText: group.label,
+    parentGroupId: group.parentId,
+  };
+}
+
+function toVariableSearchResult(
+  variable: NormalizedVariableNode,
+  normalizedQuery = ''
+): MetadataSearchResult {
+  return {
+    kind: 'variable',
+    id: variable.id,
+    label: variable.label,
+    path: variable.pathLabels.join(' > '),
+    pathLabels: variable.pathLabels,
+    matchText: normalizedQuery ? bestMatchText(normalizedQuery, variable) : variable.label,
+    parentGroupId: variable.parentGroupId,
+  };
 }
 
 export function selectionFromSearchResult(
@@ -202,11 +222,26 @@ export function selectionFromSearchResult(
 
 export function findGroupByNode(index: NormalizedMetadataIndex, node: D3HierarchyNode | null): NormalizedGroupNode | null {
   if (!node) return null;
+
+  const path = normalizeString((node as D3HierarchyNode & { path?: string }).path);
+  if (path) {
+    const byPath = index.groupIds
+      .map((id) => index.groupsById[id])
+      .find((group) => group.pathLabels.join(' > ') === path);
+    if (byPath) return byPath;
+  }
+
   const code = normalizeString(node.code);
   const label = normalizeString(node.label);
-  return index.groupIds
+  const matches = index.groupIds
     .map((id) => index.groupsById[id])
-    .find((group) => (code && group.code === code) || (label && group.label === label)) ?? null;
+    .filter((group) => (code && group.code === code) || (label && group.label === label));
+
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  return null;
 }
 
 export function findVariableByNode(
@@ -214,11 +249,26 @@ export function findVariableByNode(
   node: D3HierarchyNode | null
 ): NormalizedVariableNode | null {
   if (!node) return null;
+
+  const path = normalizeString((node as D3HierarchyNode & { path?: string }).path);
+  if (path) {
+    const byPath = index.variableIds
+      .map((id) => index.variablesById[id])
+      .find((variable) => variable.pathLabels.join(' > ') === path);
+    if (byPath) return byPath;
+  }
+
   const code = normalizeString(node.code);
   const label = normalizeString(node.label);
-  return index.variableIds
+  const matches = index.variableIds
     .map((id) => index.variablesById[id])
-    .find((variable) => (code && variable.code === code) || (label && variable.label === label)) ?? null;
+    .filter((variable) => (code && variable.code === code) || (label && variable.label === label));
+
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  return null;
 }
 
 export function pathForGroup(index: NormalizedMetadataIndex, groupId: string): NormalizedGroupNode[] {
