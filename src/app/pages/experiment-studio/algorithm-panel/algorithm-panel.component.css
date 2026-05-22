@@ -363,7 +363,7 @@
 
 .experiment-panel>header {
   margin: 0;
-  padding: 10px 16px;
+  padding: 12px 14px;
   background: rgba(248, 250, 252, 0.92);
   border-bottom: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
   border-top-left-radius: 16px;
@@ -385,13 +385,6 @@
   gap: 12px;
 }
 
-.header-actions-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
 .header-text {
   display: flex;
   flex-direction: column;
@@ -410,23 +403,6 @@
   color: var(--text-muted);
   margin: 0;
 }
-
-.back-btn {
-  margin-right: 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px solid transparent;
-}
-
-.back-btn:hover {
-  color: var(--primary-color);
-  background: rgba(43, 51, 233, 0.05);
-  border-color: rgba(43, 51, 233, 0.1);
-}
-
 
 /* RUN BUTTON */
 .run-button {
@@ -457,17 +433,6 @@
   opacity: 0.7;
 }
 
-.algorithm-requirements-panel {
-  margin: 0 0 14px;
-  padding: 12px 14px;
-  border-left: 4px solid #f59e0b;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #fffbeb 0%, #fff7ed 100%);
-  color: #92400e;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
 .algorithm-requirements-heading {
   display: flex;
   align-items: center;
@@ -491,10 +456,9 @@
 
 .algorithm-requirement-item {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.35rem 0.75rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   padding: 8px 10px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.58);
@@ -502,31 +466,14 @@
 }
 
 .algorithm-requirement-message {
-  flex: 1 1 12rem;
   min-width: 0;
 }
 
-.algorithm-requirement-action {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-weight: 700;
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.algorithm-requirement-action:hover {
-  opacity: 0.82;
-}
-
-.algorithm-requirement-action:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+.settings-cta-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 14px;
+  padding-top: 4px;
 }
 
 /* SAVE AS UI */
@@ -852,6 +799,16 @@
   transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
 }
 
+.experiment-panel-main .experiment-settings-body {
+  width: 100%;
+  max-width: none;
+}
+
+.experiment-settings-body {
+  width: 100%;
+  max-width: var(--studio-content-max, 720px);
+}
+
 .experiment-settings:hover {
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
 }
@@ -906,6 +863,8 @@
 }
 
 .config-placeholder--minimal {
+  width: fit-content;
+  max-width: min(100%, var(--studio-content-max, 720px));
   min-height: 0;
   padding: 14px 16px;
   margin-top: 8px;
@@ -953,15 +912,11 @@
   line-height: 1.6;
 }
 
-.cross-validation-toggle {
+.cross-validation-toggle,
+.transformation-toggle {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md, 8px);
-  background: rgba(2, 128, 128, 0.06);
-  border: 1px solid rgba(2, 128, 128, 0.18);
 }
 
 .cross-validation-hint {
@@ -971,14 +926,7 @@
 }
 
 .transformation-toggle {
-  display: flex;
-  flex-direction: column;
   gap: 6px;
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md, 8px);
-  background: rgba(8, 59, 94, 0.06);
-  border: 1px solid rgba(8, 59, 94, 0.18);
 }
 
 .transformation-hint {
@@ -1283,6 +1231,10 @@
 
 .result-section {
   margin: 1rem 14px 0;
+}
+
+.experiment-panel-workspace--result .result-section {
+  margin: 0;
 }
 
 .result-section h5 {
