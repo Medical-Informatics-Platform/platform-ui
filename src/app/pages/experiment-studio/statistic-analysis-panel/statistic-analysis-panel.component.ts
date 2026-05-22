@@ -78,12 +78,6 @@ interface PivotBlock {
   rows: Array<{ metric: string; values: Record<string, string> }>;
 }
 
-interface StatisticMetadata {
-  label: string;
-  value: string;
-  severity?: 'none' | 'warning' | 'high';
-}
-
 interface VariableRow {
   code: string;
   name?: string;
@@ -683,17 +677,6 @@ export class StatisticAnalysisPanelComponent {
     const total = this.statisticMetricNumber(block, 'Total');
     if (total > 0 && missing / total >= 0.1) return 'high';
     return 'warning';
-  }
-
-  statisticMetadata(_kind: SummaryKind, block: PivotBlock): StatisticMetadata[] {
-    return [
-      { label: 'Datapoints', value: this.statisticMetricText(block, 'Datapoints') },
-      {
-        label: 'Missing',
-        value: this.statisticMissingValue(block).toLocaleString(),
-        severity: this.statisticMissingSeverity(block),
-      },
-    ];
   }
 
   selectedSummaryChartType(kind: SummaryKind, block: PivotBlock): 'numeric' | 'nominal' {
@@ -1441,7 +1424,7 @@ export class StatisticAnalysisPanelComponent {
         lowerOutliers: this.formatOutlierPreviewValue(data['lower_outlier_count']),
         upperOutliers: this.formatOutlierPreviewValue(data['upper_outlier_count']),
         totalOutliers: this.formatOutlierPreviewValue(data['total_outlier_count']),
-        outlierPercentage: this.formatOutlierPreviewValue(data['total_outlier_percentage']),
+        outlierPercentage: this.formatOutlierPercentage(data['total_outlier_percentage']),
       };
     });
   }
@@ -1452,13 +1435,20 @@ export class StatisticAnalysisPanelComponent {
   }
 
   private formatOutlierPreviewValue(value: unknown): string {
-    if (value === null || value === undefined || value === '') return 'Unavailable';
+    if (value === null || value === undefined || value === '') return '-';
     if (typeof value === 'number' && Number.isFinite(value)) {
       return Number.isInteger(value)
         ? value.toLocaleString()
         : value.toLocaleString(undefined, { maximumFractionDigits: 6 });
     }
     return String(value);
+  }
+
+  private formatOutlierPercentage(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '-';
+    const num = typeof value === 'number' ? value : parseFloat(String(value));
+    if (!Number.isFinite(num)) return '-';
+    return num.toFixed(2) + '%';
   }
 
   private buildPreprocessingConfig(
