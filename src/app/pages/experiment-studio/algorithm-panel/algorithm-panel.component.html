@@ -119,8 +119,98 @@
   </div>
   }
 
-  <main class="experiment-panel" data-guide="algorithm-settings">
+  <main class="experiment-panel" data-guide="algorithm-settings"
+    [class.experiment-panel--has-workspace]="!isRunning() && (!!selectedAlgorithm() || !!result())">
+
+    <ng-template #experimentSummaryContent>
+      <div class="summary-fields">
+        <section class="summary-field">
+          <h4 class="summary-field-label">Datasets</h4>
+          <div class="summary-field-value">
+            @if (experimentInfo().datasets.length) {
+            <div class="summary-chip-group">
+              @for (d of experimentInfo().datasets; track d) {
+              <span class="summary-chip">{{ d }}</span>
+              }
+            </div>
+            } @else {
+            <span class="summary-empty">None selected</span>
+            }
+          </div>
+        </section>
+
+        <section class="summary-field">
+          <h4 class="summary-field-label">Variables</h4>
+          <div class="summary-field-value">
+            @if (experimentInfo().variables.length) {
+            <div class="summary-chip-group">
+              @for (v of experimentInfo().variables; track v.code) {
+              <span class="summary-chip">{{ v.label || v.name || v.code }}</span>
+              }
+            </div>
+            } @else {
+            <span class="summary-empty">None selected</span>
+            }
+          </div>
+        </section>
+
+        <section class="summary-field">
+          <h4 class="summary-field-label">Covariates</h4>
+          <div class="summary-field-value">
+            @if (experimentInfo().covariates.length) {
+            <div class="summary-chip-group">
+              @for (c of experimentInfo().covariates; track c.code) {
+              <span class="summary-chip summary-chip--muted">{{ c.label || c.name || c.code }}</span>
+              }
+            </div>
+            } @else {
+            <span class="summary-empty">None selected</span>
+            }
+          </div>
+        </section>
+
+        <section class="summary-field">
+          <h4 class="summary-field-label">Filters</h4>
+          <div class="summary-field-value">
+            @if (experimentInfo().filters.length) {
+            <div class="summary-chip-group">
+              @for (f of experimentInfo().filters; track f.code) {
+              <span class="summary-chip summary-chip--outline">{{ f.label || f.name || f.code }}</span>
+              }
+            </div>
+            } @else {
+            <span class="summary-empty">No filters</span>
+            }
+          </div>
+        </section>
+
+        <section class="summary-field summary-field--block">
+          <h4 class="summary-field-label">Preprocessing</h4>
+          <div class="summary-field-value">
+            @if (experimentInfo().preprocessingSteps.length) {
+            <div class="summary-preprocessing-list">
+              @for (step of experimentInfo().preprocessingSteps; track $index) {
+              <article class="summary-preprocessing-step">
+                <span class="summary-preprocessing-step-title">{{ step.label }}</span>
+                <div class="summary-chip-group summary-chip-group--compact">
+                  @for (detail of preprocessingStepDetails(step.value); track $index) {
+                  <span class="summary-chip summary-chip--detail">{{ detail }}</span>
+                  }
+                </div>
+              </article>
+              }
+            </div>
+            } @else {
+            <span class="summary-empty">None applied</span>
+            }
+          </div>
+        </section>
+      </div>
+    </ng-template>
+
     <header>
+      <div class="experiment-panel-header-inner">
+        <div class="experiment-panel-header-main">
       <div class="experiment-header">
         <div class="header-title-group">
           <span class="icon-pill" aria-hidden="true">
@@ -136,30 +226,7 @@
           </div>
         </div>
 
-        <div class="header-actions-group" data-guide="save-as-flow">
-          @if (result() && !saveAsMode()) {
-          <button class="secondary-action-btn back-btn" (click)="backToParameters()" title="Edit Parameters"
-            data-guide="edit-parameters-action">
-            <i class="fas fa-chevron-left"></i>
-            <span>Edit Parameters</span>
-          </button>
-          <button class="primary-action-btn run-button save-as" (click)="toggleSaveAsMode()" data-guide="save-as-action">
-            Save As
-          </button>
-          } @else if (saveAsMode()) {
-          <div class="save-as-container" data-guide="save-as-form">
-            <input type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
-              placeholder="Experiment name" class="save-as-input" />
-            <button class="primary-action-btn run-button" (click)="onSaveAs()"
-              [disabled]="!saveAsName().trim() || isRunning()">
-              {{ isRunning() ? "Saving..." : "Save" }}
-            </button>
-            <button class="secondary-action-btn cancel-btn" (click)="cancelSaveAs()">
-              ✕
-            </button>
-          </div>
-          }
-
+        @if (((!selectedAlgorithm() && !result()) || isRunning())) {
           <div class="floating-group">
             <button class="floating-info-button" type="button" (click)="toggleInfoPanel()"
               data-guide="experiment-summary">
@@ -182,100 +249,11 @@
                 </button>
               </header>
 
-              <div class="info-panel-body">
-
-                <!-- DATASETS -->
-                <div class="info-row">
-                  <div class="info-label">Datasets</div>
-                  <div class="info-value">
-                    @if (experimentInfo().datasets.length) {
-                    <div class="info-chips">
-                      @for (d of experimentInfo().datasets; track d) {
-                      <span class="info-chip">{{ d }}</span>
-                      }
-                    </div>
-                    } @else {
-                    <span class="info-empty-pill">None selected</span>
-                    }
-                  </div>
-                </div>
-
-                <!-- VARIABLES -->
-                <div class="info-row">
-                  <div class="info-label">Variables</div>
-                  <div class="info-value">
-                    @if (experimentInfo().variables.length) {
-                    <div class="info-chips">
-                      @for (v of experimentInfo().variables; track v.code) {
-                      <span class="info-chip">
-                        {{ v.label || v.name || v.code }}
-                      </span>
-                      }
-                    </div>
-                    } @else {
-                    <span class="info-empty-pill">None selected</span>
-                    }
-                  </div>
-                </div>
-
-                <!-- COVARIATES -->
-                <div class="info-row">
-                  <div class="info-label">Covariates</div>
-                  <div class="info-value">
-                    @if (experimentInfo().covariates.length) {
-                    <div class="info-chips">
-                      @for (c of experimentInfo().covariates; track c.code) {
-                      <span class="info-chip info-chip--soft">
-                        {{ c.label || c.name || c.code }}
-                      </span>
-                      }
-                    </div>
-                    } @else {
-                    <span class="info-empty-pill">None selected</span>
-                    }
-                  </div>
-                </div>
-
-                <!-- FILTERS -->
-                <div class="info-row">
-                  <div class="info-label">Filters</div>
-                  <div class="info-value">
-                    @if (experimentInfo().filters.length) {
-                    <div class="info-chips">
-                      @for (f of experimentInfo().filters; track f.code) {
-                      <span class="info-chip info-chip--outline">
-                        {{ f.label || f.name || f.code }}
-                      </span>
-                      }
-                    </div>
-                    } @else {
-                    <span class="info-empty-pill">No filters</span>
-                    }
-                  </div>
-                </div>
-
-                <!-- ALGORITHM CONFIGS -->
-                <div class="info-row info-row--stacked">
-                  <div class="info-label">Algorithm configs</div>
-                  <div class="info-value">
-                    @if (objectKeys(experimentInfo().algorithmConfigs).length) {
-                    <dl class="info-config-list">
-                      @for (k of objectKeys(experimentInfo().algorithmConfigs);
-                      track k) {
-                      <div class="info-config-item">
-                        <dt>{{ prettifyKey(k) }}</dt>
-                        <dd>{{ experimentInfo().algorithmConfigs[k] }}</dd>
-                      </div>
-                      }
-                    </dl>
-                    } @else {
-                    <span class="info-empty-pill">No custom configs</span>
-                    }
-                  </div>
-                </div>
-              </div>
+              <ng-container *ngTemplateOutlet="experimentSummaryContent"></ng-container>
             </aside>
           </div>
+        }
+      </div>
         </div>
       </div>
     </header>
@@ -296,39 +274,85 @@
       <p>{{ loadingText() }}</p>
     </div>
     } @else if (result()) {
-    <section class="result-section" #resultSection data-guide="experiment-result">
-      <div class="result-header">
-        <div class="header-spacer"></div>
-        <h5>{{ resultDisplayTitle() }}</h5>
+    <div class="experiment-panel-workspace experiment-panel-workspace--result">
+      <section class="experiment-panel-main result-section" #resultSection data-guide="experiment-result">
+        <div class="result-section-toolbar" [class.result-section-toolbar--save-as]="saveAsMode()">
+          <h2 class="result-section-title">{{ resultDisplayTitle() }}</h2>
 
-        <!-- Export as PDF button -->
-        <button class="icon-button export-button" type="button" (click)="onExportResult(resultSection)"
-          data-guide="result-export"
-          title="Export as PDF">
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 20h14v-2H5v2zm7-16v9.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V4h2z" />
-          </svg>
-          <span>Export PDF</span>
-        </button>
-      </div>
+          @if (!saveAsMode()) {
+          <div class="result-toolbar-actions" data-guide="save-as-flow" role="group" aria-label="Result actions">
+            <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="backToParameters()"
+              title="Edit parameters" data-guide="edit-parameters-action">
+              <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-sliders-h"></i></span>
+              <span class="toolbar-btn-label">Edit parameters</span>
+            </button>
+            <button type="button" class="toolbar-btn toolbar-btn--primary" (click)="toggleSaveAsMode()"
+              data-guide="save-as-action">
+              <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-copy"></i></span>
+              <span class="toolbar-btn-label">Save as</span>
+            </button>
+            <span class="toolbar-divider" aria-hidden="true"></span>
+            <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="onExportResult(resultSection)"
+              data-guide="result-export" title="Export as PDF">
+              <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-file-pdf"></i></span>
+              <span class="toolbar-btn-label">Export PDF</span>
+            </button>
+          </div>
+          } @else {
+          <div class="result-toolbar-actions result-toolbar-actions--save-as" data-guide="save-as-form">
+            <div class="save-as-inline">
+              <label class="save-as-inline-label" for="save-as-name-input">Experiment name</label>
+              <input id="save-as-name-input" type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
+                placeholder="Enter a name for this experiment" class="save-as-input" />
+            </div>
+            <div class="result-toolbar-action-buttons">
+              <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="cancelSaveAs()">
+                <span class="toolbar-btn-label">Cancel</span>
+              </button>
+              <button type="button" class="toolbar-btn toolbar-btn--primary" (click)="onSaveAs()"
+                [disabled]="!saveAsName().trim() || isRunning()">
+                <span class="toolbar-btn-label">{{ isRunning() ? "Saving..." : "Save experiment" }}</span>
+              </button>
+            </div>
+          </div>
+          }
+        </div>
 
-      <app-algorithm-result [result]="result()" [schema]="lastUsedSchema()" [algorithm]="lastUsedAlgorithm"
-        [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
-        [algorithmLabel]="resultAlgorithmLabel()" />
+        <div class="result-section-body">
+          <app-algorithm-result [result]="result()" [schema]="lastUsedSchema()" [algorithm]="lastUsedAlgorithm"
+            [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
+            [algorithmLabel]="resultAlgorithmLabel()" />
+        </div>
 
-      @if (mipVersion) {
-      <div class="mip-version-bar">
-        <span class="mip-version-label">MIP Version:</span>
-        <span class="mip-version-value">{{ mipVersion }}</span>
-      </div>
-      }
-    </section>
+        @if (mipVersion) {
+        <div class="mip-version-bar">
+          <span class="mip-version-label">MIP Version:</span>
+          <span class="mip-version-value">{{ mipVersion }}</span>
+        </div>
+        }
+      </section>
+
+      <aside class="experiment-panel-aside experiment-summary-aside" aria-label="Experiment summary"
+        data-guide="experiment-summary-panel">
+        <header class="summary-aside-header">
+          <span class="summary-aside-header-icon" aria-hidden="true">
+            <i class="fas fa-clipboard-list"></i>
+          </span>
+          <div class="summary-aside-header-copy">
+            <h3>Experiment summary</h3>
+            <p>Overview of datasets, variables, and configuration.</p>
+          </div>
+        </header>
+        <ng-container *ngTemplateOutlet="experimentSummaryContent"></ng-container>
+      </aside>
+    </div>
     } @else if (selectedAlgorithm()) {
-    <section class="experiment-settings">
-      <h5 class="config-title">
-        {{ selectedAlgorithm()?.label }} Configuration
-      </h5>
+    <div class="experiment-panel-workspace">
+      <section class="experiment-panel-main">
+      <div class="experiment-settings-body">
+      @if (selectedAlgorithm()?.description) {
       <p class="config-description">{{ selectedAlgorithm()?.description }}</p>
+      }
 
       @if (selectedAlgorithmDocumentation()) {
       <details class="documentation-panel">
@@ -344,7 +368,7 @@
       }
 
       @if (algorithmRunRequirements().length > 0) {
-      <div class="algorithm-requirements-panel" role="status" aria-label="Requirements before running">
+      <div class="studio-settings-block studio-settings-block--alert algorithm-requirements-panel" role="status" aria-label="Requirements before running">
         <div class="algorithm-requirements-heading">
           <i class="fas fa-clipboard-list" aria-hidden="true"></i>
           <span>Complete before running</span>
@@ -355,6 +379,7 @@
             <span class="algorithm-requirement-message">{{ requirement.message }}</span>
             <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(requirement)">
               {{ requirement.actionLabel }}
+              <i class="fas fa-arrow-right" aria-hidden="true"></i>
             </button>
           </li>
           }
@@ -365,7 +390,7 @@
       <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
 
       @if (canToggleCrossValidation()) {
-      <div class="cross-validation-toggle">
+      <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
         <label class="checkbox-wrapper">
           <input type="checkbox" [checked]="crossValidationEnabled()" (change)="toggleCrossValidation($event)" />
           <span>Enable cross-validation</span>
@@ -377,7 +402,7 @@
       }
 
       @if (isCrossValidationOnly()) {
-      <div class="cross-validation-toggle">
+      <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
         <div class="cross-validation-hint">
           Cross-validation is enabled for this algorithm.
         </div>
@@ -385,7 +410,7 @@
       }
 
       @if (canToggleTransformation()) {
-      <div class="transformation-toggle">
+      <div class="studio-settings-block studio-settings-block--option transformation-toggle">
         <label class="checkbox-wrapper">
           <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
           <span>Enable data transformations</span>
@@ -627,7 +652,23 @@
           {{ isRunning() ? "Running..." : "Run Experiment" }}
         </button>
       </div>
-    </section>
+      </div>
+      </section>
+
+      <aside class="experiment-panel-aside experiment-summary-aside" aria-label="Experiment summary"
+        data-guide="experiment-summary-panel">
+        <header class="summary-aside-header">
+          <span class="summary-aside-header-icon" aria-hidden="true">
+            <i class="fas fa-clipboard-list"></i>
+          </span>
+          <div class="summary-aside-header-copy">
+            <h3>Experiment summary</h3>
+            <p>Overview of datasets, variables, and configuration.</p>
+          </div>
+        </header>
+        <ng-container *ngTemplateOutlet="experimentSummaryContent"></ng-container>
+      </aside>
+    </div>
     } @else {
     <section class="experiment-settings experiment-settings--placeholder">
       <div class="config-placeholder">
