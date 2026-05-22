@@ -1,96 +1,143 @@
-## Quick Init for Agents
+# Agent Instructions
 
-Use this as a fast orientation to the codebase.
+## Project Overview
+This repository contains `fl-platform`, the Angular 21 standalone frontend for the Medical Informatics Platform (MIP). The app lets authenticated users compose and run experiments, configure algorithms, integrate with JupyterHub when enabled, and review/export experiment results from a backend exposed under `/services`.
 
-- **Project**: Angular **21** standalone app (`fl-platform`) serving as the Platform UI for the MIP (Medical Informatics Platform), for composing/running experiments, configuring algorithms, integrating JupyterHub, and reviewing results. Entry: `src/main.ts`, root component: `src/app/app.component.ts`.
-- **Routing** (`src/app/app.routes.ts`):
-  - Main: `/experiments-dashboard`, `/experiment-studio`, `/account`, `/terms`
-  - Redirects: `''` -> `/experiments-dashboard`
-  - Wildcard: `**` -> `/experiments-dashboard`
-  - Guards: most routes use `AuthGuard` + `TermsGuard`; `/terms` uses `AuthGuard` only.
-- **Auth + session flow** (`src/app/services/auth.service.ts`):
-  - Session check: `GET /services/activeUser`
-  - Login redirect: `/services/oauth2/authorization/keycloak?frontend_redirect=...`
-  - Logout: hard redirect to `/services/logout`
-  - Redirect handling stored in localStorage (`redirect_url`)
-  - HTTP interceptor (`auth.interceptor.ts`) adds `withCredentials` for same-origin API calls.
-- **Terms/NDA flow**:
-  - `TermsGuard` checks `user.agreeNDA` and routes to `/terms` if needed.
-  - `TermsService` stores intended destination in localStorage (`tos_redirect_url`).
-  - Terms page loads `assets/tos.md` and posts `POST /services/activeUser/agreeNDA`.
-- **HTTP config** (`src/app/app.config.ts`):
-  - `provideHttpClient` with credentials interceptor and XSRF header/cookie config.
-  - Router uses in-memory scrolling restoration.
-  - ECharts is provided lazily with `provideEchartsCore`.
-- **Backend endpoints** (dev proxy in `src/proxy.conf.json` -> `http://localhost:8080`):
-  - Auth/user: `GET /services/activeUser`, `POST /services/activeUser/agreeNDA`
-  - Catalogs: `GET /services/data-models`, `GET /services/algorithms`
-  - Experiments:
-    - `GET /services/experiments` (paged list)
-    - `GET /services/experiments/:id` (metadata/result fetch)
-    - `POST /services/experiments` (run async + poll by UUID)
-    - `POST /services/experiments/transient` (quick previews: histograms/descriptive stats)
-    - `PATCH /services/experiments/:id` (name/shared updates)
-    - `DELETE /services/experiments/:id`
-- **Feature pages**:
-  - **Experiment Studio** (`src/app/pages/experiment-studio/...`): data model + dataset selection, variable/covariate/filter selection, QueryBuilder filter logic, algorithm configuration, run/edit flows, stats/distribution previews, results rendering (ECharts + D3), PDF export.
-  - **Experiments Dashboard** (`src/app/pages/experiments-dashboard/...`): list/search/pagination, mine/shared toggles, share link creation, detail view, compare mode, delete/edit/name updates, result export.
-  - **Terms page** (`src/app/pages/terms-page/...`): markdown-to-HTML rendering and NDA acceptance gating.
-  - **Account page** (`src/app/pages/account-page/...`): user info/logout view.
-- **State patterns**:
-  - Strong use of Angular Signals across features.
-  - `ExperimentStudioService` is the main orchestration layer (selection state, algorithm availability, configurations, run/polling, hydration for edit mode, transient calls, sessionStorage persistence).
-  - `ExperimentsDashboardService` owns paged experiment list signals.
-  - `ErrorService` shares global feature errors via `BehaviorSubject`.
-- **Algorithm availability rules**:
-  - Encoded in `src/app/services/algorithm-rules.service.ts`.
-  - Includes special cases for ANOVA variants, one-sample t-test, PCA/transformation variants, role constraints, and filter requirements.
-- **Visualization and output mapping**:
-  - Algorithm/result schema mapping: `src/app/core/algorithm-mappers.ts`
-  - Chart registry/builders: `src/app/pages/experiment-studio/visualisations/charts/...`
-  - Enum/label helpers: `src/app/services/experiment-label.service.ts`, `src/app/core/algorithm-result-enum-mapper.ts`
-- **PDF exports**:
-  - `src/app/services/export-results-pdf.service.ts`: experiment results report export.
-  - `src/app/services/pdf-export.service.ts`: distribution/descriptive statistics export.
-- **Theming and branding**:
-  - `ThemeService` toggles body theme classes (`theme-light`/`theme-dark`) and persists preference.
-  - Footer surfaces the MIP version from `window.__env.MIP_VERSION` (`src/assets/env.js` or template at container startup).
-  - For UI aesthetics, layout polish, visual hierarchy, spacing, typography, and color decisions, consult and follow `DESIGN_SYSTEM.yaml` in the repo root. Treat it as the aesthetic reference before introducing or changing interface styling.
-- **Build/Test commands**:
-  - `npm start` (dev server + proxy)
-  - `npm run build` (Angular build)
-  - `npm run watch` (dev build watch)
-  - `npm test` (Karma)
-- **Container**:
-  - `Dockerfile` builds with Node 20, serves with nginx.
-  - Runtime `envsubst` injects:
-    - proxy envs: `PLATFORM_BACKEND_SERVER`, `PLATFORM_BACKEND_CONTEXT`
-    - version env: `MIP_VERSION`
+## Repository Layout
+- `src/main.ts`: Angular bootstrap entrypoint.
+- `src/app/app.component.*`, `src/app/app.routes.ts`, `src/app/app.config.ts`: app shell, routing, providers, HTTP, XSRF, zoneless change detection, and ECharts setup.
+- `src/app/guards/`: route guards for authentication, terms/NDA acceptance, and studio guide onboarding.
+- `src/app/services/`: auth/session, experiment orchestration, dashboard data access, algorithm rules, labeling, runtime env, theme, errors, and PDF/CSV exports.
+- `src/app/models/`: frontend and backend DTOs/interfaces for users, algorithms, experiments, filters, and data models.
+- `src/app/core/`: algorithm mapping, result enum mapping, constants, and result utility logic.
+- `src/app/pages/experiment-studio/`: data model/dataset selection, variable/covariate/filter selection, QueryBuilder filter UI, algorithm configuration, run/edit flows, statistics, visualizations, and result rendering.
+- `src/app/pages/experiments-dashboard/`: experiment list/search/pagination, detail view, compare mode, sharing, delete/edit/name updates, and result export.
+- `src/app/pages/terms-page/`: NDA/TOS display and acceptance flow.
+- `src/app/pages/account-page/`: account/profile view and logout entry.
+- `src/app/pages/notebook/`: optional notebook route gated by runtime env.
+- `src/app/pages/shared/`: header, footer, spinner, and shared form-control utilities.
+- `src/assets/`: runtime `env.js`, logos/icons, footer assets, and terms markdown.
+- `public/`: static files copied to the Angular build output.
+- `src/styles.css`: global styling and QueryBuilder theming.
+- `DESIGN_SYSTEM.yaml`: MIP visual/brand guidance; consult before UI styling changes.
+- `Dockerfile`, `docker-entrypoint.sh`, `nginx.conf.template`: container build and nginx/runtime environment injection.
+- `.github/workflows/`: image publishing and EBRAINS mirror workflows.
+- `docs/`: project documentation, QA checklists, visualization audits, and the durable context system under `docs/context/`.
 
-## Folder Map
+## Stack
+- Language/runtime: TypeScript, HTML templates, CSS, Node 20+, npm 10+.
+- Framework: Angular 21 standalone application, Angular Router, Angular Material/CDK, Angular Signals, zoneless change detection.
+- Data/async: Angular `HttpClient`, RxJS, browser localStorage/sessionStorage.
+- Visualization/export: ECharts via `ngx-echarts`, D3, html2canvas, jsPDF, jsPDF AutoTable.
+- Test framework: Jasmine/Karma through Angular CLI.
+- Package manager: npm with `package-lock.json`; use `npm ci` for clean installs.
+- Container/runtime: Docker multi-stage Node 20 build served by nginx alpine; runtime config injected into `assets/env.js`.
 
-- `/src/app`: main app code.
-  - `app.component.*`, `app.routes.ts`, `app.config.ts`: shell/bootstrap wiring.
-  - `guards/`: `auth.guard.ts`, `terms.guard.ts`.
-  - `services/`:
-    - auth/session/errors: `auth.service.ts`, `auth.interceptor.ts`, `terms.service.ts`, `session-storage.service.ts`, `error.service.ts`, `theme.service.ts`
-    - experiment orchestration: `experiment-studio.service.ts`, `experiments-dashboard.service.ts`, `algorithm-rules.service.ts`, `experiment-label.service.ts`
-    - exports: `pdf-export.service.ts`, `export-results-pdf.service.ts`
-  - `models/`: frontend/backend DTOs and interfaces (user, algorithms, experiments, filters, data-models).
-  - `core/`: algorithm mapping and constants.
-  - `pages/experiment-studio/`:
-    - `variables-panel/`: model/dataset selection, search, variable actions, filters UI, histogram
-    - `algorithm-panel/`: algorithm selection/configuration, run/save-as, result rendering.
-    - `statistic-analysis-panel/`: descriptive stats/model tables/charts.
-    - `visualisations/`: chart registry/builders, histogram, auto-renderer, bubble chart.
-  - `pages/experiments-dashboard/`: list/search/detail/compare and mapper utilities.
-  - `pages/terms-page/`: NDA/TOS gate.
-  - `pages/account-page/`: account/profile.
-  - `pages/shared/`: header/footer/navbar/spinner and shared form-control factory.
-- `/src/assets`: logos/icons/TOS markdown + runtime env files.
-- `/public`: static files copied to build output.
-- `/src/styles.css`: global styling + QueryBuilder theming.
-- `/src/proxy.conf.json`: dev proxy `/services` -> backend.
-- `/Dockerfile`, `/nginx.conf.template`: container build/serve config.
+## Setup Commands
+```bash
+npm ci
+```
 
-- Build once you make changes to be sure you did not break something.
+Requirements:
+- Node 20+ and npm 10+.
+- Backend reachable at `http://localhost:8080/services` for local development unless `src/proxy.conf.json` is changed.
+- Keycloak/OAuth2 endpoints available through the backend proxy for authenticated flows.
+
+## Development Commands
+```bash
+npm start
+```
+Runs `ng serve` with `src/proxy.conf.json` from `angular.json`. The app is served at `http://localhost:4200/`.
+
+```bash
+npm run watch
+```
+Runs a development build in watch mode.
+
+## Build Commands
+```bash
+npm run build
+```
+Runs the production Angular build. Output is `dist/fl-platform`.
+
+Docker:
+```bash
+docker build -t fl-platform .
+docker run -e PLATFORM_BACKEND_SERVER=platform-backend-service:8080 -e PLATFORM_BACKEND_CONTEXT=services -p 80:80 fl-platform
+```
+
+## Test Commands
+```bash
+npm test
+```
+Runs Jasmine/Karma unit tests through Angular CLI.
+
+Manual browser QA is required for authenticated experiment workflows and backend-dependent chart/result rendering. See `docs/frontend-browser-qa-checklist.md`.
+
+## Lint / Format / Typecheck
+No dedicated lint, format, or standalone typecheck scripts are defined in `package.json`.
+
+Known available checks:
+```bash
+npm run build
+npm test
+```
+
+Unknown / TODO: verify whether the project wants dedicated lint, format, or typecheck scripts added later.
+
+## Architecture Rules
+- Keep feature UI under the owning page directory in `src/app/pages/...`.
+- Keep cross-feature orchestration and backend calls in Angular services under `src/app/services/`.
+- Keep backend DTOs and frontend-facing interfaces in `src/app/models/`; map backend shapes before rendering when needed.
+- Keep algorithm/result schema mapping in `src/app/core/algorithm-mappers.ts` and result enum label logic in `src/app/core/algorithm-result-enum-mapper.ts`.
+- Keep chart and table rendering logic in the existing visualization registries under `src/app/pages/experiment-studio/visualisations/`.
+- Keep route protection in guards; do not duplicate auth or NDA checks inside unrelated components.
+- Read runtime configuration through the existing runtime env pattern (`window.__env` and `RuntimeEnvService`) rather than scattered direct environment reads.
+- Use the `/services` same-origin API boundary; the credentials interceptor adds `withCredentials` to same-origin API calls.
+- Preserve the session/local storage keys used for auth redirects, terms redirects, and experiment studio state unless a migration is explicitly planned.
+
+## Coding Conventions
+- Prefer standalone Angular components and `imports` arrays over NgModules.
+- Prefer Angular Signals for component and feature state where the surrounding code already uses Signals.
+- Use `inject()` consistently with nearby services/components.
+- Keep TypeScript strictness intact; `tsconfig.json` enables strict templates, no unused locals/parameters, no implicit returns, and related checks.
+- Use CSS component styles (`styleLanguage: css`) and global styles only for app-wide concerns.
+- Follow `DESIGN_SYSTEM.yaml` for UI aesthetics, brand colors, logo usage, typography, spacing, and visual hierarchy.
+- Keep backend API paths relative (`/services/...`) so proxy/nginx routing continues to work.
+- Handle backend errors explicitly through local state or `ErrorService`; avoid hiding failures.
+- Use existing mapper, label, and registry helpers before adding new presentation logic.
+- Add or update Jasmine specs near the changed code when behavior changes.
+
+## Forbidden Patterns
+- Do not silently swallow exceptions or failed HTTP calls.
+- Do not introduce global mutable state outside established Angular services or runtime env bootstrapping.
+- Do not read or write runtime environment values outside the existing config/runtime env layer without a documented reason.
+- Do not bypass `AuthGuard`, `TermsGuard`, or the credentials interceptor for authenticated flows.
+- Do not change `/services` API contracts, experiment payload shapes, or algorithm result mappings without documenting compatibility impact.
+- Do not remove legacy algorithm aliases unless stored historical experiment compatibility has been reviewed.
+- Do not introduce new dependencies without explaining why the existing stack is insufficient.
+- Do not reformat unrelated files or rewrite unrelated feature structure.
+- Do not modify Docker, nginx, CI, auth, sharing, deletion, or runtime env behavior without focused validation and human review.
+
+## Security and Privacy Rules
+- Never commit secrets, tokens, cookies, credentials, or private environment values.
+- Never print secrets or sensitive experiment/user data in logs.
+- Treat authentication, authorization, terms/NDA gating, experiment sharing, experiment deletion, Docker/CI secrets, runtime proxying, and notebook access as human-review areas.
+- Preserve same-origin credential and XSRF behavior unless the backend contract is being intentionally changed.
+- Validate redirect, share, delete, and notebook behavior carefully because they affect access boundaries.
+
+## PR Expectations
+Every agent change should include:
+- Summary of behavior/documentation changed.
+- Files changed.
+- Tests/checks run and results.
+- Risk assessment, including auth/API/data/deployment impact if relevant.
+- Rollback notes when changes affect runtime behavior, deployment, migrations, data deletion, or public contracts.
+
+## Definition of Done
+- The diff is minimal and directly tied to the request.
+- Relevant files and existing patterns were read before editing.
+- Public API, route, runtime env, and backend contract changes are documented when made.
+- Relevant unit tests, build, or manual QA steps passed, or skipped checks are explicitly reported with reasons.
+- No unrelated user work, generated artifacts, lockfiles, or formatting churn were introduced.
+- For UI changes, `DESIGN_SYSTEM.yaml` was consulted and responsive/authenticated flows were considered.
