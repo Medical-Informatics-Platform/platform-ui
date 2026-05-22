@@ -11,18 +11,23 @@
 - Component specs are under their feature directories.
 - Visualization registry/renderer specs are under `src/app/pages/experiment-studio/visualisations`.
 
-## Fast Tests
+## Test Output Guardrails
+Full Karma runs can be noisy or long-running because `npm test` maps to `ng test`. Do not start full interactive/watch test runs unless the user requested them or has confirmed after being told they may consume substantial runtime/tokens. Prefer focused specs or a verified non-watch command when available.
+
+## Unit Test Command
 ```bash
 npm test
 ```
 
-Angular/Karma normally launches a browser. For focused work, run the same test suite and filter from the Karma/Jasmine UI if needed.
+This is the available unit test command, but agents should not start it autonomously unless the user requested tests or confirmed the token/runtime cost. Angular/Karma normally launches a browser and may watch; prefer a verified non-watch or focused command when available.
 
 ## Full Local Validation
 ```bash
 npm run build
 npm test
 ```
+
+Run the full validation sequence only when warranted by the change and after applying the test output guardrails above.
 
 For authenticated flows, also run manual browser QA against a working backend and Keycloak-compatible auth setup.
 

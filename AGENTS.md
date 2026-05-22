@@ -85,6 +85,24 @@ npm test
 
 Unknown / TODO: verify whether the project wants dedicated lint, format, or typecheck scripts added later.
 
+## Output and Runtime Budget Guardrails
+Agents must not run high-output or long-running commands on their own unless the user explicitly asked for that validation, or the agent first states the expected runtime/token cost and gets confirmation. Prefer targeted, bounded commands.
+
+Require explicit confirmation before running:
+- Long-running app/watch commands: `npm start`, `npm run watch`, `ng serve`, `ng build --watch`, persistent browser automation, or any command expected to keep running.
+- Full interactive test/watch commands: `npm test`, `ng test`, or Karma watch mode. Prefer a non-watch/focused test command when available; if not verified, ask first.
+- Container-heavy commands: `docker build`, `docker run`, `docker compose ...`, and unbounded `docker logs`.
+- Dependency/network audits: `npm ci`, `npm install`, `npm audit`, `npm audit --json`, `npm outdated`, unless dependency setup/update is the explicit task.
+- Broad output commands: `find .`, `ls -R`, `tree`, recursive `grep`, unrestricted `rg`, `cat package-lock.json`, `cat dist/*`, `cat coverage/*`, `git diff` without path/stat limits, `git log -p`, or `git show` on large commits.
+
+Allowed without confirmation when relevant:
+- Targeted file reads with line limits, such as `sed -n` on specific files.
+- Targeted searches with exclusions, such as `rg "pattern" src docs -g "!node_modules" -g "!dist" -g "!coverage"`.
+- Summary commands such as `git status --short`, `git diff --stat`, `git diff --name-only`, and path-limited diffs.
+- `npm run build` when required by repo instructions or when validating code changes, because it is bounded and currently moderate-output.
+
+When a high-output command is justified, announce why it is needed, say it may consume substantial tokens/runtime, and cap output with `--tail`, path filters, `--stat`, `--name-only`, or explicit line ranges wherever possible.
+
 ## Architecture Rules
 - Keep feature UI under the owning page directory in `src/app/pages/...`.
 - Keep cross-feature orchestration and backend calls in Angular services under `src/app/services/`.
