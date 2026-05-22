@@ -26,6 +26,7 @@
   --studio-card-shadow: var(--shadow-md);
   --studio-card-header-bg: #f8fafc;
   --studio-card-header-border: var(--border-color);
+  --studio-content-max: 720px;
 }
 
 /* Inner wrapper */
