@@ -149,6 +149,32 @@
   border-radius: 999px;
 }
 
+/* Harmonize controls when embedded in the variables toolbar */
+:host-context(.visualization-toolbar) .control-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+:host-context(.visualization-toolbar) .dataset-btn {
+  min-height: 34px;
+  min-width: 160px;
+  border-color: rgba(127, 156, 232, 0.22);
+  box-shadow: none;
+}
+
+:host-context(.visualization-toolbar) .dataset-btn:hover {
+  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.1);
+  transform: none;
+}
+
+:host-context(.visualization-toolbar) .dataset-count {
+  min-width: 22px;
+  height: 22px;
+  box-shadow: none;
+}
+
 /* Mobile: slightly bigger hit area */
 @media (max-width: 960px) {
   .dataset-btn {

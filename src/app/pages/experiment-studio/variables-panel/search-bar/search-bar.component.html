@@ -1,27 +1,28 @@
 <div class="search-container" data-guide="search-bar">
   <div class="search-input-container">
-    <input type="text" id="search-bar" placeholder="Search variables or groups" aria-label="Search variables or groups"
-      [(ngModel)]="searchQuery" (focus)="onSearchFocus()" (input)="handleSearch(searchQuery)" />
+    <label class="search-field" for="search-bar">
+      <i class="fas fa-search search-field-icon" aria-hidden="true"></i>
+      <input type="text" id="search-bar" placeholder="Search variables or groups" aria-label="Search variables or groups"
+        [(ngModel)]="searchQuery" (focus)="onSearchFocus()" (input)="handleSearch(searchQuery)" />
 
-    @if (searchQuery) {
-    <button class="clear-btn" (click)="closeSearch()">×</button>
-    }
+      @if (searchQuery) {
+      <button type="button" class="clear-btn" aria-label="Clear search" (click)="closeSearch()">×</button>
+      }
+    </label>
 
-    <div class="inline-filters">
-      <select [(ngModel)]="filterType" (change)="applyFilter(filterType)">
+    <div class="search-filter-group" aria-label="Search filters">
+      <select class="search-filter-select" [(ngModel)]="filterType" (change)="applyFilter(filterType)" aria-label="Search target">
         <option value="variables">Variables</option>
         <option value="groups">Groups</option>
       </select>
 
       @if (filterType === 'variables') {
-      <div class="additional-filter">
-        <select [(ngModel)]="variableTypeFilter" (change)="applyVariableTypeFilter(variableTypeFilter)">
-          <option value="">All Types</option>
-          @for (type of variableTypes; track type) {
-          <option [value]="type">{{ type }}</option>
-          }
-        </select>
-      </div>
+      <select class="search-filter-select" [(ngModel)]="variableTypeFilter" (change)="applyVariableTypeFilter(variableTypeFilter)" aria-label="Variable type filter">
+        <option value="">All types</option>
+        @for (type of variableTypes; track type) {
+        <option [value]="type">{{ type }}</option>
+        }
+      </select>
       }
     </div>
   </div>

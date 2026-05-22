@@ -22,31 +22,54 @@
   overflow: visible;
 }
 
-/* Main pill */
+/* Main row */
 .search-input-container {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-radius: var(--sb-radius);
-  border: 1px solid var(--sb-border);
-  padding: 2px 10px;
-  background: var(--sb-bg);
-  box-shadow: var(--sb-shadow);
-  transition: all var(--sb-transition);
   width: 100%;
-  min-height: 32px;
+  min-width: 0;
+  min-height: 34px;
 }
 
-.search-input-container:focus-within {
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--sb-border);
+  border-radius: var(--sb-radius);
+  background: var(--sb-bg);
+  box-shadow: var(--sb-shadow);
+  transition: border-color var(--sb-transition), box-shadow var(--sb-transition);
+}
+
+.search-field:focus-within {
   border-color: var(--sb-accent);
-  box-shadow: 0 0 0 1px rgba(43, 51, 233, 0.15), var(--sb-shadow-focus);
+  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.1);
+}
+
+.search-field-icon {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--sb-text-muted);
+  opacity: 0.75;
+}
+
+.search-field:focus-within .search-field-icon {
+  color: var(--sb-accent);
+  opacity: 1;
 }
 
 /* Text input */
 #search-bar {
   flex: 1;
-  padding: 2px 0;
+  padding: 0;
   font-size: 0.82rem;
+  font-weight: 600;
   border: none;
   outline: none;
   color: var(--sb-text);
@@ -77,47 +100,42 @@
   color: var(--sb-accent);
 }
 
-/* Inline filters */
-.inline-filters {
+.search-filter-group {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px;
-  background-color: var(--sb-accent-faint);
-  border-radius: var(--sb-radius);
   flex-shrink: 0;
 }
 
-.inline-filters select,
-.additional-filter select {
-  padding: 1px 22px 1px 10px !important;
-  font-size: 0.72rem;
+.search-filter-select {
+  min-height: 34px;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--sb-text-muted);
+  color: #0f172a;
   border: 1px solid var(--sb-border);
   border-radius: var(--sb-radius);
-  background-color: var(--sb-bg);
+  background: var(--sb-bg);
+  box-shadow: var(--sb-shadow);
   cursor: pointer;
-  height: 26px;
-  min-height: 26px !important;
-  transition: all var(--sb-transition);
   outline: none;
-  background-position: calc(100% - 10px) 50%, calc(100% - 5px) 50% !important;
-  flex-shrink: 0;
-  width: auto !important;
-  min-width: min-content;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%232b33e9' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px;
+  transition: border-color var(--sb-transition), box-shadow var(--sb-transition);
 }
 
-.inline-filters select:hover,
-.additional-filter select:hover {
+.search-filter-select:hover {
   border-color: var(--sb-accent);
-  color: var(--sb-accent);
 }
 
-.inline-filters select:focus,
-.additional-filter select:focus {
+.search-filter-select:focus {
   border-color: var(--sb-accent);
-  box-shadow: 0 0 0 1px rgba(43, 51, 233, 0.1);
+  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.1);
 }
 
 /* Suggestions dropdown */
@@ -260,6 +278,28 @@
 
 .search-result-item.is-group .search-result-path {
   margin-top: 1px;
+}
+
+:host-context(.visualization-toolbar) {
+  --sb-border: rgba(127, 156, 232, 0.22);
+  --sb-shadow: none;
+  --sb-shadow-focus: 0 0 0 3px rgba(43, 51, 233, 0.1);
+}
+
+:host-context(.visualization-toolbar) .search-container {
+  gap: 0;
+}
+
+:host-context(.visualization-toolbar) .search-field,
+:host-context(.visualization-toolbar) .search-filter-select {
+  min-height: 34px;
+  border-color: rgba(127, 156, 232, 0.22);
+  box-shadow: none;
+}
+
+:host-context(.visualization-toolbar) .search-field:focus-within,
+:host-context(.visualization-toolbar) .search-filter-select:focus {
+  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.1);
 }
 
 /* Mobile: a bit wider and looser */

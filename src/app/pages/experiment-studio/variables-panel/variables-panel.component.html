@@ -15,31 +15,34 @@
   <div class="variables-main">
     <div class="visualization-parameters-row" data-guide="variables-section">
       <div class="bubble-column" data-guide="variable-browser">
-        <div class="visualization-header">
-          <div class="visualization-header-left">
-            <div class="bubble-selectors">
-              <app-data-model-selector [crossSectionalModels]="crossSectionalModels"
-                [longitudinalModels]="longitudinalModels" [defaultModel]="selectedDataModel()"
-                (dataModelChange)="onSelectedDataModelChange($event)">
-              </app-data-model-selector>
+        <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
+          <div class="visualization-toolbar">
+            <div class="visualization-toolbar-section visualization-toolbar-selectors">
+              <div class="bubble-selectors">
+                <app-data-model-selector [crossSectionalModels]="crossSectionalModels"
+                  [longitudinalModels]="longitudinalModels" [defaultModel]="selectedDataModel()"
+                  (dataModelChange)="onSelectedDataModelChange($event)">
+                </app-data-model-selector>
 
-              <app-dataset-selector
-                [datasets]="availableDatasets"
-                [selectedDatasetCodes]="experimentStudioService.selectedDatasets()"
-                [autoSelectAll]="!experimentStudioService.editingExistingExperiment()">
-              </app-dataset-selector>
+                <app-dataset-selector
+                  [datasets]="availableDatasets"
+                  [selectedDatasetCodes]="experimentStudioService.selectedDatasets()"
+                  [autoSelectAll]="!experimentStudioService.editingExistingExperiment()">
+                </app-dataset-selector>
+              </div>
+            </div>
+
+            <div class="visualization-toolbar-divider" aria-hidden="true"></div>
+
+            <div class="visualization-toolbar-section visualization-toolbar-search">
+              <span class="visualization-field-label">Search</span>
+              @if (d3Data) {
+              <app-search-bar [dataModelHierarchy]="d3Data" (searchResultSelected)="onSearchSelected($event)">
+              </app-search-bar>
+              }
             </div>
           </div>
-          <div class="visualization-header-right">
-            @if (d3Data) {
-            <app-search-bar [dataModelHierarchy]="d3Data" (searchResultSelected)="onSearchSelected($event)">
-            </app-search-bar>
-            }
-          </div>
-        </div>
 
-        <!-- Data model visualization -->
-        <section class="bubble-chart-section" id="data-model-visualization" data-guide="variable-selection">
           @if (selectedDataModel() && d3Data) {
           <div class="metadata-browser-shell">
             <div class="metadata-browser-switcher" role="group" aria-label="Metadata browser view">
