@@ -637,6 +637,11 @@ export class AlgorithmPanelComponent {
     const configs =
       (algoName && allConfigs[algoName]) || {};
 
+    const preprocessingSteps = this.experimentStudioService.formatPreprocessingEntries(
+      this.experimentStudioService.getAppliedDescriptivePreprocessing(),
+      this.labelMap(),
+    );
+
     return {
       experimentName: defaultName,
       datasets: this.experimentStudioService.selectedDatasets(),
@@ -644,12 +649,24 @@ export class AlgorithmPanelComponent {
       covariates: this.experimentStudioService.selectedCovariates(),
       filters: this.experimentStudioService.selectedFilters(),
       algorithmConfigs: configs,
+      preprocessingSteps,
     };
   });
 
 
   objectKeys(obj: any): string[] {
     return obj ? Object.keys(obj) : [];
+  }
+
+  preprocessingStepDetails(value: string): string[] {
+    const trimmed = value?.trim();
+    if (!trimmed) return [];
+
+    const parts = trimmed.includes('; ')
+      ? trimmed.split('; ')
+      : trimmed.split(',');
+
+    return parts.map((part) => part.trim()).filter(Boolean);
   }
 
   private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, any> {
