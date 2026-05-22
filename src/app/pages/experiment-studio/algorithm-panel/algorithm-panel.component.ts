@@ -12,6 +12,7 @@ import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
 import { AlgorithmNames, VariableTypes } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { RouterLink } from '@angular/router';
 import {
   createDefaultOutlierRule,
@@ -27,6 +28,13 @@ import {
   validateOutlierRule,
 } from '../../../core/outlier-rules';
 
+type AlgorithmRunRequirementKind = 'availability' | 'preprocessing';
+
+interface AlgorithmRunRequirement {
+  id: AlgorithmRunRequirementKind;
+  message: string;
+  actionLabel: string;
+}
 
 @Component({
   selector: 'app-algorithm-panel',
@@ -47,6 +55,7 @@ export class AlgorithmPanelComponent {
   private errorService = inject(ErrorService);
   private authService = inject(AuthService);
   private runtimeEnvService = inject(RuntimeEnvService);
+  private studioNavigation = inject(ExperimentStudioNavigationService);
   Object = Object;
   experimentStudioService = inject(ExperimentStudioService);
   sessionStorage = inject(SessionStorageService);
@@ -74,6 +83,32 @@ export class AlgorithmPanelComponent {
     if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
     const summary = this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
     return this.formatAvailabilityMessage(summary);
+  });
+  readonly algorithmRunRequirements = computed((): AlgorithmRunRequirement[] => {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm) return [];
+
+    const requirements: AlgorithmRunRequirement[] = [];
+
+    if (this.selectedAlgorithmUnavailable()) {
+      const summary = this.selectedAlgorithmAvailabilitySummary();
+      requirements.push({
+        id: 'availability',
+        message: summary || 'Algorithm requirements are not satisfied.',
+        actionLabel: this.availabilityRequirementActionLabel(algorithm.name),
+      });
+    }
+
+    const preprocessingMessage = this.preprocessingRunBlockMessage();
+    if (preprocessingMessage) {
+      requirements.push({
+        id: 'preprocessing',
+        message: preprocessingMessage,
+        actionLabel: 'Go to preprocessing',
+      });
+    }
+
+    return requirements;
   });
   readonly enumMaps = computed(() => this.experimentStudioService.getCategoricalEnumMaps());
   readonly yVar = computed(() => this.experimentStudioService.selectedVariables()[0]?.code ?? null);
@@ -1146,6 +1181,28 @@ export class AlgorithmPanelComponent {
         return prefix + (displayTypes ?? []).join(', ') + '.';
       }
     );
+  }
+
+  resolveRunRequirement(requirement: AlgorithmRunRequirement): void {
+    if (requirement.id === 'preprocessing') {
+      this.studioNavigation.goToPreprocessing();
+      return;
+    }
+
+    this.studioNavigation.goToVariableSelection('parameters-listing');
+  }
+
+  private availabilityRequirementActionLabel(algorithmName: string): string {
+    const failingDetail = this.experimentStudioService
+      .getAlgorithmAvailability(algorithmName)
+      .details
+      .find((detail) => !detail.satisfied && detail.messages.length > 0);
+
+    if (failingDetail?.role === 'x') {
+      return 'Select covariate';
+    }
+
+    return 'Select variable';
   }
 
   toggleInfoPanel() {
