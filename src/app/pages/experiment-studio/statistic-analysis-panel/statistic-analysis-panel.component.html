@@ -157,20 +157,6 @@
                   </div>
                 </div>
 
-                <div class="statistics-meta-grid">
-                  @for (meta of statisticMetadata('raw', selectedBlock); track meta.label) {
-                  <span
-                    class="statistics-meta-chip"
-                    [class.missing-none]="meta.severity === 'none'"
-                    [class.missing-warning]="meta.severity === 'warning'"
-                    [class.missing-high]="meta.severity === 'high'"
-                  >
-                    <span>{{ meta.label }}</span>
-                    <strong>{{ meta.value }}</strong>
-                  </span>
-                  }
-                </div>
-
                 <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType('raw', selectedBlock) === 'numeric'">
                   <table class="data-table pivot-table statistics-table">
                     <thead>
@@ -268,6 +254,7 @@
           <span class="accordion-icon" [class.open]="sectionOpen.setup">▾</span>
         </button>
         <div class="workflow-section-body" [class.open]="sectionOpen.setup">
+          <div class="preprocessing-shell">
           <div class="preprocessing-step-card">
             <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('missing')">
               <div class="preprocessing-section-heading">
@@ -506,7 +493,7 @@
                         </div>
                         <label class="preprocessing-control">
                           <span>Strategy</span>
-                          <select class="table-select" [ngModel]="outlierRuleFor(variable).strategy" (ngModelChange)="onOutlierStrategyChange(variable, $event)">
+                          <select class="table-select" [ngModel]="outlierRuleFor(variable).strategy" (ngModelChange)="onOutlierStrategyChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled">
                             @for (strategy of outlierStrategies; track strategy.value) {
                             <option [ngValue]="strategy.value">{{ strategy.label }}</option>
                             }
@@ -514,7 +501,7 @@
                         </label>
                         <label class="preprocessing-control">
                           <span>Tail</span>
-                          <select class="table-select" [ngModel]="outlierRuleFor(variable).tail" (ngModelChange)="onOutlierTailChange(variable, $event)">
+                          <select class="table-select" [ngModel]="outlierRuleFor(variable).tail" (ngModelChange)="onOutlierTailChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled">
                             @for (tail of outlierTails; track tail.value) {
                             <option [ngValue]="tail.value">{{ tail.label }}</option>
                             }
@@ -522,7 +509,7 @@
                         </label>
                         <label class="preprocessing-control">
                           <span>Fold</span>
-                          <input class="table-input" type="number" step="any" [ngModel]="outlierRuleFor(variable).fold" (ngModelChange)="onOutlierFoldChange(variable, $event)" />
+                          <input class="table-input" type="number" step="any" [ngModel]="outlierRuleFor(variable).fold" (ngModelChange)="onOutlierFoldChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled" />
                         </label>
                       </div>
                       @if (outlierRuleError(variable)) {
@@ -540,22 +527,20 @@
                   </div>
 
                   <div class="outlier-preview-section">
-                    <div class="preprocessing-footer outlier-preview-footer" [class.has-pending]="hasOutlierRulesForPreview">
-                      <div class="pending-count">
+                    <div class="outlier-preview-action-row" [class.has-pending]="hasOutlierRulesForPreview">
+                      <div class="outlier-preview-status">
                         <span class="pending-chip">{{ outlierPreviewRows.length }}</span>
-                        preview {{ outlierPreviewRows.length === 1 ? 'row' : 'rows' }}
+                        <span class="preview-status-text">preview {{ outlierPreviewRows.length === 1 ? 'row' : 'rows' }}</span>
                       </div>
-                      <div class="preprocessing-actions">
-                        <button
-                          type="button"
-                          class="toolbar-icon-btn"
-                          [disabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
-                          (click)="previewOutlierReport()"
-                        >
-                          <i class="fa fa-eye"></i>
-                          @if (isLoadingOutlierPreview) { Previewing... } @else { Preview Outlier Report }
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        class="preview-report-btn"
+                        [disabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
+                        (click)="previewOutlierReport()"
+                      >
+                        <i class="fa fa-eye"></i>
+                        @if (isLoadingOutlierPreview) { Previewing… } @else { Preview Outlier Report }
+                      </button>
                     </div>
 
                     @if (isLoadingOutlierPreview) {
@@ -583,18 +568,7 @@
                         <i class="fa fa-eye" aria-hidden="true"></i>
                         <h4>Outlier Report Preview</h4>
                       </div>
-                      @if (preprocessingStepDocumentation('outlier_winsorizer')) {
-                      <details class="preprocessing-documentation-panel preprocessing-documentation-panel--preview">
-                        <summary class="preprocessing-documentation-summary">
-                          <span class="preprocessing-documentation-trigger">
-                            <i class="fas fa-circle-info" aria-hidden="true"></i>
-                            <span class="preprocessing-documentation-label">Documentation</span>
-                            <i class="fas fa-chevron-down preprocessing-documentation-chevron" aria-hidden="true"></i>
-                          </span>
-                        </summary>
-                        <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('outlier_winsorizer')"></div>
-                      </details>
-                      }
+
                       <div class="table-wrapper statistics-table-wrapper">
                         <table class="data-table">
                           <thead>
@@ -806,15 +780,19 @@
           </div>
           }
 
-          <div class="preprocessing-footer" [class.has-pending]="pendingChangeCount > 0">
-            <div class="pending-count"><span class="pending-chip">{{ pendingChangeCount }}</span> pending {{ pendingChangeCount === 1 ? 'step' : 'steps' }}</div>
-            <div class="preprocessing-actions">
-              <button type="button" class="toolbar-seg" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="resetChanges()">Reset Changes</button>
-              <button type="button" class="toolbar-icon-btn apply-preprocessing-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="applyPreprocessing()">
+          <div class="preprocessing-action-row" [class.has-pending]="pendingChangeCount > 0">
+            <div class="preprocessing-pending-status">
+              <span class="pending-chip">{{ pendingChangeCount }}</span>
+              <span class="pending-status-text">pending {{ pendingChangeCount === 1 ? 'step' : 'steps' }}</span>
+            </div>
+            <div class="preprocessing-action-buttons">
+              <button type="button" class="reset-changes-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="resetChanges()">Reset Changes</button>
+              <button type="button" class="apply-preprocessing-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="applyPreprocessing()">
                 <i class="fa fa-magic"></i>
-                @if (isApplyingPreprocessing) { Applying... } @else { Apply Preprocessing }
+                @if (isApplyingPreprocessing) { Applying… } @else { Apply Preprocessing }
               </button>
             </div>
+          </div>
           </div>
         </div>
       </section>
@@ -940,20 +918,6 @@
                       CSV
                     </button>
                   </div>
-                </div>
-
-                <div class="statistics-meta-grid">
-                  @for (meta of statisticMetadata('processed', selectedBlock); track meta.label) {
-                  <span
-                    class="statistics-meta-chip"
-                    [class.missing-none]="meta.severity === 'none'"
-                    [class.missing-warning]="meta.severity === 'warning'"
-                    [class.missing-high]="meta.severity === 'high'"
-                  >
-                    <span>{{ meta.label }}</span>
-                    <strong>{{ meta.value }}</strong>
-                  </span>
-                  }
                 </div>
 
                 <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType('processed', selectedBlock) === 'numeric'">
