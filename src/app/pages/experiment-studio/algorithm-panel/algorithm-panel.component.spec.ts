@@ -6,6 +6,7 @@ import { ErrorService } from '../../../services/error.service';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { SessionStorageService } from '../../../services/session-storage.service';
 import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { AlgorithmPanelComponent } from './algorithm-panel.component';
@@ -13,6 +14,7 @@ import { of } from 'rxjs';
 
 describe('AlgorithmPanelComponent', () => {
   let fixture: ComponentFixture<AlgorithmPanelComponent>;
+  let studioNavigation: jasmine.SpyObj<ExperimentStudioNavigationService>;
   let experimentStudioService: {
     selectedAlgorithm: ReturnType<typeof signal<AlgorithmConfig | null>>;
     selectedVariables: ReturnType<typeof signal<any[]>>;
@@ -61,6 +63,11 @@ describe('AlgorithmPanelComponent', () => {
   };
 
   beforeEach(async () => {
+    studioNavigation = jasmine.createSpyObj<ExperimentStudioNavigationService>(
+      'ExperimentStudioNavigationService',
+      ['goToVariableSelection', 'goToPreprocessing'],
+    );
+
     experimentStudioService = {
       selectedAlgorithm: signal<AlgorithmConfig | null>(algorithm),
       selectedVariables: signal<any[]>([{ code: 'y', label: 'Y variable' }]),
@@ -108,6 +115,7 @@ describe('AlgorithmPanelComponent', () => {
         { provide: ResultsPdfExportService, useValue: { exportExperimentPdf: jasmine.createSpy('exportExperimentPdf') } },
         { provide: RuntimeEnvService, useValue: { mipVersion: 'test' } },
         { provide: SessionStorageService, useValue: {} },
+        { provide: ExperimentStudioNavigationService, useValue: studioNavigation },
       ],
     }).compileComponents();
 
@@ -302,15 +310,15 @@ describe('AlgorithmPanelComponent', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const details = nativeElement.querySelector('.documentation-panel') as HTMLDetailsElement;
     const fieldset = nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement;
-    const previewWarning = nativeElement.querySelector('.algorithm-preview-warning') as HTMLElement;
+    const requirementsPanel = nativeElement.querySelector('.algorithm-requirements-panel') as HTMLElement;
     const input = fieldset.querySelector('input.config-input') as HTMLInputElement;
     const runButton = nativeElement.querySelector('[data-guide="run-experiment"]') as HTMLButtonElement;
 
     expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
     expect(details?.textContent).toContain('Unavailable docs.');
-    expect(previewWarning?.textContent).toContain('Preview only');
-    expect(previewWarning?.textContent).toContain('Variable type must be one of nominal.');
-    expect(previewWarning?.textContent).not.toContain('text');
+    expect(requirementsPanel?.textContent).toContain('Complete before running');
+    expect(requirementsPanel?.textContent).toContain('Variable type must be one of nominal.');
+    expect(requirementsPanel?.textContent).not.toContain('text');
     expect(details?.open).toBeFalse();
     details.open = true;
     expect(details.open).toBeTrue();
@@ -410,5 +418,105 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(experimentStudioService.runSelectedAlgorithmTransient).not.toHaveBeenCalled();
     expect(component.errorMsg()).toBe('Fix the outlier report configuration before running.');
+  });
+
+  it('lists availability and preprocessing requirements together', async () => {
+    const unavailableAlgorithm: AlgorithmConfig = {
+      ...algorithm,
+      name: 'unavailable_algorithm',
+      availability: {
+        available: false,
+        summary: 'Variable needs at least 1, selected 0.',
+        details: [{
+          role: 'y',
+          label: 'Variable',
+          selectedCount: 0,
+          minCount: 1,
+          maxCount: 1,
+          required: true,
+          types: [],
+          stattypes: [],
+          messages: ['Variable needs at least 1, selected 0.'],
+          satisfied: false,
+        }],
+      },
+    };
+
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
+    experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
+    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => (
+      name === 'unavailable_algorithm'
+        ? unavailableAlgorithm.availability!
+        : { available: true, summary: '', details: [] }
+    ));
+    experimentStudioService.selectedAlgorithm.set(unavailableAlgorithm);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-requirement-item');
+    expect(items.length).toBe(2);
+    expect(items[0]?.textContent).toContain('Variable needs at least 1, selected 0.');
+    expect(items[0]?.textContent).toContain('Select variable');
+    expect(items[1]?.textContent).toContain('Apply missing value preprocessing');
+    expect(items[1]?.textContent).toContain('Go to preprocessing');
+  });
+
+  it('navigates to variable selection from the requirements list', async () => {
+    const unavailableAlgorithm: AlgorithmConfig = {
+      ...algorithm,
+      name: 'unavailable_algorithm',
+      availability: {
+        available: false,
+        summary: 'Variable needs at least 1, selected 0.',
+        details: [{
+          role: 'y',
+          label: 'Variable',
+          selectedCount: 0,
+          minCount: 1,
+          maxCount: 1,
+          required: true,
+          types: [],
+          stattypes: [],
+          messages: ['Variable needs at least 1, selected 0.'],
+          satisfied: false,
+        }],
+      },
+    };
+
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
+    experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
+    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => (
+      name === 'unavailable_algorithm'
+        ? unavailableAlgorithm.availability!
+        : { available: true, summary: '', details: [] }
+    ));
+    experimentStudioService.selectedAlgorithm.set(unavailableAlgorithm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const action = (fixture.nativeElement as HTMLElement).querySelector(
+      '.algorithm-requirement-item .algorithm-requirement-action',
+    ) as HTMLButtonElement;
+
+    expect(action?.textContent).toContain('Select variable');
+    action.click();
+    expect(studioNavigation.goToVariableSelection).toHaveBeenCalledWith('parameters-listing');
+  });
+
+  it('navigates to preprocessing from the requirements list', async () => {
+    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const action = (fixture.nativeElement as HTMLElement).querySelector(
+      '.algorithm-requirement-item:last-child .algorithm-requirement-action',
+    ) as HTMLButtonElement;
+
+    expect(action?.textContent).toContain('Go to preprocessing');
+    action.click();
+    expect(studioNavigation.goToPreprocessing).toHaveBeenCalled();
   });
 });

@@ -14,6 +14,12 @@ import {
 import { Subject, takeUntil } from 'rxjs';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
 import { getExperimentStudioScrollOffset } from './experiment-studio-scroll.util';
+import {
+  DescriptiveStep,
+  ExperimentStudioNavigationHost,
+  ExperimentStudioNavigationService,
+  ExperimentStudioSection,
+} from '../../services/experiment-studio-navigation.service';
 
 @Component({
   selector: 'app-experiment-studio',
@@ -40,6 +46,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   public auth = inject(AuthService);
   private errorService = inject(ErrorService);
   private viewportScroller = inject(ViewportScroller);
+  private studioNavigation = inject(ExperimentStudioNavigationService);
 
   // Public service for telemetry/ribbon signals
   public expStudioService = inject(ExperimentStudioService);
@@ -65,7 +72,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     return this.algorithmPanel?.isRunButtonDisabled() ?? true;
   }
 
-  goToDescriptiveStep(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
+  goToDescriptiveStep(section: DescriptiveStep): void {
     void this.router.navigate([], {
       fragment: 'statistics-section',
       queryParamsHandling: 'preserve',
@@ -75,9 +82,16 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     );
   }
 
+  private readonly navigationHost: ExperimentStudioNavigationHost = {
+    navigateToSection: (sectionId, anchorId) => this.navigateToStudioSection(sectionId, anchorId),
+    navigateToDescriptiveStep: (step) => this.goToDescriptiveStep(step),
+  };
+
   private destroy$ = new Subject<void>();
   errorMessage = computed(() => this.errorService.error() ?? '');
   activeSection = signal('variables-top');
+  hoveredSection = signal<string | null>(null);
+  readonly effectiveSection = computed(() => this.hoveredSection() ?? this.activeSection());
   sidebarCollapsed = signal(false);
   readonly hasDatasetContext = computed(() => (
     !!this.selectedDataModel() && this.selectedDatasets().length > 0
@@ -99,6 +113,9 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   ] as const;
   private sectionObserver?: IntersectionObserver;
   private observedSections: HTMLElement[] = [];
+  private railPreviewScrollY: number | null = null;
+  private railPreviewScrollSync = false;
+  private railPreviewScrollSyncTimer?: ReturnType<typeof setTimeout>;
 
 
 
@@ -110,7 +127,47 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   onScroll() {
+    if (this.hoveredSection()) {
+      if (!this.railPreviewScrollSync) {
+        this.endRailPreview(false);
+        this.updateActiveSection();
+      }
+      return;
+    }
     this.updateActiveSection();
+  }
+
+  previewRailSection(sectionId: (typeof this.sectionIds)[number]): void {
+    if (!this.hoveredSection()) {
+      this.railPreviewScrollY = window.scrollY;
+    }
+    this.hoveredSection.set(sectionId);
+    this.scrollToSectionPreview(sectionId);
+  }
+
+  clearRailPreview(): void {
+    this.endRailPreview(true);
+  }
+
+  private endRailPreview(restoreScroll: boolean): void {
+    const restoreScrollY = restoreScroll ? this.railPreviewScrollY : null;
+    this.hoveredSection.set(null);
+    this.railPreviewScrollY = null;
+    this.railPreviewScrollSync = false;
+    clearTimeout(this.railPreviewScrollSyncTimer);
+
+    if (restoreScrollY === null) return;
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: restoreScrollY, behavior: 'auto' });
+      this.updateActiveSection();
+    });
+  }
+
+  commitRailSection(sectionId: (typeof this.sectionIds)[number]): void {
+    this.railPreviewScrollY = null;
+    this.hoveredSection.set(null);
+    this.activeSection.set(sectionId);
   }
 
   private checkSidebarCollapse() {
@@ -158,6 +215,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   ngAfterViewInit(): void {
+    this.studioNavigation.register(this.navigationHost);
     this.setupSectionObserver();
     this.scrollToHash(this.route.snapshot.fragment);
 
@@ -167,8 +225,10 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   ngOnDestroy(): void {
+    this.studioNavigation.unregister(this.navigationHost);
     this.viewportScroller.setOffset([0, 0]);
     this.sectionObserver?.disconnect();
+    clearTimeout(this.railPreviewScrollSyncTimer);
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -189,7 +249,10 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
   }
 
   private setupSectionObserver(): void {
-    const observerCallback: IntersectionObserverCallback = () => this.updateActiveSection();
+    const observerCallback: IntersectionObserverCallback = () => {
+      if (this.hoveredSection()) return;
+      this.updateActiveSection();
+    };
 
     // Retry setup for dynamic content
     let attempts = 0;
@@ -257,8 +320,52 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy, AfterViewIn
     return getExperimentStudioScrollOffset();
   }
 
-  private scrollToDescriptiveStep(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
+  private scrollToDescriptiveStep(section: DescriptiveStep): void {
     requestAnimationFrame(() => this.statisticPanel?.goToSection(section));
+  }
+
+  private navigateToStudioSection(sectionId: ExperimentStudioSection, anchorId?: string): void {
+    this.hoveredSection.set(null);
+    this.railPreviewScrollY = null;
+    this.activeSection.set(sectionId);
+
+    void this.router.navigate([], {
+      fragment: sectionId,
+      queryParamsHandling: 'preserve',
+    });
+
+    requestAnimationFrame(() => {
+      const scrollTarget =
+        (anchorId ? document.getElementById(anchorId) : null)
+        ?? document.getElementById(sectionId);
+      if (!scrollTarget) return;
+
+      const top = Math.max(
+        window.scrollY + scrollTarget.getBoundingClientRect().top - this.getSectionScrollOffset(),
+        0,
+      );
+      window.scrollTo({ top, behavior: 'smooth' });
+      this.updateActiveSection();
+    });
+  }
+
+  private scrollToSectionPreview(sectionId: (typeof this.sectionIds)[number]): void {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+
+    this.railPreviewScrollSync = true;
+    clearTimeout(this.railPreviewScrollSyncTimer);
+
+    requestAnimationFrame(() => {
+      const top = Math.max(
+        window.scrollY + target.getBoundingClientRect().top - this.getSectionScrollOffset(),
+        0,
+      );
+      window.scrollTo({ top, behavior: 'smooth' });
+      this.railPreviewScrollSyncTimer = setTimeout(() => {
+        this.railPreviewScrollSync = false;
+      }, 500);
+    });
   }
 
   private isScrolledToPageBottom(): boolean {
