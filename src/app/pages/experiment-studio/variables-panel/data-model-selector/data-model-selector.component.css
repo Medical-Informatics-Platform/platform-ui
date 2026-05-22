@@ -61,6 +61,27 @@
   color: var(--primary-color);
 }
 
+/* Harmonize controls when embedded in the variables toolbar */
+:host-context(.visualization-toolbar) .control-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+:host-context(.visualization-toolbar) .data-model-select {
+  min-height: 34px;
+  width: min(200px, 100%);
+  border-color: rgba(127, 156, 232, 0.22);
+  box-shadow: none;
+}
+
+:host-context(.visualization-toolbar) .data-model-select:hover,
+:host-context(.visualization-toolbar) .data-model-select:focus {
+  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.1);
+  transform: none;
+}
+
 /* Mobile tweaks */
 @media (max-width: 960px) {
   .data-model-select {
