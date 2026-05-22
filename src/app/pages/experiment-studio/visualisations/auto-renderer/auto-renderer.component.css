@@ -17,17 +17,20 @@
 /* CARDS */
 .ar-card {
   background: #ffffff;
-  border: 1px solid #e1e7e9;
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0, 60, 60, 0.08);
+  border: 1px solid rgba(127, 156, 232, 0.22);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 22px rgba(43, 51, 233, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   overflow: hidden;
-  transition: box-shadow 0.2s ease-in-out, transform 0.15s ease-in-out;
+  transition: box-shadow 0.2s ease-in-out, border-color 0.15s ease-in-out;
   grid-column: span 1;
   animation: fadeIn 0.25s ease-in-out;
 }
 
 .ar-card:hover {
-  box-shadow: 0 4px 10px rgba(0, 80, 80, 0.15);
+  border-color: rgba(127, 156, 232, 0.38);
+  box-shadow: 0 12px 28px rgba(43, 51, 233, 0.08);
 }
 
 /* Wide tables = full width row */
@@ -37,20 +40,26 @@
 
 /* HEADER */
 .ar-header {
-  background: linear-gradient(90deg, var(--primary-color, #2b33e9), var(--primary-light, #7f9ce8));
-  color: white;
+  background: linear-gradient(
+    180deg,
+    rgba(248, 251, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.96) 100%
+  );
+  color: #0f172a;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
-  border-bottom: 1px solid rgba(43, 51, 233, 0.3);
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(127, 156, 232, 0.2);
 }
 
 /* TITLES */
 .ar-title {
-  font-weight: 600;
-  font-size: 1rem;
-  letter-spacing: 0.3px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  color: var(--primary-color, #2b33e9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -62,21 +71,21 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
+  background: rgba(43, 51, 233, 0.06);
+  border: 1px solid rgba(127, 156, 232, 0.35);
+  color: var(--primary-color, #2b33e9);
   padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
   white-space: nowrap;
 }
 
 .ar-export-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(43, 51, 233, 0.1);
+  border-color: rgba(43, 51, 233, 0.45);
   transform: translateY(-1px);
 }
 
@@ -133,11 +142,12 @@
 .ar-table td:first-child {
   font-weight: 500;
   color: var(--primary-color, #2b33e9);
+  text-align: left;
 }
 
-/* Last column (numeric) */
-.ar-table td:last-child {
-  color: var(--text-main, #0f172a);
+.ar-table td:not(:first-child),
+.ar-table thead th:not(:first-child) {
+  text-align: right;
 }
 
 /* ANIMATION */
