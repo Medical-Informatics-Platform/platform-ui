@@ -178,6 +178,23 @@ function buildMixedEffectsSummary(result: Record<string, any>, extraKeys: string
   };
 }
 
+function buildHistogramTables(result: HistogramResult): TableSpec[] {
+  const tables: TableSpec[] = [];
+  for (const item of result.histogram) {
+    const rows = [];
+    for (let i = 0; i < item.counts.length; i++) {
+      if (item.counts[i] === null) continue;
+      rows.push([item.bins[i], item.counts[i]]);
+    }
+    tables.push({
+      title: `Histogram Data: ${item.var}` + (item.grouping_var ? ` (${item.grouping_enum})` : ''),
+      columns: ['Bin', 'Count'],
+      rows,
+    });
+  }
+  return tables;
+}
+
 export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   kmeans: (result: KMeansResult) => {
     const centers = result?.centers;
@@ -945,23 +962,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     }];
   },
 
-  histogram: (result: HistogramResult) => {
-    // Primary is chart. Table could be bin counts.
-    const tables: TableSpec[] = [];
-    for (const item of result.histogram) {
-      const rows = [];
-      for (let i = 0; i < item.counts.length; i++) {
-        if (item.counts[i] === null) continue;
-        rows.push([item.bins[i], item.counts[i]]);
-      }
-      tables.push({
-        title: `Histogram Data: ${item.var}` + (item.grouping_var ? ` (${item.grouping_enum})` : ''),
-        columns: ['Bin', 'Count'],
-        rows
-      });
-    }
-    return tables;
-  },
+  histogram: buildHistogramTables,
+  histogram_sql: buildHistogramTables,
 
   ttest_independent: (result: TTestResult) => {
     return [{

@@ -7,7 +7,6 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { VariablesPanelComponent } from './variables-panel.component';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
-
 describe('VariablesPanelComponent bubble selection', () => {
   let experimentStudioService: {
     selectedDataModel: ReturnType<typeof signal<any>>;

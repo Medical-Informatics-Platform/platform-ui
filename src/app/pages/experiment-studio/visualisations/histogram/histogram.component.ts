@@ -12,7 +12,7 @@ export class HistogramComponent implements OnChanges {
 
   readonly data = input<{
     bins: string[];
-    counts: number[];
+    counts: Array<number | null>;
     variableName: string;
     variableType?: string;
   } | null>(null);

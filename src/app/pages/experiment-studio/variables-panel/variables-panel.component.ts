@@ -16,6 +16,7 @@ import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import { OntologyTreeBrowserComponent } from '../visualisations/metadata-browser/ontology-tree-browser/ontology-tree-browser.component';
 import { CollapsibleTreeBrowserComponent } from '../visualisations/metadata-browser/collapsible-tree-browser/collapsible-tree-browser.component';
 import { MetadataBrowserMode, MetadataSearchResult } from '../visualisations/metadata-browser/metadata-browser.model';
@@ -526,9 +527,8 @@ export class VariablesPanelComponent implements OnDestroy {
       .pipe(
         takeUntil(this.destroy$),
         switchMap(({ codes, label, bins }) => {
-          const algoName = 'histogram';
           return this.experimentStudioService
-            .getAlgorithmResults(algoName, codes, bins)
+            .getAlgorithmResults(AlgorithmNames.HISTOGRAM, codes, bins ?? null)
             .pipe(
               catchError((error) => {
                 this.isLoadingHistogram.set(false);
@@ -547,7 +547,7 @@ export class VariablesPanelComponent implements OnDestroy {
 
         const histList = response?.result?.histogram ?? response?.histogram ?? [];
         if (histList.length) {
-          const variableCode = histList[0]?.variable ?? codes?.[0];
+          const variableCode = histList[0]?.var ?? histList[0]?.variable ?? codes?.[0];
           const variableNode = variableCode ? this.findNodeByCode(this.d3Data, variableCode) : null;
 
           const variants = histList.map((hist: any, idx: number) => {

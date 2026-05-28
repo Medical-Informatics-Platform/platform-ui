@@ -135,6 +135,11 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
     inputPath: '',
   },
 
+  histogram_sql: {
+    build: buildHistogramChart,
+    inputPath: '',
+  },
+
   default: {
     build: () => [],
     inputPath: '',

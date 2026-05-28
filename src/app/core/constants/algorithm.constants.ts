@@ -5,7 +5,7 @@ export const AlgorithmNames = {
     TTEST_ONESAMPLE: 'ttest_onesample',
     PCA: 'pca',
     PCA_WITH_TRANSFORMATION: 'pca_with_transformation',
-    HISTOGRAM: 'histogram',
+    HISTOGRAM: 'histogram_sql',
     DESCRIBE: 'describe',
     LMM: 'lmm',
     GLMM_BINARY: 'glmm_binary',
@@ -24,6 +24,10 @@ export const VariableTypes = {
     INT: 'int',
     TEXT: 'text',
 };
+
+export const HistogramBinningType = {
+    WILKINSON: 'wilkinson',
+} as const;
 
 export const AlgorithmRoles = {
     Y: 'y',
