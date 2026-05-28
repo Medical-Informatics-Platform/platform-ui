@@ -1,9 +1,92 @@
 import * as d3 from 'd3';
 
+const MIN_X_TICKS = 4;
+const MAX_X_TICKS = 12;
+
+function binsAreNumeric(bins: string[]): boolean {
+  return bins.length > 0 && bins.every((bin) => Number.isFinite(Number(bin)));
+}
+
+export function clipHistogramNullEdges(
+  bins: Array<string | number>,
+  counts: Array<number | null>
+): { bins: string[]; counts: Array<number | null> } {
+  if (!Array.isArray(counts) || !counts.length || !Array.isArray(bins) || !bins.length) {
+    return { bins: [], counts: [] };
+  }
+
+  let start = 0;
+  while (start < counts.length && counts[start] === null) {
+    start += 1;
+  }
+
+  let end = counts.length - 1;
+  while (end >= start && counts[end] === null) {
+    end -= 1;
+  }
+
+  if (start > end) {
+    return { bins: [], counts: [] };
+  }
+
+  const isEdgeBased = bins.length === counts.length + 1;
+  const clippedCounts = counts.slice(start, end + 1);
+  const clippedBins = (isEdgeBased ? bins.slice(start, end + 1) : bins.slice(start, end + 1)).map(String);
+
+  return { bins: clippedBins, counts: clippedCounts };
+}
+
+export function selectXTickValues(bins: string[], chartWidth: number, maxLabelLength: number): string[] {
+  const minLabelWidth = Math.max(32, maxLabelLength * 7 + 8);
+  const maxTicks = Math.max(MIN_X_TICKS, Math.min(MAX_X_TICKS, Math.floor(chartWidth / minLabelWidth)));
+  if (bins.length <= maxTicks) {
+    return bins;
+  }
+
+  const step = Math.ceil(bins.length / maxTicks);
+  const ticks: string[] = [];
+  for (let index = 0; index < bins.length; index += step) {
+    ticks.push(bins[index]);
+  }
+
+  const last = bins[bins.length - 1];
+  if (ticks[ticks.length - 1] !== last) {
+    ticks.push(last);
+  }
+
+  return ticks;
+}
+
+function shouldRotateXLabels(
+  bins: string[],
+  hasStringBins: boolean,
+  maxLabelLength: number,
+  denseNumericLabels: boolean
+): boolean {
+  if (denseNumericLabels) {
+    return true;
+  }
+
+  const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / 10));
+  const hasLongNumericBins = bins.some((bin) => {
+    const raw = String(bin).trim();
+    if (!raw) {
+      return false;
+    }
+    const num = Number(raw);
+    if (Number.isNaN(num)) {
+      return false;
+    }
+    return raw.length >= 4 && raw.includes('.');
+  });
+
+  return (hasStringBins && estimatedLines > 1) || hasLongNumericBins || (hasStringBins && bins.length > 8);
+}
+
 export function createHistogram(
   data: {
     bins: string[];
-    counts: number[];
+    counts: Array<number | null>;
     variable?: string;
     variableName?: string;
     description?: string;
@@ -21,7 +104,8 @@ export function createHistogram(
   const domainColor = isDark ? 'rgba(255, 255, 255, 0.2)' : '#cbd5e1';
   const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
 
-  const { bins, counts } = data;
+  const clipped = clipHistogramNullEdges(data.bins, data.counts);
+  const { bins, counts } = clipped;
   const containerRect = container.getBoundingClientRect();
   const containerWidth = containerRect.width || 640;
 
@@ -29,6 +113,10 @@ export function createHistogram(
   container.innerHTML = '';
   container.style.height = 'auto';
   container.style.minHeight = '0';
+
+  if (!bins.length || !counts.length) {
+    return;
+  }
 
   // Create SVG once; height is computed from plot content below.
   const svg = d3
@@ -49,20 +137,13 @@ export function createHistogram(
   tempLabel.remove();
 
   const baseMargins = { top: 16, right: 10, bottom: 60, left: 40 };
-  const labelCharsPerLine = 10;
   const maxLabelLength = bins.reduce((max, b) => Math.max(max, String(b).length), 0);
-  const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / labelCharsPerLine));
-  const hasStringBins = bins.some((b) => isNaN(parseFloat(String(b))));
-  const hasLongNumericBins = bins.some((b) => {
-    const raw = String(b).trim();
-    if (!raw) return false;
-    const num = Number(raw);
-    if (Number.isNaN(num)) return false;
-    return raw.length >= 4 && raw.includes('.');
-  });
-  const needsRotate = (hasStringBins && estimatedLines > 1) || hasLongNumericBins || (hasStringBins && bins.length > 8);
+  const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / 10));
+  const hasStringBins = !binsAreNumeric(bins);
+  const denseNumericLabels = !hasStringBins && bins.length > 8 && maxLabelLength >= 3;
+  const needsRotate = shouldRotateXLabels(bins, hasStringBins, maxLabelLength, denseNumericLabels);
   const bottomMargin = needsRotate
-    ? Math.max(80, 20 + Math.min(150, maxLabelLength * 4.5))
+    ? Math.max(88, 24 + Math.min(120, maxLabelLength * 3.2))
     : Math.max(70, baseMargins.bottom + estimatedLines * 16);
 
   // Left margin = base + label width + small padding
@@ -81,7 +162,7 @@ export function createHistogram(
   let containerHeight = margin.top + innerHeight + margin.bottom;
 
   // Scale width by bin count to allow horizontal scrolling when needed
-  const minPerBinWidth = hasStringBins ? 30 : 20;
+  const minPerBinWidth = hasStringBins ? 30 : Math.max(24, maxLabelLength * 8);
   const desiredWidth = Math.max(containerWidth, bins.length * minPerBinWidth);
 
   svg.attr('width', desiredWidth).attr('height', containerHeight);
@@ -103,7 +184,7 @@ export function createHistogram(
 
   const yScale = d3
     .scaleLinear()
-    .domain([0, d3.max(counts) || 0])
+    .domain([0, d3.max(counts.filter((count): count is number => count !== null)) || 0])
     .nice()
     .range([innerHeight, 0]);
 
@@ -148,29 +229,28 @@ export function createHistogram(
     .style('pointer-events', 'none')
     .style('z-index', '10');
 
-  // Bars
+  // Bars (skip privacy-masked null counts, but keep their x-axis labels)
   chart
     .selectAll('.bar')
-    .data(counts)
+    .data(counts.map((count, index) => ({ count, index })).filter((entry) => entry.count !== null))
     .enter()
     .append('rect')
     .attr('class', 'bar')
-    .attr('x', (_, i) => xScale(bins[i]) || 0)
-    .attr('y', (d) => yScale(d))
+    .attr('x', (d) => xScale(bins[d.index]) || 0)
+    .attr('y', (d) => yScale(d.count as number))
     .attr('width', xScale.bandwidth())
-    .attr('height', (d) => innerHeight - yScale(d))
+    .attr('height', (d) => innerHeight - yScale(d.count as number))
     .attr('fill', barColor)
     .attr('opacity', 0.85)
     .on('mouseover', function (_event, d) {
       d3.select(this).attr('opacity', 1).attr('filter', 'brightness(1.1)');
-      const i = counts.indexOf(d);
-      const binLabel = bins[i];
+      const binLabel = bins[d.index];
 
       tooltip
         .style('visibility', 'visible')
         .html(`
           <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${data.variableName ? data.variableName + ': ' : ''}${binLabel}</div>
-          <div>Count: ${smartFormat(d)}</div>
+          <div>Count: ${smartFormat(d.count)}</div>
         `);
     })
     .on('mousemove', function (event) {
@@ -215,22 +295,26 @@ export function createHistogram(
     return d3.format('.2f')(d);
   }
 
+  const xTickValues = denseNumericLabels
+    ? selectXTickValues(bins, chartWidth, maxLabelLength)
+    : bins;
+
   // X axis
   const xAxis = d3
     .axisBottom(xScale)
-    .tickValues(bins)
+    .tickValues(xTickValues)
     .tickFormat((d: any) => {
       const num = parseFloat(d);
       if (isNaN(num)) return d;
 
-      if (data.variableType === 'integer') {
-        return Math.round(num).toString();
+      if (data.variableType === 'integer' || Number.isInteger(num)) {
+        return d3.format(',')(Math.round(num));
       }
 
       return smartFormat(num);
     })
     .tickSize(0)
-    .tickPadding(12);
+    .tickPadding(needsRotate ? 8 : 12);
 
   const xAxisGroup = chart
     .append('g')
@@ -238,15 +322,16 @@ export function createHistogram(
     .call(xAxis)
     .call(g => g.select('.domain').attr('stroke', domainColor));
 
+  const tickFontSize = denseNumericLabels ? '11px' : '13px';
   const tickText = xAxisGroup
     .selectAll<SVGTextElement, any>('text')
-    .attr('font-size', '13px')
+    .attr('font-size', tickFontSize)
     .attr('font-weight', '500')
     .attr('fill', textColor)
     .style('text-anchor', needsRotate ? 'end' : 'middle');
 
   if (needsRotate) {
-    tickText.attr('transform', 'rotate(-35)');
+    tickText.attr('transform', 'rotate(-40)').attr('dx', '-0.35em').attr('dy', '0.15em');
   }
 
   const xAxisBBox = (xAxisGroup.node() as SVGGElement | null)?.getBBox();

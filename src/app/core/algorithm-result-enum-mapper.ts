@@ -413,6 +413,7 @@ export function mapAlgorithmResultEnums(
         return mapped;
       }
     case 'histogram':
+    case 'histogram_sql':
       return mapMultipleHistograms(result, safeEnumMaps, yVar);
     case 'linear_regression':
     case 'linear_regression_cv':

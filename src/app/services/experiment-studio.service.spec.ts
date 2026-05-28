@@ -34,8 +34,8 @@ describe('ExperimentStudioService', () => {
   };
 
   const mockHistogramAlgo = {
-    name: 'histogram',
-    label: 'Histograms',
+    name: 'histogram_sql',
+    label: 'Histogram (SQL)',
     desc: '',
     enabled: true,
     inputdata: {
@@ -142,15 +142,16 @@ describe('ExperimentStudioService', () => {
     service.setSelectedDatasets(['ds1']);
 
     // Act
-    const body = service.buildRequestBody('histogram', ['var1']);
+    const body = service.buildRequestBody('histogram_sql', ['var1']);
 
     // Assert
-    expect(body.algorithm.name).toBe('histogram');
+    expect(body.algorithm.name).toBe('histogram_sql');
     expect(body.algorithm.inputdata.data_model).toBe('dm:1');
     expect(body.algorithm.inputdata.datasets).toEqual(['ds1']);
     expect(body.algorithm.inputdata.y).toEqual(['var1']);
     expect(body.algorithm.inputdata.filters).toBeNull();
     expect(body.algorithm.preprocessing).toBeNull();
+    expect(body.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
   });
 
   it('does not apply stored descriptive preprocessing to histogram preview requests', () => {
@@ -162,7 +163,7 @@ describe('ExperimentStudioService', () => {
       },
     });
 
-    const body = service.buildRequestBody('histogram', ['var1']);
+    const body = service.buildRequestBody('histogram_sql', ['var1']);
 
     expect(body.algorithm.preprocessing).toBeNull();
   });
@@ -244,6 +245,7 @@ describe('ExperimentStudioService', () => {
     const names = Object.values(grouped).flat().map((algo) => algo.name);
 
     expect(names).toContain('mock_algo');
+    expect(names).not.toContain('histogram_sql');
     expect(names).not.toContain('histogram');
     expect(names).not.toContain('describe');
     expect(names).not.toContain('outlier_report');

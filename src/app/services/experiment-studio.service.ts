@@ -11,7 +11,7 @@ import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-defi
 import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
-import { AlgorithmNames, VariableTypes } from '../core/constants/algorithm.constants';
+import { AlgorithmNames, HistogramBinningType, VariableTypes } from '../core/constants/algorithm.constants';
 import { RuntimeEnvService } from './runtime-env.service';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 
@@ -37,6 +37,7 @@ const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__
 /** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
 const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
   AlgorithmNames.HISTOGRAM,
+  'histogram',
   AlgorithmNames.DESCRIBE,
   AlgorithmNames.OUTLIER_REPORT,
   AlgorithmNames.LINEAR_SVM,
@@ -665,7 +666,10 @@ export class ExperimentStudioService {
         algorithm: {
           name: requestAlgorithmName,
           inputdata: this.buildInputDataPayload(algoConfig, histogramY, null, null),
-          parameters: bins ? { bins } : {},
+          parameters: {
+            histogram_type: HistogramBinningType.WILKINSON,
+            ...(bins ? { bins } : {}),
+          },
           preprocessing: null,
         },
       };
@@ -1090,7 +1094,7 @@ export class ExperimentStudioService {
   //Runs transient or standard algorithm calls.
   //Used for fetching quick results like histograms or descriptive stats.
   getAlgorithmResults(algorithmName: string, nodeCodes: string[] | null = null, bins: number | null = null): Observable<any> {
-    if (algorithmName === 'histogram') {
+    if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const requestBody = this.buildRequestBody(algorithmName, nodeCodes, null, null, null, bins);
       return this.submitTransientRequest(requestBody).pipe(
         map(resp => this.normalizeResponse(algorithmName, resp))
