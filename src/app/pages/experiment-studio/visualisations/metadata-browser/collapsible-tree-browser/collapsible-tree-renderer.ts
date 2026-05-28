@@ -233,7 +233,7 @@ export function createCollapsibleTree(
   };
 
   const handleNodeClick = (node: TreeDatum): void => {
-    options.onNodeClick(node.data);
+    let shouldCenterAfterUpdate = false;
     if (!isVariable(node) && hasChildren(node)) {
       if (node.children) {
         node._children = node.children;
@@ -243,8 +243,14 @@ export function createCollapsibleTree(
         node._children = undefined;
       }
       update(node);
+      shouldCenterAfterUpdate = true;
+    }
+    refreshNodeClasses();
+    options.onNodeClick(node.data);
+    if (shouldCenterAfterUpdate) {
+      window.setTimeout(() => centerNode(node), duration + 20);
     } else {
-      refreshNodeClasses();
+      centerNode(node);
     }
   };
 

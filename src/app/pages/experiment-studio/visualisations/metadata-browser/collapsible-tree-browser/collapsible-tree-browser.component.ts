@@ -49,6 +49,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   private resizeTimer = 0;
   private viewReady = false;
   private lastDataRef: D3HierarchyNode | null = null;
+  private skipNextHighlightExpand = false;
 
   constructor() {
     effect(() => {
@@ -69,6 +70,10 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
         highlightNode,
       });
       if (highlightNode) {
+        if (this.skipNextHighlightExpand) {
+          this.skipNextHighlightExpand = false;
+          return;
+        }
         renderer.expandToNode(highlightNode);
       }
     });
@@ -118,6 +123,9 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
       selectedCovariates: this.selectedCovariates(),
       highlightNode: this.highlightNode(),
       onNodeClick: (node) => {
+        // This selection originates from the renderer itself; avoid immediately
+        // replaying expandToNode through the highlight effect.
+        this.skipNextHighlightExpand = true;
         this.selectedNodeChange.emit(node);
         this.cdr.markForCheck();
       },
