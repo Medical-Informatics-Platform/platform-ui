@@ -466,8 +466,8 @@ function hasChildren(node: TreeDatum): boolean {
 
 function nodeMeta(node: TreeDatum): string {
   if (isVariable(node)) {
-    const pieces = [normalizeString(node.data.type), normalizeString(node.data.units)].filter(Boolean);
-    return pieces.join(' · ') || 'Variable';
+    const type = normalizeString(node.data.type);
+    return type || 'Variable';
   }
   const variableCount = countVariables(node);
   const childCount = (node.children?.length ?? 0) + (node._children?.length ?? 0);

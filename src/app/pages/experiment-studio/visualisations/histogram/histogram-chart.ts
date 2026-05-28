@@ -7,6 +7,10 @@ function binsAreNumeric(bins: string[]): boolean {
   return bins.length > 0 && bins.every((bin) => Number.isFinite(Number(bin)));
 }
 
+export function shouldClipNullEdges(bins: Array<string | number>): boolean {
+  return binsAreNumeric(bins.map(String));
+}
+
 export function clipHistogramNullEdges(
   bins: Array<string | number>,
   counts: Array<number | null>
@@ -104,7 +108,9 @@ export function createHistogram(
   const domainColor = isDark ? 'rgba(255, 255, 255, 0.2)' : '#cbd5e1';
   const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
 
-  const clipped = clipHistogramNullEdges(data.bins, data.counts);
+  const clipped = shouldClipNullEdges(data.bins)
+    ? clipHistogramNullEdges(data.bins, data.counts)
+    : { bins: data.bins.map(String), counts: data.counts };
   const { bins, counts } = clipped;
   const containerRect = container.getBoundingClientRect();
   const containerWidth = containerRect.width || 640;
@@ -187,6 +193,11 @@ export function createHistogram(
     .domain([0, d3.max(counts.filter((count): count is number => count !== null)) || 0])
     .nice()
     .range([innerHeight, 0]);
+  const binPoints = bins.map((bin, index) => ({
+    bin,
+    index,
+    count: counts[index] ?? null,
+  }));
 
   // Chart group
   const chart = svg
@@ -229,58 +240,81 @@ export function createHistogram(
     .style('pointer-events', 'none')
     .style('z-index', '10');
 
-  // Bars (skip privacy-masked null counts, but keep their x-axis labels)
+  const getBarSelector = (index: number) => `.bar[data-index="${index}"]`;
+  const formatCountLabel = (count: number | null): string =>
+    count === null ? 'Masked for privacy (count below minimum threshold)' : smartFormat(count);
+  const showTooltip = (binLabel: string, count: number | null) => {
+    tooltip
+      .style('visibility', 'visible')
+      .html(`
+          <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${data.variableName ? data.variableName + ': ' : ''}${binLabel}</div>
+          <div>Count: ${formatCountLabel(count)}</div>
+        `);
+  };
+  const moveTooltip = (event: MouseEvent) => {
+    const [x, y] = d3.pointer(event, container);
+
+    // Keep tooltip within container bounds
+    const tooltipNode = tooltip.node() as HTMLElement;
+    const tooltipWidth = tooltipNode?.offsetWidth || 100;
+    const tooltipHeight = tooltipNode?.offsetHeight || 60;
+
+    let left = x + 15;
+    let top = y - 10;
+
+    // Flip if too close to right edge
+    if (left + tooltipWidth > containerWidth) {
+      left = x - tooltipWidth - 15;
+    }
+
+    // Flip if too close to bottom edge
+    if (top + tooltipHeight > containerHeight) {
+      top = y - tooltipHeight - 10;
+    }
+
+    tooltip
+      .style('left', `${left}px`)
+      .style('top', `${top}px`);
+  };
+
+  // Visible bars: proportional heights only.
   chart
     .selectAll('.bar')
-    .data(counts.map((count, index) => ({ count, index })).filter((entry) => entry.count !== null))
+    .data(binPoints.filter((entry) => entry.count !== null))
     .enter()
     .append('rect')
     .attr('class', 'bar')
+    .attr('data-index', (d) => d.index)
     .attr('x', (d) => xScale(bins[d.index]) || 0)
     .attr('y', (d) => yScale(d.count as number))
     .attr('width', xScale.bandwidth())
     .attr('height', (d) => innerHeight - yScale(d.count as number))
     .attr('fill', barColor)
     .attr('opacity', 0.85)
-    .on('mouseover', function (_event, d) {
-      d3.select(this).attr('opacity', 1).attr('filter', 'brightness(1.1)');
-      const binLabel = bins[d.index];
+    .style('pointer-events', 'none');
 
-      tooltip
-        .style('visibility', 'visible')
-        .html(`
-          <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${data.variableName ? data.variableName + ': ' : ''}${binLabel}</div>
-          <div>Count: ${smartFormat(d.count)}</div>
-        `);
+  // Invisible hit areas: full-height bin targets for reliable hover.
+  chart
+    .selectAll('.bar-hit-area')
+    .data(binPoints)
+    .enter()
+    .append('rect')
+    .attr('class', 'bar-hit-area')
+    .attr('x', (d) => xScale(d.bin) || 0)
+    .attr('y', 0)
+    .attr('width', xScale.bandwidth())
+    .attr('height', innerHeight)
+    .attr('fill', 'transparent')
+    .style('cursor', 'pointer')
+    .on('mouseover', function (_event, d) {
+      chart.select(getBarSelector(d.index)).attr('opacity', 1).attr('filter', 'brightness(1.1)');
+      showTooltip(String(d.bin), d.count);
     })
     .on('mousemove', function (event) {
-      // Get container position to calculate relative coordinates
-      const [x, y] = d3.pointer(event, container);
-
-      // Keep tooltip within container bounds
-      const tooltipNode = tooltip.node() as HTMLElement;
-      const tooltipWidth = tooltipNode?.offsetWidth || 100;
-      const tooltipHeight = tooltipNode?.offsetHeight || 60;
-
-      let left = x + 15;
-      let top = y - 10;
-
-      // Flip if too close to right edge
-      if (left + tooltipWidth > containerWidth) {
-        left = x - tooltipWidth - 15;
-      }
-
-      // Flip if too close to bottom edge
-      if (top + tooltipHeight > containerHeight) {
-        top = y - tooltipHeight - 10;
-      }
-
-      tooltip
-        .style('left', `${left}px`)
-        .style('top', `${top}px`);
+      moveTooltip(event as MouseEvent);
     })
-    .on('mouseout', function () {
-      d3.select(this).attr('opacity', 0.85).attr('filter', null);
+    .on('mouseout', function (_event, d) {
+      chart.select(getBarSelector(d.index)).attr('opacity', 0.85).attr('filter', null);
       tooltip.style('visibility', 'hidden');
     });
 

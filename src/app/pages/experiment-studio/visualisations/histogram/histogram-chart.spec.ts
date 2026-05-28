@@ -1,4 +1,4 @@
-import { clipHistogramNullEdges, selectXTickValues } from './histogram-chart';
+import { clipHistogramNullEdges, selectXTickValues, shouldClipNullEdges } from './histogram-chart';
 
 describe('clipHistogramNullEdges', () => {
   it('trims leading and trailing null counts but keeps interior null bins', () => {
@@ -52,5 +52,15 @@ describe('selectXTickValues', () => {
     expect(ticks.length).toBeGreaterThanOrEqual(4);
     expect(ticks[0]).toBe('110');
     expect(ticks[ticks.length - 1]).toBe('215');
+  });
+});
+
+describe('shouldClipNullEdges', () => {
+  it('returns true for numeric bins', () => {
+    expect(shouldClipNullEdges([0, 1, 2, 3])).toBeTrue();
+  });
+
+  it('returns false for nominal bins', () => {
+    expect(shouldClipNullEdges(['yes', 'no', 'unknown'])).toBeFalse();
   });
 });
