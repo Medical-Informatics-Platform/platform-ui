@@ -1,12 +1,14 @@
 import { EChartsOption } from 'echarts';
-import { clipHistogramNullEdges } from '../../histogram/histogram-chart';
+import { clipHistogramNullEdges, shouldClipNullEdges } from '../../histogram/histogram-chart';
 
 export function buildHistogramChart(result: any): EChartsOption[] {
     const histogramData = result?.histogram;
     if (!Array.isArray(histogramData) || histogramData.length === 0) return [];
 
     return histogramData.flatMap((item: any) => {
-        const clipped = clipHistogramNullEdges(item.bins || [], item.counts || []);
+        const clipped = shouldClipNullEdges(item.bins || [])
+            ? clipHistogramNullEdges(item.bins || [], item.counts || [])
+            : { bins: (item.bins || []).map(String), counts: item.counts || [] };
         const bins = clipped.bins;
         const counts = clipped.counts;
         if (!bins.length || !counts.length) {
@@ -50,7 +52,7 @@ export function buildHistogramChart(result: any): EChartsOption[] {
                     name: 'Count',
                     type: 'bar',
                     barWidth: '90%',
-                    data: counts.map((count) => count ?? null),
+                    data: counts.map((count: number | null) => count ?? null),
                     itemStyle: {
                         borderRadius: [5, 5, 0, 0],
                         color: '#2B33E9',
