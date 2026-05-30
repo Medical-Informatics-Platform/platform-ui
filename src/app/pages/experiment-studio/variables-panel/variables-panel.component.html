@@ -112,17 +112,7 @@
             <div class="details-panel-header-main">
               <div class="details-panel-title-block">
                 @if (selectedNode) {
-                <div class="details-panel-identity">
-                  <span
-                    class="details-panel-type"
-                    [class.is-group]="isSelectedNodeGroup()"
-                    [attr.aria-label]="isSelectedNodeGroup() ? 'Group' : 'Variable'">
-                    <i
-                      class="fas"
-                      [class.fa-layer-group]="isSelectedNodeGroup()"
-                      [class.fa-chart-column]="!isSelectedNodeGroup()"
-                      aria-hidden="true"></i>
-                  </span>
+                <div class="details-panel-identity" [class.is-group]="isSelectedNodeGroup()">
                   <div class="details-panel-heading">
                     <span class="details-panel-eyebrow">{{ isSelectedNodeGroup() ? 'Group' : 'Variable' }}</span>
                     <h2 class="details-panel-title" [title]="detailsPanelTitle()">{{ detailsPanelTitle() }}</h2>
