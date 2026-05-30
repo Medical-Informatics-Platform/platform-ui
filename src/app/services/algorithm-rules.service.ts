@@ -7,6 +7,7 @@ import {
 } from '../models/algorithm-definition.model';
 import { D3HierarchyNode } from '../models/data-model.interface';
 import { VariableTypes, AlgorithmRoles } from '../core/constants/algorithm.constants';
+import { resolveInputMaxCount, resolveInputMinCount } from '../core/algorithm-input-counts';
 
 type SelectionRole = 'y' | 'x';
 type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
@@ -15,8 +16,6 @@ type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
     providedIn: 'root'
 })
 export class AlgorithmRulesService {
-    private readonly singleTargetAlgorithms = new Set(['linear_regression', 'linear_regression_cv']);
-
     constructor() { }
 
     evaluateAlgorithmAvailability(
@@ -73,8 +72,8 @@ export class AlgorithmRulesService {
         algo: AlgorithmConfig
     ): AlgorithmAvailabilityDetail {
         const label = this.roleLabel(role);
-        const minCount = this.getMinCount(field);
-        const maxCount = this.getMaxCount(field, role, algo);
+        const minCount = resolveInputMinCount(field, role, algo.name);
+        const maxCount = resolveInputMaxCount(field, role, algo.name);
         const types = this.normalizeStringList(field?.types);
         const stattypes = this.normalizeStringList(field?.stattypes);
         const messages: string[] = [];
@@ -222,29 +221,6 @@ export class AlgorithmRulesService {
         if (normalized === 'true') return true;
         if (normalized === 'false') return false;
         return null;
-    }
-
-    private getMinCount(field: any): number {
-        const explicit = this.normalizeCount(field?.min_count);
-        if (explicit !== null) return explicit;
-        return this.isFieldRequired(field) ? 1 : 0;
-    }
-
-    private getMaxCount(
-        field: any,
-        role: Extract<AlgorithmAvailabilityRole, 'y' | 'x'>,
-        algo: AlgorithmConfig
-    ): number | null {
-        const explicit = this.normalizeCount(field?.max_count);
-        if (explicit !== null) return explicit;
-        if (role === 'y' && this.singleTargetAlgorithms.has(algo.name)) return 1;
-        return null;
-    }
-
-    private normalizeCount(value: number | string | undefined | null): number | null {
-        if (value === undefined || value === null || value === '') return null;
-        const parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : null;
     }
 
     private normalizeStringList(value: unknown): string[] {

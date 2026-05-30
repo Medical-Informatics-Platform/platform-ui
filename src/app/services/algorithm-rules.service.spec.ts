@@ -89,7 +89,7 @@ describe('AlgorithmRulesService', () => {
         y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
         x: { label: 'x', desc: '', types: ['text'], required: true },
       }),
-      name: 'anova_twoway',
+      name: 'mock_algo',
     } as AlgorithmConfig;
 
     const availableWithOneCovariate = service.isAlgorithmAvailable(algo, {
@@ -158,6 +158,32 @@ describe('AlgorithmRulesService', () => {
       ],
       x: [],
     })).toBeTrue();
+  });
+
+  it('requires at least two covariates for Binary GLMM when min_count is omitted', () => {
+    const algo = {
+      ...buildAlgo({
+        y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['nominal'], required: true },
+        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal'], required: true },
+      }),
+      name: 'glmm_binary',
+    } as AlgorithmConfig;
+
+    const unavailable = service.evaluateAlgorithmAvailability(algo, {
+      y: [{ code: 'outcome', label: 'Outcome', type: 'int', stattype: 'nominal' } as any],
+      x: [{ code: 'age', label: 'Age', type: 'real', stattype: 'numerical' } as any],
+    });
+
+    expect(unavailable.available).toBeFalse();
+    expect(unavailable.summary).toBe('Covariate needs at least 2, selected 1.');
+    expect(unavailable.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+      minCount: 1,
+      maxCount: 1,
+    }));
+    expect(unavailable.details.find((detail) => detail.role === 'x')).toEqual(jasmine.objectContaining({
+      minCount: 2,
+      maxCount: null,
+    }));
   });
 
   it('rejects duplicate selections and y/x overlap', () => {

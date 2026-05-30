@@ -6,6 +6,7 @@ import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, 
 import { buildFormControl } from '../../shared/utils/form-control.factory';
 import { AlgorithmResultComponent } from './algorithm-result/algorithm-result.component';
 import { getOutputSchema } from '../../../core/algorithm-mappers';
+import { formatInputCountRange, resolveInputMaxCount, resolveInputMinCount } from '../../../core/algorithm-input-counts';
 import { AlgorithmAvailabilityDetail, AlgorithmAvailabilityRole, AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
@@ -1180,12 +1181,7 @@ export class AlgorithmPanelComponent {
   }
 
   private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {
-    if (detail.minCount === 1 && detail.maxCount === 1) return 'exactly 1';
-    if (detail.minCount === 0 && detail.maxCount === 1) return '0-1';
-    if (detail.minCount > 0 && detail.maxCount !== null) return detail.minCount + '-' + detail.maxCount;
-    if (detail.minCount > 0) return detail.minCount + '+';
-    if (detail.maxCount !== null) return '0-' + detail.maxCount;
-    return detail.required ? 'required' : 'optional';
+    return formatInputCountRange(detail.minCount, detail.maxCount);
   }
 
   private formatAvailabilityMessage(message: string): string {
@@ -1305,21 +1301,6 @@ export class AlgorithmPanelComponent {
     return text.length > 0;
   }
 
-  private normalizeBool(value: boolean | string | undefined | null): boolean | null {
-    if (value === undefined || value === null) return null;
-    if (typeof value === 'boolean') return value;
-    const normalized = String(value).trim().toLowerCase();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
-    return null;
-  }
-
-  private normalizeCount(value: number | string | undefined | null): number | null {
-    if (value === undefined || value === null || value === "") return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
   private normalizeRequirementDisplayType(type: unknown): string | null {
     const normalized = String(type ?? '').trim().toLowerCase();
     if (!normalized) return null;
@@ -1349,25 +1330,15 @@ export class AlgorithmPanelComponent {
     return unique.length ? unique : null;
   }
 
-  getRoleRequirement(field: any, label: string): string | null {
+  getRoleRequirement(field: any, label: string, algorithmName?: string | null): string | null {
     if (!field) return null;
 
-    const minCount = this.normalizeCount(field.min_count) ?? (this.normalizeBool(field.required) === true ? 1 : 0);
-    const maxCount = this.normalizeCount(field.max_count);
-
-    let count = 'optional';
-    if (minCount === 1 && maxCount === 1) {
-      count = 'exactly 1';
-    } else if (minCount === 0 && maxCount === 1) {
-      count = '0-1';
-    } else if (minCount > 0 && maxCount !== null) {
-      count = minCount + '-' + maxCount;
-    } else if (minCount > 0) {
-      count = minCount + '+';
-    } else if (maxCount !== null) {
-      count = '0-' + maxCount;
+    const minCount = resolveInputMinCount(field, label === 'Variable' ? 'y' : 'x', algorithmName);
+    if (label === 'Covariate' && minCount < 1) {
+      return null;
     }
 
+    const count = formatInputCountRange(minCount, resolveInputMaxCount(field, label === 'Variable' ? 'y' : 'x', algorithmName));
     const types = this.formatRequirementTypes(field.types);
 
     const parts = [`${label}: ${count}`];
@@ -1380,17 +1351,13 @@ export class AlgorithmPanelComponent {
 
   getVariableRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
-    return this.getRoleRequirement(target?.inputdata?.y, 'Variable');
+    return this.getRoleRequirement(target?.inputdata?.y, 'Variable', target?.name);
   }
 
   getCovariateRequirement(algo?: any): string | null {
     const target = algo || this.tooltipData();
     const field = target?.inputdata?.x;
-    const minCount = this.normalizeCount(field?.min_count) ?? (this.normalizeBool(field?.required) === true ? 1 : 0);
-    if (!field || minCount < 1) {
-      return null;
-    }
-    return this.getRoleRequirement(field, 'Covariate');
+    return this.getRoleRequirement(field, 'Covariate', target?.name);
   }
 
   onSaveAs() {
