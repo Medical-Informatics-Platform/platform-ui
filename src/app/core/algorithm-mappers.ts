@@ -1,5 +1,6 @@
 import { RawAlgorithmDefinition, RawParameter } from '../models/backend-algorithms.model';
 import { AlgorithmConfig } from '../models/algorithm-definition.model';
+import { applyFallbackInputCounts, readInputCount } from './algorithm-input-counts';
 
 // Lookup for categories
 const CATEGORY_MAPPING: Record<string, string> = {
@@ -53,13 +54,13 @@ function normalizeCount(value: number | string | undefined | null): number | und
 
 function normalizeInputField(field: any): any {
   if (!field) return field;
-  const minCount = normalizeCount(field.min_count);
-  const maxCount = normalizeCount(field.max_count);
+  const minCount = readInputCount(field, 'min_count');
+  const maxCount = readInputCount(field, 'max_count');
 
   return {
     ...field,
-    ...(minCount !== undefined ? { min_count: minCount } : {}),
-    ...(maxCount !== undefined ? { max_count: maxCount } : {}),
+    ...(minCount !== null ? { min_count: minCount } : {}),
+    ...(maxCount !== null ? { max_count: maxCount } : {}),
   };
 }
 
@@ -272,7 +273,10 @@ export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): A
       (left, right) => (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER)
     );
 
-  const inputdata = normalizeInputData(raw.inputdata);
+  const inputdata = applyFallbackInputCounts(
+    normalizeInputData(raw.inputdata),
+    normalizedName
+  ) as unknown as RawAlgorithmDefinition['inputdata'];
 
   return {
     name: normalizedName,

@@ -36,6 +36,8 @@ describe('algorithm mappers', () => {
     }));
 
     expect(config.category).toBe('Regression');
+    expect(config.inputdata?.y?.max_count).toBe(1);
+    expect(config.inputdata?.x?.min_count).toBe(2);
     expect(config.configSchema[0]).toEqual(jasmine.objectContaining({
       key: 'grouping_var',
       type: 'select',
@@ -44,6 +46,23 @@ describe('algorithm mappers', () => {
       options: [],
       required: true,
     }));
+  });
+
+  it('applies Binary GLMM count bounds when the catalog omits min_count and max_count', () => {
+    const config = mapRawAlgorithmToAlgorithmConfig(rawAlgorithm({
+      name: 'glmm_binary',
+      label: 'Binary GLMM',
+      inputdata: {
+        data_model: { label: 'Data model', desc: '', types: ['text'], required: true, max_count: 1 },
+        datasets: { label: 'Datasets', desc: '', types: ['text'], required: true },
+        y: { label: 'Y', desc: '', types: ['int', 'text'], stattypes: ['nominal'], required: true },
+        x: { label: 'X', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal'], required: true },
+      },
+      parameters: {},
+    }));
+
+    expect(config.inputdata?.y?.max_count).toBe(1);
+    expect(config.inputdata?.x?.min_count).toBe(2);
   });
 
   it('maps enum-driven GLMM parameters and ordinal category order', () => {
