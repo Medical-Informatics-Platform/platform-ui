@@ -150,11 +150,15 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.inputdata.datasets).toEqual(['ds1']);
     expect(body.algorithm.inputdata.y).toEqual(['var1']);
     expect(body.algorithm.inputdata.filters).toBeNull();
-    expect(body.algorithm.preprocessing).toBeNull();
+    expect(body.algorithm.preprocessing).toEqual({
+      missing_values_handler: {
+        strategies: { var1: 'drop' },
+      },
+    });
     expect(body.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
   });
 
-  it('does not apply stored descriptive preprocessing to histogram preview requests', () => {
+  it('does not apply stored descriptive preprocessing to histogram preview requests without an override', () => {
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);
     service.setAppliedDescriptivePreprocessing({
@@ -164,6 +168,38 @@ describe('ExperimentStudioService', () => {
     });
 
     const body = service.buildRequestBody('histogram_sql', ['var1']);
+
+    expect(body.algorithm.preprocessing).toEqual({
+      missing_values_handler: {
+        strategies: { var1: 'drop' },
+      },
+    });
+  });
+
+  it('uses an explicit preprocessing override for histogram preview requests', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: {
+        strategies: { var1: 'median' },
+      },
+    };
+
+    const body = service.buildRequestBody('histogram_sql', ['var1'], null, null, null, null, applied);
+
+    expect(body.algorithm.preprocessing).toEqual(applied);
+  });
+
+  it('skips preprocessing for histogram preview when override is explicitly null', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setAppliedDescriptivePreprocessing({
+      missing_values_handler: {
+        strategies: { var1: 'mean' },
+      },
+    });
+
+    const body = service.buildRequestBody('histogram_sql', ['var1'], null, null, null, null, null);
 
     expect(body.algorithm.preprocessing).toBeNull();
   });

@@ -608,7 +608,8 @@ export class ExperimentStudioService {
     xVariables: string[] | null = null,
     effectiveAlgorithmName: string | null = null,
     customName: string | null = null,
-    bins: number | null = null
+    bins: number | null = null,
+    preprocessingOverride?: PreprocessingConfig | null
   ): any {
     let algoConfig: AlgorithmConfig | undefined;
 
@@ -658,19 +659,40 @@ export class ExperimentStudioService {
     const xPayload = this.rolePayload(algoConfig, 'x', covariates);
     const filtersPayload = hasFilters ? filterLogic : null;
 
-    // special case for histogram (no filters, transient)
+    // special case for histogram (transient preview)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const histogramY = yVariables?.length ? yVariables : null;
+      const histogramPreprocessing = preprocessingOverride === undefined
+        ? this.resolveRequestPreprocessing(
+          requestAlgorithmName,
+          histogramY,
+          null,
+          null
+        )
+        : preprocessingOverride === null
+          ? null
+          : this.normalizePreprocessingConfig(preprocessingOverride)
+            ?? this.resolveRequestPreprocessing(
+              requestAlgorithmName,
+              histogramY,
+              null,
+              null
+            );
+      const inputdata = this.buildInputDataPayload(algoConfig, histogramY, null, filtersPayload);
+      // Match describe / processed-summary dataset selection (no exclusion filter).
+      if (Object.prototype.hasOwnProperty.call(algoConfig.inputdata ?? {}, 'datasets')) {
+        inputdata['datasets'] = this.selectedDatasetsSignal();
+      }
       return {
         name: expName,
         algorithm: {
           name: requestAlgorithmName,
-          inputdata: this.buildInputDataPayload(algoConfig, histogramY, null, null),
+          inputdata,
           parameters: {
             histogram_type: HistogramBinningType.WILKINSON,
             ...(bins ? { bins } : {}),
           },
-          preprocessing: null,
+          preprocessing: histogramPreprocessing,
         },
       };
     }
@@ -1093,9 +1115,22 @@ export class ExperimentStudioService {
 
   //Runs transient or standard algorithm calls.
   //Used for fetching quick results like histograms or descriptive stats.
-  getAlgorithmResults(algorithmName: string, nodeCodes: string[] | null = null, bins: number | null = null): Observable<any> {
+  getAlgorithmResults(
+    algorithmName: string,
+    nodeCodes: string[] | null = null,
+    bins: number | null = null,
+    preprocessingOverride?: PreprocessingConfig | null
+  ): Observable<any> {
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
-      const requestBody = this.buildRequestBody(algorithmName, nodeCodes, null, null, null, bins);
+      const requestBody = this.buildRequestBody(
+        algorithmName,
+        nodeCodes,
+        null,
+        null,
+        null,
+        bins,
+        preprocessingOverride
+      );
       return this.submitTransientRequest(requestBody).pipe(
         map(resp => this.normalizeResponse(algorithmName, resp))
       );

@@ -645,6 +645,16 @@
   line-height: 1;
 }
 
+.preprocessing-action-row.is-all-set .pending-chip {
+  background: color-mix(in srgb, var(--panel-success-text) 14%, white 86%);
+  color: var(--panel-success-text);
+}
+
+.preprocessing-action-row.is-all-set .pending-status-text {
+  color: var(--panel-success-text);
+  font-weight: 700;
+}
+
 .preprocessing-action-buttons {
   display: flex;
   align-items: center;
@@ -797,6 +807,13 @@
   color: var(--panel-success-text);
 }
 
+.preprocessing-state-mini.state-default,
+.preprocessing-state-chip.state-default {
+  background: rgba(43, 51, 233, 0.06);
+  border-color: rgba(43, 51, 233, 0.18);
+  color: var(--primary-color, #2B33E9);
+}
+
 .preprocessing-detail-section {
   padding: 0;
   border: 0;
@@ -819,6 +836,22 @@
 .preprocessing-detail-heading i {
   font-size: 0.82rem;
   opacity: 0.68;
+}
+
+.preprocessing-default-note {
+  margin: 0 0 12px;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.preprocessing-default-note--header {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  font-weight: 500;
+  text-align: right;
 }
 
 .preprocessing-control-grid {

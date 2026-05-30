@@ -1289,8 +1289,18 @@ select:required:valid {
   font-weight: 800;
 }
 
-.preprocessing-step-header .preprocessing-state-chip {
+.preprocessing-step-header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
   margin-left: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.preprocessing-step-header .preprocessing-state-chip {
+  flex-shrink: 0;
 }
 
 .preprocessing-step-body {
@@ -1393,6 +1403,11 @@ select:required:valid {
 .preprocessing-action-row.has-pending {
   border-color: rgba(43, 51, 233, 0.25);
   background: rgba(243, 245, 255, 0.85);
+}
+
+.preprocessing-action-row.is-all-set {
+  border-color: color-mix(in srgb, #166534 18%, transparent);
+  background: rgba(223, 239, 228, 0.72);
 }
 
 .preprocessing-action-row {

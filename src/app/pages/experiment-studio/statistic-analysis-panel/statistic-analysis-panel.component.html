@@ -59,6 +59,9 @@
             <button type="button" [class.active]="rawSummary.activeTab === 'Charts'" (click)="setSummaryTab('raw', 'Charts')">
               Charts
             </button>
+            <button type="button" [class.active]="rawSummary.activeTab === 'Histogram'" (click)="setSummaryTab('raw', 'Histogram')">
+              Histogram
+            </button>
           </div>
 
           @if (rawSummary.isLoading) {
@@ -214,6 +217,34 @@
                 </div>
                 }
                 }
+
+                @if (rawSummary.activeTab === 'Histogram') {
+                <div class="chart-panel-header">
+                  <div>
+                    <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel('raw', selectedBlock) }} variable</span>
+                    <h4>{{ selectedBlock.name }}</h4>
+                  </div>
+                </div>
+
+                @if (summaryHistogramLoading('raw', selectedBlock)) {
+                <div class="studio-skeleton-card" role="status" aria-label="Histogram loading">
+                  <span class="studio-skeleton-line medium"></span>
+                  <span class="studio-skeleton-line short"></span>
+                </div>
+                } @else if (summaryHistogramError('raw', selectedBlock)) {
+                <div class="row-error">{{ summaryHistogramError('raw', selectedBlock) }}</div>
+                } @else if (selectedSummaryHistogramData('raw', selectedBlock)) {
+                <div class="chart-container chart-container--workspace fade">
+                  <app-histogram [data]="selectedSummaryHistogramData('raw', selectedBlock)" [config]="{ color: '#2b33e9' }"></app-histogram>
+                </div>
+                } @else {
+                <div class="empty-state-block compact-empty chart-empty-panel">
+                  <i class="fa fa-bar-chart"></i>
+                  <p>No histogram available for {{ selectedBlock.name }}.</p>
+                  <span>Select another variable or review its statistics.</span>
+                </div>
+                }
+                }
                 }
             </div>
             </section>
@@ -258,16 +289,19 @@
           <div class="preprocessing-step-card">
             <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('missing')">
               <div class="preprocessing-section-heading">
-                <i class="fa fa-wrench" aria-hidden="true"></i>
                 <span>Missing Values</span>
               </div>
-              <span
-                class="preprocessing-state-chip"
-                [class.state-pending]="hasPendingMissingChanges"
-                [class.state-applied]="missingPreprocessingStatusLabel === 'Applied'"
-              >
-                {{ missingPreprocessingStatusLabel }}
-              </span>
+              <div class="preprocessing-step-header-meta">
+                <span class="preprocessing-default-note preprocessing-default-note--header">Default: NA removal (rows with missing values are removed).</span>
+                <span
+                  class="preprocessing-state-chip"
+                  [class.state-pending]="hasPendingMissingChanges"
+                  [class.state-applied]="missingPreprocessingStatusLabel === 'Applied'"
+                  [class.state-default]="missingPreprocessingStatusLabel === 'Default'"
+                >
+                  {{ missingPreprocessingStatusLabel }}
+                </span>
+              </div>
               <span class="accordion-icon" [class.open]="preprocessingStepOpen.missing">▾</span>
             </button>
             <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.missing">
@@ -306,6 +340,7 @@
                           class="preprocessing-state-mini"
                           [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
                           [class.state-applied]="preprocessingVariableStateLabel(variable) === 'Applied'"
+                          [class.state-default]="preprocessingVariableStateLabel(variable) === 'Default'"
                         >
                           {{ preprocessingVariableStateLabel(variable) }}
                         </span>
@@ -334,6 +369,7 @@
                       class="preprocessing-state-chip"
                       [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
                       [class.state-applied]="preprocessingVariableStateLabel(variable) === 'Applied'"
+                      [class.state-default]="preprocessingVariableStateLabel(variable) === 'Default'"
                     >
                       {{ preprocessingVariableStateLabel(variable) }}
                     </span>
@@ -394,7 +430,6 @@
           <div class="preprocessing-step-card outlier-preprocessing">
             <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('outlier')">
               <div class="preprocessing-section-heading">
-                <i class="fa fa-line-chart" aria-hidden="true"></i>
                 <span>Outlier Handling</span>
               </div>
               <span
@@ -528,10 +563,12 @@
 
                   <div class="outlier-preview-section">
                     <div class="outlier-preview-action-row" [class.has-pending]="hasOutlierRulesForPreview">
+                      @if (outlierPreviewRows.length > 0) {
                       <div class="outlier-preview-status">
                         <span class="pending-chip">{{ outlierPreviewRows.length }}</span>
                         <span class="preview-status-text">preview {{ outlierPreviewRows.length === 1 ? 'row' : 'rows' }}</span>
                       </div>
+                      }
                       <button
                         type="button"
                         class="preview-report-btn"
@@ -624,7 +661,6 @@
           <div class="preprocessing-step-card longitudinal-preprocessing">
             <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('longitudinal')">
               <div class="preprocessing-section-heading longitudinal-heading">
-                <i class="fa fa-calendar" aria-hidden="true"></i>
                 <span>Longitudinal Transformation</span>
               </div>
               <span
@@ -780,10 +816,19 @@
           </div>
           }
 
-          <div class="preprocessing-action-row" [class.has-pending]="pendingChangeCount > 0">
+          <div
+            class="preprocessing-action-row"
+            [class.has-pending]="pendingChangeCount > 0"
+            [class.is-all-set]="pendingChangeCount === 0"
+          >
             <div class="preprocessing-pending-status">
+              @if (pendingChangeCount > 0) {
               <span class="pending-chip">{{ pendingChangeCount }}</span>
-              <span class="pending-status-text">pending {{ pendingChangeCount === 1 ? 'step' : 'steps' }}</span>
+              }
+              <span class="pending-status-text">
+                @if (pendingChangeCount === 0) { All set }
+                @else { pending {{ pendingChangeCount === 1 ? 'step' : 'steps' }} }
+              </span>
             </div>
             <div class="preprocessing-action-buttons">
               <button type="button" class="reset-changes-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="resetChanges()">Reset Changes</button>
@@ -836,6 +881,9 @@
             </button>
             <button type="button" [class.active]="processedSummary.activeTab === 'Charts'" (click)="setSummaryTab('processed', 'Charts')">
               Charts
+            </button>
+            <button type="button" [class.active]="processedSummary.activeTab === 'Histogram'" (click)="setSummaryTab('processed', 'Histogram')">
+              Histogram
             </button>
           </div>
 
@@ -973,6 +1021,34 @@
                 <div class="empty-state-block compact-empty chart-empty-panel">
                   <i class="fa fa-bar-chart"></i>
                   <p>No chart available for {{ selectedBlock.name }}.</p>
+                  <span>Select another variable or review its statistics.</span>
+                </div>
+                }
+                }
+
+                @if (processedSummary.activeTab === 'Histogram') {
+                <div class="chart-panel-header">
+                  <div>
+                    <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel('processed', selectedBlock) }} variable</span>
+                    <h4>{{ selectedBlock.name }}</h4>
+                  </div>
+                </div>
+
+                @if (summaryHistogramLoading('processed', selectedBlock)) {
+                <div class="studio-skeleton-card" role="status" aria-label="Histogram loading">
+                  <span class="studio-skeleton-line medium"></span>
+                  <span class="studio-skeleton-line short"></span>
+                </div>
+                } @else if (summaryHistogramError('processed', selectedBlock)) {
+                <div class="row-error">{{ summaryHistogramError('processed', selectedBlock) }}</div>
+                } @else if (selectedSummaryHistogramData('processed', selectedBlock)) {
+                <div class="chart-container chart-container--workspace fade">
+                  <app-histogram [data]="selectedSummaryHistogramData('processed', selectedBlock)" [config]="{ color: '#2b33e9' }"></app-histogram>
+                </div>
+                } @else {
+                <div class="empty-state-block compact-empty chart-empty-panel">
+                  <i class="fa fa-bar-chart"></i>
+                  <p>No histogram available for {{ selectedBlock.name }}.</p>
                   <span>Select another variable or review its statistics.</span>
                 </div>
                 }
