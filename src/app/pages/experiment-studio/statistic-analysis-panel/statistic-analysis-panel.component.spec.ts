@@ -19,6 +19,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService = jasmine.createSpyObj('ExperimentStudioService', [
             'loadDescriptiveOverview',
             'loadOutlierReportPreview',
+            'getAlgorithmResults',
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
             'setAppliedDescriptivePreprocessing',
@@ -40,6 +41,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
         mockExpService.loadOutlierReportPreview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
@@ -353,9 +355,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
         fixture.detectChanges();
 
-        expect(component.pendingChangeCount).toBe(2);
-        expect(component.preprocessingStatusLabel).toBe('2 pending steps');
-        expect(fixture.nativeElement.textContent).toContain('2 pending steps');
+        // Missing Values defaults (NA removal) are implicit, so they don't
+        // contribute to the pending count. Only the longitudinal step counts.
+        expect(component.pendingChangeCount).toBe(1);
+        expect(component.preprocessingStatusLabel).toBe('1 pending step');
+        expect(fixture.nativeElement.textContent).toContain('1 pending step');
     });
 
     it('shows category choices for categorical constant preprocessing values', () => {
@@ -379,7 +383,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(options.map((option) => option.textContent?.trim())).toContain('Yes');
     });
 
-    it('splits preprocessing rows by pending and applied state', () => {
+    it('splits preprocessing rows by default, applied and pending state', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
@@ -392,8 +396,11 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
         const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
+        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
 
-        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
+        // `sex` was just added and sits on the implicit NA-removal default.
+        expect(pendingGroup).toBeUndefined();
+        expect(defaultGroup?.variables.map((v) => v.code)).toEqual(['sex']);
         expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
     });
 
@@ -411,18 +418,40 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([sex]);
         fixture.detectChanges();
         expect(component.appliedPreprocessingRules['age']?.action).toBe('drop');
-        expect(component.preprocessingGroups.find((group) => group.key === 'applied')).toBeUndefined();
+        expect(component.preprocessingGroups.find((group) => group.key === 'applied')?.variables.map((v) => v.code)).toEqual(['sex']);
 
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
         const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
-        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
-        expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
-        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
+        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
+        expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age', 'sex']);
+        expect(defaultGroup).toBeUndefined();
     });
 
-    it('marks variables added after applied preprocessing as pending', () => {
+    it('auto-applies default NA removal when variables are first selected', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        fixture.detectChanges();
+
+        expect(component.preprocessingStatus).toBe('applied');
+        expect(component.preprocessingVariableStateLabel(age)).toBe('Applied');
+        expect(component.preprocessingVariableStateLabel(sex)).toBe('Applied');
+        expect(component.pendingChangeCount).toBe(0);
+        expect(mockExpService.setAppliedDescriptivePreprocessing).toHaveBeenCalledWith({
+            missing_values_handler: {
+                strategies: {
+                    age: 'drop',
+                    sex: 'drop',
+                },
+            },
+        });
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
+    });
+
+    it('marks variables added after applied preprocessing as applied (NA removal default)', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const preprocessing = {
@@ -443,11 +472,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
-        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
-        expect(component.preprocessingVariableStateLabel(sex)).toBe('Pending');
-        expect(component.preprocessingVariableHasPendingChange(sex)).toBeTrue();
-        expect(component.pendingChangeCount).toBe(1);
-        expect(pendingGroup?.variables.map((v) => v.code)).toEqual(['sex']);
+        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
+        expect(component.preprocessingVariableStateLabel(sex)).toBe('Applied');
+        expect(component.preprocessingVariableHasPendingChange(sex)).toBeFalse();
+        expect(component.pendingChangeCount).toBe(0);
+        expect(defaultGroup).toBeUndefined();
     });
 
     it('creates pending state when a missing value action changes', () => {
@@ -928,7 +957,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 variable: 'Age',
                 dataset: 'dataset-a',
                 strategy: 'IQR',
-                lowerBound: 'Unavailable',
+                lowerBound: '-',
                 lowerOutliers: '0',
                 totalOutliers: '2',
             }),
@@ -937,8 +966,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
         const preview = fixture.nativeElement.querySelector('.preview-panel') as HTMLElement;
         expect(preview.textContent).toContain('Outlier Report Preview');
-        expect(preview.textContent).toContain('Unavailable');
         expect(preview.textContent).toContain('0');
+        expect(preview.textContent).toContain('2');
     });
 
     it('excludes all datasets rows from outlier report preview like descriptive numerical charts', () => {
@@ -1082,6 +1111,189 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.outlierVariableStateLabel(age)).toBe('Applied');
         expect(component.preprocessingStatus).toBe('applied');
         expect(component.pendingChangeCount).toBe(0);
+    });
+
+    it('builds processed histogram preview from describe counts without calling histogram_sql', () => {
+        const aspiration = {
+            code: 'aspiration',
+            label: 'Aspiration',
+            type: 'nominal',
+            enumerations: [{ code: '0', label: 'No' }, { code: '1', label: 'Yes' }],
+        };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue({
+            missing_values_handler: { strategies: { aspiration: 'drop' } },
+        });
+        (mockExpService.selectedVariables as any).set([aspiration]);
+        fixture.detectChanges();
+        component.preprocessingStatus = 'applied';
+        component.processedSummary = (component as any).buildSummaryFromResponse({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'aspiration',
+                        data: {
+                            num_dtps: 21766,
+                            num_na: 0,
+                            num_total: 21766,
+                            counts: { '0': 18000, '1': 3766 },
+                        },
+                    },
+                ],
+            },
+        }, 'processed');
+        component.processedSummary.selectedStatisticKey = 'aspiration';
+        fixture.detectChanges();
+
+        mockExpService.getAlgorithmResults.calls.reset();
+        component.setSummaryTab('processed', 'Histogram');
+        fixture.detectChanges();
+
+        expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
+        const block = component.selectedStatisticBlock('processed');
+        expect(block).toBeTruthy();
+        expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(jasmine.objectContaining({
+            bins: ['No', 'Yes'],
+            counts: [18000, 3766],
+            variableName: 'Aspiration',
+        }));
+    });
+
+    it('reloads the raw histogram preview after filters change while the Histogram tab is active', () => {
+        const aspiration = {
+            code: 'aspiration',
+            label: 'Aspiration',
+            type: 'nominal',
+            enumerations: [{ code: '0', label: 'No' }, { code: '1', label: 'Yes' }],
+        };
+        configureRawSummary();
+        (mockExpService.selectedVariables as any).set([aspiration]);
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'aspiration',
+                        data: {
+                            num_dtps: 21766,
+                            num_na: 0,
+                            num_total: 21766,
+                            counts: { '0': 18000, '1': 3766 },
+                        },
+                    },
+                ],
+            },
+        }));
+        fixture.detectChanges();
+
+        component.setSummaryTab('raw', 'Histogram');
+        fixture.detectChanges();
+        expect(component.rawSummary.activeTab).toBe('Histogram');
+
+        const filteredLogic = {
+            condition: 'AND',
+            rules: [{ field: 'age', operator: 'greater', value: 65 }],
+        };
+        (mockExpService.filterLogic as any).set(filteredLogic);
+        fixture.detectChanges();
+
+        const block = component.selectedStatisticBlock('raw');
+        expect(component.selectedSummaryHistogramData('raw', block!)).toEqual(jasmine.objectContaining({
+            bins: ['No', 'Yes'],
+            counts: [18000, 3766],
+        }));
+    });
+
+    it('requests raw histogram_sql without preprocessing to match raw describe', () => {
+        const dose = { code: 'dose', label: 'Dose', type: 'real' };
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'dose',
+                        data: { num_dtps: 100, num_na: 5, num_total: 105, mean: 12.5 },
+                    },
+                ],
+            },
+        }));
+        mockExpService.getAlgorithmResults.and.returnValue(of({
+            result: {
+                histogram: [{
+                    var: 'dose',
+                    bins: [0, 5, 10, 15],
+                    counts: [10, 40, 50],
+                }],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([dose]);
+        fixture.detectChanges();
+
+        mockExpService.getAlgorithmResults.calls.reset();
+        component.setSummaryTab('raw', 'Histogram');
+        fixture.detectChanges();
+
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
+            'histogram_sql',
+            ['dose'],
+            null,
+            null
+        );
+    });
+
+    it('requests histogram_sql with applied preprocessing when describe has no counts', () => {
+        const aspiration = {
+            code: 'aspiration',
+            label: 'Aspiration',
+            type: 'nominal',
+        };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: { aspiration: 'drop' },
+            },
+        };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAlgorithmResults.and.returnValue(of({
+            result: {
+                histogram: [{
+                    var: 'aspiration',
+                    bins: ['0', '1'],
+                    counts: [18000, 3766],
+                }],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([aspiration]);
+        fixture.detectChanges();
+        component.preprocessingStatus = 'applied';
+        component.processedSummary = (component as any).buildSummaryFromResponse({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'aspiration',
+                        data: { num_dtps: 21766, num_na: 0, num_total: 21766 },
+                    },
+                ],
+            },
+        }, 'processed');
+        component.processedSummary.selectedStatisticKey = 'aspiration';
+        fixture.detectChanges();
+
+        mockExpService.getAlgorithmResults.calls.reset();
+        component.setSummaryTab('processed', 'Histogram');
+        fixture.detectChanges();
+
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
+            'histogram_sql',
+            ['aspiration'],
+            null,
+            preprocessing
+        );
+        const block = component.selectedStatisticBlock('processed');
+        expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(jasmine.objectContaining({
+            bins: ['0', '1'],
+            counts: [18000, 3766],
+        }));
     });
 
     it('loads the processed summary when saved preprocessing is hydrated', () => {

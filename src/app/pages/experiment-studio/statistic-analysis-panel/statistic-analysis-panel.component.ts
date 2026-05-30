@@ -18,6 +18,7 @@ import { EChartsOption } from 'echarts';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
+import { HistogramComponent } from '../visualisations/histogram/histogram.component';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
@@ -25,6 +26,7 @@ import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils'
 import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
+import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import {
   cloneOutlierRules,
   createDefaultOutlierRule,
@@ -43,7 +45,7 @@ import {
   validateOutlierRule,
 } from '../../../core/outlier-rules';
 
-type TabKey = 'Statistics' | 'Charts';
+type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'raw' | 'processed';
 type SectionKey = 'raw' | 'setup' | 'filters' | 'processed';
 type DistributionSubTab = 'Numeric' | 'Nominal';
@@ -66,6 +68,9 @@ interface SummaryView {
   nominalVariables: VariableRow[];
   chartsForBoxPlot: EChartsOption[][];
   chartsForNominal: EChartsOption[][];
+  histogramDataByVariable: Record<string, HistogramPreviewData>;
+  histogramLoadingByVariable: Record<string, boolean>;
+  histogramErrorByVariable: Record<string, string>;
   activeBoxPlotIndex: number;
   activeNominalIndex: number;
   selectedStatisticKey: string | null;
@@ -91,6 +96,13 @@ interface EnumOption {
   label: string;
 }
 
+interface HistogramPreviewData {
+  bins: string[];
+  counts: Array<number | null>;
+  variableName: string;
+  variableType?: string;
+}
+
 interface PreprocessingRule {
   variableCode: string;
   action: MissingAction;
@@ -99,7 +111,7 @@ interface PreprocessingRule {
 }
 
 interface PreprocessingGroup {
-  key: 'pending' | 'applied' | 'not-applied';
+  key: 'pending' | 'applied' | 'default' | 'not-applied';
   title: string;
   variables: VariableRow[];
 }
@@ -125,7 +137,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, FormsModule, FilterConfigModalComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, FilterConfigModalComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   styleUrl: './statistic-analysis-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -316,9 +328,13 @@ export class StatisticAnalysisPanelComponent {
       ].filter((code) => currentCodes.has(code))
     );
     for (const code of codes) {
+      const appliedRule = this.appliedPreprocessingRules[code];
       const pendingRule = this.pendingPreprocessingRules[code]
-        ?? (this.appliedPreprocessingRules[code] ? undefined : this.defaultRule(code));
-      if (this.serializeRule(pendingRule) !== this.serializeRule(this.appliedPreprocessingRules[code])) {
+        ?? (appliedRule ? undefined : this.defaultRule(code));
+      // Newly added variables sit on the implicit NA-removal default; that
+      // doesn't count as a pending change because no user action is required.
+      if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(code)) continue;
+      if (this.serializeRule(pendingRule) !== this.serializeRule(appliedRule)) {
         return true;
       }
     }
@@ -408,7 +424,8 @@ export class StatisticAnalysisPanelComponent {
     return this.buildPreprocessingGroups(
       this.filteredPreprocessingVariables,
       (variable) => this.preprocessingVariableHasPendingChange(variable),
-      (variable) => this.hasAppliedPreprocessing(variable.code)
+      (variable) => this.hasAppliedPreprocessing(variable.code),
+      (variable) => this.isPreprocessingVariableUsingDefault(variable)
     );
   }
 
@@ -431,15 +448,18 @@ export class StatisticAnalysisPanelComponent {
   private buildPreprocessingGroups(
     variables: VariableRow[],
     isPending: (variable: VariableRow) => boolean,
-    isApplied: (variable: VariableRow) => boolean
+    isApplied: (variable: VariableRow) => boolean,
+    isDefault: (variable: VariableRow) => boolean = () => false
   ): PreprocessingGroup[] {
     const pending: VariableRow[] = [];
     const applied: VariableRow[] = [];
+    const defaults: VariableRow[] = [];
     const notApplied: VariableRow[] = [];
 
     variables.forEach((variable) => {
       if (isPending(variable)) pending.push(variable);
       else if (isApplied(variable)) applied.push(variable);
+      else if (isDefault(variable)) defaults.push(variable);
       else notApplied.push(variable);
     });
 
@@ -453,6 +473,11 @@ export class StatisticAnalysisPanelComponent {
         key: 'applied',
         title: 'Applied preprocessing',
         variables: applied,
+      },
+      {
+        key: 'default',
+        title: 'Default (NA removal)',
+        variables: defaults,
       },
       {
         key: 'not-applied',
@@ -481,6 +506,7 @@ export class StatisticAnalysisPanelComponent {
   preprocessingVariableStateLabel(variable: VariableRow): string {
     if (this.preprocessingVariableHasPendingChange(variable)) return 'Pending';
     if (this.hasAppliedPreprocessing(variable.code)) return 'Applied';
+    if (this.isPreprocessingVariableUsingDefault(variable)) return 'Default';
     return 'Not applied';
   }
 
@@ -488,7 +514,28 @@ export class StatisticAnalysisPanelComponent {
     const appliedRule = this.appliedPreprocessingRules[variable.code];
     const pendingRule = this.pendingPreprocessingRules[variable.code]
       ?? (appliedRule ? undefined : this.defaultRule(variable.code));
+    // Unchanged default (NA removal) for a variable that has no active applied
+    // rule isn't a pending action: the default is implicit. A `no_action`
+    // applied placeholder (from hydration of unrelated variables) is treated
+    // as "no applied rule" here so newly added variables show as Default.
+    if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(variable.code)) {
+      return false;
+    }
     return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
+  }
+
+  isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
+    if (this.hasAppliedPreprocessing(variable.code)) return false;
+    const pendingRule = this.pendingPreprocessingRules[variable.code]
+      ?? this.defaultRule(variable.code);
+    return this.isDefaultMissingRule(pendingRule);
+  }
+
+  private isDefaultMissingRule(rule: PreprocessingRule | undefined): boolean {
+    if (!rule) return false;
+    return rule.enabled === true
+      && rule.action === 'drop'
+      && (rule.value === undefined || rule.value === '');
   }
 
   selectedOutlierPreprocessingVariable(): VariableRow | null {
@@ -554,6 +601,7 @@ export class StatisticAnalysisPanelComponent {
   get missingPreprocessingStatusLabel(): string {
     if (this.hasPendingMissingChanges) return 'Pending';
     if (Object.values(this.appliedPreprocessingRules).some((rule) => rule.enabled && rule.action !== 'no_action')) return 'Applied';
+    if (this.preprocessingVariables.some((variable) => this.isPreprocessingVariableUsingDefault(variable))) return 'Default';
     return 'Required';
   }
 
@@ -613,7 +661,12 @@ export class StatisticAnalysisPanelComponent {
   }
 
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
-    this.getSummary(kind).activeTab = tab;
+    const summary = this.getSummary(kind);
+    summary.activeTab = tab;
+    if (tab === 'Histogram') {
+      const block = this.selectedStatisticBlock(kind);
+      if (block) this.ensureHistogramForBlock(kind, block);
+    }
     this.cdr.markForCheck();
   }
 
@@ -637,7 +690,11 @@ export class StatisticAnalysisPanelComponent {
   }
 
   selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
-    this.getSummary(kind).selectedStatisticKey = this.statisticBlockKey(block);
+    const summary = this.getSummary(kind);
+    summary.selectedStatisticKey = this.statisticBlockKey(block);
+    if (summary.activeTab === 'Histogram') {
+      this.ensureHistogramForBlock(kind, block);
+    }
   }
 
   selectedStatisticBlock(kind: SummaryKind): PivotBlock | null {
@@ -699,6 +756,24 @@ export class StatisticAnalysisPanelComponent {
 
     const index = summary.nominalVariables.findIndex((item) => item.code === variable.code);
     return index >= 0 ? summary.chartsForNominal[index] ?? [] : [];
+  }
+
+  selectedSummaryHistogramData(kind: SummaryKind, block: PivotBlock): HistogramPreviewData | null {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return null;
+    return this.getSummary(kind).histogramDataByVariable[code] ?? null;
+  }
+
+  summaryHistogramLoading(kind: SummaryKind, block: PivotBlock): boolean {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return false;
+    return !!this.getSummary(kind).histogramLoadingByVariable[code];
+  }
+
+  summaryHistogramError(kind: SummaryKind, block: PivotBlock): string {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return '';
+    return this.getSummary(kind).histogramErrorByVariable[code] ?? '';
   }
 
   goToSection(section: SectionKey): void {
@@ -1114,7 +1189,7 @@ export class StatisticAnalysisPanelComponent {
     this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
       next: (response) => {
         this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
-        this.processedSummaryKey = JSON.stringify({ variableCodes, preprocessing });
+        this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
         this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
           this.appliedPreprocessingRules,
           this.pendingPreprocessingRules
@@ -1132,6 +1207,7 @@ export class StatisticAnalysisPanelComponent {
         this.preprocessingStatus = 'applied';
         this.isApplyingPreprocessing = false;
         this.successMessage = '';
+        this.refreshActiveHistogramPreview('processed');
         this.emitProgressState();
         this.sectionOpen.processed = true;
         this.cdr.markForCheck();
@@ -1178,6 +1254,7 @@ export class StatisticAnalysisPanelComponent {
         this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
         this.processedData = this.rawSummary.data;
         this.isLoading = false;
+        this.refreshActiveHistogramPreview('raw');
         this.cdr.markForCheck();
       },
       error: (err) => {
@@ -1193,6 +1270,7 @@ export class StatisticAnalysisPanelComponent {
   processDescriptiveStatsResults(response: unknown): void {
     this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
     this.processedData = this.rawSummary.data;
+    this.refreshActiveHistogramPreview('raw');
   }
 
   variableLabel(variable: VariableRow): string {
@@ -1287,6 +1365,9 @@ export class StatisticAnalysisPanelComponent {
       nominalVariables: [],
       chartsForBoxPlot: [],
       chartsForNominal: [],
+      histogramDataByVariable: {},
+      histogramLoadingByVariable: {},
+      histogramErrorByVariable: {},
       activeBoxPlotIndex: 0,
       activeNominalIndex: 0,
       selectedStatisticKey: null,
@@ -1336,9 +1417,207 @@ export class StatisticAnalysisPanelComponent {
       isLoading: false,
       activeTab: current.activeTab,
       selectedStatisticKey: this.nextStatisticSelection(data, current.selectedStatisticKey),
+      histogramDataByVariable: {},
+      histogramLoadingByVariable: {},
+      histogramErrorByVariable: {},
       ...distributionState,
     };
     return summary;
+  }
+
+  private refreshActiveHistogramPreview(kind: SummaryKind): void {
+    const summary = this.getSummary(kind);
+    if (summary.activeTab !== 'Histogram') return;
+    const block = this.selectedStatisticBlock(kind);
+    if (!block) return;
+    this.ensureHistogramForBlock(kind, block);
+  }
+
+  private buildProcessedSummaryKey(
+    variableCodes: string[],
+    preprocessing: PreprocessingConfig
+  ): string {
+    return JSON.stringify({
+      variableCodes,
+      preprocessing,
+      filterLogic: this.expStudioService.filterLogic(),
+    });
+  }
+
+  private ensureHistogramForBlock(kind: SummaryKind, block: PivotBlock): void {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return;
+
+    const summary = this.getSummary(kind);
+    if (summary.histogramLoadingByVariable[code]) return;
+    if (summary.histogramDataByVariable[code]) return;
+
+    const fromDescribe = this.buildHistogramFromDescribeCounts(kind, code, block);
+    if (fromDescribe) {
+      summary.histogramDataByVariable = {
+        ...summary.histogramDataByVariable,
+        [code]: fromDescribe,
+      };
+      summary.histogramErrorByVariable = {
+        ...summary.histogramErrorByVariable,
+        [code]: '',
+      };
+      this.cdr.markForCheck();
+      return;
+    }
+
+    summary.histogramLoadingByVariable = {
+      ...summary.histogramLoadingByVariable,
+      [code]: true,
+    };
+    summary.histogramErrorByVariable = {
+      ...summary.histogramErrorByVariable,
+      [code]: '',
+    };
+    this.cdr.markForCheck();
+
+    // Raw summary describe loads without preprocessing; keep histogram aligned.
+    const preprocessingOverride = kind === 'processed'
+      ? this.expStudioService.getAppliedDescriptivePreprocessing()
+      : null;
+
+    this.expStudioService
+      .getAlgorithmResults(AlgorithmNames.HISTOGRAM, [code], null, preprocessingOverride)
+      .subscribe({
+        next: (response) => {
+          const nextSummary = this.getSummary(kind);
+          const parsed = this.parseHistogramResponse(response, code, block, kind);
+          if (parsed.data) {
+            nextSummary.histogramDataByVariable = {
+              ...nextSummary.histogramDataByVariable,
+              [code]: parsed.data,
+            };
+            nextSummary.histogramErrorByVariable = {
+              ...nextSummary.histogramErrorByVariable,
+              [code]: '',
+            };
+          } else {
+            nextSummary.histogramErrorByVariable = {
+              ...nextSummary.histogramErrorByVariable,
+              [code]: parsed.error,
+            };
+          }
+          nextSummary.histogramLoadingByVariable = {
+            ...nextSummary.histogramLoadingByVariable,
+            [code]: false,
+          };
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          const nextSummary = this.getSummary(kind);
+          nextSummary.histogramLoadingByVariable = {
+            ...nextSummary.histogramLoadingByVariable,
+            [code]: false,
+          };
+          nextSummary.histogramErrorByVariable = {
+            ...nextSummary.histogramErrorByVariable,
+            [code]: 'Failed to load histogram preview.',
+          };
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  private buildHistogramFromDescribeCounts(
+    kind: SummaryKind,
+    code: string,
+    block: PivotBlock
+  ): HistogramPreviewData | null {
+    const featurewise = this.getSummary(kind).featurewiseRows;
+    const row = featurewise.find(
+      (item: { variable?: string; dataset?: string }) =>
+        item?.variable === code && String(item?.dataset ?? '') === 'all datasets'
+    ) ?? featurewise.find((item: { variable?: string }) => item?.variable === code);
+    const counts = (row as { data?: { counts?: Record<string, number> } })?.data?.counts;
+    if (!counts || typeof counts !== 'object' || !Object.keys(counts).length) {
+      return null;
+    }
+
+    const variable = this.statisticBlockVariable(block);
+    const binCodes = Object.keys(counts);
+    const binsWithLabels = this.mapBinsToEnumLabels(binCodes, variable?.enumerations);
+    const mappedCounts = binCodes.map((key) => {
+      const value = counts[key];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    });
+    if (!mappedCounts.some((count) => count !== null && count > 0)) {
+      return null;
+    }
+
+    return {
+      bins: binsWithLabels.map((bin) => String(bin)),
+      counts: mappedCounts,
+      variableName: block.name,
+      variableType: this.statisticBlockType(kind, block),
+    };
+  }
+
+  private parseHistogramResponse(
+    response: unknown,
+    code: string,
+    block: PivotBlock,
+    kind: SummaryKind
+  ): { data: HistogramPreviewData | null; error: string } {
+    if (!response) {
+      return { data: null, error: 'Failed to load histogram preview.' };
+    }
+
+    const payload = (response as { result?: unknown })?.result ?? response;
+    const histList = Array.isArray((payload as { histogram?: unknown })?.histogram)
+      ? (payload as { histogram: unknown[] }).histogram
+      : Array.isArray((response as { histogram?: unknown })?.histogram)
+        ? (response as { histogram: unknown[] }).histogram
+        : [];
+
+    const item = (histList as Array<{ var?: string; variable?: string; grouping_var?: string | null; bins?: unknown; counts?: unknown }>).find((entry) => {
+      const entryCode = String(entry?.var ?? entry?.variable ?? '');
+      const matchesCode = entryCode === code || entryCode.toLowerCase() === code.toLowerCase();
+      return matchesCode && !entry?.grouping_var;
+    })
+      ?? (histList as Array<{ var?: string; variable?: string; bins?: unknown; counts?: unknown }>).find((entry) => {
+        const entryCode = String(entry?.var ?? entry?.variable ?? '');
+        return entryCode === code || entryCode.toLowerCase() === code.toLowerCase();
+      })
+      ?? histList[0];
+
+    const bins = (item as { bins?: unknown })?.bins;
+    const counts = (item as { counts?: unknown })?.counts;
+    if (!item || !Array.isArray(bins) || !Array.isArray(counts) || !bins.length) {
+      const resultData = (payload as { data?: unknown })?.data ?? (response as { data?: unknown })?.data;
+      if (typeof resultData === 'string' && resultData.toLowerCase().includes('insufficient')) {
+        return { data: null, error: resultData };
+      }
+      return { data: null, error: 'No histogram data available for this variable.' };
+    }
+
+    const numericCounts = counts.map((count: unknown) => {
+      if (count === null || count === undefined) return null;
+      const value = typeof count === 'number' ? count : Number(count);
+      return Number.isFinite(value) ? value : null;
+    });
+    if (!numericCounts.some((count) => count !== null && count > 0)) {
+      return {
+        data: null,
+        error: 'Histogram counts are unavailable (privacy threshold or insufficient data after preprocessing).',
+      };
+    }
+
+    const variable = this.statisticBlockVariable(block);
+    const binsWithLabels = this.mapBinsToEnumLabels(bins, variable?.enumerations);
+    return {
+      data: {
+        bins: binsWithLabels.map((bin) => String(bin)),
+        counts: numericCounts,
+        variableName: block.name,
+        variableType: this.statisticBlockType(kind, block),
+      },
+      error: '',
+    };
   }
 
   private buildDistributionState(featurewise: any[], response: unknown): Pick<SummaryView,
@@ -1606,8 +1885,30 @@ export class StatisticAnalysisPanelComponent {
     }
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
+    this.tryAutoApplyDefaultMissingPreprocessing();
     this.updatePreprocessingStatus();
     this.syncAppliedPreprocessingForCurrentSelection();
+  }
+
+  private tryAutoApplyDefaultMissingPreprocessing(): void {
+    if (!this.preprocessingVariables.length) return;
+    if (this.hasPendingMissingChanges) return;
+    const hasUnappliedDefault = this.preprocessingVariables.some(
+      (variable) => this.isPreprocessingVariableUsingDefault(variable) && !this.hasAppliedPreprocessing(variable.code)
+    );
+    if (!hasUnappliedDefault) return;
+
+    this.ensureDefaultRulesForCurrentSelection();
+    this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
+      this.appliedPreprocessingRules,
+      this.pendingPreprocessingRules
+    );
+    const preprocessing = this.buildPreprocessingConfig(this.appliedPreprocessingRules);
+    if (!preprocessing) return;
+
+    this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
+    this.preprocessingStatus = 'applied';
+    this.emitProgressState();
   }
 
   private fetchProcessedSummaryForAppliedPreprocessing(): void {
@@ -1619,17 +1920,23 @@ export class StatisticAnalysisPanelComponent {
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
     if (!variableCodes.length) return;
 
-    const nextKey = JSON.stringify({ variableCodes, preprocessing });
+    const nextKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
     if (nextKey === this.processedSummaryKey) return;
 
     this.processedSummaryKey = nextKey;
-    this.processedSummary = this.createEmptySummary(true);
+    const previousProcessedSummary = this.processedSummary;
+    this.processedSummary = {
+      ...this.createEmptySummary(true),
+      activeTab: previousProcessedSummary.activeTab,
+      selectedStatisticKey: previousProcessedSummary.selectedStatisticKey,
+    };
     this.cdr.markForCheck();
 
     this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
       next: (response) => {
         this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
         this.preprocessingStatus = 'applied';
+        this.refreshActiveHistogramPreview('processed');
         this.emitProgressState();
         this.cdr.markForCheck();
       },
@@ -1872,6 +2179,10 @@ export class StatisticAnalysisPanelComponent {
     return next;
   }
 
+  // For Missing Values the default action is `drop` (NA removal): rows with
+  // missing values are removed. Adding a variable does not create a pending
+  // change — the default is implicit, and the user can opt into a different
+  // imputation strategy (mean, median, constant) when needed.
   private defaultRule(variableCode: string): PreprocessingRule {
     return { variableCode, action: 'drop', value: '', enabled: true };
   }
@@ -1965,6 +2276,37 @@ export class StatisticAnalysisPanelComponent {
     ) ?? null;
   }
 
+  private variableCodeForBlock(block: PivotBlock): string | null {
+    if (block.code) return block.code;
+    return this.variableForBlock(block)?.code ?? null;
+  }
+
+  private mapBinsToEnumLabels(
+    bins: unknown[],
+    enumerations?: Array<{ code?: unknown; label?: string; name?: string }>
+  ): unknown[] {
+    if (!Array.isArray(bins) || !enumerations?.length) return bins;
+
+    const codeToLabel = new Map(
+      enumerations.map((entry) => [
+        String(entry?.code ?? entry?.label ?? entry?.name ?? ''),
+        entry?.label ?? entry?.name ?? String(entry?.code ?? ''),
+      ])
+    );
+
+    let mapped = 0;
+    const mappedBins = bins.map((bin) => {
+      const label = codeToLabel.get(String(bin));
+      if (label !== undefined) {
+        mapped += 1;
+        return label;
+      }
+      return bin;
+    });
+
+    return mapped > 0 ? mappedBins : bins;
+  }
+
   private fmt(v: unknown): string {
     if (v === null || v === undefined) return 'N/A';
     if (typeof v === 'number') return v.toFixed(2);
@@ -2047,8 +2389,12 @@ export class StatisticAnalysisPanelComponent {
           rows.push({ metric: label, values });
         });
       } else {
+        const isCategorical = !!matched && this.isCategoricalVariable(matched);
         const countKeys = new Set(['num_datapoints', 'num_missing', 'num_total']);
-        rows = this.metricOrder.map((metric) => {
+        const metrics = isCategorical
+          ? this.metricOrder.filter((metric) => countKeys.has(metric.key))
+          : this.metricOrder;
+        rows = metrics.map((metric) => {
           const values: Record<string, string> = {};
           for (const ds of datasetOrder) {
             const raw =
