@@ -609,19 +609,6 @@
           } @else {
           <input type="text" [formControlName]="field.key" class="config-input" placeholder="Enter value..." />
           }
-          <!-- Extra info section under each field -->
-          <div class="field-meta">
-            @if (field.desc) {
-            <div class="desc-text">{{ field.desc }}</div>
-            } @if ( field.min !== null && field.min !== undefined && field.max
-            !== null && field.max !== undefined) {
-            <div class="range-hint">
-              Range: {{ field.min }} to {{ field.max }}
-            </div>
-            } @if (field.default !== null && field.default !== undefined) {
-            <div class="default-hint">Default: {{ field.default }}</div>
-            }
-          </div>
 
           @if (configForm().get(field.key)?.invalid &&
           configForm().get(field.key)?.touched) {
