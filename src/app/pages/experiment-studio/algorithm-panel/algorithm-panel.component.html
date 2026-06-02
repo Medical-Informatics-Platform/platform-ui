@@ -172,12 +172,8 @@
         <section class="summary-field">
           <h4 class="summary-field-label">Filters</h4>
           <div class="summary-field-value">
-            @if (experimentInfo().filters.length) {
-            <div class="summary-chip-group">
-              @for (f of experimentInfo().filters; track f.code) {
-              <span class="summary-chip summary-chip--outline">{{ f.label || f.name || f.code }}</span>
-              }
-            </div>
+            @if (filterPreviewExpression()) {
+            <span class="summary-filter-preview-tag">{{ filterPreviewExpression() }}</span>
             } @else {
             <span class="summary-empty">No filters</span>
             }
