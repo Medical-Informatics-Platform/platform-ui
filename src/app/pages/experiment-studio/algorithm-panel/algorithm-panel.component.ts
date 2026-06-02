@@ -654,6 +654,12 @@ export class AlgorithmPanelComponent {
     };
   });
 
+  readonly filterPreviewExpression = computed(() => {
+    const logic = this.experimentStudioService.filterLogic();
+    if (!logic || !Array.isArray((logic as any).rules) || !(logic as any).rules.length) return '';
+    return this.formatFilterNode(logic);
+  });
+
 
   objectKeys(obj: any): string[] {
     return obj ? Object.keys(obj) : [];
@@ -668,6 +674,66 @@ export class AlgorithmPanelComponent {
       : trimmed.split(',');
 
     return parts.map((part) => part.trim()).filter(Boolean);
+  }
+
+  private formatFilterNode(node: any): string {
+    if (!node) return '';
+
+    if (Array.isArray(node.rules)) {
+      const parts = node.rules
+        .map((rule: any) => this.formatFilterNode(rule))
+        .filter(Boolean);
+      if (!parts.length) return '';
+
+      const condition = String(node.condition || 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND';
+      const expression = parts.join(` ${condition} `);
+      return parts.length > 1 ? `(${expression})` : expression;
+    }
+
+    const field = String(node.field ?? node.id ?? '');
+    const label = this.labelMap()[field] ?? (field || 'Variable');
+    const operator = this.filterOperatorLabel(String(node.operator ?? 'equal'));
+
+    if (node.operator === 'is_null' || node.operator === 'is_not_null') {
+      return `${label} ${operator}`;
+    }
+
+    return `${label} ${operator} ${this.formatFilterValue(field, node.value)}`;
+  }
+
+  private filterOperatorLabel(operator: string): string {
+    switch (operator) {
+      case 'equal':
+      case '=':
+        return '=';
+      case 'not_equal':
+      case '!=':
+        return '!=';
+      case 'greater':
+      case '>':
+        return '>';
+      case 'greater_or_equal':
+      case '>=':
+        return '>=';
+      case 'less':
+      case '<':
+        return '<';
+      case 'less_or_equal':
+      case '<=':
+        return '<=';
+      case 'is_null':
+        return 'IS NULL';
+      case 'is_not_null':
+        return 'IS NOT NULL';
+      default:
+        return operator;
+    }
+  }
+
+  private formatFilterValue(field: string, value: any): string {
+    if (value === null || value === undefined || value === '') return 'value';
+    const valueKey = String(value);
+    return this.enumMaps()[field]?.[valueKey] ?? valueKey;
   }
 
   private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, any> {
