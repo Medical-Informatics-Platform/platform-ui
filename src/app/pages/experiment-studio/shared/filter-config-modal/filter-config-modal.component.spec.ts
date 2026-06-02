@@ -184,4 +184,44 @@ describe('FilterConfigModalComponent block builder', () => {
     expect(component.previewExpression()).toContain('Age > 2');
     expect(component.previewExpression()).toContain('Age IS NULL');
   });
+
+  it('stores mixed connectors independently and serializes them as nested groups', () => {
+    const root = component.rootGroup();
+    component.addCondition(root.id, 0);
+    component.addCondition(root.id, 1);
+    component.addCondition(root.id, 2);
+
+    let first = component.rootGroup().rules[0] as any;
+    let second = component.rootGroup().rules[1] as any;
+    let third = component.rootGroup().rules[2] as any;
+
+    component.onConditionVariableTextChange(first.id, 'Age (real)');
+    component.setConditionOperator(first.id, '>');
+    component.setConditionValue(first.id, '10');
+
+    component.onConditionVariableTextChange(second.id, 'Sex (nominal)');
+    component.setConditionValue(second.id, 'female');
+
+    component.onConditionVariableTextChange(third.id, 'Sex (nominal)');
+    component.setConditionValue(third.id, 'male');
+
+    component.setBlockConnector(root.id, second.id, 'AND');
+    component.setBlockConnector(root.id, third.id, 'OR');
+
+    expect(component.previewExpression()).toContain('Age > 10 AND Sex = Female OR Sex = Male');
+
+    component.saveFilters();
+
+    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
+      condition: 'OR',
+      rules: [
+        jasmine.objectContaining({
+          condition: 'AND',
+          rules: jasmine.any(Array),
+        }),
+        jasmine.objectContaining({ field: 'sex', value: 'male' }),
+      ],
+      valid: true,
+    }));
+  });
 });

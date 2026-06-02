@@ -23,7 +23,7 @@ import { PdfExportService } from '../../../services/pdf-export.service';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
-import { FilterConfigModalComponent } from '../variables-panel/filter-config-modal/filter-config-modal.component';
+import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';

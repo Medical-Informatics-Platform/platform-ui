@@ -57,21 +57,21 @@ export class VariablesPanelComponent implements OnDestroy {
   }> = [
       {
         value: 'bubble',
-        label: 'Bubble',
+        label: 'Map',
         icon: 'fas fa-circle-nodes',
-        title: 'Bubble chart overview',
+        title: 'Bubble overview of the metadata structure',
       },
       {
         value: 'ontology',
-        label: 'Tree',
+        label: 'List',
         icon: 'fas fa-sitemap',
-        title: 'Ontology tree metadata browser',
+        title: 'Expandable hierarchy list of groups and variables',
       },
       {
         value: 'collapsible',
-        label: 'Collapsible',
+        label: 'Graph',
         icon: 'fas fa-project-diagram',
-        title: 'Collapsible hierarchy visualization',
+        title: 'Interactive collapsible hierarchy diagram',
       },
     ];
 

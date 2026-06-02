@@ -10,13 +10,14 @@ type FilterBlock = FilterGroupBlock | FilterConditionBlock;
 interface FilterGroupBlock {
   kind: 'group';
   id: string;
-  condition: GroupCondition;
+  connector?: GroupCondition;
   rules: FilterBlock[];
 }
 
 interface FilterConditionBlock {
   kind: 'condition';
   id: string;
+  connector?: GroupCondition;
   field: string;
   variableText: string;
   operator: string;
@@ -71,12 +72,22 @@ export class FilterConfigModalComponent {
   }
 
   removeBlock(blockId: string): void {
-    this.rootGroup.update((root) => this.removeBlockFromGroup(root, blockId));
+    this.rootGroup.update((root) => this.ensureGroupConnectors(this.removeBlockFromGroup(root, blockId)));
     this.filterError.set(null);
   }
 
   setGroupCondition(groupId: string, condition: GroupCondition): void {
-    this.updateGroup(groupId, (group) => ({ ...group, condition }));
+    this.updateGroup(groupId, (group) => ({
+      ...group,
+      rules: group.rules.map((block, index) => index === 0 ? { ...block, connector: undefined } : { ...block, connector: condition }),
+    }));
+  }
+
+  setBlockConnector(groupId: string, blockId: string, condition: GroupCondition): void {
+    this.updateGroup(groupId, (group) => ({
+      ...group,
+      rules: group.rules.map((block) => block.id === blockId ? { ...block, connector: condition } : block),
+    }));
   }
 
   onConditionVariableTextChange(blockId: string, value: string): void {
@@ -195,7 +206,7 @@ export class FilterConfigModalComponent {
   }
 
   private createGroup(rules: FilterBlock[] = []): FilterGroupBlock {
-    return { kind: 'group', id: this.nextId(), condition: 'AND', rules };
+    return this.ensureGroupConnectors({ kind: 'group', id: this.nextId(), rules });
   }
 
   private createCondition(): FilterConditionBlock {
@@ -211,12 +222,12 @@ export class FilterConfigModalComponent {
   }
 
   private updateGroup(groupId: string, updater: (group: FilterGroupBlock) => FilterGroupBlock): void {
-    this.rootGroup.update((root) => this.mapGroups(root, groupId, updater));
+    this.rootGroup.update((root) => this.ensureGroupConnectors(this.mapGroups(root, groupId, updater)));
     this.filterError.set(null);
   }
 
   private updateCondition(blockId: string, updater: (block: FilterConditionBlock) => FilterConditionBlock): void {
-    this.rootGroup.update((root) => this.mapConditions(root, blockId, updater));
+    this.rootGroup.update((root) => this.ensureGroupConnectors(this.mapConditions(root, blockId, updater)));
     this.filterError.set(null);
   }
 
@@ -247,6 +258,26 @@ export class FilterConfigModalComponent {
     };
   }
 
+  private ensureGroupConnectors(group: FilterGroupBlock): FilterGroupBlock {
+    return {
+      ...group,
+      connector: undefined,
+      rules: group.rules.map((block, index) => {
+        const normalizedConnector = index === 0 ? undefined : (block.connector ?? 'AND');
+        if (block.kind === 'group') {
+          return {
+            ...this.ensureGroupConnectors(block),
+            connector: normalizedConnector,
+          };
+        }
+        return {
+          ...block,
+          connector: normalizedConnector,
+        };
+      }),
+    };
+  }
+
   private operatorOptionsForVariable(variable: any | null): string[] {
     return String(variable?.type ?? '').toLowerCase() === 'nominal'
       ? ['=', '!=', 'IS NULL', 'IS NOT NULL']
@@ -265,12 +296,14 @@ export class FilterConfigModalComponent {
 
   private backendToGroup(logic: any): FilterGroupBlock {
     if (!logic || !Array.isArray(logic.rules)) return this.createGroup();
-    return {
+    return this.ensureGroupConnectors({
       kind: 'group',
       id: this.nextId(),
-      condition: String(logic.condition ?? 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND',
-      rules: logic.rules.map((rule: any) => this.backendToBlock(rule)),
-    };
+      rules: logic.rules.map((rule: any, index: number) => ({
+        ...this.backendToBlock(rule),
+        connector: index === 0 ? undefined : (String(logic.condition ?? 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND'),
+      })),
+    });
   }
 
   private backendToBlock(rule: any): FilterBlock {
@@ -331,10 +364,7 @@ export class FilterConfigModalComponent {
   }
 
   private normalizeGroup(group: FilterGroupBlock): any {
-    return {
-      condition: group.condition,
-      rules: group.rules.map((block) => block.kind === 'group' ? this.normalizeGroup(block) : this.normalizeCondition(block)),
-    };
+    return this.groupToBackendLogic(group);
   }
 
   private normalizeCondition(block: FilterConditionBlock): any {
@@ -415,8 +445,11 @@ export class FilterConfigModalComponent {
 
   private groupPreview(group: FilterGroupBlock): string {
     if (!group.rules.length) return '';
-    const expression = group.rules.map((block) => block.kind === 'group' ? `(${this.groupPreview(block)})` : this.conditionPreview(block));
-    return expression.join(` ${group.condition} `);
+    return group.rules.reduce((expression, block, index) => {
+      const blockPreview = block.kind === 'group' ? `(${this.groupPreview(block)})` : this.conditionPreview(block);
+      if (index === 0) return blockPreview;
+      return `${expression} ${block.connector ?? 'AND'} ${blockPreview}`;
+    }, '');
   }
 
   private conditionPreview(block: FilterConditionBlock): string {
@@ -465,5 +498,28 @@ export class FilterConfigModalComponent {
     (model.variables ?? []).forEach(addVariable);
     visitGroups(model.groups ?? []);
     return Array.from(seen.values());
+  }
+
+  private groupToBackendLogic(group: FilterGroupBlock): any {
+    const backendRules = group.rules.map((block) => block.kind === 'group' ? this.groupToBackendLogic(block) : this.normalizeCondition(block));
+    if (backendRules.length === 0) return { condition: 'AND', rules: [] };
+    if (backendRules.length === 1) return { condition: 'AND', rules: backendRules };
+
+    let folded = backendRules[0];
+    for (let index = 1; index < backendRules.length; index += 1) {
+      const operator = group.rules[index].connector ?? 'AND';
+      const next = backendRules[index];
+      if (this.isBackendGroup(folded) && folded.condition === operator) {
+        folded = { ...folded, rules: [...folded.rules, next] };
+      } else {
+        folded = { condition: operator, rules: [folded, next] };
+      }
+    }
+
+    return this.isBackendGroup(folded) ? folded : { condition: 'AND', rules: [folded] };
+  }
+
+  private isBackendGroup(value: any): value is { condition: GroupCondition; rules: any[] } {
+    return !!value && typeof value === 'object' && Array.isArray(value.rules) && (value.condition === 'AND' || value.condition === 'OR');
   }
 }

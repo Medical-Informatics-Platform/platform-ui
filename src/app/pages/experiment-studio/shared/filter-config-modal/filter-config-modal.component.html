@@ -115,7 +115,7 @@
           <button type="button" class="insert-chip" (click)="addCondition(group.id, i)">
             <i class="fas fa-plus"></i>
           </button>
-          <select class="connector-select" [ngModel]="group.condition" (ngModelChange)="setGroupCondition(group.id, $event)">
+          <select class="connector-select" [ngModel]="block.connector ?? 'AND'" (ngModelChange)="setBlockConnector(group.id, block.id, $event)">
             <option ngValue="AND">AND</option>
             <option ngValue="OR">OR</option>
           </select>
