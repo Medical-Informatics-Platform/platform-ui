@@ -190,6 +190,34 @@ describe('ExperimentStudioService', () => {
     expect(body.algorithm.preprocessing).toEqual(applied);
   });
 
+  it('filters applied descriptive preprocessing to histogram y variables only', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: {
+        strategies: { age: 'drop', sex: 'drop' },
+      },
+      outlier_winsorizer: {
+        strategies: { age: 'iqr' },
+        tails: { age: 'both' },
+        folds: { age: 1.5 },
+      },
+    };
+
+    const body = service.buildRequestBody('histogram_sql', ['age'], null, null, null, null, applied);
+
+    expect(body.algorithm.preprocessing).toEqual({
+      missing_values_handler: {
+        strategies: { age: 'drop' },
+      },
+      outlier_winsorizer: {
+        strategies: { age: 'iqr' },
+        tails: { age: 'both' },
+        folds: { age: 1.5 },
+      },
+    });
+  });
+
   it('skips preprocessing for histogram preview when override is explicitly null', () => {
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);

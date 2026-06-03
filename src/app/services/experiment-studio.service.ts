@@ -662,22 +662,11 @@ export class ExperimentStudioService {
     // special case for histogram (transient preview)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const histogramY = yVariables?.length ? yVariables : null;
-      const histogramPreprocessing = preprocessingOverride === undefined
-        ? this.resolveRequestPreprocessing(
-          requestAlgorithmName,
-          histogramY,
-          null,
-          null
-        )
-        : preprocessingOverride === null
-          ? null
-          : this.normalizePreprocessingConfig(preprocessingOverride)
-            ?? this.resolveRequestPreprocessing(
-              requestAlgorithmName,
-              histogramY,
-              null,
-              null
-            );
+      const histogramPreprocessing = this.resolveHistogramPreprocessing(
+        requestAlgorithmName,
+        histogramY,
+        preprocessingOverride
+      );
       const inputdata = this.buildInputDataPayload(algoConfig, histogramY, null, filtersPayload);
       // Match describe / processed-summary dataset selection (no exclusion filter).
       if (Object.prototype.hasOwnProperty.call(algoConfig.inputdata ?? {}, 'datasets')) {
@@ -757,6 +746,32 @@ export class ExperimentStudioService {
     return null;
   }
 
+  private resolveHistogramPreprocessing(
+    algorithmName: string,
+    histogramY: string[] | null,
+    preprocessingOverride: PreprocessingConfig | null | undefined
+  ): PreprocessingConfig | null {
+    if (preprocessingOverride === undefined) {
+      return this.resolveRequestPreprocessing(algorithmName, histogramY, null, null);
+    }
+    if (preprocessingOverride === null) {
+      return null;
+    }
+
+    const normalized = this.normalizePreprocessingConfig(preprocessingOverride);
+    if (!normalized) {
+      return this.resolveRequestPreprocessing(algorithmName, histogramY, null, null);
+    }
+    if (!histogramY?.length) {
+      return normalized;
+    }
+
+    return (
+      this.filterPreprocessingConfigForVariables(normalized, histogramY)
+      ?? this.resolveRequestPreprocessing(algorithmName, histogramY, null, null)
+    );
+  }
+
   private resolveRequestPreprocessing(
     algorithmName: string,
     yPayload: string[] | string | null,
@@ -794,6 +809,85 @@ export class ExperimentStudioService {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const preprocessing = value as PreprocessingConfig;
     return Object.keys(preprocessing).length > 0 ? { ...preprocessing } : null;
+  }
+
+  /** Keep only preprocessing entries for variables present in the algorithm input (y/x). */
+  private filterPreprocessingConfigForVariables(
+    preprocessing: PreprocessingConfig,
+    variableCodes: string[]
+  ): PreprocessingConfig | null {
+    const allowed = new Set(
+      variableCodes.map((code) => String(code).trim()).filter((code) => code.length > 0)
+    );
+    if (!allowed.size) return null;
+
+    const filtered: PreprocessingConfig = {};
+
+    const missing = preprocessing[MISSING_VALUES_HANDLER];
+    if (missing && typeof missing === 'object' && !Array.isArray(missing)) {
+      const next = this.filterPreprocessingStepRecordMaps(
+        missing as Record<string, unknown>,
+        allowed,
+        ['strategies', 'fill_values']
+      );
+      if (next) filtered[MISSING_VALUES_HANDLER] = next;
+    }
+
+    const outlier = preprocessing[OUTLIER_WINSORIZER];
+    if (outlier && typeof outlier === 'object' && !Array.isArray(outlier)) {
+      const next = this.filterPreprocessingStepRecordMaps(
+        outlier as Record<string, unknown>,
+        allowed,
+        ['strategies', 'tails', 'folds']
+      );
+      if (next) filtered[OUTLIER_WINSORIZER] = next;
+    }
+
+    const longitudinal = preprocessing['longitudinal_transformer'];
+    if (longitudinal && typeof longitudinal === 'object' && !Array.isArray(longitudinal)) {
+      const longitudinalRecord = longitudinal as Record<string, unknown>;
+      const strategies = longitudinalRecord['strategies'];
+      if (strategies && typeof strategies === 'object' && !Array.isArray(strategies)) {
+        const filteredStrategies = Object.fromEntries(
+          Object.entries(strategies as Record<string, unknown>).filter(([code]) => allowed.has(code))
+        );
+        if (Object.keys(filteredStrategies).length) {
+          filtered['longitudinal_transformer'] = {
+            ...(longitudinalRecord['visit1'] !== undefined ? { visit1: longitudinalRecord['visit1'] } : {}),
+            ...(longitudinalRecord['visit2'] !== undefined ? { visit2: longitudinalRecord['visit2'] } : {}),
+            strategies: filteredStrategies,
+          };
+        }
+      }
+    }
+
+    return Object.keys(filtered).length > 0 ? filtered : null;
+  }
+
+  private filterPreprocessingStepRecordMaps(
+    step: Record<string, unknown>,
+    allowed: Set<string>,
+    perVariableKeys: string[]
+  ): Record<string, unknown> | null {
+    const next: Record<string, unknown> = {};
+    let hasContent = false;
+
+    Object.entries(step).forEach(([key, value]) => {
+      if (perVariableKeys.includes(key) && value && typeof value === 'object' && !Array.isArray(value)) {
+        const filteredMap = Object.fromEntries(
+          Object.entries(value as Record<string, unknown>).filter(([code]) => allowed.has(code))
+        );
+        if (Object.keys(filteredMap).length > 0) {
+          next[key] = filteredMap;
+          hasContent = true;
+        }
+        return;
+      }
+      next[key] = value;
+      hasContent = true;
+    });
+
+    return hasContent ? next : null;
   }
 
   getEffectivePreprocessingSummary(algorithmName: string | null | undefined): string {
@@ -1362,6 +1456,28 @@ export class ExperimentStudioService {
         this.longitudinalModels.set(longitudinal);
       })
     );
+  }
+
+  getDatasetLabelMap(): Record<string, string> {
+    const available = this.availableDatasets();
+    if (available.length) {
+      return Object.fromEntries(available.map((dataset) => [dataset.code, dataset.label]));
+    }
+
+    const model = this.selectedDataModel();
+    if (!model) return {};
+
+    const { allVariables } = this.convertToD3Hierarchy(model);
+    const datasetVariable = allVariables.find(
+      (variable: any) => String(variable?.code ?? '').toLowerCase() === 'dataset'
+    );
+    const map: Record<string, string> = {};
+    (datasetVariable?.enumerations ?? []).forEach((dataset: any) => {
+      const code = String(dataset?.code ?? '');
+      if (!code) return;
+      map[code] = String(dataset?.label ?? dataset?.name ?? code);
+    });
+    return map;
   }
 
   updateAvailableDatasets(model: DataModel | null): void {

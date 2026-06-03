@@ -621,6 +621,16 @@ export class AlgorithmPanelComponent {
   }
 
 
+  readonly datasetsWithLabels = computed(() => {
+    const codes = this.experimentStudioService.selectedDatasets();
+    const labelByCode = this.experimentStudioService.getDatasetLabelMap();
+    const fallbackMap = this.labelMap();
+    return codes.map((code) => ({
+      code,
+      label: labelByCode[code] ?? fallbackMap[code] ?? this.prettifyLabel(code),
+    }));
+  });
+
   readonly experimentInfo = computed(() => {
     const selected = this.experimentStudioService.selectedAlgorithm();
     const lastRunName =
@@ -645,7 +655,6 @@ export class AlgorithmPanelComponent {
 
     return {
       experimentName: defaultName,
-      datasets: this.experimentStudioService.selectedDatasets(),
       variables: this.experimentStudioService.selectedVariables(),
       covariates: this.experimentStudioService.selectedCovariates(),
       filters: this.experimentStudioService.selectedFilters(),
@@ -1591,10 +1600,7 @@ export class AlgorithmPanelComponent {
         params: info.algorithmConfigs,
         preprocessing: this.experimentStudioService.getEffectivePreprocessingSummary(algoKey),
         domain: this.experimentStudioService.selectedDataModel()?.code ?? null,
-        datasets: (info.datasets ?? []).map(code => {
-          const ds = this.experimentStudioService.availableDatasets().find(d => d.code === code);
-          return ds?.label || code;
-        }),
+        datasets: this.datasetsWithLabels().map((d) => d.label),
         variables: (info.variables ?? []).map((v: any) => v.label || v.name || v.code),
         covariates: (info.covariates ?? []).map((c: any) => c.label || c.name || c.code),
         filters: (info.filters ?? []).map((f: any) => f.label || f.name || f.code),

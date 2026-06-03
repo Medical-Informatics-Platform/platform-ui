@@ -127,10 +127,10 @@
         <section class="summary-field">
           <h4 class="summary-field-label">Datasets</h4>
           <div class="summary-field-value">
-            @if (experimentInfo().datasets.length) {
+            @if (datasetsWithLabels().length) {
             <div class="summary-chip-group">
-              @for (d of experimentInfo().datasets; track d) {
-              <span class="summary-chip">{{ d }}</span>
+              @for (d of datasetsWithLabels(); track d.code) {
+              <span class="summary-chip">{{ d.label }}</span>
               }
             </div>
             } @else {

@@ -1,5 +1,9 @@
 import { EChartsOption } from 'echarts';
-import { getFeaturewiseDescribeRows } from '../../../../../core/describe-result.utils';
+import {
+  getDescribeDatasetLabels,
+  getFeaturewiseDescribeRows,
+  resolveDatasetDisplayLabel,
+} from '../../../../../core/describe-result.utils';
 
 // Builds a Box Plot chart (Q1–Q3 boxes + min/max whiskers + mean dots)
 // for descriptive statistics results.
@@ -14,8 +18,9 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
     v.dataset !== 'all datasets'
   );
 
-  // datasets (x-axis)
-  const datasets = filtered.map(v => v.dataset || 'Dataset');
+  const datasetLabels = getDescribeDatasetLabels(result);
+  const datasetCodes = filtered.map((v) => v.dataset || 'Dataset');
+  const datasets = datasetCodes.map((code) => resolveDatasetDisplayLabel(String(code), datasetLabels));
 
   // Extract Q1, Q3, median, min, max, mean
   const boxData = filtered.map(v => {
