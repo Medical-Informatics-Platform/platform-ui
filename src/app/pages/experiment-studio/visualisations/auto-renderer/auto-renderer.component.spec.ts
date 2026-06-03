@@ -97,6 +97,21 @@ describe('AutoRendererComponent', () => {
     expect(tables?.[0].title).toBe('K-Means Centers');
   });
 
+  it('uses full-width layout for tables with long row labels', () => {
+    const table = {
+      title: 'Fixed Effects',
+      columns: ['Variable', 'Coefficient'],
+      rows: [
+        [
+          'Vessel imaging findings[stenosis 50-99% in suspected ischemic territory]',
+          '-1.171',
+        ],
+      ],
+    };
+
+    expect(cmp.isCompactTable(table)).toBeFalse();
+  });
+
   it('has renderers for new Exaflow algorithms', () => {
     const payloads: Record<string, any> = {
       lmm: {

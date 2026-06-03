@@ -90,6 +90,13 @@ export class AutoRendererComponent {
     // few columns + not a lot of rows -> compact
     if (colCount === 0) return false;
 
+    const maxLabelLength = (table.rows ?? []).reduce((max, row) => {
+      const label = String(row?.[0] ?? '');
+      return Math.max(max, label.length);
+    }, 0);
+    // Long row labels need the full grid row; compact cards cap near 360px.
+    if (maxLabelLength > 48) return false;
+
     return colCount <= 3 && rowCount <= 12;
   }
 

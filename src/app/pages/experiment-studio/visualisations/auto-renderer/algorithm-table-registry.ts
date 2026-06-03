@@ -1,6 +1,6 @@
 import {
   AnovaResult, AnovaTwoWayResult, TTestResult,
-  LinearRegressionResult, LinearRegressionCVResult,
+  LinearRegressionResult, LinearRegressionCVResult, LMMResult,
   LogisticRegressionResult, CVLogisticRegressionResult,
   NaiveBayesGaussianResult, NaiveBayesCategoricalResult, NaiveBayesCVResult,
   KMeansResult, PCAResult, PearsonResult,
@@ -124,19 +124,47 @@ function buildMetricRows(result: Record<string, any>, labels: Record<string, str
     .map((key) => [labels[key] ?? key, formatDecimal(result[key])]);
 }
 
+interface CoefficientColumnSpec {
+  key: string;
+  label: string;
+  displayKey?: string;
+  format?: 'decimal' | 'text';
+}
+
+function formatCoefficientCell(
+  result: Record<string, unknown>,
+  column: CoefficientColumnSpec,
+  index: number
+): string {
+  const displayKey = column.displayKey;
+  if (displayKey) {
+    const displaySource = Array.isArray(result[displayKey]) ? result[displayKey] : [];
+    const display = displaySource[index];
+    if (display !== null && display !== undefined && String(display).trim() !== '') {
+      return String(display);
+    }
+  }
+
+  const source: unknown[] = Array.isArray(result[column.key])
+    ? (result[column.key] as unknown[])
+    : [];
+  const value = source[index];
+  if (column.format === 'text') {
+    return value === null || value === undefined ? '' : String(value);
+  }
+  return formatDecimal(value);
+}
+
 function buildCoefficientRows(
-  result: Record<string, any>,
-  values: Array<{ key: string; label: string }>
-): any[][] {
-  const variables = Array.isArray(result?.['indep_vars']) ? result['indep_vars'] : [];
+  result: Record<string, unknown>,
+  values: CoefficientColumnSpec[]
+): unknown[][] {
+  const variables = Array.isArray(result['indep_vars']) ? result['indep_vars'] : [];
   if (!variables.length) return [];
 
   return variables.map((variable, index) => [
     variable,
-    ...values.map(({ key }) => {
-      const source = Array.isArray(result?.[key]) ? result[key] : [];
-      return formatDecimal(source[index]);
-    }),
+    ...values.map((column) => formatCoefficientCell(result, column, index)),
   ]);
 }
 
@@ -278,18 +306,30 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     return [];
   },
 
-  lmm: (result: any) => {
+  lmm: (result: LMMResult | null | undefined) => {
     if (!result) return [];
 
-    const coefficientColumns = [
+    const pvalueLabel =
+      typeof result.pvalue_label === 'string' && result.pvalue_label.trim()
+        ? result.pvalue_label.trim()
+        : 'P(>|t|)';
+    const coefficientColumns: CoefficientColumnSpec[] = [
       { key: 'coefficients', label: 'Coefficient' },
       { key: 'std_err', label: 'Std.Err.' },
       { key: 't_stats', label: 't-statistic' },
-      { key: 'pvalues', label: 'P(>|t|)' },
+      {
+        key: 'pvalues',
+        label: pvalueLabel,
+        displayKey: 'pvalues_display',
+        format: 'text',
+      },
       { key: 'lower_ci', label: 'Lower 95% CI' },
       { key: 'upper_ci', label: 'Upper 95% CI' },
     ];
-    const coefRows = buildCoefficientRows(result, coefficientColumns);
+    const coefRows = buildCoefficientRows(
+      result as unknown as Record<string, unknown>,
+      coefficientColumns
+    );
 
     const tables: TableSpec[] = [];
     if (coefRows.length) {
@@ -297,6 +337,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         title: 'Fixed Effects',
         columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
         rows: coefRows,
+        layout: 'full',
       });
     }
 
@@ -318,6 +359,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         title: 'Fixed Effects',
         columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
         rows: coefRows,
+        layout: 'full',
       });
     }
 
@@ -339,6 +381,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         title: 'Fixed Effects',
         columns: ['Variable', ...coefficientColumns.map(({ label }) => label)],
         rows: coefRows,
+        layout: 'full',
       });
     }
 

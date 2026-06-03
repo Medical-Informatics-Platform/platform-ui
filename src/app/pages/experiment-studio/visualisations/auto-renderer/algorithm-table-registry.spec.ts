@@ -244,20 +244,58 @@ describe('AlgorithmTableRegistry', () => {
       coefficients: [1.2, -0.4],
       std_err: [0.1, 0.05],
       t_stats: [12, -8],
-      pvalues: [0.001, 0.002],
+      pvalue_label: 'P(>|t|)',
+      pvalues: [0.0001, 0.002],
+      pvalues_display: ['<0.001', '0.002'],
       lower_ci: [1.0, -0.5],
       upper_ci: [1.4, -0.3],
       n_obs: 100,
       n_groups: 3,
+      df_model: 2,
+      df_resid: 97,
       sigma2: 0.8,
       sigma_u2: 0.2,
+      ll_reml: -120,
+      aic: 250,
+      bic: 260,
       converged: true,
+      n_iter: 8,
     });
 
     expect(tables.length).toBeGreaterThan(1);
     expect(tables[0].title).toBe('Fixed Effects');
+    expect(tables[0].columns).toContain('P(>|t|)');
     expect(tables[0].rows[0][0]).toBe('Intercept');
+    expect(tables[0].rows[0][4]).toBe('<0.001');
+    expect(tables[0].rows[1][4]).toBe('0.002');
     expect(tables.some(table => table.title === 'Model Summary')).toBeTrue();
+  });
+
+  it('falls back to formatted LMM p-values when display values are absent', () => {
+    const tables = AlgorithmTableRegistry['lmm']({
+      dependent_var: 'age',
+      grouping_var: 'dataset',
+      indep_vars: ['Intercept'],
+      coefficients: [1],
+      std_err: [0.1],
+      t_stats: [10],
+      pvalues: [0.045],
+      lower_ci: [0.8],
+      upper_ci: [1.2],
+      n_obs: 50,
+      n_groups: 2,
+      df_model: 1,
+      df_resid: 48,
+      sigma2: 1,
+      sigma_u2: 0.1,
+      ll_reml: -60,
+      aic: 120,
+      bic: 125,
+      converged: true,
+      n_iter: 5,
+    } as any);
+
+    expect(tables[0].rows[0][4]).toBe('0.045');
   });
 
   it('renders binary and ordinal GLMM result contracts', () => {
