@@ -19,10 +19,17 @@ import { ExperimentStudioService, PreprocessingConfig } from '../../../services/
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { HistogramComponent } from '../visualisations/histogram/histogram.component';
+import {
+  clipHistogramNullEdges,
+  shouldClipNullEdges,
+} from '../visualisations/histogram/histogram-chart';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { getFeaturewiseDescribeRows } from '../../../core/describe-result.utils';
+import {
+  getFeaturewiseDescribeRows,
+  resolveDatasetDisplayLabel,
+} from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
@@ -1277,6 +1284,12 @@ export class StatisticAnalysisPanelComponent {
     return variable.name ?? variable.label ?? variable.code;
   }
 
+  datasetLabel(datasetCode: string): string {
+    if (!datasetCode) return datasetCode;
+    const map = this.expStudioService.getDatasetLabelMap();
+    return resolveDatasetDisplayLabel(String(datasetCode), map);
+  }
+
   variableTypeLabel(variable: VariableRow): string {
     if (this.isNumericVariable(variable)) return 'Numeric';
     if (this.isCategoricalVariable(variable)) return 'Categorical';
@@ -1318,7 +1331,7 @@ export class StatisticAnalysisPanelComponent {
 
       await this.pdfExportService.exportDescriptiveStatisticsPdf({
         pathologyName,
-        variables: summary.data,
+        variables: this.pivotBlocksWithDatasetLabels(summary.data),
         models: [],
         charts: numericCharts,
         nonNominalVariables: summary.nonNominalVariables,
@@ -1343,7 +1356,7 @@ export class StatisticAnalysisPanelComponent {
         variable.columns.map((dataset) => ({
           Variable: variable.name,
           Metric: row.metric,
-          Dataset: dataset,
+          Dataset: this.datasetLabel(dataset),
           Value: row.values[dataset] ?? '',
         }))
       )
@@ -1557,6 +1570,33 @@ export class StatisticAnalysisPanelComponent {
     };
   }
 
+  private extractTransientHistogramError(response: unknown, payload: unknown): string | null {
+    const candidates: unknown[] = [payload, response];
+    if (response && typeof response === 'object' && 'result' in (response as object)) {
+      candidates.push((response as { result?: unknown }).result);
+    }
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        continue;
+      }
+      const record = candidate as Record<string, unknown>;
+      const data = record['data'];
+      if (typeof data === 'string' && data.trim()) {
+        return data.trim();
+      }
+      const message = record['message'];
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim();
+      }
+    }
+
+    return null;
+  }
+
   private parseHistogramResponse(
     response: unknown,
     code: string,
@@ -1588,11 +1628,14 @@ export class StatisticAnalysisPanelComponent {
     const bins = (item as { bins?: unknown })?.bins;
     const counts = (item as { counts?: unknown })?.counts;
     if (!item || !Array.isArray(bins) || !Array.isArray(counts) || !bins.length) {
-      const resultData = (payload as { data?: unknown })?.data ?? (response as { data?: unknown })?.data;
-      if (typeof resultData === 'string' && resultData.toLowerCase().includes('insufficient')) {
-        return { data: null, error: resultData };
+      const backendError = this.extractTransientHistogramError(response, payload);
+      if (backendError) {
+        return { data: null, error: backendError };
       }
-      return { data: null, error: 'No histogram data available for this variable.' };
+      const fallback = kind === 'processed'
+        ? 'No histogram data available for this variable after preprocessing. The federated histogram preview returned no bins—often because preprocessing removed too many rows or the execution engine reported an error.'
+        : 'No histogram data available for this variable.';
+      return { data: null, error: fallback };
     }
 
     const numericCounts = counts.map((count: unknown) => {
@@ -1609,10 +1652,21 @@ export class StatisticAnalysisPanelComponent {
 
     const variable = this.statisticBlockVariable(block);
     const binsWithLabels = this.mapBinsToEnumLabels(bins, variable?.enumerations);
+    const binLabels = binsWithLabels.map((bin) => String(bin));
+    const clipped = shouldClipNullEdges(binLabels)
+      ? clipHistogramNullEdges(binLabels, numericCounts)
+      : { bins: binLabels, counts: numericCounts };
+    if (!clipped.bins.length || !clipped.counts.length) {
+      return {
+        data: null,
+        error: 'Histogram counts are unavailable (privacy threshold or insufficient data after preprocessing).',
+      };
+    }
+
     return {
       data: {
-        bins: binsWithLabels.map((bin) => String(bin)),
-        counts: numericCounts,
+        bins: clipped.bins,
+        counts: clipped.counts,
         variableName: block.name,
         variableType: this.statisticBlockType(kind, block),
       },
@@ -1645,6 +1699,7 @@ export class StatisticAnalysisPanelComponent {
     const showDistributions = nonNominalVariables.length > 0 || nominalVariables.length > 0;
     const distributionSubTab = nonNominalVariables.length > 0 ? 'Numeric' : 'Nominal';
 
+    const datasetLabels = this.expStudioService.getDatasetLabelMap();
     const chartsForBoxPlot = nonNominalVariables.map((v) => {
       const perVarResp = {
         ...(response as Record<string, unknown>),
@@ -1653,6 +1708,7 @@ export class StatisticAnalysisPanelComponent {
           featurewise: featurewise.filter(
             (row: any) => row.variable === v.code && row.dataset !== 'all datasets'
           ),
+          dataset_labels: datasetLabels,
         },
       };
       return this.chartBuilder.getChartsForAlgorithm('describe', perVarResp);
@@ -2332,6 +2388,22 @@ export class StatisticAnalysisPanelComponent {
       map.set(key, label);
     });
     return map;
+  }
+
+  private pivotBlocksWithDatasetLabels(blocks: PivotBlock[]): PivotBlock[] {
+    return blocks.map((block) => {
+      const labeledColumns = block.columns.map((code) => this.datasetLabel(code));
+      return {
+        ...block,
+        columns: labeledColumns,
+        rows: block.rows.map((row) => ({
+          metric: row.metric,
+          values: Object.fromEntries(
+            block.columns.map((code, index) => [labeledColumns[index], row.values[code]])
+          ),
+        })),
+      };
+    });
   }
 
   private pivotByDataset(

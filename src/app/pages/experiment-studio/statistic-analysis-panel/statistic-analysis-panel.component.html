@@ -166,7 +166,7 @@
                       <tr>
                         <th>Metric</th>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <th>{{ ds }}</th>
+                        <th>{{ datasetLabel(ds) }}</th>
                         }
                       </tr>
                     </thead>
@@ -974,7 +974,7 @@
                       <tr>
                         <th>Metric</th>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <th>{{ ds }}</th>
+                        <th>{{ datasetLabel(ds) }}</th>
                         }
                       </tr>
                     </thead>

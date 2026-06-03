@@ -35,8 +35,24 @@ export class ChartBuilderService {
       }
     }
 
+    if (algorithm === 'describe') {
+      this.attachDescribeDatasetLabels(enrichedInput);
+    }
+
     // Keep chart titles chart-specific. Experiment-level title is rendered in the result header.
     return config.build(enrichedInput);
+  }
+
+  private attachDescribeDatasetLabels(target: any): void {
+    const map = this.experimentService.getDatasetLabelMap();
+    if (!Object.keys(map).length || !target || typeof target !== 'object') return;
+
+    if (target.result && typeof target.result === 'object') {
+      (target.result as Record<string, unknown>)['dataset_labels'] = map;
+      return;
+    }
+
+    target['dataset_labels'] = map;
   }
 
   private enrichLabels(input: any): any {
