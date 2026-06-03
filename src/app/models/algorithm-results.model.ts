@@ -131,6 +131,31 @@ export interface LinearRegressionCVResult {
     f_stat: BasicStats;
 }
 
+export interface LMMResult {
+    dependent_var: string;
+    grouping_var: string;
+    indep_vars: string[];
+    n_obs: number;
+    n_groups: number;
+    df_model: number;
+    df_resid: number;
+    coefficients: number[];
+    std_err: number[];
+    t_stats: number[];
+    pvalue_label: string;
+    pvalues: number[];
+    pvalues_display: string[];
+    lower_ci: number[];
+    upper_ci: number[];
+    sigma2: number;
+    sigma_u2: number;
+    ll_reml: number;
+    aic: number;
+    bic: number;
+    converged: boolean;
+    n_iter: number;
+}
+
 export type BasicStats = {
     mean: number;
     std: number;
