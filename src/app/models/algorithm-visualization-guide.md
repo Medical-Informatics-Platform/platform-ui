@@ -35,6 +35,23 @@ Notes:
 - Tables:
   - Compact test summary table with t, df, p, mean difference, CI, Cohen's d.
 
+### Cox Regression Classical (`cox_regression_classical`)
+
+- Charts:
+  - Hazard ratio plot with 95% CI on a log scale (reference line at HR = 1).
+  - Intercept is omitted; factors use display labels when available.
+- Tables:
+  - Clinician coefficients table (factor, hazard ratio, 95% CI, p-value).
+  - Study and model summary (participants, events, convergence, etc.).
+
+### Cox Regression Stacked (`cox_regression_stacked`)
+
+- Charts:
+  - Same hazard ratio plot as classical Cox.
+- Tables:
+  - Clinician coefficients table.
+  - Study and model summary (includes pseudo R², AIC/BIC where applicable).
+
 ### Linear Regression (`linear_regression`)
 
 - Charts:

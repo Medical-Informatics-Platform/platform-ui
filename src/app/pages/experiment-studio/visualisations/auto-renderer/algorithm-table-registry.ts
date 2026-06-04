@@ -2,6 +2,7 @@ import {
   AnovaResult, AnovaTwoWayResult, TTestResult,
   LinearRegressionResult, LinearRegressionCVResult, LMMResult,
   LogisticRegressionResult, CVLogisticRegressionResult,
+  CoxRegressionResult, ClassicalCoxRegressionSummary, StackedCoxRegressionSummary,
   NaiveBayesGaussianResult, NaiveBayesCategoricalResult, NaiveBayesCVResult,
   KMeansResult, PCAResult, PearsonResult,
   HistogramResult, DescriptiveStatsResult,
@@ -168,6 +169,120 @@ function buildCoefficientRows(
   ]);
 }
 
+function formatLinearRegressionSummaryMetric(key: string, result: LinearRegressionResult): string {
+  if (key === 'f_stat') {
+    const display = result.f_stat_display;
+    if (typeof display === 'string' && display.trim()) return display;
+  }
+  if (key === 'f_pvalue') {
+    const display = result.f_pvalue_display;
+    if (typeof display === 'string' && display.trim()) return display;
+  }
+  return formatDecimal(result[key as keyof LinearRegressionResult]);
+}
+
+function isClassicalCoxSummary(
+  summary: ClassicalCoxRegressionSummary | StackedCoxRegressionSummary
+): summary is ClassicalCoxRegressionSummary {
+  return typeof (summary as ClassicalCoxRegressionSummary).n_unique_event_times === 'number';
+}
+
+function isCoxInterceptTerm(name: string): boolean {
+  return String(name).trim().toLowerCase() === 'intercept';
+}
+
+function formatCoxHazardRatio(value: number | undefined): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  if (numeric >= 100) return numeric.toFixed(1);
+  if (numeric >= 10) return numeric.toFixed(2);
+  return numeric.toFixed(3);
+}
+
+function formatCoxPValue(value: number | undefined): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  if (numeric < 0.001) return '<0.001';
+  return numeric.toFixed(3);
+}
+
+function formatCoxHazardRatioCi(lower: number | undefined, upper: number | undefined): string {
+  const low = Number(lower);
+  const high = Number(upper);
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return '—';
+  return `${formatCoxHazardRatio(low)} – ${formatCoxHazardRatio(high)}`;
+}
+
+function buildCoxRegressionTables(
+  result: CoxRegressionResult,
+  options: { coefficientsTitle: string; variant: 'classical' | 'stacked' }
+): TableSpec[] {
+  const summary = result?.summary;
+  if (!summary) return [];
+
+  const indepVars = result.indep_vars ?? [];
+  const coefficients = summary.coefficients ?? [];
+  if (!indepVars.length || !coefficients.length) return [];
+
+  const coefRows = indepVars
+    .map((variable, index) => {
+      if (isCoxInterceptTerm(variable)) return null;
+      return [
+        variable,
+        formatCoxHazardRatio(summary.hazard_ratios?.[index]),
+        formatCoxHazardRatioCi(summary.hr_lower_ci?.[index], summary.hr_upper_ci?.[index]),
+        formatCoxPValue(summary.pvalues?.[index]),
+      ];
+    })
+    .filter((row): row is string[] => !!row);
+
+  const tables: TableSpec[] = [{
+    title: options.coefficientsTitle,
+    columns: [
+      'Factor',
+      'Hazard ratio',
+      '95% CI',
+      'p-value',
+    ],
+    rows: coefRows,
+    layout: 'full',
+  }];
+
+  const summaryRows: any[][] = [
+    ['Follow-up time', result.dependent_var],
+    ['Event indicator', result.event_var],
+    ['Participants', formatDecimal(summary.n_obs)],
+    ['Events', formatDecimal(summary.n_events)],
+    ['Covariates in model', formatDecimal(summary.n_covariates)],
+  ];
+
+  if (options.variant === 'classical' && isClassicalCoxSummary(summary)) {
+    summaryRows.push(
+      ['Model converged', summary.converged ? 'Yes' : 'No'],
+      ['Distinct event times', formatDecimal(summary.n_unique_event_times)],
+      ['Tied events handling', summary.ties ?? ''],
+    );
+  } else if (options.variant === 'stacked') {
+    const stacked = summary as StackedCoxRegressionSummary;
+    summaryRows.push(
+      ['Analysis rows', formatDecimal(stacked.n_stacked_rows)],
+      ['Pseudo R² (CS)', formatDecimal(stacked.r_squared_cs)],
+      ['Pseudo R² (McF)', formatDecimal(stacked.r_squared_mcf)],
+      ['AIC', formatDecimal(stacked.aic)],
+      ['BIC', formatDecimal(stacked.bic)],
+    );
+  }
+
+  tables.push({
+    title: 'Study and model summary',
+    columns: ['Item', 'Value'],
+    rows: summaryRows,
+    layout: 'full',
+  });
+
+  return tables;
+}
+
 function buildMixedEffectsSummary(result: Record<string, any>, extraKeys: string[] = []): TableSpec {
   const labels: Record<string, string> = {
     dependent_var: 'Dependent variable',
@@ -287,7 +402,11 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
       const infoRows = infoKeys
         .filter((key) => result[key] !== undefined && result[key] !== null)
-        .map((key) => [labelMap[key] || key, formatDecimal(result[key])]);
+        .map((key) => [labelMap[key] || key, formatLinearRegressionSummaryMetric(key, result)]);
+
+      if (typeof result.f_stat_note === 'string' && result.f_stat_note.trim()) {
+        infoRows.push(['F-statistic note', result.f_stat_note.trim()]);
+      }
 
       return [
         {
@@ -576,6 +695,18 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
     return tables;
   },
+
+  cox_regression_classical: (result: CoxRegressionResult) =>
+    buildCoxRegressionTables(result, {
+      coefficientsTitle: 'Factor estimates (table)',
+      variant: 'classical',
+    }),
+
+  cox_regression_stacked: (result: CoxRegressionResult) =>
+    buildCoxRegressionTables(result, {
+      coefficientsTitle: 'Factor estimates (table)',
+      variant: 'stacked',
+    }),
 
   logistic_regression: (result: LogisticRegressionResult) => {
     if (!result) return [];

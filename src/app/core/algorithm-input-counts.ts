@@ -6,6 +6,8 @@ type CountBounds = { min?: number; max?: number };
 const FALLBACK_INPUT_COUNT_BOUNDS: Record<string, Partial<Record<AlgorithmInputCountRole, CountBounds>>> = {
   linear_regression: { y: { max: 1 } },
   linear_regression_cv: { y: { max: 1 } },
+  cox_regression_classical: { y: { max: 1 }, x: { min: 2 } },
+  cox_regression_stacked: { y: { max: 1 }, x: { min: 2 } },
   lmm: { y: { max: 1 }, x: { min: 2 } },
   glmm_binary: { y: { max: 1 }, x: { min: 2 } },
   glmm_ordinal: { y: { max: 1 }, x: { min: 2 } },

@@ -314,6 +314,7 @@ describe('ExperimentStudioService', () => {
     expect(names).not.toContain('describe');
     expect(names).not.toContain('outlier_report');
     expect(names).not.toContain('linear_svm');
+    expect(names).not.toContain('cox_regression_stacked');
   });
 
   it('attaches structured availability details to grouped algorithms', () => {
@@ -684,6 +685,19 @@ describe('ExperimentStudioService', () => {
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
     expect(body.algorithm.parameters.positive_class).toBe('1');
+  });
+
+  it('omits unset positive_class from experiment request parameters', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.algorithmConfigurations.set({
+      mock_algo: { alpha: 0.05 },
+    });
+
+    const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
+
+    expect(body.algorithm.parameters.positive_class).toBeUndefined();
+    expect(body.algorithm.parameters.alpha).toBe(0.05);
   });
 
   it('keeps enum multi-select parameter values as strings even when their schema type is int', () => {

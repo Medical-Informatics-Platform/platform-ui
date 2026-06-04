@@ -341,6 +341,146 @@ describe('AlgorithmPanelComponent', () => {
     expect(experimentStudioService.algorithmConfigurations()['flat_config_algorithm']['fourth']).toBe(42);
   });
 
+  it('shows event_var description and covariate options for Cox regression', async () => {
+    const coxAlgorithm: AlgorithmConfig = {
+      name: 'cox_regression_classical',
+      label: 'Cox Regression Classical',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['real'],
+      covariate: ['real', 'text'],
+      configSchema: [
+        {
+          key: 'event_var',
+          label: 'Event indicator variable',
+          desc: 'Variable from x to use as the binary event indicator.',
+          type: 'select',
+          enumType: 'input_var_names',
+          enumSource: ['x'],
+          required: true,
+          options: [],
+        },
+      ],
+      isDisabled: false,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
+    experimentStudioService.backendAlgorithms.set({ cox_regression_classical: coxAlgorithm });
+    experimentStudioService.availableGroupedAlgorithms.set({ Regression: [coxAlgorithm] });
+    experimentStudioService.selectedCovariates.set([
+      { code: 'event_status', label: 'Event status', type: 'nominal' },
+      { code: 'age', label: 'Age', type: 'real' },
+    ]);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Variable from x to use as the binary event indicator.');
+    const select = root.querySelector('select.config-select') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.textContent).toContain('Event status');
+    expect(select.textContent).toContain('Age');
+  });
+
+  it('lists positive_class options from the selected event indicator variable', async () => {
+    const coxAlgorithm: AlgorithmConfig = {
+      name: 'cox_regression_classical',
+      label: 'Cox Regression Classical',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['real'],
+      covariate: ['text'],
+      configSchema: [
+        {
+          key: 'event_var',
+          label: 'Event indicator variable',
+          desc: 'Variable from x to use as the binary event indicator.',
+          type: 'select',
+          enumType: 'input_var_names',
+          enumSource: ['x'],
+          required: true,
+          options: [],
+        },
+        {
+          key: 'positive_class',
+          label: 'Positive event class',
+          desc: 'Optional event label treated as event=1 when the event indicator is not already encoded as 0/1.',
+          type: 'text',
+          required: false,
+        },
+      ],
+      isDisabled: false,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
+    experimentStudioService.selectedCovariates.set([
+      {
+        code: 'procedure',
+        label: 'Procedure',
+        type: 'nominal',
+        enumerations: [
+          { code: 'balloon', label: 'Balloon angioplasty' },
+          { code: 'stent', label: 'Extracranial stent' },
+        ],
+      },
+    ]);
+    experimentStudioService.algorithmConfigurations.set({
+      cox_regression_classical: { event_var: 'procedure' },
+    });
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const selects = (fixture.nativeElement as HTMLElement).querySelectorAll('select.config-select');
+    expect(selects.length).toBe(2);
+    const positiveSelect = selects[1] as HTMLSelectElement;
+    expect(positiveSelect.textContent).toContain('Balloon angioplasty');
+    expect(positiveSelect.textContent).toContain('Extracranial stent');
+
+    const component = fixture.componentInstance;
+    const values = (component as any).normalizeFormValues(
+      { event_var: 'procedure', positive_class: 'yes' },
+      component.visibleConfigSchema()
+    );
+    expect(values.positive_class).toBe('yes');
+  });
+
+  it('shows covariate hint for empty input_var_names selects', async () => {
+    const coxAlgorithm: AlgorithmConfig = {
+      name: 'cox_regression_classical',
+      label: 'Cox Regression Classical',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['real'],
+      covariate: ['real'],
+      configSchema: [
+        {
+          key: 'event_var',
+          label: 'Event indicator variable',
+          desc: 'Variable from x to use as the binary event indicator.',
+          type: 'select',
+          enumType: 'input_var_names',
+          enumSource: ['x'],
+          required: true,
+          options: [],
+        },
+      ],
+      isDisabled: false,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
+    experimentStudioService.selectedCovariates.set([]);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const select = root.querySelector('select.config-select') as HTMLSelectElement;
+    expect(root.textContent).toContain('Select covariates first');
+    expect(select?.options.length).toBe(1);
+  });
+
   it('serializes outlier_report rules into dictionary parameters', async () => {
     const outlierAlgorithm: AlgorithmConfig = {
       name: 'outlier_report',

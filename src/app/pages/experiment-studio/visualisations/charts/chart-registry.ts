@@ -17,6 +17,7 @@ import { buildTTestChart } from './renderers/t-test-chart';
 import { buildCVMetricsChart } from './renderers/cv-metrics-chart';
 import { buildHistogramChart } from './renderers/histogram-chart';
 import { buildNaiveBayesPriorsChart } from './renderers/naive-bayes-priors-chart';
+import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-forest-chart';
 
 export interface AlgorithmChartConfig {
   build: (input: any) => EChartsOption[];
@@ -137,6 +138,16 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
 
   histogram_sql: {
     build: buildHistogramChart,
+    inputPath: '',
+  },
+
+  cox_regression_classical: {
+    build: buildCoxHazardRatioForestChart,
+    inputPath: '',
+  },
+
+  cox_regression_stacked: {
+    build: buildCoxHazardRatioForestChart,
     inputPath: '',
   },
 

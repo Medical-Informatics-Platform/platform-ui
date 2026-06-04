@@ -7,6 +7,11 @@ import { buildFormControl } from '../../shared/utils/form-control.factory';
 import { AlgorithmResultComponent } from './algorithm-result/algorithm-result.component';
 import { getOutputSchema } from '../../../core/algorithm-mappers';
 import { formatInputCountRange, resolveInputMaxCount, resolveInputMinCount } from '../../../core/algorithm-input-counts';
+import {
+  omitEmptyOptionalParameters,
+  optionBindingValue,
+  serializeAlgorithmParameterValue,
+} from '../../../core/algorithm-parameter.utils';
 import { AlgorithmAvailabilityDetail, AlgorithmAvailabilityRole, AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { ErrorService } from '../../../services/error.service';
@@ -258,6 +263,107 @@ export class AlgorithmPanelComponent {
     return Array.isArray(selected?.enumerations) ? [...selected.enumerations] : [];
   }
 
+  private resolveSelectedEventVarCode(algorithmName: string | undefined): string | null {
+    if (!algorithmName) return null;
+
+    const live = this.eventVarSelection();
+    if (live !== null && live !== undefined && String(live).trim() !== '') {
+      return String(live);
+    }
+
+    const stored = untracked(() => this.experimentStudioService.algorithmConfigurations())[
+      algorithmName
+    ]?.['event_var'];
+    if (stored !== undefined && stored !== null && String(stored).trim() !== '') {
+      return String(stored);
+    }
+
+    return null;
+  }
+
+  private buildConfigSchemaSignature(
+    algorithmName: string,
+    schema: Array<{ key?: string; type?: string; required?: boolean; options?: unknown[] }>
+  ): string {
+    return JSON.stringify({
+      algorithmName,
+      crossValidation: this.crossValidationEnabled(),
+      fields: schema.map((field) => ({
+        key: field.key,
+        type: field.type,
+        required: field.required,
+        options: (field.options ?? []).map((opt) => this.optionValue(opt)),
+      })),
+    });
+  }
+
+  private syncEventVarSelectionFromValues(
+    algorithmName: string,
+    values: Record<string, unknown>
+  ): void {
+    if (!Object.prototype.hasOwnProperty.call(values, 'event_var')) return;
+    const raw = values['event_var'];
+    const next =
+      raw !== null && raw !== undefined && String(raw).trim() !== '' ? String(raw) : null;
+    if (this.eventVarSelection() === next) return;
+    this.eventVarSelection.set(next);
+    this.syncPositiveClassWithEventVar(algorithmName);
+  }
+
+  private syncEventVarSelectionFromStored(stored: Record<string, unknown>): void {
+    const raw = stored['event_var'];
+    const next =
+      raw !== null && raw !== undefined && String(raw).trim() !== '' ? String(raw) : null;
+    this.eventVarSelection.set(next);
+  }
+
+  private enumOptionsForVariableCode(
+    varCode: string | null | undefined
+  ): Array<{ code: string; label: string }> {
+    if (!varCode) return [];
+
+    const variables = [
+      ...this.experimentStudioService.selectedVariables(),
+      ...this.experimentStudioService.selectedCovariates(),
+    ];
+    const variable = variables.find((item) => String(item?.code) === String(varCode));
+    if (!variable) return [];
+
+    const enumerations = Array.isArray(variable.enumerations) ? variable.enumerations : [];
+    const seen = new Set<string>();
+
+    return enumerations
+      .map((entry: any) => {
+        const code = entry?.code ?? entry?.value ?? entry?.name ?? entry?.label;
+        if (code === null || code === undefined || String(code).trim() === '') {
+          return null;
+        }
+        const normalizedCode = String(code);
+        if (seen.has(normalizedCode)) return null;
+        seen.add(normalizedCode);
+        return {
+          code: normalizedCode,
+          label: String(entry?.label ?? entry?.name ?? normalizedCode),
+        };
+      })
+      .filter(
+        (item: { code: string; label: string } | null): item is { code: string; label: string } =>
+          !!item
+      );
+  }
+
+  /** Live event_var from the config form; avoids reading FormGroup inside other computeds. */
+  private readonly eventVarSelection = signal<string | null>(null);
+
+  readonly selectedEventVarCode = computed(() => {
+    const algorithm = this.selectedAlgorithm();
+    return algorithm ? this.resolveSelectedEventVarCode(algorithm.name) : null;
+  });
+
+  readonly positiveClassOptions = computed(() =>
+    this.enumOptionsForVariableCode(this.selectedEventVarCode())
+  );
+
   private optionValue(opt: any): any {
     if (opt && typeof opt === 'object') {
       return opt.code ?? opt.value ?? opt.name ?? opt.label ?? String(opt);
@@ -363,24 +469,26 @@ export class AlgorithmPanelComponent {
       this.reconcileOutlierReportRules(variables, stored);
     });
 
-    effect(() => {
-      const groups = this.experimentStudioService.availableGroupedAlgorithms();
-      if (!groups) return;
-      this.availableAlgorithmCategories();
-    });
-
     effect((onCleanup) => {
       const algorithm = this.selectedAlgorithm();
       const schema = this.visibleConfigSchema();
 
       if (!algorithm) {
-        // if no algorithm,clean form
+        this.lastBuiltFormSchemaSignature = '';
+        this.eventVarSelection.set(null);
         this.configForm.set(new FormGroup({}));
         return;
       }
 
+      const schemaSignature = this.buildConfigSchemaSignature(algorithm.name, schema);
+      if (schemaSignature === this.lastBuiltFormSchemaSignature) {
+        return;
+      }
+      this.lastBuiltFormSchemaSignature = schemaSignature;
+
       const allConfigs = untracked(() => this.experimentStudioService.algorithmConfigurations());
       const stored = allConfigs?.[algorithm.name] || {};
+      this.syncEventVarSelectionFromStored(stored);
 
       const group: { [key: string]: FormControl } = {};
 
@@ -455,8 +563,12 @@ export class AlgorithmPanelComponent {
         }
       });
 
-      const subscription = form.valueChanges.subscribe(() => {
-        this.persistCurrentFormConfig(algorithm.name, schema);
+      const subscription = form.valueChanges.subscribe((values) => {
+        this.syncEventVarSelectionFromValues(algorithm.name, values);
+        this.persistCurrentFormConfig(
+          algorithm.name,
+          untracked(() => this.visibleConfigSchema())
+        );
       });
       onCleanup(() => subscription.unsubscribe());
 
@@ -500,6 +612,7 @@ export class AlgorithmPanelComponent {
 
   configForm = signal<FormGroup>(new FormGroup({}));
   formKey = 0;
+  private lastBuiltFormSchemaSignature = '';
 
   enrichedConfigSchema = computed(() => {
     const algorithm = this.selectedAlgorithm();
@@ -512,6 +625,8 @@ export class AlgorithmPanelComponent {
     const xVars = this.experimentStudioService.selectedCovariates();
     const yVar = yVars[0];
     const xVar = xVars[0];
+    const eventVarCode = this.selectedEventVarCode();
+    const positiveClassOptions = this.enumOptionsForVariableCode(eventVarCode);
 
     const enriched = schema.map(field => {
       let options = field.options ?? [];
@@ -523,6 +638,8 @@ export class AlgorithmPanelComponent {
         options = this.enumOptionsForRole(enumSource[0]);
       } else if (field.key === 'category_order' && yVar?.enumerations?.length) {
         options = [...yVar.enumerations];
+      } else if (field.key === 'positive_class' && positiveClassOptions.length) {
+        options = positiveClassOptions;
       }
 
       // Placeholder substitution for enums
@@ -536,9 +653,10 @@ export class AlgorithmPanelComponent {
         }
       }
 
-      // Fallback for empty select fields
+      // Fallback for empty select fields (not input_var_names — those list y/x variables)
       if (
         field.type === 'select' &&
+        field.enumType !== 'input_var_names' &&
         (!options || options.length === 0) &&
         yVar?.enumerations?.length
       ) {
@@ -552,9 +670,18 @@ export class AlgorithmPanelComponent {
       // Normalize label and desc
       const label = field.label?.trim() || this.prettifyLabel(field.key);
       const desc = field.desc ?? field.description ?? '';
+      const type =
+        field.key === 'positive_class' && positiveClassOptions.length
+          ? 'select'
+          : field.type;
+      const required =
+        field.key === 'positive_class' && positiveClassOptions.length
+          ? false
+          : field.required === true ||
+            String(field.required ?? '').trim().toLowerCase() === 'true';
 
       // Return enriched field
-      return { ...field, label, desc, options, default: defaultValue };
+      return { ...field, label, desc, options, default: defaultValue, type, required };
     });
 
     if (this.crossValidationEnabled() && this.canToggleCrossValidation()) {
@@ -745,16 +872,44 @@ export class AlgorithmPanelComponent {
     return this.enumMaps()[field]?.[valueKey] ?? valueKey;
   }
 
+  private syncPositiveClassWithEventVar(algorithmName: string): void {
+    const positiveControl = this.configForm().get('positive_class');
+    if (!positiveControl) return;
+
+    const options = this.enumOptionsForVariableCode(this.resolveSelectedEventVarCode(algorithmName));
+    if (!options.length) return;
+
+    const allowed = new Set(options.map((option) => option.code));
+    const current = positiveControl.value;
+    if (
+      current !== null &&
+      current !== undefined &&
+      String(current).trim() !== '' &&
+      !allowed.has(String(current))
+    ) {
+      positiveControl.setValue(null, { emitEvent: false });
+    }
+  }
+
   private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, any> {
     const values = this.normalizeFormValues(this.configForm().getRawValue(), schema);
     const nextValues = algorithmName === AlgorithmNames.OUTLIER_REPORT
       ? this.mergeOutlierReportConfig(values)
       : values;
+    const allConfigs = this.experimentStudioService.algorithmConfigurations();
+    const previous = allConfigs[algorithmName];
+    if (previous && JSON.stringify(previous) === JSON.stringify(nextValues)) {
+      return nextValues;
+    }
     this.experimentStudioService.algorithmConfigurations.set({
-      ...this.experimentStudioService.algorithmConfigurations(),
+      ...allConfigs,
       [algorithmName]: nextValues,
     });
     return nextValues;
+  }
+
+  bindOptionValue(option: unknown): string {
+    return optionBindingValue(option);
   }
 
   private normalizeFormValues(values: Record<string, any>, schema: any[]): Record<string, any> {
@@ -770,7 +925,16 @@ export class AlgorithmPanelComponent {
         const parsed = Number(trimmed);
         if (Number.isFinite(parsed)) normalized[key] = parsed;
     });
-    return normalized;
+
+    schema.forEach((field) => {
+      const key = String(field.key);
+      if (!(key in normalized)) return;
+      if (field?.type === 'select' || field?.type === 'multi-select' || key === 'positive_class') {
+        normalized[key] = serializeAlgorithmParameterValue(normalized[key], field);
+      }
+    });
+
+    return omitEmptyOptionalParameters(normalized, schema) as Record<string, any>;
   }
 
   private mergeOutlierReportConfig(configValues: Record<string, any>): Record<string, any> {
@@ -954,6 +1118,8 @@ export class AlgorithmPanelComponent {
   readonly tooltipData = signal<any | null>(null);
 
   selectAlgorithm(algorithm: AlgorithmConfig) {
+    this.lastBuiltFormSchemaSignature = '';
+    this.eventVarSelection.set(null);
     // Use service method so it enriches configSchema and persists to sessionStorage
     this.experimentStudioService.setAlgorithm(algorithm);
     this.result.set(null);

@@ -15,6 +15,37 @@
 
 .results-list {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.results-section-intro {
+  margin-bottom: 0.65rem;
+}
+
+.results-section-intro--compact {
+  margin-bottom: 0.35rem;
+}
+
+.results-section-heading {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #026d6d;
+  letter-spacing: 0.02em;
+}
+
+.results-section-lead {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #64748b;
+  max-width: 52rem;
+}
+
+.results-detail-section--with-chart {
+  padding-top: 0.25rem;
 }
 
 /* CHARTS SECTION */
@@ -43,7 +74,11 @@
 
 .gen-charts app-chart-renderer {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
+}
+
+.results-primary-visual {
+  order: -1;
 }
 
 /* ERROR MESSAGE */

@@ -40,6 +40,29 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][2]).toBe('0.05');
   });
 
+  it('uses Exaflow F-stat display fields in linear_regression summary', () => {
+    const tables = AlgorithmTableRegistry['linear_regression']({
+      dependent_var: 'target',
+      indep_vars: ['Intercept', 'x1'],
+      coefficients: [1.5, -0.2],
+      std_err: [0.1, 0.04],
+      t_stats: [15, -5],
+      pvalues: [0.0001, 0.0002],
+      lower_ci: [1.2, -0.28],
+      upper_ci: [1.8, -0.12],
+      f_stat: Number.POSITIVE_INFINITY,
+      f_pvalue: 0,
+      f_stat_display: 'Perfect fit',
+      f_pvalue_display: '<0.001',
+      f_stat_note: 'Residual sum of squares is zero.',
+    } as any);
+
+    const summary = tables[1].rows;
+    expect(summary).toContain(['F-statistic', 'Perfect fit']);
+    expect(summary).toContain(['p-value (F-stat)', '<0.001']);
+    expect(summary).toContain(['F-statistic note', 'Residual sum of squares is zero.']);
+  });
+
   it('includes ll/aic/bic and dependent variable in linear_regression summary', () => {
     const tables = AlgorithmTableRegistry['linear_regression']({
       dependent_var: 'target',
@@ -234,6 +257,88 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows).toContain(['Degrees of Freedom', '12.000']);
     expect(tables[0].rows).toContain(['p-value', '0.000']);
     expect(tables[0].rows).toContain(['Mean Difference', '0.068']);
+  });
+
+  it('renders classical Cox regression coefficients and summary', () => {
+    const tables = AlgorithmTableRegistry['cox_regression_classical']({
+      dependent_var: 'Follow-up time',
+      event_var: 'Diagnosis',
+      indep_vars: ['Intercept', 'Age'],
+      summary: {
+        n_obs: 200,
+        n_events: 80,
+        n_covariates: 1,
+        n_unique_event_times: 45,
+        coefficients: [0.1, -0.3],
+        hazard_ratios: [1.105, 0.741],
+        std_err: [0.05, 0.1],
+        lower_ci: [0.002, -0.496],
+        upper_ci: [0.198, -0.104],
+        hr_lower_ci: [1.002, 0.609],
+        hr_upper_ci: [1.219, 0.901],
+        z_scores: [2, -3],
+        pvalues: [0.045, 0.002],
+        df_model: 1,
+        df_resid: 198,
+        ll: -120.5,
+        ties: 'breslow',
+        n_iter: 6,
+        converged: true,
+        score_norm: 0.001,
+        step_norm: 0.02,
+        method: 'classical_cox_partial_likelihood',
+      },
+    });
+
+    expect(tables.length).toBe(2);
+    expect(tables[0].title).toBe('Factor estimates (table)');
+    expect(tables[0].columns).toEqual(['Factor', 'Hazard ratio', '95% CI', 'p-value']);
+    expect(tables[0].rows.length).toBe(1);
+    expect(tables[0].rows[0][0]).toBe('Age');
+    expect(tables[0].rows[0][1]).toBe('0.741');
+    expect(tables[0].rows[0][3]).toBe('0.002');
+    expect(tables[1].rows).toContain(['Tied events handling', 'breslow']);
+    expect(tables[1].rows).toContain(['Model converged', 'Yes']);
+  });
+
+  it('renders stacked Cox regression summary metrics', () => {
+    const tables = AlgorithmTableRegistry['cox_regression_stacked']({
+      dependent_var: 'Follow-up time',
+      event_var: 'Diagnosis',
+      indep_vars: ['Intercept', 'Gender[Male]'],
+      summary: {
+        n_obs: 150,
+        n_events: 60,
+        n_stacked_rows: 900,
+        n_covariates: 1,
+        coefficients: [0.2, 0.4],
+        hazard_ratios: [1.221, 1.492],
+        std_err: [0.08, 0.12],
+        lower_ci: [0.04, 0.16],
+        upper_ci: [0.36, 0.64],
+        hr_lower_ci: [1.041, 1.174],
+        hr_upper_ci: [1.433, 1.896],
+        z_scores: [2.5, 3.3],
+        pvalues: [0.01, 0.001],
+        df_model: 1,
+        df_resid: 148,
+        ll: -95,
+        ll0: -110,
+        r_squared_cs: 0.12,
+        r_squared_mcf: 0.09,
+        aic: 194,
+        bic: 205,
+        time_grid_strategy: 'distinct_event_times',
+        n_time_bins_used: 40,
+        method: 'stacked_cox',
+      },
+    });
+
+    expect(tables.length).toBe(2);
+    expect(tables[0].rows.length).toBe(1);
+    expect(tables[0].rows[0][0]).toBe('Gender[Male]');
+    expect(tables[1].rows).toContain(['Analysis rows', '900']);
+    expect(tables[1].rows).toContain(['AIC', '194']);
   });
 
   it('renders LMM fixed effects and model summary', () => {

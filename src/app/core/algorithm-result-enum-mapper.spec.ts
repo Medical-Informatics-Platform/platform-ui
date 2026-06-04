@@ -49,6 +49,32 @@ describe('mapAlgorithmResultEnums', () => {
     expect(mapped.category_order).toEqual(['Young', 'Old']);
   });
 
+  it('maps Cox regression variable and covariate labels', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'cox_regression_classical',
+      {
+        dependent_var: 'timesincebaseline',
+        event_var: 'alzheimerbroadcategory',
+        indep_vars: ['Intercept', 'gender[M]'],
+        summary: { n_obs: 10, n_events: 4 },
+      },
+      {
+        alzheimerbroadcategory: { AD: 'Alzheimer disease', Other: 'Other' },
+        gender: { M: 'Male' },
+      },
+      { y: 'timesincebaseline', x: 'alzheimerbroadcategory' },
+      {
+        timesincebaseline: 'Time since baseline',
+        alzheimerbroadcategory: 'Diagnosis',
+        gender: 'Gender',
+      }
+    );
+
+    expect(mapped.dependent_var).toBe('Time since baseline');
+    expect(mapped.event_var).toBe('Diagnosis');
+    expect(mapped.indep_vars).toEqual(['Intercept', 'Gender[Male]']);
+  });
+
   it('maps categorical table labels using y and x enum maps', () => {
     const mapped = mapAlgorithmResultEnums(
       'chi_squared',

@@ -12,6 +12,10 @@ import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
 import { AlgorithmNames, HistogramBinningType, VariableTypes } from '../core/constants/algorithm.constants';
+import {
+  omitEmptyOptionalParameters,
+  serializeAlgorithmParameterValue,
+} from '../core/algorithm-parameter.utils';
 import { RuntimeEnvService } from './runtime-env.service';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 
@@ -42,6 +46,7 @@ const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
   AlgorithmNames.OUTLIER_REPORT,
   AlgorithmNames.LINEAR_SVM,
   AlgorithmNames.LOGISTIC_REGRESSION_FEDAVERAGE_FLOWER,
+  'cox_regression_stacked',
 ]);
 
 @Injectable({ providedIn: 'root' })
@@ -726,7 +731,31 @@ export class ExperimentStudioService {
       if (Number.isFinite(parsed)) normalized[key] = parsed;
     });
 
-    return normalized;
+    (algoConfig.configSchema ?? []).forEach((field: any) => {
+      if (field?.type !== 'select' && field?.type !== 'multi-select') return;
+      const key = String(field.key);
+      if (!(key in normalized)) return;
+      normalized[key] = serializeAlgorithmParameterValue(normalized[key], field);
+    });
+
+    if (normalized['positive_class'] !== undefined && normalized['positive_class'] !== null && normalized['positive_class'] !== '') {
+      normalized['positive_class'] = serializeAlgorithmParameterValue(normalized['positive_class'], {
+        key: 'positive_class',
+        type: 'select',
+      });
+    }
+
+    if (normalized['event_var'] !== undefined && normalized['event_var'] !== null && normalized['event_var'] !== '') {
+      normalized['event_var'] = serializeAlgorithmParameterValue(normalized['event_var'], {
+        key: 'event_var',
+        type: 'select',
+      });
+    }
+
+    return omitEmptyOptionalParameters(
+      normalized,
+      algoConfig.configSchema ?? []
+    ) as Record<string, any>;
   }
 
   private getStoredPreprocessingConfig(...algorithmNames: Array<string | null | undefined>): PreprocessingConfig | null {
