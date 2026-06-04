@@ -2,7 +2,8 @@
 <div>
   @for(chart of themedCharts; track chart) {
   <div class="chart-container">
-    <div echarts [options]="chart" [initOpts]="{ renderer: 'canvas' }" class="chart"></div>
+    <div echarts [options]="chart" [initOpts]="{ renderer: 'canvas' }" class="chart"
+      [style.height.px]="chartHeight(chart)"></div>
   </div>
   }
 </div>

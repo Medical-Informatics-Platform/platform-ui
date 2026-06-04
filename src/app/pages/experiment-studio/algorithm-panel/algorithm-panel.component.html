@@ -34,7 +34,7 @@
       </h6>
       @if (isCategoryOpen(category.name)) {
       <ul>
-        @for (algorithm of category.algorithms; track algorithm) {
+        @for (algorithm of category.algorithms; track algorithm.name) {
         <li (click)="onAlgorithmClick(algorithm)" [class.disabled-algo]="algorithm.isDisabled"
           (mouseenter)="showTooltip(algorithm, $event)" (mouseleave)="hideTooltip()"
           [class.selected]="algorithm.name === selectedAlgorithm()?.name">
@@ -564,6 +564,38 @@
             }
           </label>
 
+          @if (field.desc) {
+          <p class="config-field-desc">{{ field.desc }}</p>
+          }
+
+          @if (field.enumType === 'input_var_names' && field.type === 'select' && (!field.options || !field.options.length)) {
+          <p class="config-field-hint">
+            @if (field.enumSource?.includes('x')) {
+            Select covariates first. This parameter must be one of the variables in x.
+            } @else if (field.enumSource?.includes('y')) {
+            Select a variable first. This parameter must be one of the variables in y.
+            } @else {
+            Select the required variables before choosing this parameter.
+            }
+          </p>
+          }
+
+          @if (field.key === 'positive_class' && !selectedEventVarCode()) {
+          <p class="config-field-hint">Select an event indicator variable first.</p>
+          }
+
+          @if (field.key === 'positive_class' && selectedEventVarCode() && positiveClassOptions().length) {
+          <p class="config-field-hint config-field-hint--optional">
+            Optional. Choose None when the event column is already encoded as 0/1.
+          </p>
+          }
+
+          @if (field.key === 'positive_class' && selectedEventVarCode() && !positiveClassOptions().length) {
+          <p class="config-field-hint">
+            This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1), or leave blank if already 0/1.
+          </p>
+          }
+
           @if (field.type === 'number') {
           <input type="number" [formControlName]="field.key" class="config-input" [min]="field.min" [max]="field.max"
             [step]="
@@ -579,12 +611,12 @@
 
           } @else if (field.type === 'select') {
           <select [formControlName]="field.key" class="config-select">
-            <option [ngValue]="null" [selected]="!configForm().get(field.key)?.value" disabled value="">
-              -- Select --
+            <option [ngValue]="null" [disabled]="field.required">
+              {{ field.required ? '-- Select --' : 'None (optional)' }}
             </option>
 
             @for (opt of field.options; track opt) {
-            <option [ngValue]="opt.code ?? opt">
+            <option [ngValue]="bindOptionValue(opt)">
               {{ opt.label ?? opt.name ?? opt }}
             </option>
             }
@@ -592,7 +624,7 @@
           } @else if (field.type === 'multi-select') {
           <select multiple [formControlName]="field.key" class="config-select">
             @for (opt of field.options; track opt) {
-            <option [ngValue]="opt.code ?? opt">
+            <option [ngValue]="bindOptionValue(opt)">
               {{ opt.label ?? opt.name ?? opt }}
             </option>
             }
@@ -617,6 +649,8 @@
             <small>Value too large.</small>
             } @if (configForm().get(field.key)?.hasError('pattern')) {
             <small>Invalid value.</small>
+            } @if (configForm().get(field.key)?.hasError('invalidOption')) {
+            <small>Select a value from the list.</small>
             }
           </div>
           }
@@ -653,21 +687,14 @@
       </aside>
     </div>
     } @else {
-    <section class="experiment-settings experiment-settings--placeholder">
-      <div class="config-placeholder">
-        <div class="config-placeholder-icon" aria-hidden="true">
-          <i class="fas fa-sliders-h"></i>
-        </div>
-        <div class="config-placeholder-content">
-          <h5>Algorithm parameters will appear here</h5>
-          <p>
-            Select an algorithm from the left to load its description, configurable parameters and optional settings.
-          </p>
-          <p>
-            If the selected algorithm has no extra parameters, this panel will tell you that it is ready to run.
-          </p>
-        </div>
+    <section class="algorithm-panel-empty" aria-label="Algorithm configuration placeholder">
+      <div class="algorithm-panel-empty__icon" aria-hidden="true">
+        <i class="fas fa-arrow-left"></i>
       </div>
+      <h5 class="algorithm-panel-empty__title">Select an algorithm</h5>
+      <p class="algorithm-panel-empty__text">
+        Choose an algorithm from the list on the left. Its description and parameters will load in this panel.
+      </p>
     </section>
     }
   </main>

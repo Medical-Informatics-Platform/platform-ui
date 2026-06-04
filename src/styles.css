@@ -730,15 +730,13 @@ select:required:valid {
 }
 
 .experiment-studio-page .empty-state-block,
-.experiment-studio-page .empty-state-welcome,
-.experiment-studio-page .config-placeholder {
+.experiment-studio-page .empty-state-welcome {
   position: relative;
   overflow: hidden;
 }
 
 .experiment-studio-page .empty-state-block::before,
-.experiment-studio-page .empty-state-welcome::before,
-.experiment-studio-page .config-placeholder::before {
+.experiment-studio-page .empty-state-welcome::before {
   content: "";
   position: absolute;
   inset: 16px auto auto 50%;
@@ -756,8 +754,7 @@ select:required:valid {
 }
 
 .experiment-studio-page .empty-state-block > *,
-.experiment-studio-page .empty-state-welcome > *,
-.experiment-studio-page .config-placeholder > * {
+.experiment-studio-page .empty-state-welcome > * {
   position: relative;
   z-index: 1;
 }

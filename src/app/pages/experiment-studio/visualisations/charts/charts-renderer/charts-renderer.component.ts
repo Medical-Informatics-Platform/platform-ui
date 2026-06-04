@@ -87,4 +87,9 @@ export class ChartRendererComponent implements AfterViewInit, OnChanges {
     return this.instances;
   }
 
+  chartHeight(chart: EChartsOption): number {
+    const custom = (chart as EChartsOption & { mipChartHeight?: number }).mipChartHeight;
+    return typeof custom === 'number' && custom > 0 ? custom : 500;
+  }
+
 }

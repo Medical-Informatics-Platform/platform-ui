@@ -11,6 +11,8 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "ttest_paired": "Statistical Tests",
   "linear_regression": "Regression",
   "logistic_regression": "Regression",
+  "cox_regression_classical": "Regression",
+  "cox_regression_stacked": "Regression",
   "lmm": "Regression",
   "glmm_binary": "Regression",
   "glmm_ordinal": "Regression",

@@ -7,17 +7,26 @@
   </div>
   }
 
-  <!-- Custom structured renderer -->
-  @if (isRenderable()) {
-  <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
-    [yVar]="yVar()" [fallbackTitle]="fallbackResultTitle()" />
+  @if (renderedCharts().length > 0) {
+  <section class="results-primary-visual gen-charts" aria-labelledby="results-chart-heading">
+    <header class="results-section-intro">
+      <h3 id="results-chart-heading" class="results-section-heading">Effect estimates</h3>
+      <p class="results-section-lead">Primary view for comparing factors. Tables below list the same estimates with exact values.</p>
+    </header>
+    <app-chart-renderer [charts]="renderedCharts()" />
+  </section>
   }
 
-  <!-- Charts -->
-  @if (renderedCharts().length > 0) {
-  <section class="space-y-6 gen-charts">
-    <h3>Generated Charts</h3>
-    <app-chart-renderer [charts]="renderedCharts()" />
+  @if (isRenderable()) {
+  <section class="results-detail-section" [class.results-detail-section--with-chart]="renderedCharts().length > 0"
+    aria-labelledby="results-detail-heading">
+    @if (renderedCharts().length > 0) {
+    <header class="results-section-intro results-section-intro--compact">
+      <h3 id="results-detail-heading" class="results-section-heading">Detailed results</h3>
+    </header>
+    }
+    <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
+      [yVar]="yVar()" [fallbackTitle]="fallbackResultTitle()" />
   </section>
   }
 

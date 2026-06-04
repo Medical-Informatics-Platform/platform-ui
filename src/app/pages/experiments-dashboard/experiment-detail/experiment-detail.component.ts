@@ -495,6 +495,13 @@ export class ExperimentDetailsComponent {
       if (targetMap?.[value]) return targetMap[value];
     }
 
+    if (parameterKey === 'positive_class') {
+      const eventVar = this.fullExperimentSignal()?.algorithm?.parameters?.['event_var'];
+      if (typeof eventVar === 'string' && enumMaps[eventVar]?.[value]) {
+        return enumMaps[eventVar][value];
+      }
+    }
+
     if (enumSource.includes('y') || parameterKey === 'positive_class' || parameterKey === 'category_order') {
       const targetMap = enumMaps[this.yVar() ?? ''];
       if (targetMap?.[value]) return targetMap[value];

@@ -109,6 +109,10 @@ export interface LinearRegressionResult {
     r_squared_adjusted: number;
     f_stat: number;
     f_pvalue: number;
+    f_stat_status?: string;
+    f_stat_display?: string;
+    f_pvalue_display?: string;
+    f_stat_note?: string;
     ll: number;
     aic: number;
     bic: number;
@@ -119,6 +123,54 @@ export interface LinearRegressionResult {
     pvalues: number[];
     lower_ci: number[];
     upper_ci: number[];
+}
+
+export interface CoxRegressionSummaryBase {
+    n_obs: number;
+    n_events: number;
+    coefficients: number[];
+    hazard_ratios: number[];
+    std_err: number[];
+    lower_ci: number[];
+    upper_ci: number[];
+    hr_lower_ci: number[];
+    hr_upper_ci: number[];
+    z_scores: number[];
+    pvalues: number[];
+    df_model: number;
+    df_resid: number;
+    ll: number;
+}
+
+export interface ClassicalCoxRegressionSummary extends CoxRegressionSummaryBase {
+    n_covariates: number;
+    n_unique_event_times: number;
+    ties: string;
+    n_iter: number;
+    converged: boolean;
+    score_norm: number;
+    step_norm: number;
+    method: string;
+}
+
+export interface StackedCoxRegressionSummary extends CoxRegressionSummaryBase {
+    n_stacked_rows: number;
+    n_covariates: number;
+    r_squared_cs: number;
+    r_squared_mcf: number;
+    ll0: number;
+    aic: number;
+    bic: number;
+    time_grid_strategy: string;
+    n_time_bins_used: number;
+    method: string;
+}
+
+export interface CoxRegressionResult {
+    dependent_var: string;
+    event_var: string;
+    indep_vars: string[];
+    summary: ClassicalCoxRegressionSummary | StackedCoxRegressionSummary;
 }
 
 export interface LinearRegressionCVResult {

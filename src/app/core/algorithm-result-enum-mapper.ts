@@ -363,6 +363,21 @@ function mapNaiveBayesClasses(
   };
 }
 
+function mapCoxResult(
+  result: any,
+  enumMaps: EnumMaps,
+  labelMap: LabelMap | null | undefined
+): any {
+  const mapped = mapRegressionVars(result, enumMaps, labelMap);
+  const next = { ...mapped };
+
+  if (typeof mapped?.event_var === 'string') {
+    next.event_var = labelMap?.[mapped.event_var] ?? mapped.event_var;
+  }
+
+  return next;
+}
+
 export function mapAlgorithmResultEnums(
   algorithm: string | null | undefined,
   result: any,
@@ -419,7 +434,9 @@ export function mapAlgorithmResultEnums(
     case 'linear_regression_cv':
     case 'logistic_regression':
     case 'logistic_regression_cv':
-      return mapRegressionVars(result, safeEnumMaps, labelMap);
+    case 'cox_regression_classical':
+    case 'cox_regression_stacked':
+      return mapCoxResult(result, safeEnumMaps, labelMap);
     case 'lmm':
     case 'glmm_binary':
     case 'glmm_ordinal':
