@@ -208,16 +208,18 @@
 
 /* Variable / covariate / filter panel */
 .variable-filter-container {
-  min-height: 140px;
+  min-height: 0;
   flex: 0 0 auto;
 }
 
 .parameters-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
   position: relative;
   z-index: 10;
+  padding: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1200px) {

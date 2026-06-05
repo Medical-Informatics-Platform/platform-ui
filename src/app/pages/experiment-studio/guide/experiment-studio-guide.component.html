@@ -8,17 +8,16 @@
 @if (isOpen() && currentStep(); as step) {
 <div class="guide-overlay" aria-hidden="false">
   @if (highlightRect(); as rect) {
-  @if (step.allowTargetInteraction) {
-  <div class="guide-mask guide-mask--top" [style.height.px]="rect.top"></div>
-  <div class="guide-mask guide-mask--left" [style.top.px]="rect.top" [style.width.px]="rect.left"
-    [style.height.px]="rect.height"></div>
-  <div class="guide-mask guide-mask--right" [style.top.px]="rect.top" [style.left.px]="rect.right"
-    [style.height.px]="rect.height"></div>
-  <div class="guide-mask guide-mask--bottom" [style.top.px]="rect.bottom"></div>
-  } @else {
+  @if (step.allowTargetInteraction && blockingMaskRects().length) {
+  @for (blocker of blockingMaskRects(); track $index) {
+  <div class="guide-mask guide-mask--blocker" [style.top.px]="blocker.top" [style.left.px]="blocker.left"
+    [style.width.px]="blocker.width" [style.height.px]="blocker.height"></div>
+  }
+  } @else if (!step.allowTargetInteraction) {
   <div class="guide-mask guide-mask--full" [style.background]="'transparent'"></div>
   }
-  <div class="guide-highlight" [style.top.px]="rect.top" [style.left.px]="rect.left" [style.width.px]="rect.width"
+  <div class="guide-highlight" [class.guide-highlight--interactive]="step.allowTargetInteraction"
+    [style.top.px]="rect.top" [style.left.px]="rect.left" [style.width.px]="rect.width"
     [style.height.px]="rect.height"></div>
   } @else if (!step.allowTargetInteraction) {
   <div class="guide-mask guide-mask--full" [style.background]="'rgba(2, 6, 23, 0.65)'"></div>
@@ -101,6 +100,9 @@
           [innerHTML]="step.title"></h3>
         @if (step.body) {
         <p [innerHTML]="step.body"></p>
+        }
+        @if (studioResetWarning(); as warning) {
+        <p class="guide-warning">{{ warning }}</p>
         }
         @if (pendingRequirementHint(); as hint) {
         <p class="guide-requirement">{{ hint }}</p>

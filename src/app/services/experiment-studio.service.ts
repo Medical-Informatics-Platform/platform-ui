@@ -1689,6 +1689,52 @@ export class ExperimentStudioService {
     this.editingExistingExperimentSignal.set(isEditing);
   }
 
+  hasPersistedStudioWork(): boolean {
+    return (
+      this.selectedVariables().length > 0
+      || this.selectedCovariates().length > 0
+      || this.selectedFilters().length > 0
+      || !!this.selectedAlgorithm()
+      || !!this.currentExperimentUUID()
+      || this.hasAppliedDescriptivePreprocessing()
+      || Object.keys(this.algorithmConfigurations()).length > 0
+    );
+  }
+
+  getDefaultDataModel(): DataModel | null {
+    if (this.editingExistingExperiment()) {
+      return null;
+    }
+
+    const models = [...this.crossSectionalModels(), ...this.longitudinalModels()];
+    return models[0] ?? null;
+  }
+
+  preselectAllDatasetsForModel(model: DataModel): void {
+    this.updateAvailableDatasets(model);
+    const codes = this.availableDatasets().map((dataset) => dataset.code);
+    if (codes.length > 0) {
+      this.setSelectedDatasets(codes);
+      return;
+    }
+
+    const fallbackCodes = (model.datasets ?? [])
+      .map((item) => String(item))
+      .filter((code) => code);
+    if (fallbackCodes.length > 0) {
+      this.setSelectedDatasets(fallbackCodes);
+    }
+  }
+
+  resetStudioStateForGuide(): void {
+    const defaultModel = this.getDefaultDataModel();
+    this.resetStudioState();
+    if (defaultModel) {
+      this.selectedDataModel.set(defaultModel);
+      this.preselectAllDatasetsForModel(defaultModel);
+    }
+  }
+
   resetStudioState(): void {
     // basic signals
     this.selectedDatasetsSignal.set([]);

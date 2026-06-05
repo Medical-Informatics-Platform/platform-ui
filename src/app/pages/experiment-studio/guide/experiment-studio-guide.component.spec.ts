@@ -3,13 +3,17 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { ExperimentStudioGuideComponent } from './experiment-studio-guide.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
 import { ExperimentStudioGuideStateService } from './experiment-studio-guide-state.service';
 
 describe('ExperimentStudioGuideComponent', () => {
   let component: ExperimentStudioGuideComponent;
   let router: jasmine.SpyObj<Router>;
+  let guideOnboarding: jasmine.SpyObj<GuideOnboardingService>;
   let experimentStudioService: {
     resetStudioState: jasmine.Spy;
+    resetStudioStateForGuide: jasmine.Spy;
+    hasPersistedStudioWork: jasmine.Spy;
     pathologyAccessWarning: ReturnType<typeof signal>;
     selectedVariables: ReturnType<typeof signal>;
     selectedCovariates: ReturnType<typeof signal>;
@@ -21,8 +25,17 @@ describe('ExperimentStudioGuideComponent', () => {
     router = jasmine.createSpyObj<Router>('Router', ['navigate']);
     router.navigate.and.returnValue(Promise.resolve(true));
 
+    guideOnboarding = jasmine.createSpyObj<GuideOnboardingService>(
+      'GuideOnboardingService',
+      ['hasSeenStudioGuide', 'markStudioGuideSeen'],
+    );
+    guideOnboarding.hasSeenStudioGuide.and.returnValue(false);
+    guideOnboarding.markStudioGuideSeen.and.stub();
+
     experimentStudioService = {
       resetStudioState: jasmine.createSpy('resetStudioState'),
+      resetStudioStateForGuide: jasmine.createSpy('resetStudioStateForGuide'),
+      hasPersistedStudioWork: jasmine.createSpy('hasPersistedStudioWork').and.returnValue(false),
       pathologyAccessWarning: signal(null),
       selectedVariables: signal([]),
       selectedCovariates: signal([]),
@@ -36,6 +49,7 @@ describe('ExperimentStudioGuideComponent', () => {
         provideZonelessChangeDetection(),
         { provide: Router, useValue: router },
         { provide: ExperimentStudioService, useValue: experimentStudioService },
+        { provide: GuideOnboardingService, useValue: guideOnboarding },
         ExperimentStudioGuideStateService,
       ],
     });
@@ -48,12 +62,72 @@ describe('ExperimentStudioGuideComponent', () => {
     document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
   });
 
-  it('does not reset studio state when the guide is opened manually', () => {
+  it('does not reset studio state on the first guide visit', () => {
     component.startGuide();
 
     expect(experimentStudioService.resetStudioState).not.toHaveBeenCalled();
 
     component.closeGuide();
+  });
+
+  it('does not reset studio state until the user continues past the launcher step', () => {
+    guideOnboarding.hasSeenStudioGuide.and.returnValue(true);
+    experimentStudioService.hasPersistedStudioWork.and.returnValue(true);
+
+    component.startGuide();
+    component.currentIndex.set(1);
+
+    expect(experimentStudioService.resetStudioStateForGuide).not.toHaveBeenCalled();
+
+    component.goToNextStep();
+
+    expect(experimentStudioService.resetStudioStateForGuide).toHaveBeenCalled();
+    component.closeGuide();
+  });
+
+  it('shows a reset warning on the launcher step when an existing session would be cleared', () => {
+    guideOnboarding.hasSeenStudioGuide.and.returnValue(true);
+    experimentStudioService.hasPersistedStudioWork.and.returnValue(true);
+
+    component.startGuide();
+    component.currentIndex.set(1);
+
+    expect(component.studioResetWarning()).toContain('continuing past this step will reset');
+    component.closeGuide();
+  });
+
+  it('explains blue-panel interaction on the welcome and launcher steps', () => {
+    const steps = (component as any).resolveSteps();
+    const welcomeStep = steps.find((step: any) => step.id === 'welcome');
+    const launcherStep = steps.find((step: any) => step.id === 'launcher');
+
+    expect(welcomeStep?.body).toContain('blue panel');
+    expect(launcherStep?.body).toContain('highlighted blue panel');
+  });
+
+  it('does not steal focus from inputs during passive layout refresh', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const guideFocus = jasmine.createSpy('guideFocus');
+    (component as any).guideCard = { nativeElement: { focus: guideFocus } };
+    component.activeSteps.set([
+      {
+        id: 'select-sex-variable',
+        section: 'Explore',
+        title: 'Select Sex',
+        body: '',
+        selector: '[data-guide="variable-browser"]',
+        allowTargetInteraction: true,
+        requirement: 'selected-sex',
+      },
+    ] as any);
+
+    (component as any).updateLayout(false);
+
+    expect(guideFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
   });
 
   it('tracks the highlighted target rectangle for the active step', () => {
@@ -443,11 +517,40 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(editStep?.allowTargetInteraction).toBeFalse();
   });
 
-  it('keeps the experiment summary familiarization step non-interactive', () => {
+  it('keeps the Analysis filtering step as a preview-only walkthrough', () => {
+    const steps = (component as any).resolveSteps();
+    const filteringStep = steps.find((step: any) => step.id === 'analysis-filtering');
+
+    expect(filteringStep?.allowTargetInteraction).toBeFalse();
+    expect(filteringStep?.body).toContain('Preview the inline filter builder');
+  });
+
+  it('keeps the Analysis preprocessing step as a preview-only walkthrough', () => {
+    const steps = (component as any).resolveSteps();
+    const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
+
+    expect(preprocessingStep?.allowTargetInteraction).toBeFalse();
+    expect(preprocessingStep?.body).toContain('Preview missing-value handling');
+  });
+
+  it('keeps the raw and processed summary guide steps interactive across the full section', () => {
+    const steps = (component as any).resolveSteps();
+    const rawStatisticsStep = steps.find((step: any) => step.id === 'analysis-raw-statistics');
+    const processedStep = steps.find((step: any) => step.id === 'analysis-processed-summary');
+
+    expect(rawStatisticsStep?.selector).toBe('[data-guide="analysis-raw-summary"]');
+    expect(processedStep?.selector).toBe('[data-guide="analysis-processed-summary"]');
+    expect(rawStatisticsStep?.allowTargetInteraction).toBeTrue();
+    expect(processedStep?.allowTargetInteraction).toBeTrue();
+    expect(steps.some((step: any) => step.id === 'analysis-raw-charts')).toBeFalse();
+  });
+
+  it('points the experiment summary step at the visible summary panel', () => {
     const steps = (component as any).resolveSteps();
     const summaryStep = steps.find((step: any) => step.id === 'experiment-summary-action');
 
-    expect(summaryStep?.allowTargetInteraction).toBeFalse();
+    expect(summaryStep?.selector).toBe('[data-guide="experiment-summary-panel"]');
+    expect(summaryStep?.allowTargetInteraction).toBeTrue();
   });
 
   it('keeps the final experiment step open to page interaction', () => {
@@ -551,5 +654,127 @@ describe('ExperimentStudioGuideComponent', () => {
 
   it('auto-advances after Save As creates a new experiment', () => {
     expect((component as any).shouldAutoAdvance({ requirement: 'experiment-saved-as' })).toBeTrue();
+  });
+
+  it('tracks interaction cutouts for variable selection and details panels', () => {
+    const browser = document.createElement('div');
+    browser.setAttribute('data-guide', 'variable-browser');
+    spyOn(browser, 'getBoundingClientRect').and.returnValue({
+      top: 120,
+      right: 620,
+      bottom: 640,
+      left: 80,
+      width: 540,
+      height: 520,
+      x: 80,
+      y: 120,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    const details = document.createElement('section');
+    details.setAttribute('data-guide', 'variable-details');
+    spyOn(details, 'getBoundingClientRect').and.returnValue({
+      top: 360,
+      right: 1180,
+      bottom: 760,
+      left: 660,
+      width: 520,
+      height: 400,
+      x: 660,
+      y: 360,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    document.body.appendChild(browser);
+    document.body.appendChild(details);
+
+    component.activeSteps.set([
+      {
+        id: 'select-age-variable',
+        section: 'Explore',
+        title: 'Select Age',
+        body: '',
+        selector: '[data-guide="variable-browser"]',
+        interactionSelectors: ['[data-guide="variable-details"]'],
+        allowTargetInteraction: true,
+        requirement: 'selected-age',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.interactionCutouts().length).toBe(2);
+    expect(component.blockingMaskRects().length).toBeGreaterThan(0);
+  });
+
+  it('keeps the Explore Variable Views step as a preview-only walkthrough', () => {
+    const steps = (component as any).resolveSteps();
+    const exploreStep = steps.find((step: any) => step.id === 'variable-selection');
+
+    expect(exploreStep?.title).toBe('Explore Variable Views');
+    expect(exploreStep?.selector).toBe('[data-guide="variable-selection"]');
+    expect(exploreStep?.allowTargetInteraction).toBeFalse();
+    expect(exploreStep?.body).toContain('Preview the metadata browser');
+    expect(exploreStep?.interactionSelectors).toBeUndefined();
+    expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBeFalse();
+  });
+
+  it('builds click-through blockers around interactive guide targets', () => {
+    const target = document.createElement('div');
+    target.setAttribute('data-guide', 'variable-selection');
+    spyOn(target, 'getBoundingClientRect').and.returnValue({
+      top: 180,
+      right: 620,
+      bottom: 640,
+      left: 80,
+      width: 540,
+      height: 460,
+      x: 80,
+      y: 180,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(target);
+
+    component.activeSteps.set([
+      {
+        id: 'variable-selection',
+        section: 'Explore',
+        title: 'Explore Variable Views',
+        body: '',
+        selector: '[data-guide="variable-selection"]',
+        allowTargetInteraction: true,
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.blockingMaskRects().length).toBeGreaterThan(0);
+    expect(component.blockingMaskRects().some((rect) => rect.top === 0 && rect.bottom === 170)).toBeTrue();
+  });
+
+  it('keeps the Sex selection step interactive without highlighting variable details', () => {
+    const steps = (component as any).resolveSteps();
+    const selectSexStep = steps.find((step: any) => step.id === 'select-sex-variable');
+
+    expect(selectSexStep?.allowTargetInteraction).toBeTrue();
+    expect(selectSexStep?.selector).toBe('[data-guide="variable-selection"]');
+    expect(selectSexStep?.interactionSelectors).toBeUndefined();
+  });
+
+  it('places variable preview steps after each guided variable selection', () => {
+    const steps = (component as any).resolveSteps();
+    const selectSexIndex = steps.findIndex((step: any) => step.id === 'select-sex-variable');
+    const previewSexIndex = steps.findIndex((step: any) => step.id === 'preview-sex-variable-details');
+    const addSexIndex = steps.findIndex((step: any) => step.id === 'add-sex-covariate');
+    const selectAgeIndex = steps.findIndex((step: any) => step.id === 'select-age-variable');
+    const previewAgeIndex = steps.findIndex((step: any) => step.id === 'preview-age-variable-details');
+    const addAgeIndex = steps.findIndex((step: any) => step.id === 'add-age-variable');
+
+    expect(previewSexIndex).toBe(selectSexIndex + 1);
+    expect(addSexIndex).toBe(previewSexIndex + 1);
+    expect(previewAgeIndex).toBe(selectAgeIndex + 1);
+    expect(addAgeIndex).toBe(previewAgeIndex + 1);
+    expect(steps[previewSexIndex].selector).toBe('[data-guide="variable-details"]');
+    expect(steps[previewAgeIndex].allowTargetInteraction).toBeTrue();
   });
 });

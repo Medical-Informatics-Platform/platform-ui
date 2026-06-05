@@ -5,6 +5,7 @@ import {
   createCollapsibleTree,
   findHierarchyNode,
   findHierarchyNodeByPath,
+  focalPointForExpandedGroup,
   initializeCollapse,
 } from './collapsible-tree-renderer';
 
@@ -147,6 +148,25 @@ describe('collapsible tree renderer helpers', () => {
     expect(onAutoFitCanceled).toHaveBeenCalled();
     renderer.destroy();
     container.remove();
+  });
+
+  it('targets expanded group content instead of the group node position', () => {
+    const root = d3.hierarchy(cloneNode(model), (node) => node.children) as any;
+    const group = root.children![0];
+    group.x = 80;
+    group.y = 120;
+    const child = group.children![0];
+    child.x = 140;
+    child.y = 380;
+    const grandchild = child.children![0];
+    grandchild.x = 200;
+    grandchild.y = 380;
+
+    const focal = focalPointForExpandedGroup(group);
+
+    expect(focal.x).toBe(170);
+    expect(focal.y).toBe(380);
+    expect(focal.y).not.toBe(group.y);
   });
 
   it('cancels pending auto-fit when destroyed before the next animation frame', () => {

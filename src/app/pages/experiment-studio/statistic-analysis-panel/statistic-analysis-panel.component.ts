@@ -33,6 +33,8 @@ import {
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
+import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import {
   cloneOutlierRules,
@@ -267,8 +269,33 @@ export class StatisticAnalysisPanelComponent {
   private scrollRequestId = 0;
   private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
   private keepProcessedSectionOpenOnNextReconcile = false;
+  private readonly guideState = inject(ExperimentStudioGuideStateService);
 
   constructor() {
+    effect(() => {
+      const layout = getAnalysisGuideLayout(this.guideState.activeStepId());
+      if (!layout) return;
+
+      if (layout.expandSection === 'none') {
+        this.collapseAllWorkflowSections();
+      } else {
+        this.goToSection(layout.expandSection);
+      }
+
+      if (layout.summaryKind && layout.summaryTab) {
+        this.setSummaryTab(layout.summaryKind, layout.summaryTab);
+      }
+
+      if (layout.preprocessingStep) {
+        this.preprocessingStepOpen = {
+          missing: layout.preprocessingStep === 'missing',
+          outlier: layout.preprocessingStep === 'outlier',
+          longitudinal: layout.preprocessingStep === 'longitudinal',
+        };
+      }
+      this.cdr.markForCheck();
+    });
+
     effect(() => {
       const incomingProcessedData = this.processedDataInput();
       this.processedData = incomingProcessedData;
@@ -792,6 +819,16 @@ export class StatisticAnalysisPanelComponent {
     };
     this.cdr.markForCheck();
     this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
+  }
+
+  collapseAllWorkflowSections(): void {
+    this.sectionOpen = {
+      raw: false,
+      setup: false,
+      filters: false,
+      processed: false,
+    };
+    this.cdr.markForCheck();
   }
 
   toggleSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {

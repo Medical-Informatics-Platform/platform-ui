@@ -1,27 +1,33 @@
 <div class="data-model-selector" data-guide="data-model-selector">
   <label class="control-label" for="dataModel">Pathology</label>
-  <select class="data-model-select" id="dataModel" [(ngModel)]="selectedDataModel" (change)="onDataModelChange()"
-    aria-labelledby="dataModel">
-    <!-- Cross-Sectional Data Models Group -->
-    @if (crossSectionalModels().length > 0) {
-    <optgroup label="Cross-Sectional">
-      @for (model of crossSectionalModels(); track model) {
-      <option [ngValue]="model">
-        {{ model.label }}
-      </option>
+  <div class="data-model-control">
+    <select
+      class="data-model-select"
+      id="dataModel"
+      [(ngModel)]="selectedDataModel"
+      (change)="onDataModelChange()"
+      aria-labelledby="dataModel"
+    >
+      @if (crossSectionalModels().length > 0) {
+      <optgroup label="Cross-Sectional">
+        @for (model of crossSectionalModels(); track model) {
+        <option [ngValue]="model">
+          {{ model.label }}
+        </option>
+        }
+      </optgroup>
       }
-    </optgroup>
-    }
 
-    <!-- Longitudinal Data Models Group -->
-    @if (longitudinalModels().length > 0) {
-    <optgroup label="Longitudinal">
-      @for (model of longitudinalModels(); track model) {
-      <option [ngValue]="model">
-        {{ model.label }}
-      </option>
+      @if (longitudinalModels().length > 0) {
+      <optgroup label="Longitudinal">
+        @for (model of longitudinalModels(); track model) {
+        <option [ngValue]="model">
+          {{ model.label }}
+        </option>
+        }
+      </optgroup>
       }
-    </optgroup>
-    }
-  </select>
+    </select>
+    <i class="fas fa-chevron-down data-model-chevron" aria-hidden="true"></i>
+  </div>
 </div>
