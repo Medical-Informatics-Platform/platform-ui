@@ -9,6 +9,7 @@ import {
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
 import { ExperimentStudioGuideStateService } from './experiment-studio-guide-state.service';
+import { computeGuideBlockingRects, measureGuideInteractionRect } from './experiment-studio-guide-mask.util';
 
 interface GuideRect {
   top: number;
@@ -54,9 +55,12 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
   readonly activeSteps = signal<ExperimentStudioGuideStep[]>([]);
   readonly currentIndex = signal(0);
   readonly highlightRect = signal<GuideRect | null>(null);
+  readonly interactionCutouts = signal<GuideRect[]>([]);
+  readonly blockingMaskRects = signal<GuideRect[]>([]);
   readonly isCollapsed = signal(false);
   private readonly domRevision = signal(0);
   private readonly experimentSaveBaselineUuid = signal<string | null | undefined>(undefined);
+  private readonly pendingStudioResetOnContinue = signal(false);
 
   readonly currentStep = computed(() => this.activeSteps()[this.currentIndex()] ?? null);
   readonly previousStep = computed(() => this.activeSteps()[this.currentIndex() - 1] ?? null);
@@ -81,6 +85,13 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
           ? this.labels.done
           : this.labels.next
   );
+  readonly studioResetWarning = computed(() => {
+    if (this.currentStep()?.id !== 'launcher' || !this.pendingStudioResetOnContinue()) {
+      return null;
+    }
+
+    return 'Warning: continuing past this step will reset your current session, including variables, covariates, preprocessing, and algorithm selection.';
+  });
   readonly pendingRequirementHint = computed(() => {
     const step = this.currentStep();
     if (!step?.requirement || this.canGoToNext()) {
@@ -93,7 +104,7 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
       case 'covariate-sex':
         return 'Click "+ Covariates" button in order to continue.';
       case 'selected-age':
-        return this.replaceGuideTargets('Either use the search bar to find the Age variable or click the green-highlighted variable through the bubble chart to continue.');
+        return this.replaceGuideTargets('Either use the search bar to find the Age variable or click the green-highlighted variable through the bubble chart to continue. You can also explore the chart and details on the right.');
       case 'variable-age':
         return 'Click "+ Variables" button in order to continue.';
       case 'algorithm-selected':
@@ -171,6 +182,11 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
       return;
     }
 
+    this.pendingStudioResetOnContinue.set(
+      this.guideOnboarding.hasSeenStudioGuide()
+      && this.experimentStudioService.hasPersistedStudioWork(),
+    );
+
     const warning = this.experimentStudioService.pathologyAccessWarning();
     let resolvedSteps: ExperimentStudioGuideStep[];
 
@@ -200,11 +216,14 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
 
   closeGuide(): void {
     this.guideOnboarding.markStudioGuideSeen();
+    this.pendingStudioResetOnContinue.set(false);
     this.isOpen.set(false);
     this.isCollapsed.set(false);
     this.activeSteps.set([]);
     this.currentIndex.set(0);
     this.highlightRect.set(null);
+    this.interactionCutouts.set([]);
+    this.blockingMaskRects.set([]);
     this.disconnectTargetObserver();
     this.disconnectDomObserver();
     this.clearLayoutTimer();
@@ -214,6 +233,12 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
   goToNextStep(): void {
     if (!this.canGoToNext()) {
       return;
+    }
+
+    const step = this.currentStep();
+    if (step?.id === 'launcher' && this.pendingStudioResetOnContinue()) {
+      this.experimentStudioService.resetStudioStateForGuide();
+      this.pendingStudioResetOnContinue.set(false);
     }
 
     if (this.isDashboardStep()) {
@@ -333,12 +358,12 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
       });
     }
 
-    this.scheduleLayoutUpdate(target ? 260 : 0);
+    this.scheduleLayoutUpdate(target ? 260 : 0, true);
   }
 
-  private scheduleLayoutUpdate(delayMs: number): void {
+  private scheduleLayoutUpdate(delayMs: number, focusGuideCard = false): void {
     this.clearLayoutTimer();
-    this.layoutTimer = window.setTimeout(() => this.updateLayout(), delayMs);
+    this.layoutTimer = window.setTimeout(() => this.updateLayout(focusGuideCard), delayMs);
   }
 
   private clearLayoutTimer(): void {
@@ -410,7 +435,7 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
     this.domMutationObserver = null;
   }
 
-  private updateLayout(): void {
+  private updateLayout(focusGuideCard = false): void {
     const step = this.currentStep();
     if (!step) {
       return;
@@ -418,14 +443,58 @@ export class ExperimentStudioGuideComponent implements AfterViewInit, OnDestroy 
 
     const target = step.selector ? this.findTarget(step.selector) : null;
     this.highlightRect.set(target ? this.expandRect(target.getBoundingClientRect()) : null);
-    window.setTimeout(() => this.guideCard?.nativeElement.focus(), 0);
+
+    const cutoutTargets = step.allowTargetInteraction
+      ? this.getInteractionSelectors(step)
+        .map((selector) => this.findTarget(selector))
+        .filter((element): element is HTMLElement => !!element)
+      : [];
+    const cutouts = cutoutTargets.map((element) => measureGuideInteractionRect(element));
+    this.interactionCutouts.set(cutouts);
+    this.blockingMaskRects.set(computeGuideBlockingRects(cutouts));
+
+    if (focusGuideCard && this.canFocusGuideCard()) {
+      window.setTimeout(() => this.guideCard?.nativeElement.focus(), 0);
+    }
+  }
+
+  private getInteractionSelectors(step: ExperimentStudioGuideStep): string[] {
+    return [
+      step.selector,
+      ...(step.interactionSelectors ?? []),
+    ].filter((selector, index, selectors): selector is string =>
+      !!selector && selectors.indexOf(selector) === index
+    );
+  }
+
+  private canFocusGuideCard(): boolean {
+    const active = this.document.activeElement;
+    if (!(active instanceof HTMLElement)) {
+      return true;
+    }
+
+    const tag = active.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      return false;
+    }
+
+    return !active.isContentEditable;
   }
 
   private getScrollBlock(step: ExperimentStudioGuideStep): ScrollLogicalPosition {
-    return step.selector === '[data-guide="analysis-section"]'
-      || step.selector === '[data-guide="experiment-workspace"]'
-      ? 'start'
-      : 'center';
+    const selector = step.selector ?? '';
+    if (
+      (selector.includes('analysis-')
+        && !selector.includes('analysis-raw-summary')
+        && !selector.includes('analysis-raw-details')
+        && !selector.includes('analysis-processed-summary')
+        && !selector.includes('analysis-processed-details'))
+      || selector === '[data-guide="experiment-workspace"]'
+      || selector === '[data-guide="analysis-section"]'
+    ) {
+      return 'start';
+    }
+    return 'center';
   }
 
   private expandRect(rect: DOMRect, padding = 10): GuideRect {

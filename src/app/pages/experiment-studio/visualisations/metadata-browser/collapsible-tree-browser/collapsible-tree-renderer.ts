@@ -234,6 +234,7 @@ export function createCollapsibleTree(
 
   const handleNodeClick = (node: TreeDatum): void => {
     let shouldCenterAfterUpdate = false;
+    let didExpand = false;
     if (!isVariable(node) && hasChildren(node)) {
       if (node.children) {
         node._children = node.children;
@@ -241,6 +242,7 @@ export function createCollapsibleTree(
       } else if (node._children) {
         node.children = node._children;
         node._children = undefined;
+        didExpand = true;
       }
       update(node);
       shouldCenterAfterUpdate = true;
@@ -248,7 +250,13 @@ export function createCollapsibleTree(
     refreshNodeClasses();
     options.onNodeClick(node.data);
     if (shouldCenterAfterUpdate) {
-      window.setTimeout(() => centerNode(node), duration + 20);
+      window.setTimeout(() => {
+        if (didExpand) {
+          centerExpandedContent(node);
+        } else {
+          centerNode(node);
+        }
+      }, duration + 20);
     } else {
       centerNode(node);
     }
@@ -306,15 +314,26 @@ export function createCollapsibleTree(
     centerNode(target as TreeDatum);
   };
 
-  const centerNode = (node: TreeDatum): void => {
+  const centerOnPoint = (treeX: number, treeY: number, centeredNode?: D3HierarchyNode): void => {
     const scale = 0.9;
-    const x = bounds.width / 2 - node.y * scale;
-    const y = bounds.height / 2 - node.x * scale;
+    const x = bounds.width / 2 - treeY * scale;
+    const y = bounds.height / 2 - treeX * scale;
     svg
       .transition()
       .duration(duration)
       .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
-    options.onNodeCentered?.(node.data);
+    if (centeredNode) {
+      options.onNodeCentered?.(centeredNode);
+    }
+  };
+
+  const centerNode = (node: TreeDatum): void => {
+    centerOnPoint(node.x ?? 0, node.y ?? 0, node.data);
+  };
+
+  const centerExpandedContent = (node: TreeDatum): void => {
+    const focal = focalPointForExpandedGroup(node);
+    centerOnPoint(focal.x, focal.y, node.data);
   };
 
   const refreshSelection = (selectionOptions?: CollapsibleTreeSelectionOptions): void => {
@@ -367,6 +386,20 @@ export function cloneNode(node: D3HierarchyNode): RenderNode {
   return {
     ...node,
     children: node.children?.map((child) => cloneNode(child)),
+  };
+}
+
+export function focalPointForExpandedGroup(node: TreeDatum): { x: number; y: number } {
+  const descendants = node.descendants().filter((descendant) => descendant !== node);
+  if (!descendants.length) {
+    return { x: node.x ?? 0, y: node.y ?? 0 };
+  }
+
+  const xs = descendants.map((descendant) => descendant.x ?? 0);
+  const ys = descendants.map((descendant) => descendant.y ?? 0);
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
   };
 }
 

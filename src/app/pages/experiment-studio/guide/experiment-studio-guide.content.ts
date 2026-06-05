@@ -7,6 +7,7 @@ export interface ExperimentStudioGuideStep {
   body: string;
   compactTitle?: boolean;
   selector?: string;
+  interactionSelectors?: string[];
   allowTargetInteraction?: boolean;
   advanceOnTargetClick?: boolean;
   requirement?:
@@ -37,13 +38,13 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'welcome',
     section: 'Explore',
     title: 'Welcome to the Medical Informatics Platform',
-    body: 'This guide will help you understand how to use the MIP.',
+    body: 'This guide walks you through Experiment Studio step by step. During interactive steps, you can only interact with the highlighted <strong>blue panel</strong> on the page—the rest of the interface stays dimmed until you press Next.',
   },
   {
     id: 'launcher',
     section: 'Explore',
     title: 'Guide Launcher',
-    body: 'Use this button to reopen the guide at any time on the current page.',
+    body: 'Use this button to reopen the guide at any time on the current page. While the guide is active, interaction is limited to the highlighted blue panel; use Back and Next here to move between steps.',
     selector: '[data-guide="launcher"]',
   },
   {
@@ -84,9 +85,10 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'variable-selection',
     section: 'Explore',
-    title: 'Variables Selection',
-    body: 'The bubble chart is your variable browser. Click a bubble to inspect it, and double-click groups to navigate deeper into the hierarchy.',
+    title: 'Explore Variable Views',
+    body: 'Preview the metadata browser in three modes — <strong>Map</strong> (bubble overview), <strong>List</strong> (expandable hierarchy), and <strong>Graph</strong> (collapsible diagram). Charts and details for the current selection appear in the panel on the right.',
     selector: '[data-guide="variable-selection"]',
+    allowTargetInteraction: false,
   },
   {
     id: 'variable-details',
@@ -99,7 +101,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'variable-containers',
     section: 'Explore',
     title: 'Compose Your Experiment',
-    body: 'Use this panel to place the selected item into Variables, Covariates, or Filters. You can also review and remove the selections already included in the experiment.',
+    body: 'Use this panel to place the selected item into Variables or Covariates. You can also review and remove the selections already included in the experiment.',
     selector: '[data-guide="variable-containers"]',
   },
   {
@@ -108,9 +110,17 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     title: 'Select the <span class="guide-copy-green">green</span>-highlighted {{GUIDE_COVARIATE}} variable.',
     body: '',
     compactTitle: true,
-    selector: '[data-guide="variable-browser"]',
+    selector: '[data-guide="variable-selection"]',
     allowTargetInteraction: true,
     requirement: 'selected-sex',
+  },
+  {
+    id: 'preview-sex-variable-details',
+    section: 'Explore',
+    title: 'Preview {{GUIDE_COVARIATE}} Details',
+    body: 'Review the histogram and metadata for the selected variable. Switch between <strong>Chart</strong> and <strong>Details</strong>, and use export actions when available.',
+    selector: '[data-guide="variable-details"]',
+    allowTargetInteraction: true,
   },
   {
     id: 'add-sex-covariate',
@@ -127,9 +137,18 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     title: 'Select the <span class="guide-copy-green">green</span>-highlighted {{GUIDE_VARIABLE}} variable.',
     body: '',
     compactTitle: true,
-    selector: '[data-guide="variable-browser"]',
+    selector: '[data-guide="variable-selection"]',
     allowTargetInteraction: true,
+    interactionSelectors: ['[data-guide="variable-details"]'],
     requirement: 'selected-age',
+  },
+  {
+    id: 'preview-age-variable-details',
+    section: 'Explore',
+    title: 'Preview {{GUIDE_VARIABLE}} Details',
+    body: 'Review the histogram and metadata for the selected variable. Switch between <strong>Chart</strong> and <strong>Details</strong>, and use export actions when available.',
+    selector: '[data-guide="variable-details"]',
+    allowTargetInteraction: true,
   },
   {
     id: 'add-age-variable',
@@ -143,18 +162,42 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-intro',
     section: 'Analysis',
-    title: 'Analysis Section',
-    body: 'Review raw variable summaries, configure filtering and preprocessing, inspect charts, and continue when you are ready.',
+    title: 'Data Review &amp; Preprocessing',
+    body: 'This workflow has four accordion steps below. The guide opens each one in turn so you can explore filtering, raw summaries, preprocessing, and processed results.',
     selector: '[data-guide="analysis-section"]',
+    allowTargetInteraction: false,
+  },
+  {
+    id: 'analysis-filtering',
+    section: 'Analysis',
+    title: '1. Filtering',
+    body: 'Optional: add filter rules to narrow the cohort. Preview the inline filter builder below, then continue when you are ready.',
+    selector: '[data-guide="analysis-filtering"]',
+    allowTargetInteraction: false,
+  },
+  {
+    id: 'analysis-raw-statistics',
+    section: 'Analysis',
+    title: '2. Raw Data Summary',
+    body: 'Select a variable on the left, then explore <strong>Statistics</strong>, <strong>Charts</strong>, or <strong>Histogram</strong>. Export PDF or CSV when you need a snapshot.',
+    selector: '[data-guide="analysis-raw-summary"]',
     allowTargetInteraction: true,
   },
   {
-    id: 'analysis-export',
+    id: 'analysis-preprocessing',
     section: 'Analysis',
-    title: 'Export Results',
-    body: 'Export the data review summary currently shown in this panel as a PDF.',
-    selector: '[data-guide="analysis-export"]',
-    optional: true,
+    title: '3. Preprocessing',
+    body: 'Preview missing-value handling for each variable. You can configure and apply preprocessing later—press Next when you are ready to continue.',
+    selector: '[data-guide="analysis-preprocessing"]',
+    allowTargetInteraction: false,
+  },
+  {
+    id: 'analysis-processed-summary',
+    section: 'Analysis',
+    title: '4. Processed Data Summary',
+    body: 'After preprocessing is applied, compare processed statistics here. If this section is empty, return to preprocessing and click Apply.',
+    selector: '[data-guide="analysis-processed-summary"]',
+    allowTargetInteraction: true,
   },
   {
     id: 'experiment-intro',
@@ -202,9 +245,9 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'experiment-summary-action',
     section: 'Experiment',
     title: 'Experiment Summary',
-    body: 'This info button opens a quick summary of the datasets, variables, covariates, filters, and algorithm configuration behind the current result.',
-    selector: '[data-guide="experiment-summary"]',
-    allowTargetInteraction: false,
+    body: 'The summary panel on the right lists datasets, variables, covariates, filters, preprocessing, and algorithm settings used for this result.',
+    selector: '[data-guide="experiment-summary-panel"]',
+    allowTargetInteraction: true,
   },
   {
     id: 'experiment-save-as-action',

@@ -44,7 +44,7 @@
           </div>
 
           @if (selectedDataModel() && d3Data) {
-          <div class="metadata-browser-shell">
+          <div class="metadata-browser-shell" data-guide="variable-visualizations">
             <div class="metadata-browser-switcher" role="group" aria-label="Metadata browser view">
               @for (mode of metadataBrowserModes; track mode.value) {
               <button

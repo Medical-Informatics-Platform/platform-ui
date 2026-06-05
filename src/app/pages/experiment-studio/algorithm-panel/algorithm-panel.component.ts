@@ -207,7 +207,7 @@ export class AlgorithmPanelComponent {
   });
 
   // UI toggle: show only enabled algorithms
-  readonly showOnlyActive = signal(false);
+  readonly showOnlyActive = signal(true);
   readonly hasAnyVisibleAlgorithms = computed(() => {
     return this.filteredAlgorithmCategories().some(c => c.algorithms?.length > 0);
   });
@@ -606,6 +606,10 @@ export class AlgorithmPanelComponent {
           return changed ? next : current;
         });
       }
+    });
+
+    effect(() => {
+      this.showOnlyActive.set(this.algoCounts().active > 0);
     });
   }
 

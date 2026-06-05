@@ -600,6 +600,53 @@ describe('ExperimentStudioService', () => {
     req.flush({ featurewise: [] });
   });
 
+  it('resetStudioStateForGuide restores the default pathology after clearing guide progress', () => {
+    const defaultModel: DataModel = {
+      ...mockDataModel,
+      code: 'stroke',
+      label: 'Stroke',
+    };
+    const alternateModel: DataModel = {
+      ...mockDataModel,
+      code: 'alternate',
+      label: 'Alternate',
+    };
+
+    service.crossSectionalModels.set([defaultModel]);
+    service.longitudinalModels.set([alternateModel]);
+    service.setSelectedDataModel(alternateModel);
+    service.setVariables([{ code: 'v1', label: 'V1' } as any]);
+
+    service.resetStudioStateForGuide();
+
+    expect(service.selectedVariables()).toEqual([]);
+    expect(service.selectedDataModel()).toEqual(defaultModel);
+    expect(service.selectedDatasets()).toEqual(['ds1']);
+  });
+
+  it('preselectAllDatasetsForModel selects every dataset enumeration for the pathology', () => {
+    const model: DataModel = {
+      ...mockDataModel,
+      variables: [
+        {
+          code: 'dataset',
+          label: 'Dataset',
+          type: 'nominal',
+          enumerations: [
+            { code: 'ds-a', label: 'Dataset A' },
+            { code: 'ds-b', label: 'Dataset B' },
+          ],
+        } as any,
+      ],
+      datasets: ['ds-a', 'ds-b'],
+    };
+
+    service.preselectAllDatasetsForModel(model);
+
+    expect(service.availableDatasets().map((dataset) => dataset.code)).toEqual(['ds-a', 'ds-b']);
+    expect(service.selectedDatasets()).toEqual(['ds-a', 'ds-b']);
+  });
+
   it('resetStudioState clears selections and errors', (done) => {
     const errorService = TestBed.inject(ErrorService);
 

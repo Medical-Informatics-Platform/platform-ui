@@ -43,6 +43,11 @@ describe('AlgorithmPanelComponent', () => {
     runSelectedAlgorithmTransient: jasmine.Spy;
     runSelectedAlgorithm: jasmine.Spy;
     getEffectivePreprocessingSummary: jasmine.Spy;
+    getDatasetLabelMap: jasmine.Spy;
+    getAppliedDescriptivePreprocessing: jasmine.Spy;
+    formatPreprocessingEntries: jasmine.Spy;
+    filterLogic: ReturnType<typeof signal<any>>;
+    isCrossValidationAlgorithm: jasmine.Spy;
   };
 
   const algorithm: AlgorithmConfig = {
@@ -102,6 +107,11 @@ describe('AlgorithmPanelComponent', () => {
       runSelectedAlgorithmTransient: jasmine.createSpy('runSelectedAlgorithmTransient'),
       runSelectedAlgorithm: jasmine.createSpy('runSelectedAlgorithm'),
       getEffectivePreprocessingSummary: jasmine.createSpy('getEffectivePreprocessingSummary').and.returnValue(null),
+      getDatasetLabelMap: jasmine.createSpy('getDatasetLabelMap').and.returnValue({}),
+      getAppliedDescriptivePreprocessing: jasmine.createSpy('getAppliedDescriptivePreprocessing').and.returnValue(null),
+      formatPreprocessingEntries: jasmine.createSpy('formatPreprocessingEntries').and.returnValue([]),
+      filterLogic: signal(null),
+      isCrossValidationAlgorithm: jasmine.createSpy('isCrossValidationAlgorithm').and.returnValue(false),
     };
 
     await TestBed.configureTestingModule({
@@ -648,15 +658,28 @@ describe('AlgorithmPanelComponent', () => {
 
   it('navigates to preprocessing from the requirements list', async () => {
     experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    experimentStudioService.selectedAlgorithm.set({ ...algorithm });
     fixture.detectChanges();
     await fixture.whenStable();
 
     const action = (fixture.nativeElement as HTMLElement).querySelector(
-      '.algorithm-requirement-item:last-child .algorithm-requirement-action',
+      '.algorithm-requirement-item .algorithm-requirement-action',
     ) as HTMLButtonElement;
 
     expect(action?.textContent).toContain('Go to preprocessing');
     action.click();
     expect(studioNavigation.goToPreprocessing).toHaveBeenCalled();
+  });
+
+  it('shows All when no algorithms are active and Active only when at least one is available', () => {
+    const disabledAlgorithm = { ...algorithm, isDisabled: true };
+
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showOnlyActive()).toBeFalse();
+
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [algorithm] });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showOnlyActive()).toBeTrue();
   });
 });

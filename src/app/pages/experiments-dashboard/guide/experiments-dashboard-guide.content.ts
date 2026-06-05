@@ -88,7 +88,7 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     id: 'workbench',
     section: 'Explore',
     title: 'Experiment Workbench',
-    body: 'This area shows either an empty-state prompt, the selected experiment details, configuration and results, or the comparison workspace.',
+    body: 'After you select an experiment, this workbench shows its details, configuration, stored results, and comparison views.',
     selector: '[data-guide="dashboard-detail-card"]',
     placement: 'left',
     allowTargetInteraction: true,

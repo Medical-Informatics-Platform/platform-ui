@@ -13,17 +13,31 @@
     <h5>Available Algorithms</h5>
 
     <div class="algo-toolbar">
-      <button type="button" class="pill-toggle" [class.on]="showOnlyActive()" (click)="toggleActiveOnly()" [title]="
-            showOnlyActive()
-              ? 'Showing only active algorithms'
-              : 'Showing all algorithms'
-          ">
+      <button
+        type="button"
+        class="pill-toggle"
+        [class.on]="showOnlyActive()"
+        (click)="toggleActiveOnly()"
+        [title]="
+          showOnlyActive()
+            ? 'Showing runnable algorithms. Click to switch to All and see unavailable ones.'
+            : 'Showing all algorithms. Click to show only runnable ones.'
+        "
+      >
         <span class="pill-dot" aria-hidden="true"></span>
-        {{ showOnlyActive() ? "Active only" : "All" }}
-        <span class="pill-count">
-          {{ algoCounts().active }}/{{ algoCounts().all }}
-        </span>
+        <span class="pill-label">{{ showOnlyActive() ? 'Active only' : 'All' }}</span>
+        <span class="pill-count">{{ algoCounts().active }}/{{ algoCounts().all }}</span>
       </button>
+      @if (showOnlyActive() && algoCounts().active < algoCounts().all) {
+      <p class="algo-toolbar-hint">
+        <i class="fas fa-info-circle" aria-hidden="true"></i>
+        <span>
+          Switch to
+          <button type="button" class="algo-toolbar-hint-link" (click)="toggleActiveOnly()">All</button>
+          to see unavailable algorithms.
+        </span>
+      </p>
+      }
     </div>
     @if (hasAnyVisibleAlgorithms()) {
     <div class="category">
