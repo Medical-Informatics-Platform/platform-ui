@@ -35,7 +35,7 @@ describe('algorithm mappers', () => {
       },
     }));
 
-    expect(config.category).toBe('Regression');
+    expect(config.category).toBe('Mixed Models');
     expect(config.inputdata?.y?.max_count).toBe(1);
     expect(config.inputdata?.x?.min_count).toBe(2);
     expect(config.configSchema[0]).toEqual(jasmine.objectContaining({
@@ -88,7 +88,7 @@ describe('algorithm mappers', () => {
       },
     }));
 
-    expect(config.category).toBe('Regression');
+    expect(config.category).toBe('Mixed Models');
     expect(config.configSchema.find(field => field.key === 'grouping_var')?.type).toBe('select');
     expect(config.configSchema.find(field => field.key === 'category_order')).toEqual(jasmine.objectContaining({
       type: 'multi-select',
