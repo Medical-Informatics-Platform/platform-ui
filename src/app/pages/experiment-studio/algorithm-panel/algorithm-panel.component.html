@@ -599,14 +599,14 @@
           }
 
           @if (field.key === 'positive_class' && selectedEventVarCode() && positiveClassOptions().length) {
-          <p class="config-field-hint config-field-hint--optional">
-            Optional. Choose None when the event column is already encoded as 0/1.
+          <p class="config-field-hint">
+            Select the event level mapped to 1; all other levels are mapped to 0.
           </p>
           }
 
           @if (field.key === 'positive_class' && selectedEventVarCode() && !positiveClassOptions().length) {
           <p class="config-field-hint">
-            This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1), or leave blank if already 0/1.
+            This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1).
           </p>
           }
 

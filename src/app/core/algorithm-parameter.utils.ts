@@ -115,7 +115,11 @@ export function omitEmptyOptionalParameters(
     }
   });
 
-  if (isEmptyParameterValue(next['positive_class'])) {
+  const positiveClassField = schema.find((field) => field?.key === 'positive_class');
+  if (
+    !positiveClassField?.required &&
+    isEmptyParameterValue(next['positive_class'])
+  ) {
     delete next['positive_class'];
   }
 

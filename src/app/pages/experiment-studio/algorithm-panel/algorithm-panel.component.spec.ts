@@ -415,9 +415,9 @@ describe('AlgorithmPanelComponent', () => {
         {
           key: 'positive_class',
           label: 'Positive event class',
-          desc: 'Optional event label treated as event=1 when the event indicator is not already encoded as 0/1.',
+          desc: 'Event level mapped to 1; other observed levels are mapped to 0.',
           type: 'text',
-          required: false,
+          required: true,
         },
       ],
       isDisabled: false,
@@ -442,18 +442,77 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const selects = (fixture.nativeElement as HTMLElement).querySelectorAll('select.config-select');
+    const root = fixture.nativeElement as HTMLElement;
+    const selects = root.querySelectorAll('select.config-select');
     expect(selects.length).toBe(2);
     const positiveSelect = selects[1] as HTMLSelectElement;
     expect(positiveSelect.textContent).toContain('Balloon angioplasty');
     expect(positiveSelect.textContent).toContain('Extracranial stent');
+    expect(positiveSelect.textContent).not.toContain('None (optional)');
+    expect(positiveSelect.textContent).toContain('-- Select --');
+    expect(root.textContent).toContain('Select the event level mapped to 1');
 
     const component = fixture.componentInstance;
+    expect(component.visibleConfigSchema().find((field) => field.key === 'positive_class')?.required).toBeTrue();
     const values = (component as any).normalizeFormValues(
       { event_var: 'procedure', positive_class: 'yes' },
       component.visibleConfigSchema()
     );
     expect(values.positive_class).toBe('yes');
+  });
+
+  it('blocks Cox runs when positive_class is unset', async () => {
+    const coxAlgorithm: AlgorithmConfig = {
+      name: 'cox_regression_classical',
+      label: 'Cox Regression Classical',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['real'],
+      covariate: ['text'],
+      configSchema: [
+        {
+          key: 'event_var',
+          label: 'Event indicator variable',
+          type: 'select',
+          enumType: 'input_var_names',
+          enumSource: ['x'],
+          required: true,
+          options: [],
+        },
+        {
+          key: 'positive_class',
+          label: 'Positive event class',
+          type: 'text',
+          required: false,
+        },
+      ],
+      isDisabled: false,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
+    experimentStudioService.selectedCovariates.set([
+      {
+        code: 'sex',
+        label: 'Sex',
+        type: 'nominal',
+        enumerations: [
+          { code: 'male', label: 'male' },
+          { code: 'female', label: 'female' },
+        ],
+      },
+    ]);
+    experimentStudioService.algorithmConfigurations.set({
+      cox_regression_classical: { event_var: 'sex' },
+    });
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const component = fixture.componentInstance;
+    component.onClickRunExp();
+
+    expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
+    expect(component.configForm().get('positive_class')?.invalid).toBeTrue();
   });
 
   it('shows covariate hint for empty input_var_names selects', async () => {
