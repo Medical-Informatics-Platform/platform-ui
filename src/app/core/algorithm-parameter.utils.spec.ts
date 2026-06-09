@@ -50,4 +50,20 @@ describe('algorithm-parameter.utils', () => {
     expect(result['event_var']).toBe('procedure');
     expect(result['alpha']).toBe(0.05);
   });
+
+  it('keeps empty required positive_class in the request payload', () => {
+    const result = omitEmptyOptionalParameters(
+      {
+        event_var: 'procedure',
+        positive_class: null,
+      },
+      [
+        { key: 'event_var', required: true },
+        { key: 'positive_class', required: true },
+      ]
+    );
+
+    expect(result['positive_class']).toBeNull();
+    expect(result['event_var']).toBe('procedure');
+  });
 });

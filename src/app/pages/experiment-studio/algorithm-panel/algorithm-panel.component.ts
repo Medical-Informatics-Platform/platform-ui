@@ -364,6 +364,10 @@ export class AlgorithmPanelComponent {
     this.enumOptionsForVariableCode(this.selectedEventVarCode())
   );
 
+  private isCoxRegressionAlgorithm(algorithmName: string | null | undefined): boolean {
+    return algorithmName === 'cox_regression_classical' || algorithmName === 'cox_regression_stacked';
+  }
+
   private optionValue(opt: any): any {
     if (opt && typeof opt === 'object') {
       return opt.code ?? opt.value ?? opt.name ?? opt.label ?? String(opt);
@@ -631,6 +635,7 @@ export class AlgorithmPanelComponent {
     const xVar = xVars[0];
     const eventVarCode = this.selectedEventVarCode();
     const positiveClassOptions = this.enumOptionsForVariableCode(eventVarCode);
+    const isCox = this.isCoxRegressionAlgorithm(algorithm.name);
 
     const enriched = schema.map(field => {
       let options = field.options ?? [];
@@ -673,16 +678,18 @@ export class AlgorithmPanelComponent {
 
       // Normalize label and desc
       const label = field.label?.trim() || this.prettifyLabel(field.key);
-      const desc = field.desc ?? field.description ?? '';
+      const desc =
+        field.key === 'positive_class' && isCox
+          ? 'Event level mapped to 1; other observed levels are mapped to 0.'
+          : field.desc ?? field.description ?? '';
       const type =
         field.key === 'positive_class' && positiveClassOptions.length
           ? 'select'
           : field.type;
       const required =
-        field.key === 'positive_class' && positiveClassOptions.length
-          ? false
-          : field.required === true ||
-            String(field.required ?? '').trim().toLowerCase() === 'true';
+        (field.key === 'positive_class' && isCox) ||
+        field.required === true ||
+        String(field.required ?? '').trim().toLowerCase() === 'true';
 
       // Return enriched field
       return { ...field, label, desc, options, default: defaultValue, type, required };
