@@ -1,0 +1,23 @@
+---
+description: Use the platform-ui LLM wiki to load minimal repository context.
+alwaysApply: true
+---
+
+# LLM Wiki Context Rule
+
+Before answering project questions or editing code, start with
+`docs/llm-wiki/00-agent-entrypoint.md`.
+
+Use the wiki as an index, not as bulk context:
+
+- Read the entrypoint first.
+- Pick only one topic page for the task.
+- Use `docs/llm-wiki/indexes/files-by-feature.md` or
+  `docs/llm-wiki/indexes/symbols-by-feature.md` to identify exact source files.
+- Search by route, endpoint, symbol, selector, CSS class, algorithm name, or
+  result key before opening files.
+- Open broad folders, large mapper files, templates, or styles only when the
+  task is complex or a targeted lookup is inconclusive.
+
+Do not duplicate the wiki in Cursor rules. Keep this rule short so it stays cheap
+to include in every Cursor chat.

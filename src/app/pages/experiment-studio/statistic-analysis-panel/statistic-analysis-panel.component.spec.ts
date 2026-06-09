@@ -1204,7 +1204,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         }));
     });
 
-    it('requests raw histogram_sql without preprocessing to match raw describe', () => {
+    it('requests raw histogram without preprocessing to match raw describe', () => {
         const dose = { code: 'dose', label: 'Dose', type: 'real' };
         mockExpService.loadDescriptiveOverview.and.returnValue(of({
             result: {
@@ -1234,14 +1234,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
-            'histogram_sql',
+            'histogram',
             ['dose'],
             null,
             null
         );
     });
 
-    it('requests histogram_sql with applied preprocessing when describe has no counts', () => {
+    it('requests histogram with applied preprocessing when describe has no counts', () => {
         const aspiration = {
             code: 'aspiration',
             label: 'Aspiration',
@@ -1284,7 +1284,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
-            'histogram_sql',
+            'histogram',
             ['aspiration'],
             null,
             preprocessing

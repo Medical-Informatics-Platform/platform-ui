@@ -31,7 +31,6 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "fisher_exact": "Statistical Tests",
   "describe": "Descriptive Statistics",
   "histogram": "Descriptive Statistics",
-  "histogram_sql": "Descriptive Statistics",
   "outlier_report": "Descriptive Statistics",
   "linear_svm": "Classification",
   "longitudinal_transformer": "Transformers",

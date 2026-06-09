@@ -34,8 +34,8 @@ describe('ExperimentStudioService', () => {
   };
 
   const mockHistogramAlgo = {
-    name: 'histogram_sql',
-    label: 'Histogram (SQL)',
+    name: 'histogram',
+    label: 'Histogram',
     desc: '',
     enabled: true,
     inputdata: {
@@ -136,16 +136,32 @@ describe('ExperimentStudioService', () => {
     sessionStorage.clear();
   });
 
+  it('resolves legacy histogram_sql catalog entries to histogram', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.backendAlgorithms.set({
+      histogram_sql: {
+        ...mockHistogramAlgo,
+        name: 'histogram_sql',
+        label: 'Histogram (SQL)',
+      } as any,
+    });
+
+    const body = service.buildRequestBody('histogram', ['var1']);
+
+    expect(body.algorithm.name).toBe('histogram_sql');
+  });
+
   it('builds request body for histogram with active data model and datasets', () => {
     // Arrange
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);
 
     // Act
-    const body = service.buildRequestBody('histogram_sql', ['var1']);
+    const body = service.buildRequestBody('histogram', ['var1']);
 
     // Assert
-    expect(body.algorithm.name).toBe('histogram_sql');
+    expect(body.algorithm.name).toBe('histogram');
     expect(body.algorithm.inputdata.data_model).toBe('dm:1');
     expect(body.algorithm.inputdata.datasets).toEqual(['ds1']);
     expect(body.algorithm.inputdata.y).toEqual(['var1']);
@@ -167,7 +183,7 @@ describe('ExperimentStudioService', () => {
       },
     });
 
-    const body = service.buildRequestBody('histogram_sql', ['var1']);
+    const body = service.buildRequestBody('histogram', ['var1']);
 
     expect(body.algorithm.preprocessing).toEqual({
       missing_values_handler: {
@@ -185,7 +201,7 @@ describe('ExperimentStudioService', () => {
       },
     };
 
-    const body = service.buildRequestBody('histogram_sql', ['var1'], null, null, null, null, applied);
+    const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, applied);
 
     expect(body.algorithm.preprocessing).toEqual(applied);
   });
@@ -204,7 +220,7 @@ describe('ExperimentStudioService', () => {
       },
     };
 
-    const body = service.buildRequestBody('histogram_sql', ['age'], null, null, null, null, applied);
+    const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
 
     expect(body.algorithm.preprocessing).toEqual({
       missing_values_handler: {
@@ -227,7 +243,7 @@ describe('ExperimentStudioService', () => {
       },
     });
 
-    const body = service.buildRequestBody('histogram_sql', ['var1'], null, null, null, null, null);
+    const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, null);
 
     expect(body.algorithm.preprocessing).toBeNull();
   });
@@ -309,8 +325,8 @@ describe('ExperimentStudioService', () => {
     const names = Object.values(grouped).flat().map((algo) => algo.name);
 
     expect(names).toContain('mock_algo');
-    expect(names).not.toContain('histogram_sql');
     expect(names).not.toContain('histogram');
+    expect(names).not.toContain('histogram_sql');
     expect(names).not.toContain('describe');
     expect(names).not.toContain('outlier_report');
     expect(names).not.toContain('linear_svm');
