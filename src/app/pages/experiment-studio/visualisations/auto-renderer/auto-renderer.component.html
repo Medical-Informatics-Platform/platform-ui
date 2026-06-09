@@ -27,8 +27,13 @@
         <tbody>
           @for (row of table.rows; track row) {
           <tr>
-            @for (cell of row; track cell) {
-            <td>{{ formatValue(cell) }}</td>
+            @for (cell of row; track cell; let colIndex = $index) {
+            <td
+              [class.ar-role-factor]="table.columns[colIndex] === 'Role' && cell === 'Factor'"
+              [class.ar-role-outcome]="table.columns[colIndex] === 'Role' && cell === 'Outcome'"
+              [class.ar-cell-text]="table.columns[colIndex] === 'Role' || table.columns[colIndex] === 'Variable' || table.columns[colIndex] === 'Categories'">
+              {{ formatValue(cell) }}
+            </td>
             }
           </tr>
           }

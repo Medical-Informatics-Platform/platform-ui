@@ -5,7 +5,7 @@ export const AlgorithmNames = {
     TTEST_ONESAMPLE: 'ttest_onesample',
     PCA: 'pca',
     PCA_WITH_TRANSFORMATION: 'pca_with_transformation',
-    HISTOGRAM: 'histogram_sql',
+    HISTOGRAM: 'histogram',
     DESCRIBE: 'describe',
     LMM: 'lmm',
     GLMM_BINARY: 'glmm_binary',

@@ -261,8 +261,8 @@ describe('AlgorithmTableRegistry', () => {
 
   it('renders classical Cox regression coefficients and summary', () => {
     const tables = AlgorithmTableRegistry['cox_regression_classical']({
-      dependent_var: 'Follow-up time',
-      event_var: 'Diagnosis',
+      dependent_var: 'Age',
+      event_var: 'Sex',
       indep_vars: ['Intercept', 'Age'],
       summary: {
         n_obs: 200,
@@ -297,6 +297,8 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][0]).toBe('Age');
     expect(tables[0].rows[0][1]).toBe('0.741');
     expect(tables[0].rows[0][3]).toBe('0.002');
+    expect(tables[1].rows).toContain(['Follow-up time', 'Sex']);
+    expect(tables[1].rows).toContain(['Event indicator', 'Age']);
     expect(tables[1].rows).toContain(['Tied events handling', 'breslow']);
     expect(tables[1].rows).toContain(['Model converged', 'Yes']);
   });
@@ -446,12 +448,25 @@ describe('AlgorithmTableRegistry', () => {
     const fisher = AlgorithmTableRegistry['fisher_exact']({
       odds_ratio: 1.48,
       p_value: 0.56,
-      x_labels: ['AD', 'Other'],
-      y_labels: ['Female', 'Male'],
+      x_labels: ['no', 'yes'],
+      y_labels: ['no', 'yes'],
+      __xVar__: 'intra_arterial_urokinase',
+      __yVar__: 'aspiration',
+      __labelMap__: {
+        intra_arterial_urokinase: 'Intra-arterial urokinase',
+        aspiration: 'Aspiration',
+      },
     });
 
     expect(chiSquared.some(table => table.title === 'Expected Frequencies')).toBeTrue();
+    expect(chiSquared.some(table => table.title === 'Contingency Table Categories')).toBeTrue();
     expect(fisher.some(table => table.title === "Fisher's Exact Test Summary")).toBeTrue();
-    expect(fisher.some(table => table.title === 'Contingency Table Categories')).toBeTrue();
+
+    const fisherCategories = fisher.find(table => table.title === 'Contingency Table Categories');
+    expect(fisherCategories?.columns).toEqual(['Role', 'Variable', 'Categories']);
+    expect(fisherCategories?.rows).toEqual([
+      ['Factor', 'Intra-arterial urokinase', 'no, yes'],
+      ['Outcome', 'Aspiration', 'no, yes'],
+    ]);
   });
 });

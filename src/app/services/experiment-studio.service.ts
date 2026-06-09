@@ -41,7 +41,7 @@ const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__
 /** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
 const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
   AlgorithmNames.HISTOGRAM,
-  'histogram',
+  'histogram_sql',
   AlgorithmNames.DESCRIBE,
   AlgorithmNames.OUTLIER_REPORT,
   AlgorithmNames.LINEAR_SVM,
@@ -607,6 +607,19 @@ export class ExperimentStudioService {
     return codes;
   }
 
+  private resolveAlgorithmConfig(algorithmName: string): AlgorithmConfig | undefined {
+    const algorithms = this.backendAlgorithms();
+    const direct = algorithms[algorithmName];
+    if (direct) return direct;
+
+    // Exaflow renamed histogram_sql -> histogram; keep lookup tolerant during rollout.
+    if (algorithmName === AlgorithmNames.HISTOGRAM || algorithmName === 'histogram_sql') {
+      return algorithms[AlgorithmNames.HISTOGRAM] ?? algorithms['histogram_sql'];
+    }
+
+    return undefined;
+  }
+
   buildRequestBody(
     algorithmName: string | null = null,
     yVariables: string[] | null = null,
@@ -619,7 +632,7 @@ export class ExperimentStudioService {
     let algoConfig: AlgorithmConfig | undefined;
 
     if (algorithmName) {
-      algoConfig = this.backendAlgorithms()[algorithmName];
+      algoConfig = this.resolveAlgorithmConfig(algorithmName);
     } else {
       algoConfig = this.selectedAlgorithm() ?? undefined;
     }

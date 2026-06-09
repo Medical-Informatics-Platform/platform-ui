@@ -17,6 +17,7 @@ export class AutoRendererComponent {
   readonly labelMap = input<Record<string, string> | null>(null);
   readonly enumMaps = input<EnumMaps | null>(null);
   readonly yVar = input<string | null>(null);
+  readonly xVar = input<string | null>(null);
   algorithmToRender: string = '';
 
   tableSpec = signal<TableSpec[] | null>(null);
@@ -34,6 +35,7 @@ export class AutoRendererComponent {
     const labelMap = this.labelMap();
     const enumMaps = this.enumMaps();
     const yVar = this.yVar();
+    const xVar = this.xVar();
     const fallbackTitle = this.fallbackTitle();
 
     if (!algorithm) {
@@ -55,13 +57,14 @@ export class AutoRendererComponent {
       labelMap,
       enumMaps,
       yVar,
+      xVar,
       fallbackTitle,
     });
     if (key === this.lastKey && this.tableSpec()) return;
 
     try {
-      const enrichedValue = value && (labelMap || enumMaps)
-        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar }
+      const enrichedValue = value && (labelMap || enumMaps || yVar || xVar)
+        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar, __xVar__: xVar }
         : value;
       const spec = builder(enrichedValue);
       const explicitTitle = this.getResultTitle(enrichedValue);
@@ -143,6 +146,7 @@ export class AutoRendererComponent {
     const labelMap = this.labelMap();
     const enumMaps = this.enumMaps();
     const yVar = this.yVar();
+    const xVar = this.xVar();
 
     if (!algorithm) return null;
     const builder = AlgorithmTableRegistry[algorithm];
@@ -150,8 +154,8 @@ export class AutoRendererComponent {
     if (!builder) return null;
 
     try {
-      const enrichedValue = value && (labelMap || enumMaps)
-        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar }
+      const enrichedValue = value && (labelMap || enumMaps || yVar || xVar)
+        ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar, __xVar__: xVar }
         : value;
       const table = builder(enrichedValue);
       const explicitTitle = this.getResultTitle(enrichedValue);

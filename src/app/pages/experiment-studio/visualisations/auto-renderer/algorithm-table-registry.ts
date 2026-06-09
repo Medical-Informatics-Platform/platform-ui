@@ -125,6 +125,52 @@ function buildMetricRows(result: Record<string, any>, labels: Record<string, str
     .map((key) => [labels[key] ?? key, formatDecimal(result[key])]);
 }
 
+interface ContingencyContext {
+  __labelMap__?: Record<string, string>;
+  __xVar__?: string | null;
+  __yVar__?: string | null;
+}
+
+function resolveVariableDisplayLabel(
+  code: string | null | undefined,
+  labelMap?: Record<string, string> | null,
+): string {
+  if (!code) return '';
+  const trimmed = String(code).trim();
+  if (!trimmed) return '';
+  return labelMap?.[trimmed] ?? trimmed;
+}
+
+function buildContingencyCategoryTable(
+  xLabels: string[],
+  yLabels: string[],
+  ctx: ContingencyContext,
+): TableSpec | null {
+  if (!xLabels.length && !yLabels.length) return null;
+
+  const factorVariable = resolveVariableDisplayLabel(ctx.__xVar__, ctx.__labelMap__) || '—';
+  const outcomeVariable = resolveVariableDisplayLabel(ctx.__yVar__, ctx.__labelMap__) || '—';
+
+  return {
+    title: 'Contingency Table Categories',
+    columns: ['Role', 'Variable', 'Categories'],
+    rows: [
+      ['Factor', factorVariable, xLabels.join(', ')],
+      ['Outcome', outcomeVariable, yLabels.join(', ')],
+    ],
+    layout: 'full',
+  };
+}
+
+function buildContingencyCornerLabel(ctx: ContingencyContext): string {
+  const factor = resolveVariableDisplayLabel(ctx.__xVar__, ctx.__labelMap__);
+  const outcome = resolveVariableDisplayLabel(ctx.__yVar__, ctx.__labelMap__);
+  if (factor && outcome) {
+    return `${factor} \\ ${outcome}`;
+  }
+  return 'Factor \\ Outcome';
+}
+
 interface CoefficientColumnSpec {
   key: string;
   label: string;
@@ -249,8 +295,8 @@ function buildCoxRegressionTables(
   }];
 
   const summaryRows: any[][] = [
-    ['Follow-up time', result.dependent_var],
-    ['Event indicator', result.event_var],
+    ['Follow-up time', result.event_var],
+    ['Event indicator', result.dependent_var],
     ['Participants', formatDecimal(summary.n_obs)],
     ['Events', formatDecimal(summary.n_events)],
     ['Covariates in model', formatDecimal(summary.n_covariates)],
@@ -1023,6 +1069,11 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   chi_squared: (result: any) => {
     if (!result) return [];
     const tables: TableSpec[] = [];
+    const ctx: ContingencyContext = {
+      __labelMap__: result.__labelMap__,
+      __xVar__: result.__xVar__,
+      __yVar__: result.__yVar__,
+    };
 
     const summaryRows = buildMetricRows(result, {
       chi2: 'Chi-Squared statistic',
@@ -1039,12 +1090,17 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       });
     }
 
+    const xLabels = Array.isArray(result.x_labels) ? result.x_labels : [];
+    const yLabels = Array.isArray(result.y_labels) ? result.y_labels : [];
+    const categoryTable = buildContingencyCategoryTable(xLabels, yLabels, ctx);
+    if (categoryTable) {
+      tables.push(categoryTable);
+    }
+
     if (Array.isArray(result.expected) && result.expected.length) {
-      const xLabels = Array.isArray(result.x_labels) ? result.x_labels : [];
-      const yLabels = Array.isArray(result.y_labels) ? result.y_labels : [];
       tables.push({
         title: 'Expected Frequencies',
-        columns: ['Factor \\ Outcome', ...yLabels.map(String)],
+        columns: [buildContingencyCornerLabel(ctx), ...yLabels.map(String)],
         rows: result.expected.map((row: any[], index: number) => [
           xLabels[index] ?? `Row ${index + 1}`,
           ...(Array.isArray(row) ? row.map(value => formatDecimal(value)) : []),
@@ -1059,6 +1115,11 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   fisher_exact: (result: any) => {
     if (!result) return [];
     const tables: TableSpec[] = [];
+    const ctx: ContingencyContext = {
+      __labelMap__: result.__labelMap__,
+      __xVar__: result.__xVar__,
+      __yVar__: result.__yVar__,
+    };
 
     const summaryRows = buildMetricRows(result, {
       odds_ratio: 'Odds ratio',
@@ -1076,16 +1137,9 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
     const xLabels = Array.isArray(result.x_labels) ? result.x_labels : [];
     const yLabels = Array.isArray(result.y_labels) ? result.y_labels : [];
-    if (xLabels.length || yLabels.length) {
-      tables.push({
-        title: 'Contingency Table Categories',
-        columns: ['Role', 'Categories'],
-        rows: [
-          ['Factor', xLabels.join(', ')],
-          ['Outcome', yLabels.join(', ')],
-        ],
-        layout: 'full',
-      });
+    const categoryTable = buildContingencyCategoryTable(xLabels, yLabels, ctx);
+    if (categoryTable) {
+      tables.push(categoryTable);
     }
 
     return tables;
