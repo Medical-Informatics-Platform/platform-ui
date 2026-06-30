@@ -9,7 +9,7 @@ Routes live in `src/app/app.routes.ts`.
 | `/terms` | `AuthGuard` | terms acceptance |
 | `/account` | `AuthGuard`, `TermsGuard` | account page |
 | `/experiment-studio` | `AuthGuard`, `TermsGuard` | experiment creation/results |
-| `/notebook` | `NOTEBOOK_ENABLED` canMatch, `AuthGuard` | optional notebook |
+| `/notebook` | `NOTEBOOK_ENABLED` canMatch, `AuthGuard`, `TermsGuard` | optional notebook |
 | `**` | redirect | fallback to dashboard |
 
 ## Lookup Order

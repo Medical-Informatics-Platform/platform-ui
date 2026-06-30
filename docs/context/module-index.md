@@ -14,7 +14,7 @@ Key files: `auth.guard.ts`, `terms.guard.ts`, `studio-guide-onboarding.guard.ts`
 Used by: `app.routes.ts`.
 Rules: Preserve auth and NDA boundaries; do not duplicate guard decisions in unrelated UI code.
 Tests: Add focused guard tests when route access behavior changes.
-Notes: `/terms` intentionally skips `TermsGuard`; `/notebook` has additional runtime route matching.
+Notes: `/terms` intentionally skips `TermsGuard`; `/notebook` also uses `TermsGuard` and runtime `NOTEBOOK_ENABLED` canMatch.
 
 ## `src/app/services`
 Purpose: Cross-feature state, backend calls, auth/session, exports, runtime env, rules, and errors.
@@ -81,12 +81,12 @@ Tests: Add component tests for profile/logout behavior changes.
 Notes: Logout is implemented in `AuthService`.
 
 ## `src/app/pages/notebook`
-Purpose: Optional JupyterHub entry route.
-Key files: `notebook.component.*`.
+Purpose: Optional JupyterHub entry route with separate Hub OAuth session.
+Key files: `notebook.component.*`, `hub-session.ts`, `hub-http.ts`, `jupyterhub-api.ts`.
 Used by: `/notebook` route when runtime env enables it.
-Rules: Respect `NOTEBOOK_ENABLED`, `JUPYTER_CONTEXT_PATH`, and `JUPYTER_LANDING_PATH`.
-Tests: Add route/component tests for notebook gating changes.
-Notes: Nginx also gates notebook proxying.
+Rules: Respect `NOTEBOOK_ENABLED`, `JUPYTER_CONTEXT_PATH`; keep Hub login as top-level navigation; do not pass platform tokens into the iframe.
+Tests: `notebook.component.spec.ts`, `hub-session.spec.ts`, `hub-http.spec.ts`, `jupyterhub-api.spec.ts`.
+Notes: Platform auth/terms gate entry; Hub session is probed separately. Nginx returns top-level Hub/Lab URLs to `/notebook`. Footer sits below a full-viewport notebook area; scroll to reach it.
 
 ## `src/app/pages/shared`
 Purpose: Shared shell components and generic helpers.
@@ -94,7 +94,7 @@ Key files: `header/*`, `footer/*`, `spinner/*`, `utils/form-control.factory.ts`.
 Used by: Root shell and feature pages.
 Rules: Keep shared components generic; avoid feature-specific behavior here unless already established.
 Tests: Footer has a spec; add focused tests for shared behavior changes.
-Notes: Footer displays runtime MIP version.
+Notes: Footer displays runtime MIP version. Notebook pill uses `NotebookNavService` (`mip.notebook.nav.seen`) for first-visit glow.
 
 ## `src/assets` and `public`
 Purpose: Runtime env, brand assets, icons, markdown, and static public files.

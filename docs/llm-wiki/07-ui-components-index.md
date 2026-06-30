@@ -23,6 +23,9 @@ Use for component behavior, templates, CSS, charts, tables, and export UI.
 | account/terms/notebook | corresponding page folder |
 | shared layout | `src/app/pages/shared/` |
 
+Header notebook pill: discover glow (`header-nav-link--discover`) until first `/notebook`
+visit; persisted in `localStorage` key `mip.notebook.nav.seen` via `NotebookNavService`.
+
 ## Rules
 
 - Search by visible text, selector, CSS class, or component class before opening
