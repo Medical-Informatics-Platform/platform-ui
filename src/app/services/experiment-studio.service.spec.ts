@@ -5,6 +5,7 @@ import { ExperimentStudioService } from './experiment-studio.service';
 import { SessionStorageService } from './session-storage.service';
 import { ErrorService } from './error.service';
 import { DataModel } from '../models/data-model.interface';
+import { AnalysisPreprocessingStep } from '../models/backend-algorithms.model';
 
 describe('ExperimentStudioService', () => {
   let service: ExperimentStudioService;
@@ -102,6 +103,42 @@ describe('ExperimentStudioService', () => {
     parameters: {},
   };
 
+  const mockInputdataSpec = {
+    data_model: { label: '', desc: '', types: ['text'], required: true },
+    datasets: { label: '', desc: '', types: ['text'], required: true },
+    filters: { label: '', desc: '', types: ['jsonObject'], required: false },
+    variables: { label: '', desc: '', types: ['real', 'int', 'text'], required: true, min_count: 1 },
+  };
+
+  function toAlgorithmSpec(mock: any) {
+    return {
+      name: mock.name,
+      label: mock.label,
+      desc: mock.desc,
+      type: mock.type,
+      flags: mock.flags,
+      y: mock.inputdata.y,
+      x: mock.inputdata.x,
+      requires_validation_datasets: false,
+      parameters: mock.parameters ?? {},
+      required_preprocessing: [],
+    };
+  }
+
+  function preprocessingSteps(config: Record<string, unknown> | null): AnalysisPreprocessingStep[] | null {
+    if (!config) return null;
+    return Object.entries(config).map(([name, parameters]) => ({
+      name,
+      parameters: parameters as Record<string, unknown>,
+    }));
+  }
+
+  function flushSpecifications(algorithms: any[], preprocessing: any[] = []) {
+    httpMock.expectOne('/services/specifications/inputdata').flush(mockInputdataSpec);
+    httpMock.expectOne('/services/specifications/preprocessing').flush(preprocessing);
+    httpMock.expectOne('/services/specifications/algorithms').flush(algorithms);
+  }
+
   const mockDataModel: DataModel = {
     uuid: 'dm-uuid',
     code: 'dm',
@@ -127,8 +164,13 @@ describe('ExperimentStudioService', () => {
     service = TestBed.inject(ExperimentStudioService);
     httpMock = TestBed.inject(HttpTestingController);
 
-    const req = httpMock.expectOne('/services/algorithms');
-    req.flush([mockRawAlgo, mockHistogramAlgo, mockDescribeAlgo, mockOutlierReportAlgo, mockLinearSvmAlgo]);
+    flushSpecifications([
+      toAlgorithmSpec(mockRawAlgo),
+      toAlgorithmSpec(mockHistogramAlgo),
+      toAlgorithmSpec(mockDescribeAlgo),
+      toAlgorithmSpec(mockOutlierReportAlgo),
+      toAlgorithmSpec(mockLinearSvmAlgo),
+    ]);
   });
 
   afterEach(() => {
@@ -149,7 +191,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1']);
 
-    expect(body.algorithm.name).toBe('histogram_sql');
+    expect(body.analysis.algorithm.name).toBe('histogram_sql');
   });
 
   it('builds request body for histogram with active data model and datasets', () => {
@@ -161,17 +203,18 @@ describe('ExperimentStudioService', () => {
     const body = service.buildRequestBody('histogram', ['var1']);
 
     // Assert
-    expect(body.algorithm.name).toBe('histogram');
-    expect(body.algorithm.inputdata.data_model).toBe('dm:1');
-    expect(body.algorithm.inputdata.datasets).toEqual(['ds1']);
-    expect(body.algorithm.inputdata.y).toEqual(['var1']);
-    expect(body.algorithm.inputdata.filters).toBeNull();
-    expect(body.algorithm.preprocessing).toEqual({
+    expect(body.analysis.algorithm.name).toBe('histogram');
+    expect(body.analysis.inputdata.data_model).toBe('dm:1');
+    expect(body.analysis.inputdata.datasets).toEqual(['ds1']);
+    expect(body.analysis.algorithm.y).toEqual(['var1']);
+    expect(body.analysis.inputdata.filters).toBeNull();
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { var1: 'drop' },
       },
-    });
-    expect(body.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
+    }));
+    expect(body.analysis.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
+    expect(body.mipVersion).toBeUndefined();
   });
 
   it('does not apply stored descriptive preprocessing to histogram preview requests without an override', () => {
@@ -185,11 +228,11 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1']);
 
-    expect(body.algorithm.preprocessing).toEqual({
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { var1: 'drop' },
       },
-    });
+    }));
   });
 
   it('uses an explicit preprocessing override for histogram preview requests', () => {
@@ -203,7 +246,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, applied);
 
-    expect(body.algorithm.preprocessing).toEqual(applied);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('filters applied descriptive preprocessing to histogram y variables only', () => {
@@ -222,7 +265,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
 
-    expect(body.algorithm.preprocessing).toEqual({
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
@@ -231,7 +274,7 @@ describe('ExperimentStudioService', () => {
         tails: { age: 'both' },
         folds: { age: 1.5 },
       },
-    });
+    }));
   });
 
   it('skips preprocessing for histogram preview when override is explicitly null', () => {
@@ -245,7 +288,28 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, null);
 
-    expect(body.algorithm.preprocessing).toBeNull();
+    expect(body.analysis.preprocessing).toBeNull();
+  });
+
+  it('does not send validation_datasets for histogram when inputdata spec includes validation_datasets slot', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const histogram = service.backendAlgorithms()['histogram'];
+    service.backendAlgorithms.set({
+      ...service.backendAlgorithms(),
+      histogram: {
+        ...histogram,
+        requires_validation_datasets: false,
+        inputdata: {
+          ...histogram.inputdata,
+          validation_datasets: { label: '', desc: '', types: ['text'], required: false },
+        },
+      },
+    });
+
+    const body = service.buildRequestBody('histogram', ['var1']);
+
+    expect(body.analysis.inputdata.validation_datasets).toBeNull();
   });
 
   it('builds spec-driven inputdata with array roles and validation datasets', () => {
@@ -261,6 +325,7 @@ describe('ExperimentStudioService', () => {
         category: 'Mock',
         configSchema: [],
         isDisabled: false,
+        requires_validation_datasets: true,
         inputdata: {
           data_model: { label: '', desc: '', types: [] },
           datasets: { label: '', desc: '', types: [] },
@@ -274,13 +339,16 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('validation_algo', ['y1'], ['x1']);
 
-    expect(body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+    expect(body.analysis.inputdata).toEqual(jasmine.objectContaining({
       data_model: 'dm:1',
       datasets: ['ds1'],
       validation_datasets: ['ds1'],
+      variables: ['y1', 'x1'],
+      filters: null,
+    }));
+    expect(body.analysis.algorithm).toEqual(jasmine.objectContaining({
       y: ['y1'],
       x: ['x1'],
-      filters: null,
     }));
   });
 
@@ -290,14 +358,14 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['var1'], ['cov1']);
 
-    expect(body.algorithm.preprocessing).toEqual({
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: {
           var1: 'drop',
           cov1: 'drop',
         },
       },
-    });
+    }));
   });
 
   it('does not add default preprocessing for describe requests', () => {
@@ -306,7 +374,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('describe', ['var1']);
 
-    expect(body.algorithm.preprocessing).toBeNull();
+    expect(body.analysis.preprocessing).toBeNull();
   });
 
   it('does not add default preprocessing for outlier_report requests', () => {
@@ -316,8 +384,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('outlier_report', ['age']);
 
-    expect(body.algorithm.name).toBe('outlier_report');
-    expect(body.algorithm.preprocessing).toBeNull();
+    expect(body.analysis.algorithm.name).toBe('outlier_report');
+    expect(body.analysis.preprocessing).toBeNull();
   });
 
   it('excludes histogram, describe, outlier_report, and linear_svm from the algorithm picker', () => {
@@ -369,8 +437,8 @@ describe('ExperimentStudioService', () => {
     service.loadDescriptiveOverview(['age']).subscribe();
 
     const req = httpMock.expectOne('/services/experiments/transient');
-    expect(req.request.body.algorithm.name).toBe('describe');
-    expect(req.request.body.algorithm.preprocessing).toBeNull();
+    expect(req.request.body.analysis.algorithm.name).toBe('describe');
+    expect(req.request.body.analysis.preprocessing).toBeNull();
     req.flush({ result: { featurewise: [] } });
   });
 
@@ -386,7 +454,7 @@ describe('ExperimentStudioService', () => {
     service.loadDescriptiveOverview(['age'], preprocessing).subscribe();
 
     const req = httpMock.expectOne('/services/experiments/transient');
-    expect(req.request.body.algorithm.preprocessing).toEqual(preprocessing);
+    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps(preprocessing));
     req.flush({ result: { featurewise: [] } });
   });
 
@@ -404,11 +472,11 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.algorithm.preprocessing).toEqual({
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
-    });
+    }));
   });
 
   it('uses applied descriptive preprocessing for later algorithm requests', () => {
@@ -423,7 +491,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.algorithm.preprocessing).toEqual(applied);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('uses applied descriptive preprocessing with multiple preprocessing steps for later algorithm requests', () => {
@@ -446,7 +514,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age'], ['sex']);
 
-    expect(body.algorithm.preprocessing).toEqual(applied);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('forwards applied outlier preprocessing together with missing values', () => {
@@ -466,7 +534,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.algorithm.preprocessing).toEqual(applied);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('summarizes preprocessing with variable labels and human-readable actions', () => {
@@ -540,24 +608,25 @@ describe('ExperimentStudioService', () => {
 
     const req = httpMock.expectOne('/services/experiments/transient');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.algorithm).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
       name: 'outlier_report',
-      inputdata: jasmine.objectContaining({
-        data_model: 'dm:1',
-        y: ['age'],
-        x: ['bmi'],
-        datasets: [],
-        filters: null,
-      }),
+      y: ['age'],
+      x: ['bmi'],
       parameters: {
         strategies: { age: 'iqr', bmi: 'quantile' },
         tails: { age: 'both', bmi: 'right' },
         folds: { age: 1.5, bmi: 0.05 },
       },
-      preprocessing: {
-        missing_values_handler: {
-          strategies: { age: 'median' },
-        },
+    }));
+    expect(req.request.body.analysis.inputdata).toEqual(jasmine.objectContaining({
+      data_model: 'dm:1',
+      datasets: [],
+      filters: null,
+      variables: jasmine.arrayContaining(['age', 'bmi']),
+    }));
+    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { age: 'median' },
       },
     }));
     req.flush({ featurewise: [] });
@@ -582,12 +651,15 @@ describe('ExperimentStudioService', () => {
 
     const req = httpMock.expectOne('/services/experiments/transient');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.inputdata).toEqual(jasmine.objectContaining({
       data_model: 'dm:1',
-      y: ['age'],
-      x: null,
       datasets: [],
       filters: null,
+      variables: ['age'],
+    }));
+    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
+      y: ['age'],
+      x: null,
     }));
     req.flush({ featurewise: [] });
   });
@@ -609,7 +681,7 @@ describe('ExperimentStudioService', () => {
     });
 
     const req = httpMock.expectOne('/services/experiments/transient');
-    expect(req.request.body.algorithm.inputdata).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
       y: ['age'],
       x: null,
     }));
@@ -712,7 +784,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.algorithm.parameters.alpha).toBe(0.05);
+    expect(body.analysis.algorithm.parameters.alpha).toBe(0.05);
   });
 
   it('keeps enum select parameter strings even when their schema type is int', () => {
@@ -747,7 +819,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.algorithm.parameters.positive_class).toBe('1');
+    expect(body.analysis.algorithm.parameters.positive_class).toBe('1');
   });
 
   it('omits unset positive_class from experiment request parameters', () => {
@@ -759,8 +831,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.algorithm.parameters.positive_class).toBeUndefined();
-    expect(body.algorithm.parameters.alpha).toBe(0.05);
+    expect(body.analysis.algorithm.parameters.positive_class).toBeUndefined();
+    expect(body.analysis.algorithm.parameters.alpha).toBe(0.05);
   });
 
   it('keeps enum multi-select parameter values as strings even when their schema type is int', () => {
@@ -795,7 +867,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.algorithm.parameters.category_order).toEqual(['0', '1', '9']);
+    expect(body.analysis.algorithm.parameters.category_order).toEqual(['0', '1', '9']);
   });
 
   it('hydrates edit state with filters and applied preprocessing from backend experiment', () => {
@@ -830,18 +902,20 @@ describe('ExperimentStudioService', () => {
       shared: true,
       viewed: false,
       status: 'success',
-      algorithm: {
-        name: 'mock_algo',
+      analysis: {
         inputdata: {
           data_model: 'dm:1',
           datasets: ['ds1'],
-          y: ['age'],
-          x: ['sex'],
+          variables: ['age', 'sex'],
           filters,
         },
-        parameters: { alpha: 0.01 },
-        preprocessing,
-        status: 'success',
+        preprocessing: preprocessingSteps(preprocessing)!,
+        algorithm: {
+          name: 'mock_algo',
+          y: ['age'],
+          x: ['sex'],
+          parameters: { alpha: 0.01 },
+        },
       },
       createdBy: {
         username: 'user',

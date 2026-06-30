@@ -7,6 +7,7 @@ describe('ChartBuilderService', () => {
     selectedVariables: () => [],
     selectedCovariates: () => [],
     selectedFilters: () => [],
+    getDatasetLabelMap: () => ({ 'dataset-a': 'Dataset A' }),
   };
 
   let service: ChartBuilderService;

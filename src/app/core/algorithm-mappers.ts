@@ -1,4 +1,11 @@
-import { RawAlgorithmDefinition, RawParameter } from '../models/backend-algorithms.model';
+import {
+  AlgorithmSpecification,
+  AnalysisInputDataSpecification,
+  PreprocessingStepSpecification,
+  RawAlgorithmDefinition,
+  RawInputData,
+  RawParameter,
+} from '../models/backend-algorithms.model';
 import { AlgorithmConfig } from '../models/algorithm-definition.model';
 import { applyFallbackInputCounts, readInputCount } from './algorithm-input-counts';
 
@@ -257,6 +264,69 @@ function sanitizeDocumentation(documentation: string, labelMap: Record<string, s
 
     return `${quote}${rawToken}${quote}`;
   });
+}
+
+export function mapSpecificationsToAlgorithmConfigs(
+  inputdataSpec: AnalysisInputDataSpecification,
+  preprocessingSpecs: PreprocessingStepSpecification[],
+  algorithmSpecs: AlgorithmSpecification[],
+): Record<string, AlgorithmConfig> {
+  const preprocessing = preprocessingSpecs.map((step) => ({
+    name: step.name,
+    label: step.label,
+    desc: step.desc,
+    documentation: sanitizeDocumentation(
+      step.documentation ?? '',
+      buildDocumentationLabelMap(step.parameters ?? {}),
+    ),
+    parameters: step.parameters ?? {},
+    output: step.output ?? null,
+  }));
+
+  const sharedInputdata = normalizeInputData({
+    data_model: inputdataSpec.data_model,
+    datasets: inputdataSpec.datasets,
+    filters: inputdataSpec.filters,
+    variables: inputdataSpec.variables,
+    ...(inputdataSpec.validation_datasets
+      ? { validation_datasets: inputdataSpec.validation_datasets }
+      : {}),
+  });
+
+  const mapped: Record<string, AlgorithmConfig> = {};
+  for (const raw of algorithmSpecs) {
+    const normalizedName = raw.name === 'anova' ? 'anova_twoway' : raw.name;
+    const algorithmDocumentationLabels = buildDocumentationLabelMap(raw.parameters ?? {});
+    const inputdata = applyFallbackInputCounts(
+      {
+        ...sharedInputdata,
+        ...(raw.y ? { y: normalizeInputField(raw.y) } : {}),
+        ...(raw.x ? { x: normalizeInputField(raw.x) } : {}),
+      },
+      normalizedName,
+    ) as RawInputData;
+
+    mapped[normalizedName] = {
+      name: normalizedName,
+      label: raw.label,
+      description: raw.desc ?? '',
+      documentation: sanitizeDocumentation(raw.documentation ?? '', algorithmDocumentationLabels),
+      type: raw.type,
+      flags: raw.flags ?? [],
+      inputdata,
+      requiredVariable: inputdata?.y?.types || [],
+      covariate: inputdata?.x?.types || [],
+      category: CATEGORY_MAPPING[normalizedName] ?? 'Uncategorized',
+      configSchema: buildConfigSchema(raw.parameters ?? {}),
+      preprocessing,
+      requires_validation_datasets: raw.requires_validation_datasets,
+      required_preprocessing: raw.required_preprocessing ?? [],
+      isDisabled: false,
+      ...(getOutputSchema(normalizedName) ? { outputSchema: getOutputSchema(normalizedName) } : {}),
+    };
+  }
+
+  return mapped;
 }
 
 export function mapRawAlgorithmToAlgorithmConfig(raw: RawAlgorithmDefinition): AlgorithmConfig {
