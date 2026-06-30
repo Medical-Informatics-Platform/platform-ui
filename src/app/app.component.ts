@@ -1,8 +1,10 @@
 import { FooterComponent } from './pages/shared/footer/footer.component';
 import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { HeaderComponent } from './pages/shared/header/header.component';
-import { RouterModule } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { AuthService } from './services/auth.service';
+import { filter, map, startWith } from 'rxjs';
 
 @Component({
     selector: 'app-root',
@@ -13,10 +15,25 @@ import { AuthService } from './services/auth.service';
 })
 export class AppComponent implements OnInit {
   authService = inject(AuthService);
+  private router = inject(Router);
   title = 'fl-platform';
+
+  readonly notebookRouteActive = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map(() => this.isNotebookRoute()),
+      startWith(this.isNotebookRoute()),
+    ),
+    { initialValue: this.isNotebookRoute() },
+  );
 
   ngOnInit() {
     this.authService.initialize();
+  }
+
+  private isNotebookRoute(): boolean {
+    const path = this.router.url.split('?')[0].split('#')[0];
+    return path === '/notebook' || path.startsWith('/notebook/');
   }
 
 }

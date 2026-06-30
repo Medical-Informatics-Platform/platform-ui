@@ -1,28 +1,12 @@
+import { inject } from '@angular/core';
 import { CanMatchFn, Routes } from '@angular/router';
 import { AuthGuard } from './guards/auth.guard';
 import { studioGuideOnboardingGuard } from './guards/studio-guide-onboarding.guard';
 import { TermsGuard } from './guards/terms.guard';
-
-const parseBool = (value: unknown, defaultValue: boolean): boolean => {
-  if (value === undefined || value === null) {
-    return defaultValue;
-  }
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
-    return true;
-  }
-  if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
-    return false;
-  }
-  return defaultValue;
-};
+import { RuntimeEnvService } from './services/runtime-env.service';
 
 const notebookEnabledMatch: CanMatchFn = () => {
-  const runtimeEnv = (window as any).__env || {};
-  return parseBool(runtimeEnv.NOTEBOOK_ENABLED, false);
+  return inject(RuntimeEnvService).notebookEnabled;
 };
 
 export const appRoutes: Routes = [
@@ -55,7 +39,7 @@ export const appRoutes: Routes = [
     path: 'notebook',
     loadComponent: () => import('./pages/notebook/notebook.component').then(m => m.NotebookComponent),
     canMatch: [notebookEnabledMatch],
-    canActivate: [AuthGuard],
+    canActivate: [AuthGuard, TermsGuard],
   },
   { path: '**', redirectTo: 'experiments-dashboard' }
 ];

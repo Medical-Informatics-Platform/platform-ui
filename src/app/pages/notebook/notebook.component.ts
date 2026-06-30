@@ -2,6 +2,19 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
+import {
+    clearHubLoginState,
+    ensureHubSession,
+    primeHubSession,
+} from './hub-session';
+import {
+    HubApiError,
+    buildLabUrl,
+    ensureServerRunning,
+} from './jupyterhub-api';
+import { RuntimeEnvService } from '../../services/runtime-env.service';
+import { NotebookNavService } from '../../services/notebook-nav.service';
+
 @Component({
     selector: 'app-notebook',
     imports: [CommonModule],
@@ -11,133 +24,134 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 })
 export class NotebookComponent implements OnInit {
     private sanitizer = inject(DomSanitizer);
-    private runtimeEnv = (window as any).__env || {};
-    private jupyterBasePath = this.normalizeBasePath(this.runtimeEnv.JUPYTER_CONTEXT_PATH || '/notebook');
-    private jupyterLandingPath = this.normalizeSubPath(this.runtimeEnv.JUPYTER_LANDING_PATH || '/hub/spawn');
-    private hubLoginBounceKey = 'mip_notebook_hub_login_bounced_ts_v2';
+    private runtimeEnv = inject(RuntimeEnvService);
+    private notebookNav = inject(NotebookNavService);
+    private jupyterBasePath = this.runtimeEnv.jupyterContextPath;
 
     readonly jupyterUrl = signal<SafeResourceUrl | null>(null);
     readonly isLoading = signal(true);
-    readonly needsHubLogin = signal(false);
-    readonly hubLoginUrl = signal<string | null>(null);
+    readonly loadingMessage = signal('Preparing your notebook…');
+    readonly spawnError = signal<string | null>(null);
 
     ngOnInit() {
-        // Do not try to run the OAuth/Keycloak flow inside the iframe.
-        // If the Hub session is missing, bounce the *top window* through the Hub login once,
-        // then come back and embed Jupyter normally.
+        if (this.redirectTopLevelLabToShell()) {
+            return;
+        }
+        this.notebookNav.markVisited();
         void this.initAsync();
     }
 
-    private buildJupyterUrl(path: string): string {
-        return `${this.jupyterBasePath}${path}`;
-    }
-
-    private normalizeBasePath(path: string): string {
-        if (!path) {
-            return '/notebook';
-        }
-        const withLeadingSlash = path.startsWith('/') ? path : `/${path}`;
-        return withLeadingSlash.endsWith('/') ? withLeadingSlash.slice(0, -1) : withLeadingSlash;
-    }
-
-    private normalizeSubPath(path: string): string {
-        if (!path) {
-            return '/hub/spawn';
-        }
-        return path.startsWith('/') ? path : `/${path}`;
-    }
-
     onLoad() {
-        // Iframe load can fire during initial change detection; defer state mutation.
+        if (!this.jupyterUrl()) {
+            return;
+        }
         setTimeout(() => {
             this.isLoading.set(false);
+            this.spawnError.set(null);
+            clearHubLoginState();
         });
     }
 
+    retrySpawn() {
+        clearHubLoginState();
+        void this.initAsync();
+    }
+
     private async initAsync() {
-        // Check whether the user is logged into the hub.
-        // /hub/home returns 200 when authenticated, and 302 -> /hub/login otherwise.
-        const hasHubSession = await this.hasHubSession();
-        if (!hasHubSession) {
-            this.hubLoginUrl.set(this.buildHubLoginUrl());
-            if (this.bounceToHubLoginOnce()) {
-                return;
-            }
-            // Don't try embedding a login flow in an iframe (blocked by most IdPs/browsers).
-            this.needsHubLogin.set(true);
-            this.isLoading.set(false);
+        this.beginLoading('Preparing your notebook…');
+
+        this.loadingMessage.set('Connecting to your notebook…');
+        const hubState = await ensureHubSession(this.jupyterBasePath);
+        if (hubState === 'redirected') {
+            return;
+        }
+        if (hubState === 'failed') {
+            this.showSpawnError(new HubApiError(
+                'Notebook sign-in did not complete',
+                401,
+            ));
             return;
         }
 
-        // Successful hub session: clear bounce throttle so future expirations can redirect again.
-        try {
-            sessionStorage.removeItem(this.hubLoginBounceKey);
-        } catch {
-            // ignore storage errors
-        }
-
-        this.isLoading.set(true);
-        this.jupyterUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(
-            this.buildJupyterUrl(this.jupyterLandingPath)
-        ));
+        await this.spawnAndOpenLab();
     }
 
-    private async hasHubSession(): Promise<boolean> {
+    private async spawnAndOpenLab(sessionRecovered = false) {
+        this.spawnError.set(null);
+        this.jupyterUrl.set(null);
+        this.beginLoading('Checking notebook session…');
+
         try {
-            const url = `${this.jupyterBasePath}/hub/home`;
-            const r = await fetch(url, {
-                method: 'GET',
-                credentials: 'include',
-                redirect: 'manual',
-                cache: 'no-store',
+            await primeHubSession(this.jupyterBasePath);
+            const user = await ensureServerRunning(this.jupyterBasePath, {
+                onProgress: (message) => this.loadingMessage.set(message),
             });
+            this.loadingMessage.set('Opening JupyterLab…');
+            this.jupyterUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(
+                buildLabUrl(this.jupyterBasePath, user.name),
+            ));
+        } catch (error) {
+            if (error instanceof HubApiError && error.status === 401) {
+                const hubState = await ensureHubSession(this.jupyterBasePath);
+                if (hubState === 'redirected') {
+                    return;
+                }
+                if (hubState === 'failed') {
+                    this.showSpawnError(new HubApiError(
+                        'Unable to sign in to the notebook after multiple attempts',
+                        401,
+                    ));
+                }
+                if (hubState === 'ready' && !sessionRecovered) {
+                    await this.spawnAndOpenLab(true);
+                    return;
+                }
+                if (hubState === 'ready') {
+                    this.showSpawnError(new HubApiError(
+                        'Unable to sign in to the notebook after multiple attempts',
+                        401,
+                    ));
+                }
+                return;
+            }
 
-            // Some browsers represent manual redirects as "opaque redirect".
-            if ((r as any).type === 'opaqueredirect') {
-                return false;
-            }
-            // Some browsers report status 0 for manual redirects; treat as unauthenticated.
-            if (r.status === 0) {
-                return false;
-            }
-            if (r.status === 200) {
-                return true;
-            }
-            if (r.status >= 300 && r.status < 400) {
-                return false;
-            }
-            return false;
-        } catch {
-            return false;
+            console.error('Failed to start notebook server via Hub API', error);
+            this.showSpawnError(error);
         }
     }
 
-    private buildHubLoginUrl(): string {
-        // Login must happen in top-window, but we want to return to the Angular shell route
-        // so Jupyter is rendered inside iframe with UI header/footer.
-        const next = encodeURIComponent('/notebook?hub_auth=1');
-        return `${this.jupyterBasePath}/hub/login?next=${next}`;
+    private beginLoading(message: string) {
+        this.isLoading.set(true);
+        this.spawnError.set(null);
+        this.loadingMessage.set(message);
     }
 
-    private bounceToHubLoginOnce(): boolean {
+    private showSpawnError(error: unknown) {
+        const message = error instanceof HubApiError
+            ? error.message
+            : 'Unable to start your notebook server';
+
+        this.jupyterUrl.set(null);
+        if (message.includes('Please try again')) {
+            this.spawnError.set(message.endsWith('.') ? message : `${message}.`);
+        } else {
+            const suffix = message.endsWith('.') ? '' : '.';
+            this.spawnError.set(`${message}${suffix} Please try again.`);
+        }
+        this.isLoading.set(true);
+        this.loadingMessage.set('Notebook server unavailable');
+    }
+
+    private redirectTopLevelLabToShell(): boolean {
         try {
-            const raw = sessionStorage.getItem(this.hubLoginBounceKey);
-            const last = raw ? Number(raw) : 0;
-            const now = Date.now();
-            // Avoid loops, but allow retry after a short cooldown (e.g., user cancelled login).
-            if (last && Number.isFinite(last) && (now - last) < 30_000) {
+            const path = window.location.pathname;
+            if (!path.startsWith(`${this.jupyterBasePath}/user/`)) {
                 return false;
             }
-            sessionStorage.setItem(this.hubLoginBounceKey, String(now));
+            window.location.replace('/notebook');
+            return true;
         } catch {
             return false;
         }
-
-        window.location.assign(this.buildHubLoginUrl());
-        return true;
-    }
-
-    continueToHubLogin() {
-        window.location.assign(this.buildHubLoginUrl());
     }
 }
