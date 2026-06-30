@@ -1,7 +1,7 @@
 <app-header></app-header>
 
 <!-- Route-specific content loaded here  -->
-<main>
+<main [class.main--notebook]="notebookRouteActive()">
   <router-outlet></router-outlet>
 </main>
 

@@ -6,6 +6,8 @@ type RuntimeWindow = Window & {
     MIP_VERSION?: unknown;
     GUIDE_COVARIATE?: unknown;
     GUIDE_VARIABLE?: unknown;
+    NOTEBOOK_ENABLED?: unknown;
+    JUPYTER_CONTEXT_PATH?: unknown;
   };
 };
 
@@ -80,5 +82,27 @@ describe('RuntimeEnvService', () => {
 
     expect(service.guideCovariate).toEqual({ value: 'Sex', label: 'Sex' });
     expect(service.guideVariable).toEqual({ value: 'Age', label: 'Age' });
+  });
+
+  it('reads notebook enablement from the runtime env', () => {
+    (window as RuntimeWindow).__env = {
+      MIP_VERSION: 'mip-testing',
+      NOTEBOOK_ENABLED: '1',
+    };
+
+    const service = new RuntimeEnvService();
+
+    expect(service.notebookEnabled).toBeTrue();
+  });
+
+  it('normalizes the notebook context path from the runtime env', () => {
+    (window as RuntimeWindow).__env = {
+      MIP_VERSION: 'mip-testing',
+      JUPYTER_CONTEXT_PATH: 'notebook/',
+    };
+
+    const service = new RuntimeEnvService();
+
+    expect(service.jupyterContextPath).toBe('/notebook');
   });
 });

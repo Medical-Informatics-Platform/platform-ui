@@ -12,6 +12,13 @@ main {
   min-height: 0;
 }
 
+main.main--notebook {
+  flex: 0 0 auto;
+  min-height: 100dvh;
+  padding-top: var(--header-height);
+  box-sizing: border-box;
+}
+
 /* app-header and app-footer are components and will handle their own styles */
 app-header {
   position: sticky;

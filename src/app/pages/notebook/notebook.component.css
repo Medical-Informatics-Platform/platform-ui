@@ -1,8 +1,12 @@
+:host {
+    display: block;
+    min-height: calc(100dvh - var(--header-height));
+}
+
 .notebook-container {
     width: 100%;
-    margin-top: var(--header-height);
-    height: calc(100vh - var(--header-height) - var(--footer-height, 72px));
-    padding: 0 32px;
+    min-height: calc(100dvh - var(--header-height));
+    padding: 12px 32px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -10,56 +14,45 @@
 }
 
 .jupyter-iframe {
-    flex: 1;
     width: 100%;
+    min-height: calc(100dvh - var(--header-height) - 24px);
     border: none;
-    height: 100%;
 }
 
 .loading-overlay {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.2rem;
-    color: #555;
+    inset: 12px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.92);
     z-index: 10;
 }
 
-.notebook-login-gate {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px 0;
+.loading-message {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #334155;
+    font-weight: 600;
 }
 
-.notebook-login-card {
-    width: min(720px, 100%);
-    background: var(--card-bg, #fff);
-    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: var(--shadow-md, 0 4px 6px -1px rgb(0 0 0 / 0.1));
+.loading-subtext {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #64748b;
 }
 
-.notebook-login-card h2 {
-    margin: 0 0 8px;
+.loading-error {
+    margin: 0;
+    max-width: min(720px, 100%);
+    text-align: center;
+    font-size: 0.95rem;
+    color: #475569;
 }
 
-.notebook-login-card p {
-    margin: 0 0 16px;
-    color: var(--text-muted, #475569);
-}
-
-.notebook-login-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.notebook-login-btn {
+.notebook-retry-btn {
     background: #0d47a1;
     color: #fff;
     border: none;
@@ -69,16 +62,16 @@
     cursor: pointer;
 }
 
-.notebook-login-btn:hover {
+.notebook-retry-btn:hover {
     filter: brightness(1.05);
 }
 
-.notebook-login-link {
-    color: #0d47a1;
-    text-decoration: none;
-    font-weight: 600;
-}
+@media (max-width: 768px) {
+    .notebook-container {
+        padding: 8px 16px;
+    }
 
-.notebook-login-link:hover {
-    text-decoration: underline;
+    .loading-overlay {
+        inset: 8px 16px;
+    }
 }
