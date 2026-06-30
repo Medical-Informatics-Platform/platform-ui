@@ -36,11 +36,11 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     NOTEBOOK_ENABLED=0 \
     JUPYTER_SERVER=jupyterhub:8000 \
     JUPYTER_CONTEXT=notebook \
-    JUPYTER_LANDING_PATH=/hub/spawn \
     GUIDE_COVARIATE=Sex \
     GUIDE_VARIABLE=Age
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
+COPY nginx-websocket-map.conf /etc/nginx/conf.d/00-websocket-map.conf
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
