@@ -20,6 +20,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'loadDescriptiveOverview',
             'loadOutlierReportPreview',
             'getAlgorithmResults',
+            'getDatasetLabelMap',
             'setDataExclusionWarnings',
             'clearDataExclusionWarnings',
             'setAppliedDescriptivePreprocessing',
@@ -43,6 +44,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.loadOutlierReportPreview.and.returnValue(of({ result: { featurewise: [] } }));
         mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
+        mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({

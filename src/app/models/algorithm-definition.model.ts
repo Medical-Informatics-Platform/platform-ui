@@ -55,6 +55,8 @@ export interface AlgorithmConfig {
   configSchema: Array<any>;
   inputdata?: RawInputData;
   preprocessing?: RawPreprocessingStep[];
+  requires_validation_datasets?: boolean;
+  required_preprocessing?: string[];
   isDisabled: boolean;
   availability?: AlgorithmAvailability;
 }

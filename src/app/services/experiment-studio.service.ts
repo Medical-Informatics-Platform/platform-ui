@@ -1,11 +1,16 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, catchError, defaultIfEmpty, filter, finalize, map, of, shareReplay, switchMap, take, takeUntil, tap, timer } from 'rxjs';
+import { Observable, Subject, catchError, defaultIfEmpty, filter, finalize, forkJoin, map, of, shareReplay, switchMap, take, takeUntil, tap, timer } from 'rxjs';
 import { SessionStorageService } from './session-storage.service';
 import { D3HierarchyNode, DataModel, Group, Variable } from '../models/data-model.interface';
-import { mapRawAlgorithmToAlgorithmConfig } from '../core/algorithm-mappers';
+import { mapSpecificationsToAlgorithmConfigs } from '../core/algorithm-mappers';
 import { EnumMaps } from '../core/algorithm-result-enum-mapper';
-import { RawAlgorithmDefinition } from '../models/backend-algorithms.model';
+import {
+  AnalysisInputData,
+  AnalysisPreprocessingStep,
+  AnalysisRequest,
+  ExperimentCreateRequest,
+} from '../models/backend-algorithms.model';
 import { BackendFilter } from '../models/filters.model';
 import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-definition.model';
 import { BackendExperiment } from '../models/backend-experiment.model';
@@ -16,7 +21,6 @@ import {
   omitEmptyOptionalParameters,
   serializeAlgorithmParameterValue,
 } from '../core/algorithm-parameter.utils';
-import { RuntimeEnvService } from './runtime-env.service';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 
 export type PathologyAccessWarningKind = 'no-pathologies' | 'no-access';
@@ -55,7 +59,6 @@ export class ExperimentStudioService {
   private sessionStorage = inject(SessionStorageService);
   private errorService = inject(ErrorService);
   private algorithmRulesService = inject(AlgorithmRulesService);
-  private runtimeEnvService = inject(RuntimeEnvService);
 
   private apiUrl = '/services/data-models';
   private experimentUrl = '/services/experiments';
@@ -432,21 +435,24 @@ export class ExperimentStudioService {
   }
 
   loadBackendAlgorithms(): Observable<Record<string, AlgorithmConfig>> {
-    return this.http.get<RawAlgorithmDefinition[]>('/services/algorithms').pipe(
-      map((rawAlgorithms) => {
-        const mapped: Record<string, AlgorithmConfig> = {};
-
-        rawAlgorithms.forEach((raw) => {
-          const algo = mapRawAlgorithmToAlgorithmConfig(raw);
-          mapped[algo.name] = algo;
-        });
+    return forkJoin({
+      inputdata: this.http.get('/services/specifications/inputdata'),
+      preprocessing: this.http.get('/services/specifications/preprocessing'),
+      algorithms: this.http.get('/services/specifications/algorithms'),
+    }).pipe(
+      map(({ inputdata, preprocessing, algorithms }) => {
+        const mapped = mapSpecificationsToAlgorithmConfigs(
+          inputdata as any,
+          preprocessing as any[],
+          algorithms as any[],
+        );
 
         this.backendAlgorithms.set(mapped);
         this.refreshSelectedAlgorithmFromCatalog(mapped);
         return mapped;
       }),
       catchError((error) => {
-        console.error('Failed to fetch backend algorithms:', error);
+        console.error('Failed to fetch backend specifications:', error);
         return of({});
       })
     );
@@ -561,39 +567,77 @@ export class ExperimentStudioService {
     return this.getAlgorithmAvailability(name).available;
   }
 
-  private buildInputDataPayload(
+  private buildSharedInputDataPayload(
     algo: AlgorithmConfig,
     yPayload: string[] | null,
     xPayload: string[] | null,
     filtersPayload: BackendFilter | null,
-  ): Record<string, unknown> {
+    datasetsOverride?: string[] | null,
+  ): AnalysisInputData {
     const inputdata = algo.inputdata ?? {};
-    const datasets = this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds));
-    const payload: Record<string, unknown> = {};
+    const datasets = datasetsOverride ?? this.selectedDatasetsSignal().filter(
+      (ds) => !this.excludedDatasetsSignal().includes(ds),
+    );
+    const variables = this.collectSourceVariables(yPayload, xPayload, filtersPayload);
 
-    if (Object.prototype.hasOwnProperty.call(inputdata, "data_model")) {
-      payload["data_model"] = this.getActiveDataModelCode();
-    }
-    if (Object.prototype.hasOwnProperty.call(inputdata, "datasets")) {
-      payload["datasets"] = datasets;
-    }
-    if (Object.prototype.hasOwnProperty.call(inputdata, "validation_datasets")) {
-      payload["validation_datasets"] = datasets;
-    }
-    if (Object.prototype.hasOwnProperty.call(inputdata, "y")) {
-      payload["y"] = yPayload;
-    }
-    if (Object.prototype.hasOwnProperty.call(inputdata, "x")) {
-      payload["x"] = xPayload;
-    }
-    if (
-      Object.prototype.hasOwnProperty.call(inputdata, "filter") ||
-      Object.prototype.hasOwnProperty.call(inputdata, "filters")
-    ) {
-      payload["filters"] = filtersPayload;
-    }
+    return {
+      data_model: this.getActiveDataModelCode(),
+      datasets,
+      validation_datasets: algo.requires_validation_datasets ? datasets : null,
+      filters: (
+        Object.prototype.hasOwnProperty.call(inputdata, 'filter') ||
+        Object.prototype.hasOwnProperty.call(inputdata, 'filters')
+      ) ? filtersPayload : null,
+      variables,
+    };
+  }
 
-    return payload;
+  private collectSourceVariables(
+    yPayload: string[] | null,
+    xPayload: string[] | null,
+    filtersPayload: BackendFilter | null,
+  ): string[] {
+    return Array.from(
+      new Set(
+        [
+          ...this.toArray(yPayload),
+          ...this.toArray(xPayload),
+          ...this.collectFilterVariableCodes(filtersPayload),
+        ]
+          .map((code) => String(code).trim())
+          .filter((code) => code && code !== 'dataset'),
+      ),
+    );
+  }
+
+  private preprocessingConfigToSteps(
+    config: PreprocessingConfig | null | undefined,
+  ): AnalysisPreprocessingStep[] | null {
+    if (!config) return null;
+    const steps = Object.entries(config)
+      .filter(([, parameters]) => parameters && typeof parameters === 'object' && !Array.isArray(parameters))
+      .map(([name, parameters]) => ({
+        name,
+        parameters: parameters as Record<string, unknown>,
+      }));
+    return steps.length ? steps : null;
+  }
+
+  private preprocessingStepsToConfig(
+    steps: AnalysisPreprocessingStep[] | null | undefined,
+  ): PreprocessingConfig | null {
+    if (!steps?.length) return null;
+    return Object.fromEntries(steps.map((step) => [step.name, step.parameters]));
+  }
+
+  private buildExperimentRequest(
+    name: string,
+    analysis: AnalysisRequest,
+  ): ExperimentCreateRequest {
+    return {
+      name,
+      analysis,
+    };
   }
 
   private rolePayload(
@@ -685,23 +729,29 @@ export class ExperimentStudioService {
         histogramY,
         preprocessingOverride
       );
-      const inputdata = this.buildInputDataPayload(algoConfig, histogramY, null, filtersPayload);
-      // Match describe / processed-summary dataset selection (no exclusion filter).
-      if (Object.prototype.hasOwnProperty.call(algoConfig.inputdata ?? {}, 'datasets')) {
-        inputdata['datasets'] = this.selectedDatasetsSignal();
-      }
-      return {
-        name: expName,
-        algorithm: {
-          name: requestAlgorithmName,
+      const inputdata = this.buildSharedInputDataPayload(
+        algoConfig,
+        histogramY,
+        null,
+        filtersPayload,
+        this.selectedDatasetsSignal(),
+      );
+      return this.buildExperimentRequest(
+        expName,
+        {
           inputdata,
-          parameters: {
-            histogram_type: HistogramBinningType.WILKINSON,
-            ...(bins ? { bins } : {}),
+          preprocessing: this.preprocessingConfigToSteps(histogramPreprocessing),
+          algorithm: {
+            name: requestAlgorithmName,
+            y: histogramY,
+            x: null,
+            parameters: {
+              histogram_type: HistogramBinningType.WILKINSON,
+              ...(bins ? { bins } : {}),
+            },
           },
-          preprocessing: histogramPreprocessing,
         },
-      };
+      );
     }
     const preprocessing = this.resolveRequestPreprocessing(
       requestAlgorithmName,
@@ -709,19 +759,19 @@ export class ExperimentStudioService {
       xPayload,
       this.getStoredPreprocessingConfig(algoConfig.name, requestAlgorithmName)
     );
-    // generic build
-    const mipVersion = this.runtimeEnvService.mipVersion;
-    const body = {
-      name: expName,
-      algorithm: {
-        name: requestAlgorithmName,
-        inputdata: this.buildInputDataPayload(algoConfig, yPayload, xPayload, filtersPayload),
-        parameters: config,
-        preprocessing,
+    return this.buildExperimentRequest(
+      expName,
+      {
+        inputdata: this.buildSharedInputDataPayload(algoConfig, yPayload, xPayload, filtersPayload),
+        preprocessing: this.preprocessingConfigToSteps(preprocessing),
+        algorithm: {
+          name: requestAlgorithmName,
+          x: xPayload,
+          y: yPayload,
+          parameters: config,
+        },
       },
-      ...(mipVersion ? { mipVersion } : {}),
-    };
-    return body;
+    );
   }
 
   private normalizeParameterConfig(
@@ -1280,32 +1330,37 @@ export class ExperimentStudioService {
   private buildDescriptiveRequestBody(
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null
-  ): any {
+  ): ExperimentCreateRequest {
     const filters = this.filterLogic();
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
+    const yPayload = variableCodes.length ? variableCodes : null;
 
-    return {
-      name: `experiment_describe_${variableCodes.join('_')}`,
-      algorithm: {
-        name: "describe",
+    return this.buildExperimentRequest(
+      `experiment_describe_${variableCodes.join('_')}`,
+      {
         inputdata: {
           data_model: this.getActiveDataModelCode(),
-          y: variableCodes,
-          x: null,
           datasets: this.selectedDatasetsSignal(),
+          validation_datasets: null,
           filters: hasFilters ? filters : null,
+          variables: this.collectSourceVariables(yPayload, null, hasFilters ? filters : null),
         },
-        parameters: {},
-        preprocessing: this.normalizePreprocessingConfig(preprocessing),
+        preprocessing: this.preprocessingConfigToSteps(this.normalizePreprocessingConfig(preprocessing)),
+        algorithm: {
+          name: 'describe',
+          y: yPayload,
+          x: null,
+          parameters: {},
+        },
       },
-    };
+    );
   }
 
   private buildOutlierReportRequestBody(
     variableCodes: string[],
     parameters: Record<string, unknown>,
     preprocessing: PreprocessingConfig | null = null
-  ): any {
+  ): ExperimentCreateRequest {
     const filters = this.filterLogic();
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
     const selectedVariableCodes = new Set(this.selectedVariables()
@@ -1316,23 +1371,27 @@ export class ExperimentStudioService {
     const covariateOnly = variableCodes.filter((code) => selectedCovariateCodes.has(code) && !selectedVariableCodes.has(code));
     const unassigned = variableCodes.filter((code) => !selectedVariableCodes.has(code) && !selectedCovariateCodes.has(code));
     const yPayload = y.length ? y : [...covariateOnly, ...unassigned];
-    const x = y.length ? covariateOnly : [];
+    const xPayload = y.length ? covariateOnly : [];
 
-    return {
-      name: `experiment_outlier_report_${variableCodes.join('_')}`,
-      algorithm: {
-        name: AlgorithmNames.OUTLIER_REPORT,
+    return this.buildExperimentRequest(
+      `experiment_outlier_report_${variableCodes.join('_')}`,
+      {
         inputdata: {
           data_model: this.getActiveDataModelCode(),
-          y: yPayload?.length ? yPayload : null,
-          x: x.length ? x : null,
           datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
+          validation_datasets: null,
           filters: hasFilters ? filters : null,
+          variables: this.collectSourceVariables(yPayload, xPayload, hasFilters ? filters : null),
         },
-        parameters,
-        preprocessing: this.normalizePreprocessingConfig(preprocessing),
+        preprocessing: this.preprocessingConfigToSteps(this.normalizePreprocessingConfig(preprocessing)),
+        algorithm: {
+          name: AlgorithmNames.OUTLIER_REPORT,
+          y: yPayload?.length ? yPayload : null,
+          x: xPayload.length ? xPayload : null,
+          parameters,
+        },
       },
-    };
+    );
   }
 
   loadDescriptiveOverview(
@@ -1553,23 +1612,20 @@ export class ExperimentStudioService {
   }
 
   hydrateFromBackendExperiment(exp: BackendExperiment): void {
-    if (!exp || !exp.algorithm) {
+    if (!exp?.analysis?.algorithm) {
       console.warn('hydrateFromBackendExperiment called with invalid exp:', exp);
       return;
     }
 
     this.isShared.set(!!exp.shared);
-    // flag as editing mode
     this.setEditingExistingExperiment(true);
-
-    // Basic metadata
     this.currentExperimentUUIDSignal.set(exp.uuid ?? null);
 
-    const algoName = exp.algorithm.name;
-    const input = exp.algorithm.inputdata || {};
-    const params = exp.algorithm.parameters || {};
-    const preprocessing = this.normalizePreprocessingConfig(exp.algorithm.preprocessing);
-
+    const analysis = exp.analysis;
+    const algoName = analysis.algorithm.name;
+    const input = analysis.inputdata || {};
+    const params = analysis.algorithm.parameters || {};
+    const preprocessing = this.preprocessingStepsToConfig(analysis.preprocessing);
     const filters = input.filters ?? null;
 
     // Selected datasets
@@ -1602,8 +1658,8 @@ export class ExperimentStudioService {
         const converted = this.convertToD3Hierarchy(model);
         const allVariables = converted.allVariables;
 
-        const yCodes = this.toArray(input.y);
-        const xCodes = this.toArray(input.x);
+        const yCodes = this.toArray(analysis.algorithm.y);
+        const xCodes = this.toArray(analysis.algorithm.x);
         const filterCodes = this.collectFilterVariableCodes(filters);
 
         const yNodes = allVariables

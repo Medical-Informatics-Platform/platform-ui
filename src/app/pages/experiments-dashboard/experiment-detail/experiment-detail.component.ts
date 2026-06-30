@@ -12,6 +12,7 @@ import { ResultsPdfExportService } from '../../../services/export-results-pdf.se
 import { Router } from '@angular/router';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
+import { preprocessingStepsToRecord } from '../experiments-dashboard.mapper';
 
 @Component({
   selector: 'app-experiment-details',
@@ -71,14 +72,12 @@ export class ExperimentDetailsComponent {
   readonly enumMaps = this.enumMapsSignal.asReadonly();
   readonly labelMap = this.codeToLabelSignal.asReadonly();
   readonly yVar = computed(() => {
-    const algo = this.fullExperimentSignal()?.algorithm;
-    const y = (algo as any)?.inputdata?.y;
+    const y = this.fullExperimentSignal()?.analysis?.algorithm?.y;
     if (Array.isArray(y)) return y[0] ?? null;
     return y ?? null;
   });
   readonly xVar = computed(() => {
-    const algo = this.fullExperimentSignal()?.algorithm;
-    const x = (algo as any)?.inputdata?.x;
+    const x = this.fullExperimentSignal()?.analysis?.algorithm?.x;
     if (Array.isArray(x)) return x[0] ?? null;
     return x ?? null;
   });
@@ -229,14 +228,14 @@ export class ExperimentDetailsComponent {
 
   readonly filterPreview = computed(() => {
     const logic =
-      this.fullExperimentSignal()?.algorithm?.inputdata?.filters ??
+      this.fullExperimentSignal()?.analysis?.inputdata?.filters ??
       this.selectedExperiment()?.filterLogic;
     if (!logic || !Array.isArray((logic as any).rules) || !(logic as any).rules.length) return '';
     return this.formatFilterNode(logic);
   });
   readonly preprocessingPreview = computed(() => {
     const preprocessing =
-      this.fullExperimentSignal()?.algorithm?.preprocessing ??
+      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
     const summary = this.expStudioService.formatPreprocessingConfig(preprocessing, this.labelMap());
@@ -245,7 +244,7 @@ export class ExperimentDetailsComponent {
 
   readonly preprocessingEntries = computed(() => {
     const preprocessing =
-      this.fullExperimentSignal()?.algorithm?.preprocessing ??
+      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
     return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap());
@@ -253,8 +252,8 @@ export class ExperimentDetailsComponent {
 
   readonly parameterEntries = computed(() => {
     const fullExperiment = this.fullExperimentSignal();
-    const params = fullExperiment?.algorithm?.parameters ?? {};
-    const algoName = fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const params = fullExperiment?.analysis?.algorithm?.parameters ?? {};
+    const algoName = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
     const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
     const labelByKey = new Map(
       schema.map((field: any) => [String(field.key), String(field.label ?? field.key)])
@@ -299,7 +298,7 @@ export class ExperimentDetailsComponent {
     const baseName = this.selectedExperiment()?.name?.trim() || 'experiment results';
     const filename = baseName.replace(/\s+/g, '_');
 
-    const paramData = fullExperiment?.algorithm?.parameters || {};
+    const paramData = fullExperiment?.analysis?.algorithm?.parameters || {};
     const transObj = (paramData as any)?.data_transformation || {};
     const transLines: string[] = [];
     const transTypes = ['standardize', 'center', 'exp'];
@@ -315,7 +314,7 @@ export class ExperimentDetailsComponent {
     });
     const transformations = transLines.length > 0 ? transLines : null;
 
-    const algoCode = fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const algoCode = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
     const algoConfig = this.expStudioService.backendAlgorithms()[algoCode];
     const algoLabel = algoConfig?.label || algoCode;
 
@@ -326,7 +325,7 @@ export class ExperimentDetailsComponent {
         createdBy: this.selectedExperiment()?.author ?? null,
         createdAt: this.selectedExperiment()?.dateCreated ?? null,
         algorithm: algoLabel,
-        params: fullExperiment?.algorithm?.parameters ?? null,
+        params: fullExperiment?.analysis?.algorithm?.parameters ?? null,
         preprocessing: this.preprocessingPreview() || 'none',
         domain: this.domainLabel(),
         datasets: (this.selectedExperiment()?.datasets ?? []).map(code => this.labelMap()[code] || code),
@@ -336,7 +335,7 @@ export class ExperimentDetailsComponent {
         transformations,
         mipVersion: this.selectedExperiment()?.mipVersion ?? fullExperiment?.mipVersion ?? null,
       },
-      algorithmKey: fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName(),
+      algorithmKey: fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName(),
       result,
       chartContainer: element,
     });
@@ -496,7 +495,7 @@ export class ExperimentDetailsComponent {
     }
 
     if (parameterKey === 'positive_class') {
-      const eventVar = this.fullExperimentSignal()?.algorithm?.parameters?.['event_var'];
+      const eventVar = this.fullExperimentSignal()?.analysis?.algorithm?.parameters?.['event_var'];
       if (typeof eventVar === 'string' && enumMaps[eventVar]?.[value]) {
         return enumMaps[eventVar][value];
       }
@@ -518,7 +517,7 @@ export class ExperimentDetailsComponent {
   private parameterSchemaField(parameterKey?: string): any | null {
     if (!parameterKey) return null;
     const fullExperiment = this.fullExperimentSignal();
-    const algoName = fullExperiment?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const algoName = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
     const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
     return schema.find((field: any) => String(field.key) === parameterKey) ?? null;
   }

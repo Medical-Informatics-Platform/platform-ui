@@ -1,6 +1,7 @@
 import { BackendExperiment } from "../../models/backend-experiment.model";
 import { BackendFilter } from "../../models/filters.model";
 import { Experiment, AlgorithmDetails, UserDetails } from './../../models/experiments-dashboard.model';
+import { AnalysisPreprocessingStep } from "../../models/backend-algorithms.model";
 
 
 function collectFilterVariableCodes(
@@ -33,13 +34,23 @@ function normalizeToStringArray(value: string[] | string | null | undefined): st
   return [String(value)];
 }
 
+function preprocessingStepsToRecord(
+  steps: AnalysisPreprocessingStep[] | null | undefined
+): Record<string, unknown> | null {
+  if (!steps?.length) return null;
+  return Object.fromEntries(steps.map((step) => [step.name, step.parameters]));
+}
+
+export { preprocessingStepsToRecord };
+
 // Map BackendExperiment to Experiment
 export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
 
   console.groupCollapsed('[Mapper] BackendExperiment → Experiment');
   console.groupEnd();
 
-  const input = backend.algorithm?.inputdata || {};
+  const analysis = backend.analysis;
+  const input = analysis?.inputdata || {};
   const filtersLogic = input.filters ?? null;
 
   return {
@@ -49,7 +60,7 @@ export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
     description: backend.description ?? '',
     status: backend.status,
 
-    algorithmName: backend.algorithm?.name,
+    algorithmName: analysis?.algorithm?.name,
     author:
       backend.createdBy.fullname ||
       backend.createdBy.username ||
@@ -59,11 +70,11 @@ export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
 
     domain: input.data_model ?? null,
     datasets: normalizeToStringArray(input.datasets),
-    variables: normalizeToStringArray(input.y),
-    covariates: normalizeToStringArray(input.x),
+    variables: normalizeToStringArray(analysis?.algorithm?.y),
+    covariates: normalizeToStringArray(analysis?.algorithm?.x),
     filters: collectFilterVariableCodes(filtersLogic),
     filterLogic: filtersLogic,
-    preprocessing: backend.algorithm?.preprocessing ?? null,
+    preprocessing: preprocessingStepsToRecord(analysis?.preprocessing),
     mipVersion: backend.mipVersion ?? undefined,
   };
 }
@@ -72,10 +83,10 @@ export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
 // Map BackendExperiment to AlgorithmDetails
 export function mapBackendToAlgorithmDetails(backend: BackendExperiment): AlgorithmDetails {
   return {
-    name: backend.algorithm.name,
-    datasets: normalizeToStringArray(backend.algorithm.inputdata.datasets),
-    parameters: backend.algorithm.parameters,
-    dataModel: backend.algorithm.inputdata.data_model,
+    name: backend.analysis.algorithm.name,
+    datasets: normalizeToStringArray(backend.analysis.inputdata.datasets),
+    parameters: backend.analysis.algorithm.parameters ?? {},
+    dataModel: backend.analysis.inputdata.data_model,
   };
 }
 

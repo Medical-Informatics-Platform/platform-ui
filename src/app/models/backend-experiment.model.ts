@@ -1,4 +1,4 @@
-import { BackendFilter } from './filters.model';
+import { AnalysisRequest } from './backend-algorithms.model';
 
 export interface BackendExperiment {
   uuid: string;
@@ -10,19 +10,7 @@ export interface BackendExperiment {
   status: string;
   description?: string;
   mipVersion?: string;
-  algorithm: {
-    name: string;
-    inputdata: {
-      data_model: string;
-      datasets: string[] | string | null;
-      y: string[] | string | null;
-      x: string[] | string | null;
-      filters: BackendFilter | null;
-    };
-    parameters: Record<string, unknown>;
-    preprocessing?: Record<string, unknown> | null;
-    status: string;
-  };
+  analysis: AnalysisRequest;
   createdBy: {
     username: string;
     fullname: string;
