@@ -3,10 +3,30 @@
   <a class="branding" routerLink="/experiments-dashboard" (click)="goHome($event)" aria-label="Go to home">
     <img src="assets/mip-logo-short.png" alt="MIP Logo" class="logo" />
   </a>
-  <!-- Navbar (Removed to maximize space) -->
 
   <!-- Theme Toggle + User Icon -->
   <div class="header-actions">
+    @if (runtimeEnv.notebookEnabled && isLoggedIn()) {
+    <nav class="header-nav header-nav--actions" aria-label="Primary">
+      <a
+        routerLink="/notebook"
+        routerLinkActive="header-nav-link--active"
+        class="header-nav-link header-nav-link--notebook"
+        [class.header-nav-link--discover]="!notebookNav.hasVisited()"
+        aria-label="Jupyter Notebook, powered by AI agents"
+      >
+        <span class="header-nav-link__text">
+          <span class="header-nav-link__title">Jupyter Notebook</span>
+          <span class="header-nav-link__subtitle">Powered by AI agents</span>
+        </span>
+        <img src="assets/notebook-ai-icon.svg" alt="" class="header-nav-link__icon" width="28" height="28" />
+      </a>
+    </nav>
+  }
+
+    @if (showGuideSlot()) {
+    <div class="header-guide-slot" aria-hidden="true"></div>
+    }
 
     <div class="user-icon">
       @if (isLoggedIn()) {
