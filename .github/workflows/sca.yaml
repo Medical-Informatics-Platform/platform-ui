@@ -1,9 +1,6 @@
 name: SCA CI
 
 on:
-  push:
-    branches:
-      - ci/sca-pipeline-sbom
   pull_request:
 
 jobs:
