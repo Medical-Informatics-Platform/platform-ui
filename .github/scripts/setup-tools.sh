@@ -19,6 +19,9 @@ TRIVY_SHA256="${TRIVY_SHA256:-3cbae37cd440cd8676e5ce9207fe460b5641c7579a17e9d00f
 OSV_SCANNER_VERSION="${OSV_SCANNER_VERSION:-v2.4.0}"
 OSV_SCANNER_SHA256="${OSV_SCANNER_SHA256:-15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0}"
 
+# renovate: datasource=npm depName=@cyclonedx/cyclonedx-npm
+CYCLONEDX_NPM_VERSION="${CYCLONEDX_NPM_VERSION:-6.0.0}"
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -61,7 +64,7 @@ case "$PROJECT_TYPE" in
     ;;
   npm)
     echo "Generating SBOM for NPM project"
-    npx --yes @cyclonedx/cyclonedx-npm --output-file target/bom.json
+    npx --yes "@cyclonedx/cyclonedx-npm@${CYCLONEDX_NPM_VERSION}" --output-file target/bom.json
     ;;
   none)
     echo "No SBOM generation needed"

@@ -11,8 +11,8 @@
       "enabled": false
     },
     {
-      "description": "Cooldown: only propose scanner releases at least 72h old, so yanked or compromised releases never reach a PR",
-      "matchDatasources": ["github-release-attachments"],
+      "description": "Cooldown: only propose releases at least 72h old, so yanked or compromised releases never reach a PR",
+      "matchDatasources": ["github-release-attachments", "npm"],
       "minimumReleaseAge": "3 days"
     }
   ],
@@ -22,7 +22,8 @@
       "description": "Bump tool versions and their pinned release-asset SHA256 in CI setup scripts",
       "managerFilePatterns": ["/(^|/)setup-tools\\.sh$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\n[A-Z_]+_VERSION=\"\\$\\{[A-Z_]+_VERSION:-(?<currentValue>v[0-9][0-9.]*)\\}\"\\n[A-Z_]+_SHA256=\"\\$\\{[A-Z_]+_SHA256:-(?<currentDigest>[a-f0-9]{64})\\}\""
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\n[A-Z_]+_VERSION=\"\\$\\{[A-Z_]+_VERSION:-(?<currentValue>v[0-9][0-9.]*)\\}\"\\n[A-Z_]+_SHA256=\"\\$\\{[A-Z_]+_SHA256:-(?<currentDigest>[a-f0-9]{64})\\}\"",
+        "# renovate: datasource=(?<datasource>npm) depName=(?<depName>[^\\s]+)\\n[A-Z_]+_VERSION=\"\\$\\{[A-Z_]+_VERSION:-(?<currentValue>[0-9][0-9.]*)\\}\""
       ]
     },
     {
