@@ -102,7 +102,7 @@ Key files: `env.js`, `tos.md`, logos/footer assets.
 Used by: App runtime, Angular build assets, nginx container output.
 Rules: Do not commit secrets into `env.js`; it is runtime-populated in containers.
 Tests: Build verifies asset paths.
-Notes: Brand/logo usage should follow `DESIGN_SYSTEM.yaml`.
+Notes: Brand/logo usage should follow `DESIGN.md`.
 
 ## `Dockerfile`, `docker-entrypoint.sh`, `nginx.conf.template`
 Purpose: Build and serve the Angular app in nginx with runtime environment injection.

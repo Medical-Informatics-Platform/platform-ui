@@ -1,66 +1,119 @@
 <div class="stats-panel-shell" data-guide="analysis-section">
-  <div class="studio-panel-header">
-    <div class="header-main">
-      <i class="fa fa-bar-chart panel-icon" aria-hidden="true"></i>
-      <div class="header-text">
-        <p>DATA REVIEW & PREPROCESSING</p>
-        <span class="header-subtitle">Inspect variable distributions and configure missing value handling.</span>
-      </div>
-    </div>
-  </div>
-
   <div class="modal-content">
-    <div class="modal-body review-body">
-      <section #filtersSection class="workflow-section filter-workflow-section" data-guide="analysis-filtering">
-        <button type="button" class="workflow-section-header" (click)="toggleSection('filters')">
-          <div class="header-left">
-            <span class="step-badge">1</span>
-            <span>Filtering</span>
-          </div>
-          <span
-            class="status-pill"
-            [class.status-neutral]="filterStatusClass === 'status-neutral'"
-            [class.status-amber]="filterStatusClass === 'status-amber'"
-            [class.status-green]="filterStatusClass === 'status-green'"
-          >
-            {{ filterStatusLabel }}
-          </span>
-          <span class="accordion-icon" [class.open]="sectionOpen.filters">▾</span>
-        </button>
-        <div class="workflow-section-body" [class.open]="sectionOpen.filters">
-          <div class="preprocessing-toolbar">
-            <div class="preprocessing-section-heading">
-              <i class="fa fa-filter" aria-hidden="true"></i>
-              <span>Experiment Filtering</span>
+    <div class="pipeline-canvas-shell" data-guide="analysis-progress-rail">
+      <header class="pipeline-canvas-header">
+        <div class="pipeline-header-title-group">
+          <h2>Data Handling Pipeline</h2>
+          <p>Select stages to configure and add rules, or continue directly with raw data.</p>
+        </div>
+        <div class="pipeline-header-stats">
+          <span class="pipeline-stage-counter">{{ activeStagesCount }} of 3 stages active</span>
+        </div>
+      </header>
+
+      <!-- NODE 1: COHORT FILTERING -->
+      <section
+        #filtersSection
+        class="pipeline-node filter-workflow-section"
+        [class.is-active]="isStepAdded('filters')"
+        [class.is-dormant]="!isStepAdded('filters')"
+        data-guide="analysis-filtering"
+      >
+        @if (!isStepAdded('filters')) {
+        <!-- DORMANT / UN-ADDED STATE -->
+        <div class="pipeline-node-dormant">
+          <div class="dormant-left">
+            <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <h3>1. Cohort Filtering</h3>
+              <span class="pipeline-node-subtitle">Include or exclude patient records based on conditions</span>
             </div>
           </div>
-
-          <app-filter-config-modal
-            [inline]="true"
-            [filterLogic]="expStudioService.filterLogic()"
-            (filtersApplyStarted)="goToSection('raw')"
-          ></app-filter-config-modal>
+          <div class="dormant-right">
+            <span class="pipeline-status-badge optional">Optional</span>
+            <button type="button" class="btn-add-step" (click)="addStep('filters')">
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              <span>Add Filtering</span>
+            </button>
+          </div>
         </div>
-      </section>
+        } @else {
+        <!-- EXPANDED / ADDED STATE -->
+        <header class="pipeline-node-header">
+          <div class="pipeline-node-header-left">
+            <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <h3>1. Cohort Filtering</h3>
+              <span class="pipeline-node-subtitle">Include or exclude patient records based on rules</span>
+            </div>
+          </div>
+          <div class="pipeline-node-header-right">
+            <span class="pipeline-status-badge applied">
+              {{ filteringStatusLabel }}
+            </span>
+            <button
+              type="button"
+              class="btn-remove-step-node"
+              title="Remove cohort filtering from pipeline"
+              (click)="removeStep('filters')">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
+            </button>
+          </div>
+        </header>
+
+        <div class="pipeline-node-body">
+          <div class="workflow-section-body" [class.open]="sectionOpen().filters">
+            <app-station-card>
+            <app-filter-config-modal
+              #filterModal
+              [inline]="true"
+              [filterLogic]="expStudioService.filterLogic()"
+              (filtersApplied)="goToSection('setup')"
+            ></app-filter-config-modal>
+            <app-station-action-bar
+              stationFooter
+              flush
+              resetLabel="Clear"
+              previewLabel="Preview data"
+              applyLabel="Apply & Continue"
+              applyIcon="fas fa-check"
+              [applyDisabled]="filterModal.activeRulesCount() === 0"
+              (reset)="filterModal.clearFilters()"
+              (preview)="goToSection('raw')"
+              (apply)="filterModal.saveFilters()"
+            ></app-station-action-bar>
+          </app-station-card>
+        </div>
+      </div>
+      }
+    </section>
 
       <section #rawSection class="workflow-section" data-guide="analysis-raw-summary">
-        <button type="button" class="workflow-section-header" (click)="toggleSection('raw')">
-          <div class="header-left">
-            <span class="step-badge">2</span>
-            <span>Raw Data Summary</span>
-          </div>
-          <span class="accordion-icon" [class.open]="sectionOpen.raw">▾</span>
-        </button>
-        <div class="workflow-section-body" [class.open]="sectionOpen.raw">
-          <div class="summary-tabs modal-tabs" data-guide="analysis-charts">
-            <button type="button" [class.active]="rawSummary.activeTab === 'Statistics'" (click)="setSummaryTab('raw', 'Statistics')">
-              Statistics
-            </button>
-            <button type="button" [class.active]="rawSummary.activeTab === 'Charts'" (click)="setSummaryTab('raw', 'Charts')">
-              Charts
-            </button>
-            <button type="button" [class.active]="rawSummary.activeTab === 'Histogram'" (click)="setSummaryTab('raw', 'Histogram')">
-              Histogram
+        <div class="workflow-section-body" [class.open]="sectionOpen().raw">
+          <div class="station-preview-bar">
+            <div class="summary-tabs modal-tabs" role="group" aria-label="Raw summary overlays" data-guide="analysis-charts">
+              <button
+                type="button"
+                [class.active]="rawSummary.activeTab === 'Charts'"
+                [attr.aria-pressed]="rawSummary.activeTab === 'Charts'"
+                (click)="setSummaryTab('raw', 'Charts')">
+                Charts
+              </button>
+              <button
+                type="button"
+                [class.active]="rawSummary.activeTab === 'Histogram'"
+                [attr.aria-pressed]="rawSummary.activeTab === 'Histogram'"
+                (click)="setSummaryTab('raw', 'Histogram')">
+                Histogram
+              </button>
+            </div>
+            <button
+              type="button"
+              class="station-preview-toggle"
+              (click)="toggleSummaryWorkspace('raw')">
+              <i class="fa fa-arrow-left" aria-hidden="true"></i>
+              <span>Edit filters</span>
             </button>
           </div>
 
@@ -100,16 +153,9 @@
                   <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected('raw', block)" (click)="selectStatisticBlock('raw', block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
-                      <small>{{ statisticDatapointsLabel(block) }}</small>
-                      <span aria-hidden="true">·</span>
-                      <span
-                        class="statistics-missing"
-                        [class.missing-none]="statisticMissingSeverity(block) === 'none'"
-                        [class.missing-warning]="statisticMissingSeverity(block) === 'warning'"
-                        [class.missing-high]="statisticMissingSeverity(block) === 'high'"
-                      >
-                        {{ statisticMissingLabel(block) }}
-                      </span>
+                      @if (blockCoverage(block); as coverage) {
+                      <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
+                      }
                     </span>
                   </button>
                   }
@@ -123,19 +169,21 @@
                   <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected('raw', block)" (click)="selectStatisticBlock('raw', block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
-                      <small>{{ statisticDatapointsLabel(block) }}</small>
-                      <span aria-hidden="true">·</span>
-                      <span
-                        class="statistics-missing"
-                        [class.missing-none]="statisticMissingSeverity(block) === 'none'"
-                        [class.missing-warning]="statisticMissingSeverity(block) === 'warning'"
-                        [class.missing-high]="statisticMissingSeverity(block) === 'high'"
-                      >
-                        {{ statisticMissingLabel(block) }}
-                      </span>
+                      @if (blockCoverage(block); as coverage) {
+                      <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
+                      }
                     </span>
                   </button>
                   }
+                </div>
+                }
+                @if (selectionCoverage('raw'); as pooled) {
+                <div class="statistics-browser-foot">
+                  <span class="statistics-browser-foot-label">All shown variables</span>
+                  <div class="statistics-browser-foot-value">
+                    <strong [attr.data-severity]="coverageSeverity(pooled)">{{ coveragePercent(pooled) }}</strong>
+                    <small>{{ coverageTitle(pooled) }}</small>
+                  </div>
                 </div>
                 }
               </aside>
@@ -149,11 +197,11 @@
                     <h4>{{ selectedBlock.name }}</h4>
                   </div>
                   <div class="summary-panel-actions">
-                    <button type="button" class="summary-export-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
+                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
                       <i class="fa fa-file-pdf-o"></i>
                       PDF
                     </button>
-                    <button type="button" class="summary-export-btn" (click)="exportSummaryToCSV('raw')" title="Export CSV">
+                    <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV('raw')" title="Export CSV">
                       <i class="fa fa-file-text-o"></i>
                       CSV
                     </button>
@@ -166,16 +214,22 @@
                       <tr>
                         <th>Metric</th>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <th>{{ datasetLabel(ds) }}</th>
+                        <th [class.statistics-col-rollup]="isRollupColumn(ds)">{{ datasetLabel(ds) }}</th>
                         }
                       </tr>
                     </thead>
                     <tbody>
-                      @for (r of selectedBlock.rows; track r.metric) {
+                      @for (r of selectedBlock.rows; track r.metric; let ri = $index) {
+                      @if (metricGroupLabel(selectedBlock.rows, ri); as groupLabel) {
+                      <tr class="statistics-metric-group">
+                        <td [attr.colspan]="selectedBlock.columns.length + 1">{{ groupLabel }}</td>
+                      </tr>
+                      }
                       <tr>
                         <td class="metric-cell">{{ r.metric }}</td>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <td>{{ r.values[ds] }}</td>
+                        <td [class.statistics-col-rollup]="isRollupColumn(ds)">{{ displayNumber(r.values[ds]) }}@if (missingShareNote(selectedBlock, r, ds); as share) {<span class="statistics-cell-note">{{ share }}</span>}
+                        </td>
                         }
                       </tr>
                       }
@@ -191,7 +245,7 @@
                     <h4>{{ selectedBlock.name }}</h4>
                   </div>
                   <div class="summary-panel-actions">
-                    <button type="button" class="summary-export-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
+                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF('raw')" title="Export PDF" data-guide="analysis-export">
                       <i class="fa fa-file-pdf-o"></i>
                       PDF
                     </button>
@@ -268,43 +322,97 @@
         </div>
       </section>
 
-      <section #setupSection class="workflow-section preprocessing-section" data-guide="analysis-preprocessing">
-        <button type="button" class="workflow-section-header" (click)="toggleSection('setup')">
-          <div class="header-left">
-            <span class="step-badge">3</span>
-            <span>Preprocessing</span>
+      <!-- CONNECTOR 1 -> 2 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('filters')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 2: PREPROCESSING -->
+      <section
+        #setupSection
+        class="pipeline-node preprocessing-section"
+        [class.is-active]="isStepAdded('setup')"
+        [class.is-dormant]="!isStepAdded('setup')"
+        data-guide="analysis-preprocessing"
+      >
+        @if (!isStepAdded('setup')) {
+        <!-- DORMANT / UN-ADDED STATE -->
+        <div class="pipeline-node-dormant">
+          <div class="dormant-left">
+            <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <div class="pipeline-node-title-row">
+                <h3>2. Preprocessing</h3>
+                <span class="pipeline-default-pill"><i class="fas fa-circle-info" aria-hidden="true"></i> Default: Missing NaN removal</span>
+              </div>
+              <span class="pipeline-node-subtitle">Click to customize imputation or add outlier clipping.</span>
+            </div>
           </div>
-          <span
-            class="status-pill"
-            [class.status-neutral]="preprocessingStatusClass === 'status-neutral'"
-            [class.status-amber]="preprocessingStatusClass === 'status-amber'"
-            [class.status-green]="preprocessingStatusClass === 'status-green'"
-          >
-            {{ preprocessingStatusLabel }}
-          </span>
-          <span class="accordion-icon" [class.open]="sectionOpen.setup">▾</span>
-        </button>
-        <div class="workflow-section-body" [class.open]="sectionOpen.setup">
-          <div class="preprocessing-shell">
-          <div class="preprocessing-step-card">
-            <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('missing')">
-              <div class="preprocessing-section-heading">
-                <span>Missing Values</span>
-              </div>
-              <div class="preprocessing-step-header-meta">
-                <span class="preprocessing-default-note preprocessing-default-note--header">Default: NA removal (rows with missing values are removed).</span>
-                <span
-                  class="preprocessing-state-chip"
-                  [class.state-pending]="hasPendingMissingChanges"
-                  [class.state-applied]="missingPreprocessingStatusLabel === 'Applied'"
-                  [class.state-default]="missingPreprocessingStatusLabel === 'Default'"
-                >
-                  {{ missingPreprocessingStatusLabel }}
-                </span>
-              </div>
-              <span class="accordion-icon" [class.open]="preprocessingStepOpen.missing">▾</span>
+          <div class="dormant-right">
+            <span class="pipeline-status-badge default">Default Active</span>
+            <button type="button" class="btn-add-step" (click)="addStep('setup')">
+              <i class="fas fa-sliders" aria-hidden="true"></i>
+              <span>Customize Preprocessing</span>
             </button>
-            <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.missing">
+          </div>
+        </div>
+        } @else {
+        <!-- EXPANDED / ADDED STATE -->
+        <header class="pipeline-node-header">
+          <div class="pipeline-node-header-left">
+            <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <h3>2. Preprocessing</h3>
+              <span class="pipeline-node-subtitle">Handle missing values and optional outlier clipping</span>
+            </div>
+          </div>
+          <div class="pipeline-node-header-right">
+            <span class="pipeline-status-badge" [class.applied]="preprocessingStatus === 'applied'" [class.pending]="hasPendingMissingChanges || hasPendingOutlierChanges">
+              {{ preprocessingStatusLabel }}
+            </span>
+            <button
+              type="button"
+              class="btn-remove-step-node"
+              title="Remove customization and revert to default NaN removal"
+              (click)="removeStep('setup')">
+              <i class="fas fa-rotate-left" aria-hidden="true"></i>
+              <span>Revert to Default (Drop NaN)</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Collapsed overview: connected rail of the active sub-steps. -->
+        @if (!sectionOpen().setup) {
+        <div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
+          @for (node of appliedPreprocessingSubNodes; track node.id) {
+          <div class="pipeline-subnode-item" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="jumpToSubNode('setup', node.id)" title="Open this preprocessing stage">
+              <i [class]="node.icon" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">{{ node.title }}</span>
+                <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+              </span>
+              <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+            </button>
+          </div>
+          }
+        </div>
+        }
+
+        <div class="pipeline-node-body">
+          <div class="workflow-section-body" [class.open]="sectionOpen().setup">
+            <div class="preprocessing-shell">
+            <app-station-card
+              collapsible
+              icon="fas fa-eraser"
+              title="Missing Values"
+              description="Default: NA removal (rows with missing values are removed)."
+              [statusLabel]="missingPreprocessingStatusLabel"
+              [status]="statusTone(missingPreprocessingStatusLabel, hasPendingMissingChanges)"
+              [open]="preprocessingStepOpen.missing"
+              (openChange)="togglePreprocessingStep('missing')">
               @if (preprocessingStepDocumentation('missing_values_handler')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
@@ -330,12 +438,15 @@
                   </div>
 
                   @for (group of preprocessingGroups; track group.key) {
-                  <div class="statistics-variable-group preprocessing-variable-group">
+                  <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
                     <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
                     @for (variable of group.variables; track variable.code) {
                     <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPreprocessingVariableSelected(variable)" (click)="selectPreprocessingVariable(variable)">
                       <span>{{ variableLabel(variable) }}</span>
                       <span class="statistics-variable-meta">
+                        @if (coverageFor(variable); as coverage) {
+                        <small class="preprocessing-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
+                        }
                         <span
                           class="preprocessing-state-mini"
                           [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
@@ -389,6 +500,7 @@
                           }
                         </select>
                       </label>
+                      @if (ruleFor(variable).action === 'constant') {
                       <label class="preprocessing-control">
                         <span>Options / Value</span>
                         @if (ruleFor(variable).action === 'constant' && isCategoricalVariable(variable) && enumOptions(variable).length > 0) {
@@ -399,14 +511,90 @@
                           }
                         </select>
                         } @else {
-                        <input class="table-input" type="text" [disabled]="ruleFor(variable).action !== 'constant'" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)" placeholder="Value" />
+                        <input class="table-input" type="text" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)" placeholder="Value" />
                         }
                       </label>
+                      }
                     </div>
                     @if (preprocessingValidationErrors[variable.code]) {
                     <div class="row-error">{{ preprocessingValidationErrors[variable.code] }}</div>
                     }
                   </div>
+
+                  @if (coverageFor(variable); as coverage) {
+                  <aside class="preprocessing-evidence" [attr.data-severity]="coverageSeverity(coverage)">
+                    <div class="preprocessing-evidence-group">
+                      <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+                      <dl class="preprocessing-stat-grid">
+                        <div class="preprocessing-stat">
+                          <dt>Total rows</dt>
+                          <dd>{{ coverage.total.toLocaleString() }}</dd>
+                        </div>
+                        <div class="preprocessing-stat">
+                          <dt>Missing</dt>
+                          <dd>{{ coverage.missing.toLocaleString() }}</dd>
+                        </div>
+                        <div class="preprocessing-stat">
+                          <dt>Share missing</dt>
+                          <dd>{{ coveragePercent(coverage) }}</dd>
+                        </div>
+                      </dl>
+                      <span
+                        class="preprocessing-meter"
+                        role="img"
+                        [attr.aria-label]="coverage.missing + ' of ' + coverage.total + ' values missing (' + coveragePercent(coverage) + ')'"
+                      >
+                        <span class="preprocessing-meter-fill" [style.width.%]="coverage.share * 100"></span>
+                      </span>
+                      @if (missingActionConsequence(variable); as consequence) {
+                      <p class="preprocessing-consequence">{{ consequence }}</p>
+                      }
+                    </div>
+
+                    @let distribution = distributionFor(variable);
+                    @if (distribution.length) {
+                    <div class="preprocessing-evidence-group">
+                      <h5 class="preprocessing-evidence-title">Distribution</h5>
+                      <dl class="preprocessing-stat-strip">
+                        @for (point of distribution; track point.label) {
+                        <div class="preprocessing-stat">
+                          <dt>{{ point.label }}</dt>
+                          <dd>{{ point.value }}</dd>
+                        </div>
+                        }
+                      </dl>
+                    </div>
+                    }
+
+                    @let categories = categoryCountsFor(variable);
+                    @if (categories.length) {
+                    <div class="preprocessing-evidence-group preprocessing-evidence-wide">
+                      <h5 class="preprocessing-evidence-title">Category frequencies</h5>
+                      <ul class="preprocessing-frequency-list">
+                        @for (category of categories; track category.label) {
+                        <li class="preprocessing-frequency">
+                          <span class="preprocessing-frequency-label">{{ category.label }}</span>
+                          <span class="preprocessing-frequency-track">
+                            <span class="preprocessing-frequency-bar" [style.width.%]="category.share * 100"></span>
+                          </span>
+                          <span class="preprocessing-frequency-value">{{ category.value }}</span>
+                        </li>
+                        }
+                      </ul>
+                    </div>
+                    }
+                  </aside>
+                  } @else {
+                  <!-- The evidence slot is what makes this card read as a decision
+                       rather than a bare select. When statistics are unavailable it
+                       has to say so — blank space reads as a broken card. -->
+                  <aside class="preprocessing-evidence" data-severity="none">
+                    <div class="preprocessing-evidence-group">
+                      <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+                      <p class="preprocessing-consequence">{{ summaryUnavailableNote() }}</p>
+                    </div>
+                  </aside>
+                  }
 
                   } @else {
                   <div class="empty-state-block compact-empty">
@@ -421,27 +609,31 @@
               <div class="empty-state-block compact-empty">
                 <i class="fa fa-table"></i>
                 <p>No variables selected.</p>
-                <span>Select variables or covariates before configuring preprocessing.</span>
+                <span>Select variables before configuring preprocessing.</span>
               </div>
               }
-            </div>
-          </div>
+          </app-station-card>
 
-          <div class="preprocessing-step-card outlier-preprocessing">
-            <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('outlier')">
-              <div class="preprocessing-section-heading">
-                <span>Outlier Handling</span>
-              </div>
-              <span
-                class="preprocessing-state-chip"
-                [class.state-pending]="hasPendingOutlierChanges"
-                [class.state-applied]="outlierPreprocessingStatusLabel === 'Applied'"
-              >
-                {{ outlierPreprocessingStatusLabel }}
-              </span>
-              <span class="accordion-icon" [class.open]="preprocessingStepOpen.outlier">▾</span>
+          @if (!showOutliersSection) {
+          <button type="button" class="btn-add-dashed" (click)="enableOutlierHandling()">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Add Outlier Handling (Optional)</span>
+          </button>
+          } @else {
+          <app-station-card
+            collapsible
+            icon="fas fa-line-chart"
+            title="Outlier Handling"
+            description="Caps extreme values per variable with a winsorizer."
+            [statusLabel]="outlierPreprocessingStatusLabel"
+            [status]="statusTone(outlierPreprocessingStatusLabel, hasPendingOutlierChanges)"
+            [open]="preprocessingStepOpen.outlier"
+            (openChange)="togglePreprocessingStep('outlier')">
+            <!-- Projected next to the status chip: one header, not a second strip glued on top. -->
+            <button type="button" class="btn-remove-step-node" stationAction (click)="removeOutlierHandling()">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
             </button>
-            <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.outlier">
               @if (preprocessingStepDocumentation('outlier_winsorizer')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
@@ -467,7 +659,7 @@
                   </div>
 
                   @for (group of outlierPreprocessingGroups; track group.key) {
-                  <div class="statistics-variable-group preprocessing-variable-group">
+                  <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
                     <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
                     @for (variable of group.variables; track variable.code) {
                     <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isOutlierPreprocessingVariableSelected(variable)" (click)="selectOutlierPreprocessingVariable(variable)">
@@ -552,6 +744,26 @@
                       }
                     </div>
 
+                    @let distribution = distributionFor(variable);
+                    <aside class="preprocessing-evidence">
+                      <h5 class="preprocessing-evidence-title">Distribution</h5>
+                      @if (distribution.length) {
+                      <dl class="preprocessing-stat-strip">
+                        @for (point of distribution; track point.label) {
+                        <div class="preprocessing-stat">
+                          <dt>{{ point.label }}</dt>
+                          <dd>{{ point.value }}</dd>
+                        </div>
+                        }
+                      </dl>
+                      @if (coverageFor(variable); as coverage) {
+                      <p class="preprocessing-consequence">{{ coverage.missing.toLocaleString() }} of {{ coverage.total.toLocaleString() }} values missing ({{ coveragePercent(coverage) }}) are ignored by the winsorizer.</p>
+                      }
+                      } @else {
+                      <p class="preprocessing-consequence">{{ summaryUnavailableNote() }}</p>
+                      }
+                    </aside>
+
                     } @else {
                     <div class="empty-state-block compact-empty">
                       <i class="fa fa-search"></i>
@@ -562,23 +774,15 @@
                   </div>
 
                   <div class="outlier-preview-section">
-                    <div class="outlier-preview-action-row" [class.has-pending]="hasOutlierRulesForPreview">
-                      @if (outlierPreviewRows.length > 0) {
-                      <div class="outlier-preview-status">
-                        <span class="pending-chip">{{ outlierPreviewRows.length }}</span>
-                        <span class="preview-status-text">preview {{ outlierPreviewRows.length === 1 ? 'row' : 'rows' }}</span>
-                      </div>
-                      }
-                      <button
-                        type="button"
-                        class="preview-report-btn"
-                        [disabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
-                        (click)="previewOutlierReport()"
-                      >
-                        <i class="fa fa-eye"></i>
-                        @if (isLoadingOutlierPreview) { Previewing… } @else { Preview Outlier Report }
-                      </button>
-                    </div>
+                    <app-station-action-bar
+                      [pendingCount]="outlierPreviewRows.length"
+                      [statusText]="'preview ' + (outlierPreviewRows.length === 1 ? 'row' : 'rows')"
+                      [tone]="hasOutlierRulesForPreview ? 'pending' : 'default'"
+                      [applyLabel]="isLoadingOutlierPreview ? 'Previewing…' : 'Preview Outlier Report'"
+                      applyIcon="fa fa-eye"
+                      [applyDisabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
+                      (apply)="previewOutlierReport()"
+                    ></app-station-action-bar>
 
                     @if (isLoadingOutlierPreview) {
                     <div class="studio-skeleton-card outlier-preview-skeleton" role="status" aria-label="Outlier report preview loading">
@@ -651,28 +855,22 @@
               <div class="empty-state-block compact-empty">
                 <i class="fa fa-table"></i>
                 <p>No numerical variables selected.</p>
-                <span>Outlier handling is available for selected numerical variables and covariates.</span>
+                <span>Outlier handling is available for selected numerical variables.</span>
               </div>
               }
-            </div>
-          </div>
+          </app-station-card>
+          }
 
           @if (isLongitudinalModel) {
-          <div class="preprocessing-step-card longitudinal-preprocessing">
-            <button type="button" class="preprocessing-step-header" (click)="togglePreprocessingStep('longitudinal')">
-              <div class="preprocessing-section-heading longitudinal-heading">
-                <span>Longitudinal Transformation</span>
-              </div>
-              <span
-                class="preprocessing-state-chip"
-                [class.state-pending]="pendingLongitudinalChangeCount > 0"
-                [class.state-applied]="longitudinalPreprocessingStatusLabel === 'Applied'"
-              >
-                {{ longitudinalPreprocessingStatusLabel }}
-              </span>
-              <span class="accordion-icon" [class.open]="preprocessingStepOpen.longitudinal">▾</span>
-            </button>
-            <div class="preprocessing-step-body" [class.open]="preprocessingStepOpen.longitudinal">
+          <app-station-card
+            collapsible
+            icon="fas fa-calendar"
+            title="Longitudinal Transformation"
+            description="Required for longitudinal pathologies: compare two visits per variable."
+            [statusLabel]="longitudinalPreprocessingStatusLabel"
+            [status]="statusTone(longitudinalPreprocessingStatusLabel, pendingLongitudinalChangeCount > 0)"
+            [open]="preprocessingStepOpen.longitudinal"
+            (openChange)="togglePreprocessingStep('longitudinal')">
               @if (preprocessingStepDocumentation('longitudinal_transformer')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
@@ -686,10 +884,6 @@
               </details>
               }
 
-              <div class="longitudinal-info-banner">
-                <i class="fa fa-info-circle" aria-hidden="true"></i>
-                <span>Required for longitudinal pathologies</span>
-              </div>
               <div class="longitudinal-controls">
                 <div class="visit-controls">
                   <label>
@@ -802,11 +996,10 @@
               <div class="empty-state-block compact-empty">
                 <i class="fa fa-table"></i>
                 <p>No variables selected.</p>
-                <span>Select variables or covariates before configuring longitudinal transformation.</span>
+                <span>Select variables before configuring longitudinal transformation.</span>
               </div>
               }
-            </div>
-          </div>
+          </app-station-card>
           }
 
           @if (successMessage) {
@@ -816,41 +1009,53 @@
           </div>
           }
 
-          <div
-            class="preprocessing-action-row"
-            [class.has-pending]="pendingChangeCount > 0"
-            [class.is-all-set]="pendingChangeCount === 0"
-          >
-            <div class="preprocessing-pending-status">
-              @if (pendingChangeCount > 0) {
-              <span class="pending-chip">{{ pendingChangeCount }}</span>
-              }
-              <span class="pending-status-text">
-                @if (pendingChangeCount === 0) { All set }
-                @else { pending {{ pendingChangeCount === 1 ? 'step' : 'steps' }} }
-              </span>
-            </div>
-            <div class="preprocessing-action-buttons">
-              <button type="button" class="reset-changes-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="resetChanges()">Reset Changes</button>
-              <button type="button" class="apply-preprocessing-btn" [disabled]="pendingChangeCount === 0 || isApplyingPreprocessing" (click)="applyPreprocessing()">
-                <i class="fa fa-magic"></i>
-                @if (isApplyingPreprocessing) { Applying… } @else { Apply Preprocessing }
-              </button>
-            </div>
-          </div>
+          <app-station-action-bar
+            [pendingCount]="pendingChangeCount"
+            [statusText]="pendingChangeCount === 0 ? 'All set' : 'pending ' + (pendingChangeCount === 1 ? 'step' : 'steps')"
+            [tone]="pendingChangeCount === 0 ? 'applied' : 'pending'"
+            resetLabel="Clear"
+            previewLabel="Preview data"
+            [applyLabel]="isApplyingPreprocessing ? 'Applying…' : 'Apply & Continue'"
+            applyIcon="fa fa-magic"
+            [resetDisabled]="pendingChangeCount === 0 || isApplyingPreprocessing"
+            [applyDisabled]="pendingChangeCount === 0 || isApplyingPreprocessing"
+            (reset)="resetChanges()"
+            (preview)="goToSection('processed')"
+            (apply)="applyPreprocessing()"
+          ></app-station-action-bar>
           </div>
         </div>
-      </section>
+      </div>
+      }
+    </section>
 
       <section #processedSection class="workflow-section" data-guide="analysis-processed-summary">
-        <button type="button" class="workflow-section-header" (click)="toggleSection('processed')">
-          <div class="header-left">
-            <span class="step-badge">4</span>
-            <span>Processed Data Summary</span>
+        <div class="workflow-section-body" [class.open]="sectionOpen().processed">
+          <div class="station-preview-bar">
+            <div class="summary-tabs modal-tabs" role="group" aria-label="Processed summary overlays">
+              <button
+                type="button"
+                [class.active]="processedSummary.activeTab === 'Charts'"
+                [attr.aria-pressed]="processedSummary.activeTab === 'Charts'"
+                (click)="setSummaryTab('processed', 'Charts')">
+                Charts
+              </button>
+              <button
+                type="button"
+                [class.active]="processedSummary.activeTab === 'Histogram'"
+                [attr.aria-pressed]="processedSummary.activeTab === 'Histogram'"
+                (click)="setSummaryTab('processed', 'Histogram')">
+                Histogram
+              </button>
+            </div>
+            <button
+              type="button"
+              class="station-preview-toggle"
+              (click)="toggleSummaryWorkspace('processed')">
+              <i class="fa fa-arrow-left" aria-hidden="true"></i>
+              <span>Edit preprocessing</span>
+            </button>
           </div>
-          <span class="accordion-icon" [class.open]="sectionOpen.processed">▾</span>
-        </button>
-        <div class="workflow-section-body" [class.open]="sectionOpen.processed">
           @if (processedSummary.isLoading) {
           <div class="studio-skeleton-card" role="status" aria-label="Processed data summary loading">
             <span class="studio-skeleton-line medium"></span>
@@ -865,27 +1070,6 @@
             </div>
           </div>
           }
-
-          @if (!processedSummary.isLoading && preprocessingStatus !== 'applied') {
-          <div class="empty-state-block">
-            <i class="fa fa-flask"></i>
-            <p>No preprocessing has been applied yet.</p>
-            <span>Configure preprocessing rules and click Apply Preprocessing to generate the processed summary.</span>
-          </div>
-          }
-
-          @if (!processedSummary.isLoading && preprocessingStatus === 'applied') {
-          <div class="summary-tabs modal-tabs">
-            <button type="button" [class.active]="processedSummary.activeTab === 'Statistics'" (click)="setSummaryTab('processed', 'Statistics')">
-              Statistics
-            </button>
-            <button type="button" [class.active]="processedSummary.activeTab === 'Charts'" (click)="setSummaryTab('processed', 'Charts')">
-              Charts
-            </button>
-            <button type="button" [class.active]="processedSummary.activeTab === 'Histogram'" (click)="setSummaryTab('processed', 'Histogram')">
-              Histogram
-            </button>
-          </div>
 
           @if (!processedSummary.isLoading) {
           <section class="summary-workspace">
@@ -908,16 +1092,9 @@
                   <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected('processed', block)" (click)="selectStatisticBlock('processed', block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
-                      <small>{{ statisticDatapointsLabel(block) }}</small>
-                      <span aria-hidden="true">·</span>
-                      <span
-                        class="statistics-missing"
-                        [class.missing-none]="statisticMissingSeverity(block) === 'none'"
-                        [class.missing-warning]="statisticMissingSeverity(block) === 'warning'"
-                        [class.missing-high]="statisticMissingSeverity(block) === 'high'"
-                      >
-                        {{ statisticMissingLabel(block) }}
-                      </span>
+                      @if (blockCoverage(block); as coverage) {
+                      <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
+                      }
                     </span>
                   </button>
                   }
@@ -931,19 +1108,21 @@
                   <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected('processed', block)" (click)="selectStatisticBlock('processed', block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
-                      <small>{{ statisticDatapointsLabel(block) }}</small>
-                      <span aria-hidden="true">·</span>
-                      <span
-                        class="statistics-missing"
-                        [class.missing-none]="statisticMissingSeverity(block) === 'none'"
-                        [class.missing-warning]="statisticMissingSeverity(block) === 'warning'"
-                        [class.missing-high]="statisticMissingSeverity(block) === 'high'"
-                      >
-                        {{ statisticMissingLabel(block) }}
-                      </span>
+                      @if (blockCoverage(block); as coverage) {
+                      <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
+                      }
                     </span>
                   </button>
                   }
+                </div>
+                }
+                @if (selectionCoverage('processed'); as pooled) {
+                <div class="statistics-browser-foot">
+                  <span class="statistics-browser-foot-label">All shown variables</span>
+                  <div class="statistics-browser-foot-value">
+                    <strong [attr.data-severity]="coverageSeverity(pooled)">{{ coveragePercent(pooled) }}</strong>
+                    <small>{{ coverageTitle(pooled) }}</small>
+                  </div>
                 </div>
                 }
               </aside>
@@ -957,11 +1136,11 @@
                     <h4>{{ selectedBlock.name }}</h4>
                   </div>
                   <div class="summary-panel-actions">
-                    <button type="button" class="summary-export-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
+                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
                       <i class="fa fa-file-pdf-o"></i>
                       PDF
                     </button>
-                    <button type="button" class="summary-export-btn" (click)="exportSummaryToCSV('processed')" title="Export CSV">
+                    <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV('processed')" title="Export CSV">
                       <i class="fa fa-file-text-o"></i>
                       CSV
                     </button>
@@ -974,16 +1153,22 @@
                       <tr>
                         <th>Metric</th>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <th>{{ datasetLabel(ds) }}</th>
+                        <th [class.statistics-col-rollup]="isRollupColumn(ds)">{{ datasetLabel(ds) }}</th>
                         }
                       </tr>
                     </thead>
                     <tbody>
-                      @for (r of selectedBlock.rows; track r.metric) {
+                      @for (r of selectedBlock.rows; track r.metric; let ri = $index) {
+                      @if (metricGroupLabel(selectedBlock.rows, ri); as groupLabel) {
+                      <tr class="statistics-metric-group">
+                        <td [attr.colspan]="selectedBlock.columns.length + 1">{{ groupLabel }}</td>
+                      </tr>
+                      }
                       <tr>
                         <td class="metric-cell">{{ r.metric }}</td>
                         @for (ds of selectedBlock.columns; track ds) {
-                        <td>{{ r.values[ds] }}</td>
+                        <td [class.statistics-col-rollup]="isRollupColumn(ds)">{{ displayNumber(r.values[ds]) }}@if (missingShareNote(selectedBlock, r, ds); as share) {<span class="statistics-cell-note">{{ share }}</span>}
+                        </td>
                         }
                       </tr>
                       }
@@ -999,7 +1184,7 @@
                     <h4>{{ selectedBlock.name }}</h4>
                   </div>
                   <div class="summary-panel-actions">
-                    <button type="button" class="summary-export-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
+                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF('processed')" title="Export PDF">
                       <i class="fa fa-file-pdf-o"></i>
                       PDF
                     </button>
@@ -1073,9 +1258,264 @@
             }
           </section>
           }
-          }
         </div>
       </section>
+
+      <!-- CONNECTOR 2 -> 3 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('setup')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 3: DATA TRANSFORMATIONS -->
+      <section
+        #transformationSection
+        class="pipeline-node preprocessing-section"
+        [class.is-active]="isStepAdded('transformation')"
+        [class.is-dormant]="!isStepAdded('transformation')"
+        data-guide="analysis-transformation"
+      >
+        @if (!isStepAdded('transformation')) {
+        <!-- DORMANT / UN-ADDED STATE -->
+        <div class="pipeline-node-dormant">
+          <div class="dormant-left">
+            <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <h3>3. Data Transformations</h3>
+              <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
+            </div>
+          </div>
+          <div class="dormant-right">
+            <span class="pipeline-status-badge optional">Optional</span>
+            <button type="button" class="btn-add-step" (click)="addStep('transformation')">
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              <span>Add Transformation</span>
+            </button>
+          </div>
+        </div>
+        } @else {
+        <!-- EXPANDED / ADDED STATE -->
+        <header class="pipeline-node-header">
+          <div class="pipeline-node-header-left">
+            <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+              <h3>3. Data Transformations</h3>
+              <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
+            </div>
+          </div>
+          <div class="pipeline-node-header-right">
+            <span class="pipeline-status-badge" [class.applied]="transformationStatusLabel === 'Applied'" [class.optional]="transformationStatusLabel !== 'Applied'">
+              {{ transformationBadgeLabel }}
+            </span>
+            <button
+              type="button"
+              class="btn-remove-step-node"
+              title="Remove transformations from pipeline"
+              (click)="removeStep('transformation')">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Collapsed overview: the derived columns the pipeline will create. -->
+        @if (!sectionOpen().transformation) {
+        <div class="pipeline-subnodes-tree" role="list" aria-label="Data transformation steps">
+          @for (node of appliedTransformationSubNodes; track node.id) {
+          <div class="pipeline-subnode-item" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="jumpToSubNode('transformation', node.id)" title="Open this transformation">
+              <i [class]="node.icon" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">{{ node.title }}</span>
+                <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+              </span>
+              <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+            </button>
+          </div>
+          }
+        </div>
+        }
+
+        <div class="pipeline-node-body">
+          <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
+            <div class="preprocessing-shell">
+            <div class="station-preview-bar">
+              @if (transformationActiveTab !== 'Create') {
+              <button
+                type="button"
+                class="station-preview-toggle"
+                (click)="setTransformationActiveTab('Create')">
+                <i class="fa fa-arrow-left" aria-hidden="true"></i>
+                <span>Edit transformation</span>
+              </button>
+              }
+            </div>
+            @if (transformationActiveTab === 'Create') {
+            <div class="transformation-cards">
+              @for (draft of transformationDrafts; track draft.id; let i = $index; let isFirst = $first) {
+              <app-station-card
+                collapsible
+                icon="fas fa-square-plus"
+                [title]="transformationDrafts.length > 1 ? ('Create new categorical column · ' + (i + 1)) : 'Create new categorical column'"
+                description="Build a new nominal variable from record-level rules (exaflow categorical_column_creator)."
+                [statusLabel]="transformationDraftStatus(draft).label"
+                [status]="transformationDraftStatus(draft).tone"
+                [open]="draft.open"
+                (openChange)="toggleTransformationDraft(draft)">
+                @if (!isFirst) {
+                <!-- Projected next to the status chip, matching the optional Outlier Handling card. -->
+                <button type="button" class="btn-remove-step-node" stationAction (click)="removeTransformationDraft(draft.id)">
+                  <i class="fas fa-trash-can" aria-hidden="true"></i>
+                  <span>Remove Step</span>
+                </button>
+                }
+                <div class="transformation-create">
+                  <div class="transformation-fields-grid">
+                    <div class="transformation-field">
+                      <label [attr.for]="'transformation-code-' + draft.id">New column name</label>
+                      <input [id]="'transformation-code-' + draft.id" type="text" [ngModel]="draft.code" (ngModelChange)="draft.code = $event; onTransformationInput()" placeholder="e.g. mrs_good_outcome" />
+                    </div>
+                    <div class="transformation-field">
+                      <label [attr.for]="'transformation-default-enum-' + draft.id">Default enumeration (optional)</label>
+                      <input [id]="'transformation-default-enum-' + draft.id" type="text" [ngModel]="draft.defaultEnumeration" (ngModelChange)="draft.defaultEnumeration = $event; onTransformationInput()" placeholder="e.g. unknown" />
+                    </div>
+                  </div>
+
+                  <div class="transformation-rules">
+                    <div class="transformation-rules-heading">
+                      <span class="transformation-rules-title">
+                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                        Category rules
+                        <span class="transformation-rules-count">{{ draft.rules.length }}</span>
+                      </span>
+                      <button type="button" class="btn-add-category" (click)="addTransformationRule(draft)">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Add category</span>
+                      </button>
+                    </div>
+
+                    @for (rule of draft.rules; track $index; let ruleIndex = $index) {
+                    <app-station-list-row
+                      class="transformation-rule"
+                      [removeLabel]="'Remove category ' + (rule.value || ruleIndex + 1)"
+                      (remove)="removeTransformationRule(draft, ruleIndex)">
+                      <div class="transformation-rule-fields">
+                        <input
+                          type="text"
+                          [ngModel]="rule.value"
+                          (ngModelChange)="rule.value = $event; onTransformationInput()"
+                          placeholder="Enumeration value"
+                          class="transformation-rule-value"
+                        />
+                        <app-filter-config-modal
+                          #ruleModal
+                          [filterLogic]="rule.filter"
+                          [inline]="true"
+                        ></app-filter-config-modal>
+                      </div>
+                    </app-station-list-row>
+                    } @empty {
+                    <div class="transformation-empty-rules">
+                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
+                      <span>No category rules yet. Add a category, then define the record-level filter that selects it.</span>
+                    </div>
+                    }
+                  </div>
+                </div>
+              </app-station-card>
+              }
+              <button type="button" class="btn-add-dashed" (click)="addTransformationDraft()">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Add another categorical column</span>
+              </button>
+            </div>
+            @if (transformationApplyError) {
+            <div class="glass-feedback glass-feedback-warning">
+              {{ transformationApplyError }}
+            </div>
+            }
+            } @else {
+            <div class="transformation-statistics">
+              @if (isTransformationStatsLoading) {
+              <div class="studio-skeleton-line"></div>
+              <div class="studio-skeleton-line short"></div>
+              } @else if (transformationStatistics.length === 0) {
+              <div class="empty-state-block compact-empty">
+                <i class="fa fa-bar-chart"></i>
+                <p>No categories configured yet.</p>
+                <span>Add category rules, then Preview data to load counts.</span>
+              </div>
+              } @else {
+              @if (transformationStatisticsError) {
+              <div class="glass-feedback glass-feedback-warning">
+                {{ transformationStatisticsError }}
+              </div>
+              } @else {
+              <div class="glass-feedback">
+                Category counts from a describe run with your applied transformation.
+              </div>
+              }
+              @for (block of transformationStatistics; track block.code) {
+              <div class="transformation-stats-block">
+                <h4 class="transformation-stats-heading"><code>{{ block.code }}</code></h4>
+                <table class="transformation-stats-table">
+                  <thead>
+                    <tr><th>Category</th><th>Count</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (row of block.rows; track row.value) {
+                    <tr>
+                      <td>{{ row.value }}</td>
+                      <td>{{ row.count === null ? '—' : row.count }}</td>
+                    </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              }
+              }
+            </div>
+            }
+
+            <app-station-action-bar
+              [statusText]="transformationStatusLabel"
+              [tone]="statusTone(transformationStatusLabel, transformationStatusLabel === 'Pending') === 'applied' ? 'applied' : 'default'"
+              resetLabel="Clear"
+              [previewLabel]="transformationActiveTab === 'Create' ? 'Preview data' : ''"
+              applyLabel="Apply"
+              applyIcon="fas fa-check"
+              [resetDisabled]="transformationStatusLabel === 'Not defined'"
+              (reset)="resetTransformation()"
+              (preview)="previewTransformationData()"
+              (apply)="applyTransformation()"
+            ></app-station-action-bar>
+            </div>
+          </div>
+        </div>
+        }
+      </section>
+
+      <!-- CONNECTOR 3 -> TERMINAL -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('transformation')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-arrow-down"></i></div>
+      </div>
+
+      <!-- PIPELINE TERMINAL -->
+      <div class="pipeline-terminal-card">
+        <div class="pipeline-terminal-content">
+          <div class="pipeline-terminal-icon"><i class="fas fa-circle-check" aria-hidden="true"></i></div>
+          <div class="pipeline-terminal-info">
+            <h4>Data Handling Pipeline Ready</h4>
+            <p>Your filtering, preprocessing, and feature transformation steps are prepared for model fitting.</p>
+          </div>
+        </div>
+        <button type="button" class="btn-finish-pipeline" (click)="finishDataHandling()">
+          <span>Continue to Algorithm Selection</span>
+          <i class="fas fa-arrow-right" aria-hidden="true"></i>
+        </button>
+      </div>
 
       <div class="hidden-charts-for-export raw-export">
         <div class="numeric-charts-export">

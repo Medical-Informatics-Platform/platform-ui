@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal, inject, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil } from 'rxjs';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
@@ -8,6 +9,7 @@ import { AlgorithmResultComponent } from '../../experiment-studio/algorithm-pane
 import { getOutputSchema } from '../../../core/algorithm-mappers';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
+import { enrichPcaResult, withLabels } from '../../../core/result-label.utils';
 
 interface CompareResultState {
   loading: boolean;
@@ -32,9 +34,10 @@ interface CompareRow {
   styleUrl: './experiments-compare.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ExperimentsCompareComponent {
+export class ExperimentsCompareComponent implements OnDestroy {
   private dashboardService = inject(ExperimentsDashboardService);
   private labelService = inject(ExperimentLabelService);
+  private destroy$ = new Subject<void>();
 
   experiments = input<Experiment[]>([]);
 
@@ -157,7 +160,7 @@ export class ExperimentsCompareComponent {
       [uuid]: { loading: true, error: null, result: null },
     }));
 
-    this.dashboardService.getExperimentResult(uuid).subscribe({
+    this.dashboardService.getExperimentResult(uuid).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         this.resultMap.update((map) => ({
           ...map,
@@ -182,6 +185,11 @@ export class ExperimentsCompareComponent {
     });
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   getOutputSchemaFor(exp: Experiment) {
     return getOutputSchema(exp.algorithmName) ?? [];
   }
@@ -192,8 +200,7 @@ export class ExperimentsCompareComponent {
   }
 
   private withLabels(codes: string[] | undefined | null, domain?: string | null) {
-    const map = this.getLabelMapForDomain(domain);
-    return (codes ?? []).map((code) => ({ code, label: map[code] ?? code }));
+    return withLabels(codes, this.getLabelMapForDomain(domain));
   }
 
   getVariablesWithLabels(exp: Experiment) {
@@ -231,16 +238,11 @@ export class ExperimentsCompareComponent {
 
   enrichResult(exp: Experiment, result: any): any {
     if (!result || !exp) return result;
-
-    const algo = exp.algorithmName;
-    if (algo !== 'pca' && algo !== 'pca_with_transformation') return result;
-
-    const allNames = [
-      ...this.getVariablesWithLabels(exp).map(v => v.label),
-      ...this.getCovariatesWithLabels(exp).map(c => c.label),
-    ];
-
-    if (allNames.length > 0) return { ...result, variable_names: allNames };
-    return result;
+    return enrichPcaResult(
+      result,
+      exp.algorithmName,
+      this.getVariablesWithLabels(exp).map((v) => v.label),
+      this.getCovariatesWithLabels(exp).map((c) => c.label)
+    );
   }
 }

@@ -3,7 +3,6 @@ import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 
 export interface CollapsibleTreeSelectionOptions {
   selectedVariables?: D3HierarchyNode[];
-  selectedCovariates?: D3HierarchyNode[];
   highlightNode?: D3HierarchyNode | null;
 }
 
@@ -11,6 +10,7 @@ export interface CollapsibleTreeRenderer {
   expandToNode: (node: D3HierarchyNode) => void;
   refreshSelection: (options?: CollapsibleTreeSelectionOptions) => void;
   fitView: () => void;
+  resize: () => void;
   destroy: () => void;
 }
 
@@ -52,7 +52,6 @@ export function createCollapsibleTree(
   initializeCollapse(root);
 
   let selectedVariables = toCodeSet(options.selectedVariables);
-  let selectedCovariates = toCodeSet(options.selectedCovariates);
   let highlightedCode = codeOf(options.highlightNode);
   let highlightedPath = pathOf(options.highlightNode);
   let bounds = measureContainer(container);
@@ -68,19 +67,6 @@ export function createCollapsibleTree(
     .attr('width', bounds.width)
     .attr('height', bounds.height)
     .attr('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
-
-  const defs = svg.append('defs');
-  const glow = defs.append('filter')
-    .attr('id', 'collapsible-node-glow')
-    .attr('x', '-30%')
-    .attr('y', '-50%')
-    .attr('width', '160%')
-    .attr('height', '200%');
-  glow.append('feDropShadow')
-    .attr('dx', 0)
-    .attr('dy', 5)
-    .attr('stdDeviation', 4)
-    .attr('flood-color', 'rgba(15, 23, 42, 0.18)');
 
   const zoomLayer = svg.append('g').attr('class', 'collapsible-tree-layer');
   const linkLayer = zoomLayer.append('g').attr('class', 'collapsible-links');
@@ -338,11 +324,19 @@ export function createCollapsibleTree(
 
   const refreshSelection = (selectionOptions?: CollapsibleTreeSelectionOptions): void => {
     selectedVariables = toCodeSet(selectionOptions?.selectedVariables);
-    selectedCovariates = toCodeSet(selectionOptions?.selectedCovariates);
     const highlight = selectionOptions?.highlightNode ?? null;
     highlightedCode = codeOf(highlight);
     highlightedPath = pathOf(highlight);
     refreshNodeClasses();
+  };
+
+  const resize = (): void => {
+    bounds = measureContainer(container);
+    svg
+      .attr('width', bounds.width)
+      .attr('height', bounds.height)
+      .attr('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
+    fitView();
   };
 
   update(root);
@@ -356,6 +350,7 @@ export function createCollapsibleTree(
     expandToNode,
     refreshSelection,
     fitView,
+    resize,
     destroy: () => {
       cancelPendingAutoFit();
       tooltip.remove();
@@ -377,7 +372,6 @@ export function createCollapsibleTree(
       classes.push('highlighted');
     }
     if (code && selectedVariables.has(code)) classes.push('selected-variable');
-    if (code && selectedCovariates.has(code)) classes.push('selected-covariate');
     return classes.join(' ');
   }
 }

@@ -25,24 +25,12 @@
   animation: none;
 }
 
-.inline-filter-builder .filter-helper {
-  padding: 12px 16px;
-  background: rgba(43, 51, 233, 0.04);
-  border: 1px solid rgba(43, 51, 233, 0.08);
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
 .inline-filter-builder .filter-modal-body {
   padding: 0;
   background: transparent;
-}
-
-.inline-filter-builder .filter-modal-footer {
-  padding: 20px 0 0 0;
-  background: transparent;
-  border-top: 1px solid rgba(43, 51, 233, 0.1);
-  margin-top: 24px;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 @keyframes fadeIn {
@@ -150,13 +138,13 @@
 
 .close-top-btn:hover {
   background: #e2e8f0;
-  color: #0f172a;
+  color: var(--text-main);
   transform: rotate(90deg);
 }
 
 /* ===== HELPER TEXT ===== */
 .filter-helper {
-  background: #f8fafc;
+  background: var(--bg-neutral);
   padding: 12px 24px;
   border-bottom: 1px solid #f1f5f9;
 }
@@ -282,7 +270,7 @@
 .btn-secondary {
   background: #f1f5f9;
   border: none;
-  color: #475569;
+  color: var(--text-muted);
   padding: 10px 20px;
   border-radius: 10px;
   font-size: 0.9rem;
@@ -293,29 +281,27 @@
 
 .btn-secondary:hover {
   background: #e2e8f0;
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 .btn-primary-gradient {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  background: var(--primary-color);
   border: none;
   color: #ffffff;
   padding: 10px 24px;
-  border-radius: 10px;
+  border-radius: var(--radius-md, 8px);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.25);
-  transition: all 0.2s ease;
+  box-shadow: none;
+  transition: background 0.2s ease;
 }
 
-.btn-primary-gradient:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(43, 51, 233, 0.35);
-  filter: brightness(1.05);
+.btn-primary-gradient:hover:not(:disabled) {
+  background: var(--primary-dark);
 }
 
 .icon-left {
@@ -338,7 +324,6 @@
   display: grid;
   gap: 12px;
   border: 1px solid rgba(var(--group-accent), 0.2);
-  border-left: 4px solid rgba(var(--group-accent), 0.72);
   border-radius: 12px;
   background: linear-gradient(90deg, rgba(var(--group-accent), 0.07), rgba(255, 255, 255, 0.68) 34%);
   padding: 14px 14px 14px 12px;
@@ -346,7 +331,6 @@
 
 .filter-block-group.is-root {
   border-color: rgba(var(--group-accent), 0.18);
-  border-left-color: rgba(var(--group-accent), 0.72);
   background: rgba(248, 250, 252, 0.75);
 }
 
@@ -401,18 +385,6 @@
   gap: 10px;
 }
 
-.condition-block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  align-items: end;
-  gap: 12px;
-  border: 1px solid rgba(var(--group-accent), 0.14);
-  border-radius: 10px;
-  background: #ffffff;
-  padding: 14px 12px;
-  box-shadow: 0 4px 14px rgba(var(--group-accent), 0.05);
-}
-
 .condition-fields {
   display: grid;
   grid-template-columns: minmax(220px, 1.15fr) minmax(170px, 0.75fr) minmax(180px, 1fr);
@@ -438,7 +410,7 @@
   border: 1px solid rgba(43, 51, 233, 0.15);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
-  color: #0f172a;
+  color: var(--text-main);
   padding: 6px 9px;
 }
 
@@ -469,8 +441,7 @@
   text-align: center;
 }
 
-.insert-chip,
-.remove-block-btn {
+.insert-chip {
   border: 1px solid rgba(43, 51, 233, 0.15);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.85);
@@ -482,19 +453,9 @@
   font-weight: 800;
 }
 
-.insert-chip:hover,
-.remove-block-btn:hover {
+.insert-chip:hover {
   border-color: var(--primary-color);
   box-shadow: 0 3px 10px rgba(43, 51, 233, 0.12);
-}
-
-.remove-block-btn {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: #64748b;
-  justify-self: end;
-  margin-bottom: 1px;
 }
 
 .empty-filter-group {
@@ -522,7 +483,7 @@
   border: 1px solid rgba(43, 51, 233, 0.1);
   border-radius: 10px;
   background: rgba(248, 250, 252, 0.9);
-  color: #334155;
+  color: var(--chart-label-color);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-weight: 600;
   padding: 10px 12px;
@@ -530,12 +491,7 @@
 }
 
 @media (max-width: 900px) {
-  .condition-block,
   .condition-fields {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .remove-block-btn {
-    justify-self: end;
   }
 }

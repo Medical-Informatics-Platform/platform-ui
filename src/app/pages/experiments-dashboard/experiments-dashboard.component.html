@@ -1,4 +1,4 @@
-<div class="experiments-dashboard full-bleed premium-page"
+<div class="experiments-dashboard full-bleed"
   [class.has-pathology-warning]="!!visiblePathologyAccessWarning()">
 
   <div class="studio-main full-width">
@@ -36,8 +36,8 @@
     <!-- TOP: Greeting Header -->
     <header class="dashboard-greeting">
       <div class="greeting-content">
-        <h1>Welcome back, {{ greetingName() }}!</h1>
-        <p>You have {{ experimentsService.experiments().length }} experiments in your history.</p>
+        <h1>Experiments</h1>
+        <p>{{ experimentsService.experiments().length }} in your history.</p>
       </div>
     </header>
 

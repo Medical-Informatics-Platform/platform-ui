@@ -37,10 +37,23 @@ export class SearchBarComponent implements OnChanges {
   searchQuery = '';
   filteredItems: MetadataSearchResult[] = [];
   searchSuggestionsVisible = false;
-  isSearchExpanded = false;
   filterType: 'variables' | 'groups' = 'variables';
   variableTypeFilter = '';
   variableTypes: string[] = [];
+  activeIndex = -1;
+
+  get kindIndex(): number {
+    return this.filterType === 'groups' ? 1 : 0;
+  }
+
+  /** The option the input's aria-activedescendant must point at, or null when nothing is active. */
+  activeDescendantId(): string | null {
+    return this.searchSuggestionsVisible && this.activeIndex >= 0 ? `search-result-${this.activeIndex}` : null;
+  }
+
+  get typeIndex(): number {
+    return this.variableTypes.indexOf(this.variableTypeFilter);
+  }
 
   private metadataIndex: NormalizedMetadataIndex | null = null;
 
@@ -50,15 +63,16 @@ export class SearchBarComponent implements OnChanges {
     }
   }
 
-  expandSearch(event: MouseEvent): void {
-    event.stopPropagation();
-    this.isSearchExpanded = true;
+
+  clearSearch(): void {
+    this.searchQuery = '';
+    this.handleSearch('');
+    this.focusInput();
   }
 
-  closeSearch(): void {
-    this.isSearchExpanded = false;
-    this.searchQuery = '';
+  hideSuggestions(): void {
     this.searchSuggestionsVisible = false;
+    this.activeIndex = -1;
   }
 
   highlight(name: string): string {
@@ -69,7 +83,7 @@ export class SearchBarComponent implements OnChanges {
 
   onOutsideClick(event: Event): void {
     if (!this.eRef.nativeElement.contains(event.target)) {
-      this.closeSearch();
+      this.hideSuggestions();
     }
   }
 
@@ -83,6 +97,7 @@ export class SearchBarComponent implements OnChanges {
     const index = this.metadataIndex;
     if (!index) {
       this.filteredItems = [];
+      this.activeIndex = -1;
       return;
     }
 
@@ -99,27 +114,68 @@ export class SearchBarComponent implements OnChanges {
       }
       return index.variablesById[result.id]?.type === this.variableTypeFilter;
     });
+    this.activeIndex = this.filteredItems.length ? 0 : -1;
   }
 
-  applyVariableTypeFilter(type: string): void {
-    this.variableTypeFilter = type;
-    this.applyFilter(this.filterType);
+  onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.hideSuggestions();
+      return;
+    }
+    if (!this.searchSuggestionsVisible || !this.filteredItems.length) {
+      if (event.key === 'ArrowDown') {
+        this.searchSuggestionsVisible = true;
+        this.applyFilter(this.filterType);
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.activeIndex = (this.activeIndex + 1) % this.filteredItems.length;
+      this.scrollActiveIntoView();
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.activeIndex = this.activeIndex <= 0
+        ? this.filteredItems.length - 1
+        : this.activeIndex - 1;
+      this.scrollActiveIntoView();
+      return;
+    }
+    if (event.key === 'Enter' && this.activeIndex >= 0) {
+      event.preventDefault();
+      this.onItemClick(this.filteredItems[this.activeIndex]);
+    }
+  }
+
+  setFilterType(type: 'variables' | 'groups'): void {
+    this.variableTypeFilter = '';
+    this.applyFilter(type);
+  }
+
+  setVariableTypeFilter(type: string): void {
+    this.variableTypeFilter = this.variableTypeFilter === type ? '' : type;
+    this.applyFilter('variables');
   }
 
   onItemClick(item: MetadataSearchResult): void {
     this.searchQuery = item.label;
-    this.searchSuggestionsVisible = false;
+    this.hideSuggestions();
     this.searchResultSelected.emit(item);
   }
 
-  parentGroupLabel(item: MetadataSearchResult): string {
-    if (!item.pathLabels.length) {
-      return 'Root';
+  breadcrumbPath(item: MetadataSearchResult): string {
+    if (!item.pathLabels || item.pathLabels.length <= 1) {
+      return item.path || 'Root';
     }
-    if (item.pathLabels.length < 2) {
-      return item.pathLabels[0];
-    }
-    return item.pathLabels[item.pathLabels.length - 2];
+    // Return ancestor hierarchy without the item label itself
+    return item.pathLabels.slice(0, -1).join(' › ');
+  }
+
+  groupVariableCount(item: MetadataSearchResult): number {
+    return this.metadataIndex?.groupsById[item.id]?.totalVariableCount ?? 0;
   }
 
   variableType(item: MetadataSearchResult): string {
@@ -128,7 +184,8 @@ export class SearchBarComponent implements OnChanges {
 
   generateTooltip(item: MetadataSearchResult): string {
     if (item.kind === 'group') {
-      return `Group: ${item.label}\nPath: ${item.path}`;
+      const count = this.groupVariableCount(item);
+      return `Group: ${item.label}\nPath: ${item.path}\nVariables: ${count}`;
     }
     const variable = this.metadataIndex?.variablesById[item.id];
     return `Variable: ${item.label}\nPath: ${item.path}\nType: ${variable?.type ?? 'unknown'}`;
@@ -137,6 +194,22 @@ export class SearchBarComponent implements OnChanges {
   onSearchFocus(): void {
     this.searchSuggestionsVisible = true;
     this.handleSearch(this.searchQuery);
+  }
+
+  private scrollActiveIntoView(): void {
+    setTimeout(() => {
+      const activeEl = this.eRef.nativeElement.querySelector('.search-result-item.is-active');
+      if (activeEl && typeof activeEl.scrollIntoView === 'function') {
+        activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 0);
+  }
+
+  private focusInput(): void {
+    setTimeout(() => {
+      const inputEl = this.eRef.nativeElement.querySelector('#search-bar') as HTMLInputElement | null;
+      inputEl?.focus();
+    }, 0);
   }
 
   private rebuildIndex(hierarchy: any): void {

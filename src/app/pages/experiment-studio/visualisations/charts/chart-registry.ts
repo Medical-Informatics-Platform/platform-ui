@@ -50,11 +50,6 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
     inputPath: '',
   },
 
-  // Legacy alias retained for backwards compatibility with historical payloads.
-  logistic_regression_cv_fedaverage: {
-    build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart),
-    inputPath: '',
-  },
 
   logistic_regression_cv: {
     build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart), // CV Metrics chart could be added if supported
@@ -136,10 +131,6 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
     inputPath: '',
   },
 
-  histogram_sql: {
-    build: buildHistogramChart,
-    inputPath: '',
-  },
 
   cox_regression_classical: {
     build: buildCoxHazardRatioForestChart,

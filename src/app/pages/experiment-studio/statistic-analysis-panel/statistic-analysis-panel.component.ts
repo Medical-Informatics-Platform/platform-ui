@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  computed,
   effect,
   inject,
   QueryList,
@@ -31,8 +32,14 @@ import {
   resolveDatasetDisplayLabel,
 } from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
+import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
+import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
+import { StationListRowComponent } from '../shared/station-list-row/station-list-row.component';
+import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
+import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
+import { countFilterRules } from '../shared/filter-rule-count.util';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
@@ -56,12 +63,44 @@ import {
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'raw' | 'processed';
-type SectionKey = 'raw' | 'setup' | 'filters' | 'processed';
+export type SectionKey = 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
 export type PreprocessingStatus = 'none' | 'pending' | 'applied';
+
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
+
+interface TransformationRule {
+  value: string;
+  filter: BackendFilter | null;
+}
+
+/** One "Create new categorical column" card. The stage holds an ordered list. */
+interface TransformationColumnDraft {
+  id: number;
+  code: string;
+  defaultEnumeration: string;
+  rules: TransformationRule[];
+  open: boolean;
+}
+
+let transformationDraftSeq = 0;
+function emptyTransformationDraft(): TransformationColumnDraft {
+  return { id: ++transformationDraftSeq, code: '', defaultEnumeration: '', rules: [], open: true };
+}
+
+/** One sub-step of a pipeline stage, rendered on the pipeline-overview rail. */
+export interface PipelineSubNode {
+  // Preprocessing stations use fixed ids; transformation sub-nodes carry a
+  // `transformation:<code>` id so the rail can list one card per derived column.
+  id: string;
+  icon: string;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: 'applied' | 'default' | 'pending';
+}
 type MetricKey =
   | 'num_dtps' | 'num_na' | 'num_total'
   | 'mean' | 'std' | 'min' | 'q1' | 'q2' | 'q3' | 'max';
@@ -142,11 +181,12 @@ interface OutlierPreviewRow {
 export interface DescriptiveProgressState {
   pendingChangeCount: number;
   preprocessingStatus: PreprocessingStatus;
+  transformationStatusLabel: string;
 }
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, FilterConfigModalComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   styleUrl: './statistic-analysis-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -155,7 +195,6 @@ export class StatisticAnalysisPanelComponent {
   readonly processedDataInput = input<PivotBlock[]>([], { alias: 'processedData' });
   processedData: PivotBlock[] = [];
   readonly variables = input<unknown[]>([]);
-  readonly covariates = input<unknown[]>([]);
   readonly filters = input<unknown[]>([]);
   readonly progressStateChange = output<DescriptiveProgressState>();
   @ViewChildren(ChartRendererComponent)
@@ -168,8 +207,13 @@ export class StatisticAnalysisPanelComponent {
   filtersSection?: ElementRef<HTMLElement>;
   @ViewChild('processedSection')
   processedSection?: ElementRef<HTMLElement>;
+  @ViewChild('transformationSection')
+  transformationSection?: ElementRef<HTMLElement>;
+  @ViewChildren('ruleModal')
+  transformationRuleModals?: QueryList<FilterConfigModalComponent>;
 
   expStudioService = inject(ExperimentStudioService);
+  private studioNavigation = inject(ExperimentStudioNavigationService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
   private csvExportService = inject(CsvExportService);
@@ -192,6 +236,7 @@ export class StatisticAnalysisPanelComponent {
   pendingOutlierRules: Record<string, OutlierRule> = {};
   appliedOutlierRules: Record<string, OutlierRule> = {};
   preprocessingStatus: PreprocessingStatus = 'none';
+  private userPreprocessingApplied = false;
   isApplyingPreprocessing = false;
   preprocessingValidationErrors: Record<string, string> = {};
   outlierValidationErrors: Record<string, string> = {};
@@ -211,17 +256,278 @@ export class StatisticAnalysisPanelComponent {
   successMessage = '';
   isExporting = false;
   isLoading = true;
-  sectionOpen: Record<'raw' | 'setup' | 'filters' | 'processed', boolean> = {
+  readonly sectionOpen = signal<Record<SectionKey, boolean>>({
     raw: false,
     setup: false,
-    filters: false,
+    filters: true,
     processed: false,
-  };
-  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal', boolean> = {
+    transformation: false,
+  });
+  readonly summaryExpanded = signal<{ filters: boolean; setup: boolean }>({
+    filters: false,
+    setup: false,
+  });
+  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal' | 'transformation', boolean> = {
     missing: true,
     outlier: true,
     longitudinal: true,
+    transformation: true,
   };
+
+  /**
+   * Pipeline Canvas State: stages opened during this visit only.
+   * Presence on screen is derived (see isStepAdded); this overlay exists so a
+   * stage the user just opened stays visible even while it holds no work yet.
+   */
+  readonly addedSteps = signal<Record<'filters' | 'setup' | 'transformation', boolean>>({
+    filters: false,
+    setup: false,
+    transformation: false,
+  });
+
+  /**
+   * A stage is active when it was opened this visit OR when its work is in the
+   * persisted request config. The node state must never disagree with what the
+   * next request actually carries, so persisted work always wins.
+   */
+  isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
+    if (this.addedSteps()[step]) return true;
+    if (step === 'filters') return this.filterRuleCount() > 0;
+    const applied = this.expStudioService.appliedPreprocessingConfig();
+    if (!applied) return false;
+    if (step === 'transformation') return !!applied['categorical_column_creator'];
+    return !!(
+      applied['missing_values_handler'] ||
+      applied['outlier_winsorizer'] ||
+      applied['longitudinal_transformer']
+    );
+  }
+
+  /** Opening a stage is a read: it shows the editor, it never writes the request. */
+  addStep(step: 'filters' | 'setup' | 'transformation'): void {
+    this.addedSteps.update((s) => ({ ...s, [step]: true }));
+    if (step === 'setup') this.ensureDefaultRulesForCurrentSelection();
+    this.goToSection(step);
+    this.cdr.markForCheck();
+  }
+
+  removeStep(step: 'filters' | 'setup' | 'transformation'): void {
+    this.addedSteps.update((s) => ({ ...s, [step]: false }));
+    if (step === 'filters') {
+      this.expStudioService.setFilterLogic(null);
+      this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
+    } else if (step === 'setup') {
+      this.appliedPreprocessingRules = {};
+      this.pendingPreprocessingRules = {};
+      this.pendingOutlierRules = {};
+      this.appliedOutlierRules = {};
+      this.userEnabledOutliers.set(false);
+      this.persistAppliedDescriptivePreprocessing(null);
+      this.preprocessingStatus = 'none';
+      this.userPreprocessingApplied = false;
+      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummaryKey = '';
+      this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
+    } else if (step === 'transformation') {
+      this.resetTransformation();
+      this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    }
+    this.cdr.markForCheck();
+  }
+
+  get activeStagesCount(): number {
+    return (['filters', 'setup', 'transformation'] as const).filter((step) => this.isStepAdded(step)).length;
+  }
+
+  /** Track if outlier section is explicitly enabled by user */
+  readonly userEnabledOutliers = signal<boolean>(false);
+
+  get showOutliersSection(): boolean {
+    if (this.userEnabledOutliers()) return true;
+    const hasApplied = Object.values(this.appliedOutlierRules).some((r) => r && r.enabled);
+    const hasPending = Object.values(this.pendingOutlierRules).some((r) => r && r.enabled);
+    return hasApplied || hasPending;
+  }
+
+  enableOutlierHandling(): void {
+    this.userEnabledOutliers.set(true);
+    this.preprocessingStepOpen.outlier = true;
+    this.cdr.markForCheck();
+  }
+
+  removeOutlierHandling(): void {
+    this.userEnabledOutliers.set(false);
+    for (const code of Object.keys(this.pendingOutlierRules)) {
+      if (this.pendingOutlierRules[code]) {
+        this.pendingOutlierRules[code].enabled = false;
+      }
+    }
+    for (const code of Object.keys(this.appliedOutlierRules)) {
+      if (this.appliedOutlierRules[code]) {
+        this.appliedOutlierRules[code].enabled = false;
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  finishDataHandling(): void {
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  get preprocessingStatusLabel(): string {
+    if (this.pendingChangeCount > 0) return 'Pending changes';
+    if (this.preprocessingStatus === 'applied') {
+      const count = this.appliedPreprocessingCount;
+      return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
+    }
+    return 'Default';
+  }
+
+  /**
+   * Sub-steps the pipeline will actually run, read from the persisted request
+   * config so the rail can never disagree with the next run. Missing values is
+   * always present: default NA removal is an active step even when untouched.
+   */
+  get appliedPreprocessingSubNodes(): PipelineSubNode[] {
+    const config = this.expStudioService.appliedPreprocessingConfig() ?? {};
+    const nodes: PipelineSubNode[] = [this.missingValuesSubNode(config)];
+
+    const outlier = config['outlier_winsorizer'] as { strategies?: Record<string, unknown> } | undefined;
+    const outlierStrategies = Object.values(outlier?.strategies ?? {});
+    if (outlierStrategies.length) {
+      nodes.push({
+        id: 'outlier',
+        icon: 'fas fa-line-chart',
+        title: 'Outlier Winsorizer',
+        subtitle: `Extreme values capped on ${outlierStrategies.length} ${outlierStrategies.length === 1 ? 'variable' : 'numerical variables'} (${Array.from(new Set(outlierStrategies.map((s) => outlierStrategyLabel(String(s))))).join(', ')})`,
+        statusLabel: 'Applied',
+        statusTone: this.hasPendingOutlierChanges ? 'pending' : 'applied',
+      });
+    }
+
+    const longitudinal = config['longitudinal_transformer'] as
+      | { visit1?: unknown; visit2?: unknown; strategies?: Record<string, unknown> }
+      | undefined;
+    if (longitudinal && this.isLongitudinalModel) {
+      const count = Object.keys(longitudinal.strategies ?? {}).length;
+      nodes.push({
+        id: 'longitudinal',
+        icon: 'fas fa-code-compare',
+        title: 'Longitudinal Comparison',
+        subtitle: `${this.visitLabel(longitudinal.visit1)} vs ${this.visitLabel(longitudinal.visit2)} strategy configured on ${count} ${count === 1 ? 'variable' : 'variables'}`,
+        statusLabel: 'Applied',
+        statusTone: this.pendingLongitudinalChangeCount > 0 ? 'pending' : 'applied',
+      });
+    }
+
+    return nodes;
+  }
+
+  get appliedPreprocessingCount(): number {
+    return this.appliedPreprocessingSubNodes.filter((node) => node.statusTone === 'applied').length;
+  }
+
+  /** A derived column only exists once its config is persisted; otherwise the stage stays empty. */
+  get appliedTransformationSubNodes(): PipelineSubNode[] {
+    const persisted = this.expStudioService.appliedPreprocessingConfig()?.['categorical_column_creator'];
+    const creators = Array.isArray(persisted) ? persisted : persisted ? [persisted] : [];
+    const statusTone: PipelineSubNode['statusTone'] =
+      this.transformationStatusLabel === 'Applied' ? 'applied' : 'pending';
+    const nodes: PipelineSubNode[] = [];
+    creators.forEach((raw, index) => {
+      const creator = raw as { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown };
+      const code = String(creator?.code ?? '').trim();
+      if (!code) return;
+      const ruleCount = Object.keys(creator?.rules ?? {}).length;
+      const fallback = String(creator?.default_enumeration ?? '').trim();
+      nodes.push({
+        id: `transformation:${code || index}`,
+        icon: 'fas fa-tag',
+        title: `Derived column: ${code}`,
+        subtitle: `${ruleCount} ${ruleCount === 1 ? 'category rule' : 'category rules'} configured${fallback ? ` · default: ${fallback}` : ''}`,
+        statusLabel: 'Applied',
+        statusTone,
+      });
+    });
+    return nodes;
+  }
+
+  get appliedTransformationCount(): number {
+    return this.appliedTransformationSubNodes.length;
+  }
+
+  /** Expands the owning stage and opens only the clicked station. */
+  jumpToSubNode(stage: 'setup' | 'transformation', subNode: PipelineSubNode['id']): void {
+    this.goToSection(stage);
+    if (stage === 'transformation') {
+      this.preprocessingStepOpen.transformation = true;
+      return;
+    }
+    for (const step of ['missing', 'outlier', 'longitudinal'] as const) {
+      this.preprocessingStepOpen[step] = step === subNode;
+    }
+    if (subNode === 'outlier') this.userEnabledOutliers.set(true);
+    this.cdr.markForCheck();
+  }
+
+  private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
+    const handler = config['missing_values_handler'] as
+      | { strategies?: Record<string, unknown> }
+      | undefined;
+    const entries = Object.entries(handler?.strategies ?? {}).filter(([, action]) => action !== 'no_action');
+    const imputed = entries.filter(([, action]) => action !== 'drop');
+    const pending = this.hasPendingMissingChanges ? 'pending' : 'applied';
+
+    if (imputed.length) {
+      const summary = imputed.slice(0, 3).map(([code, action]) => {
+        const variable = this.preprocessingVariables.find((v) => v.code === code);
+        return `${variable ? this.variableLabel(variable) : code}: ${this.missingStrategyLabel(String(action))}`;
+      });
+      return {
+        id: 'missing',
+        icon: 'fas fa-eraser',
+        title: 'Missing Values Strategy',
+        subtitle: `Imputation configured for ${imputed.length} ${imputed.length === 1 ? 'variable' : 'variables'} (${summary.join(', ')}${imputed.length > 3 ? ', …' : ''})`,
+        statusLabel: 'Applied',
+        statusTone: pending,
+      };
+    }
+
+    if (entries.length) {
+      return {
+        id: 'missing',
+        icon: 'fas fa-eraser',
+        title: 'Missing Values Handler',
+        subtitle: `Rows with missing values removed for ${entries.length} ${entries.length === 1 ? 'variable' : 'variables'}`,
+        statusLabel: 'Applied',
+        statusTone: pending,
+      };
+    }
+
+    return {
+      id: 'missing',
+      icon: 'fas fa-eraser',
+      title: 'Missing Values Handler',
+      subtitle: 'Default NaN removal active across all selected variables',
+      statusLabel: 'Default',
+      statusTone: 'default',
+    };
+  }
+
+  private missingStrategyLabel(action: string): string {
+    return this.missingActions.find((item) => item.value === action)?.label ?? action;
+  }
+
+  private visitLabel(code: unknown): string {
+    const value = String(code ?? '');
+    return this.visitOptions.find((option) => option.code === value)?.label ?? value;
+  }
+
+  get filteringStatusLabel(): string {
+    const count = this.filterRuleCount();
+    if (count > 0) return `Applied ✓ (${count} ${count === 1 ? 'rule' : 'rules'})`;
+    return 'No filters applied';
+  }
 
   readonly missingActions: Array<{ value: MissingAction; label: string }> = [
     { value: 'drop', label: 'Remove rows' },
@@ -229,6 +535,16 @@ export class StatisticAnalysisPanelComponent {
     { value: 'median', label: 'Median imputation' },
     { value: 'constant', label: 'Constant value' },
   ];
+
+  transformationActiveTab: 'Create' | 'Statistics' = 'Create';
+  /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
+  transformationDrafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
+  transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
+  isTransformationStatsLoading = false;
+  transformationStatisticsError = '';
+  /** Blocks Apply when two cards share a derived column name. */
+  transformationApplyError = '';
+  private transformationStatsRequestId = 0;
 
   readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
     { value: 'diff', label: 'Diff (Visit 2 - Visit 1)' },
@@ -268,7 +584,6 @@ export class StatisticAnalysisPanelComponent {
   private processedSummaryKey = '';
   private scrollRequestId = 0;
   private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
-  private keepProcessedSectionOpenOnNextReconcile = false;
   private readonly guideState = inject(ExperimentStudioGuideStateService);
 
   constructor() {
@@ -291,6 +606,7 @@ export class StatisticAnalysisPanelComponent {
           missing: layout.preprocessingStep === 'missing',
           outlier: layout.preprocessingStep === 'outlier',
           longitudinal: layout.preprocessingStep === 'longitudinal',
+          transformation: false,
         };
       }
       this.cdr.markForCheck();
@@ -305,18 +621,17 @@ export class StatisticAnalysisPanelComponent {
 
     effect(() => {
       const variables = this.expStudioService.selectedVariables();
-      const covariates = this.expStudioService.selectedCovariates();
       const filters = this.expStudioService.selectedFilters();
       const filterLogic = this.expStudioService.filterLogic();
       const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
-      const nextSelectionKey = this.buildSelectionKey(variables, covariates, filters, filterLogic, appliedPreprocessing);
+      const nextSelectionKey = this.buildSelectionKey(variables, filters, filterLogic, appliedPreprocessing);
 
       if (nextSelectionKey !== this.selectionKey) {
         this.selectionKey = nextSelectionKey;
         this.reconcilePreprocessingForSelection();
       }
 
-      if (!variables.length && !covariates.length && !filters.length) {
+      if (!variables.length && !filters.length) {
         this.rawSummary = this.createEmptySummary(false);
         this.processedSummary = this.createEmptySummary(false);
         this.processedData = [];
@@ -346,6 +661,78 @@ export class StatisticAnalysisPanelComponent {
 
   get pendingChangeCount(): number {
     return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount;
+  }
+
+  readonly filterRuleCount = computed(() =>
+    countFilterRules(this.expStudioService.filterLogic())
+  );
+
+  /** Drafts that already form a valid column config (code + at least one filtered rule). */
+  private transformationConfigs(): Record<string, unknown>[] {
+    return this.transformationDrafts
+      .map((draft) => this.buildTransformationConfigForDraft(draft))
+      .filter((config): config is Record<string, unknown> => !!config);
+  }
+
+  /** A draft counts as touched once the user typed any column name, default, or rule. */
+  private draftHasWork(draft: TransformationColumnDraft): boolean {
+    return (
+      draft.code.trim().length > 0 ||
+      draft.defaultEnumeration.trim().length > 0 ||
+      draft.rules.some((rule) => rule.value.trim().length > 0 || !!rule.filter)
+    );
+  }
+
+  /** Two columns cannot share a name: exaflow errors when `code` already exists. */
+  get transformationHasDuplicateCodes(): boolean {
+    const codes = this.transformationDrafts.map((draft) => draft.code.trim()).filter((code) => code.length > 0);
+    return new Set(codes).size !== codes.length;
+  }
+
+  get transformationHasPendingChange(): boolean {
+    if (this.transformationHasDuplicateCodes) return true;
+    return this.transformationDrafts.some(
+      (draft) => this.draftHasWork(draft) && !this.buildTransformationConfigForDraft(draft)
+    );
+  }
+
+  get transformationStatusLabel(): string {
+    const validCount = this.transformationConfigs().length;
+    if (validCount > 0 && !this.transformationHasPendingChange) return 'Applied';
+    if (
+      validCount > 0
+      || this.transformationHasPendingChange
+      || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
+    ) {
+      return 'Pending';
+    }
+    return 'Not defined';
+  }
+
+  get transformationIsValid(): boolean {
+    return (
+      this.transformationConfigs().length > 0
+      && !this.transformationHasDuplicateCodes
+      && !this.transformationRulesNeedFilters
+    );
+  }
+
+  /** Pipeline-header badge: shows the derived-column count once applied. */
+  get transformationBadgeLabel(): string {
+    const count = this.appliedTransformationCount;
+    if (this.transformationStatusLabel === 'Applied' && count > 0) {
+      return `${count} ${count === 1 ? 'Transformation' : 'Transformations'} active`;
+    }
+    return this.transformationStatusLabel;
+  }
+
+  /** True when a named category on any card is still missing an applied filter. */
+  get transformationRulesNeedFilters(): boolean {
+    return this.transformationDrafts.some((draft) => {
+      if (!draft.code.trim()) return false;
+      const named = draft.rules.filter((rule) => rule.value.trim().length > 0);
+      return named.length > 0 && named.some((rule) => !rule.filter);
+    });
   }
 
   get pendingMissingChangeCount(): number {
@@ -403,23 +790,10 @@ export class StatisticAnalysisPanelComponent {
     return this.serializeLongitudinalState(false) === this.serializeLongitudinalState(true) ? 0 : 1;
   }
 
-  get preprocessingStatusLabel(): string {
-    if (this.pendingChangeCount > 0) return `${this.pendingChangeCount} pending ${this.pendingChangeCount === 1 ? 'step' : 'steps'}`;
-    if (this.preprocessingStatus === 'applied') return 'Preprocessing applied';
-    return 'Required';
-  }
-
-  get preprocessingStatusClass(): string {
-    if (this.pendingChangeCount > 0) return 'status-amber';
-    if (this.preprocessingStatus === 'applied') return 'status-green';
-    return 'status-neutral';
-  }
-
   get preprocessingVariables(): VariableRow[] {
     const selectedVars = this.expStudioService.selectedVariables() as VariableRow[];
-    const selectedCovars = this.expStudioService.selectedCovariates() as VariableRow[];
     return Array.from(
-      new Map([...selectedVars, ...selectedCovars].map((variable) => [variable.code, variable])).values()
+      new Map(selectedVars.map((variable) => [variable.code, variable])).values()
     ).filter((variable) => !!variable?.code);
   }
 
@@ -661,22 +1035,6 @@ export class StatisticAnalysisPanelComponent {
     return this.expStudioService.selectedFilters() as VariableRow[];
   }
 
-  get activeFilterRuleCount(): number {
-    return this.countFilterRules(this.expStudioService.filterLogic());
-  }
-
-  get filterStatusLabel(): string {
-    if (this.activeFilterRuleCount > 0) {
-      return `${this.activeFilterRuleCount} active ${this.activeFilterRuleCount === 1 ? 'rule' : 'rules'}`;
-    }
-    return 'Optional';
-  }
-
-  get filterStatusClass(): string {
-    if (this.activeFilterRuleCount > 0) return 'status-green';
-    return 'status-neutral';
-  }
-
   get isLongitudinalModel(): boolean {
     return !!this.expStudioService.selectedDataModel()?.longitudinal;
   }
@@ -696,7 +1054,7 @@ export class StatisticAnalysisPanelComponent {
 
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
     const summary = this.getSummary(kind);
-    summary.activeTab = tab;
+    summary.activeTab = summary.activeTab === tab && tab !== 'Statistics' ? 'Statistics' : tab;
     if (tab === 'Histogram') {
       const block = this.selectedStatisticBlock(kind);
       if (block) this.ensureHistogramForBlock(kind, block);
@@ -751,25 +1109,6 @@ export class StatisticAnalysisPanelComponent {
     return this.statisticBlockType(kind, block) === 'numeric' ? 'Numerical' : 'Categorical';
   }
 
-  statisticDatapointsLabel(block: PivotBlock): string {
-    const datapoints = this.statisticMetricText(block, 'Datapoints');
-    if (datapoints === 'N/A') return 'Datapoints unavailable';
-    const count = Number(datapoints.replace(/,/g, ''));
-    return count === 1 ? '1 datapoint' : `${datapoints} datapoints`;
-  }
-
-  statisticMissingLabel(block: PivotBlock): string {
-    return `${this.statisticMissingValue(block).toLocaleString()} missing`;
-  }
-
-  statisticMissingSeverity(block: PivotBlock): 'none' | 'warning' | 'high' {
-    const missing = this.statisticMissingValue(block);
-    if (missing <= 0) return 'none';
-    const total = this.statisticMetricNumber(block, 'Total');
-    if (total > 0 && missing / total >= 0.1) return 'high';
-    return 'warning';
-  }
-
   selectedSummaryChartType(kind: SummaryKind, block: PivotBlock): 'numeric' | 'nominal' {
     return this.statisticBlockType(kind, block);
   }
@@ -811,32 +1150,214 @@ export class StatisticAnalysisPanelComponent {
   }
 
   goToSection(section: SectionKey): void {
-    this.sectionOpen = {
-      raw: section === 'raw',
-      setup: section === 'setup',
-      filters: section === 'filters',
-      processed: section === 'processed',
-    };
+    const filtersStation = section === 'filters' || section === 'raw';
+    const setupStation = section === 'setup' || section === 'processed';
+    const previewFilters = section === 'raw';
+    const previewSetup = section === 'processed';
+    if (filtersStation) {
+      this.addedSteps.update((s) => ({ ...s, filters: true }));
+    }
+    if (setupStation) {
+      this.addedSteps.update((s) => ({ ...s, setup: true }));
+    }
+    if (section === 'transformation') {
+      this.addedSteps.update((s) => ({ ...s, transformation: true }));
+    }
+    this.summaryExpanded.set({
+      filters: previewFilters,
+      setup: previewSetup,
+    });
+    this.sectionOpen.set({
+      filters: filtersStation && !previewFilters,
+      raw: previewFilters,
+      setup: setupStation && !previewSetup,
+      processed: previewSetup,
+      transformation: section === 'transformation',
+    });
+    if (section === 'transformation') {
+      this.transformationActiveTab = 'Create';
+    }
     this.cdr.markForCheck();
     this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
   }
 
+  toggleSummaryWorkspace(kind: SummaryKind): void {
+    if (kind === 'raw') {
+      this.goToSection(this.sectionOpen().raw ? 'filters' : 'raw');
+      return;
+    }
+    this.updatePreprocessingStatus();
+    if (!this.sectionOpen().processed) {
+      this.fetchProcessedSummaryForAppliedPreprocessing();
+    }
+    this.goToSection(this.sectionOpen().processed ? 'setup' : 'processed');
+  }
+
   collapseAllWorkflowSections(): void {
-    this.sectionOpen = {
+    this.sectionOpen.set({
       raw: false,
       setup: false,
       filters: false,
       processed: false,
-    };
+      transformation: false,
+    });
     this.cdr.markForCheck();
   }
 
-  toggleSection(section: 'raw' | 'setup' | 'filters' | 'processed'): void {
-    this.sectionOpen[section] = !this.sectionOpen[section];
+  toggleSection(section: SectionKey): void {
+    this.sectionOpen.update((open) => ({
+      ...open,
+      [section]: !open[section],
+    }));
   }
 
-  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal'): void {
+  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal' | 'transformation'): void {
     this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
+  }
+
+  /** Maps a station status label onto the shared chip states (Default / Pending / Applied). */
+  statusTone(label: string, pending = false): StationStatus {
+    if (pending) return 'pending';
+    return label === 'Applied' ? 'applied' : 'default';
+  }
+
+  setTransformationActiveTab(tab: 'Create' | 'Statistics'): void {
+    this.transformationActiveTab = tab;
+    if (tab === 'Statistics') {
+      this.refreshTransformationStatistics();
+    }
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Persist live category-filter builders onto every rule (across all cards) without
+   * touching cohort filters. `#ruleModal` renders one modal per rule in DOM order, so a
+   * single running index walks drafts and their rules in the same order the template emits.
+   */
+  commitTransformationRuleFilters(): boolean {
+    const modals = this.transformationRuleModals?.toArray() ?? [];
+    let modalIndex = 0;
+    for (const draft of this.transformationDrafts) {
+      for (const rule of draft.rules) {
+        const modal = modals[modalIndex++];
+        if (!modal) {
+          continue;
+        }
+        const logic = modal.exportFilterLogic();
+        if (modal.filterError()) {
+          return false;
+        }
+        rule.filter = logic;
+      }
+    }
+    this.onTransformationChange();
+    return true;
+  }
+
+  previewTransformationData(): void {
+    if (!this.commitTransformationRuleFilters()) {
+      return;
+    }
+    this.setTransformationActiveTab('Statistics');
+  }
+
+  /** Clear the transformation station: pending edits and the committed config alike. */
+  resetTransformation(): void {
+    this.transformationDrafts = [emptyTransformationDraft()];
+    this.transformationStatistics = [];
+    this.transformationStatisticsError = '';
+    this.transformationApplyError = '';
+    this.onTransformationChange();
+  }
+
+  /**
+   * Transformation is optional: committing is a no-op when nothing is configured.
+   * Apply keeps the user on the pipeline. A stage that now holds derived columns
+   * folds back to its sub-node overview, so the whole rail can be reviewed before
+   * Continue to Algorithm Selection. An untouched stage has nothing to review, so
+   * its editor stays open rather than collapsing to an empty overview.
+   */
+  applyTransformation(): void {
+    this.transformationApplyError = '';
+    if (!this.commitTransformationRuleFilters()) {
+      return;
+    }
+    if (this.transformationRulesNeedFilters) {
+      return;
+    }
+    if (this.transformationHasDuplicateCodes) {
+      this.transformationApplyError = 'Each derived column needs a unique name.';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!this.transformationConfigs().length) {
+      this.cdr.markForCheck();
+      return;
+    }
+    // Accepted: fold the cards and then the stage. The drafts keep their values,
+    // so reopening resumes where the user left off, on the editor and not on
+    // whatever preview tab they happened to be on.
+    this.transformationActiveTab = 'Create';
+    this.transformationDrafts.forEach((draft) => {
+      draft.open = false;
+    });
+    this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    this.cdr.markForCheck();
+  }
+
+  addTransformationRule(draft: TransformationColumnDraft): void {
+    draft.rules.push({ value: '', filter: null });
+    this.onTransformationChange();
+  }
+
+  removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    draft.rules.splice(index, 1);
+    this.onTransformationChange();
+  }
+
+  /** Per-card chip: a card is Applied only when it is complete and its name is unique. */
+  transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
+    const code = draft.code.trim();
+    const isDuplicate = !!code && this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code);
+    if (this.buildTransformationConfigForDraft(draft)) {
+      return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
+    }
+    if (this.draftHasWork(draft) || isDuplicate) return { label: 'Pending', tone: 'pending' };
+    return { label: 'Not defined', tone: 'default' };
+  }
+
+  toggleTransformationDraft(draft: TransformationColumnDraft): void {
+    draft.open = !draft.open;
+    this.cdr.markForCheck();
+  }
+
+  /** Append another empty "Create new categorical column" card. */
+  addTransformationDraft(): void {
+    this.transformationDrafts.push(emptyTransformationDraft());
+    this.transformationApplyError = '';
+    this.onTransformationChange();
+  }
+
+  /**
+   * Remove a card. The first card is the primary one: it is cleared, not removed,
+   * so the stage always keeps at least one editor (same behavior as shared Clear).
+   */
+  removeTransformationDraft(id: number): void {
+    const index = this.transformationDrafts.findIndex((draft) => draft.id === id);
+    if (index < 0) {
+      return;
+    }
+    if (this.transformationDrafts.length === 1) {
+      this.transformationDrafts[0] = emptyTransformationDraft();
+    } else {
+      this.transformationDrafts.splice(index, 1);
+    }
+    this.transformationApplyError = '';
+    this.onTransformationChange();
+  }
+
+  onTransformationInput(): void {
+    this.onTransformationChange();
   }
 
   preprocessingStepDocumentation(stepName: string): string {
@@ -931,6 +1452,183 @@ export class StatisticAnalysisPanelComponent {
 
     flushList();
     return parts.join('');
+  }
+
+  // ── Preprocessing evidence ────────────────────────────────────────────────
+  // A preprocessing form states a decision but never priced it. These read the
+  // descriptive stats already loaded for the Raw summary, so "Remove rows" can
+  // say how many rows it removes. Every helper returns null/empty when the
+  // stats have not arrived; the editor then shows no evidence at all rather
+  // than an estimate — an unpriced decision is honest, a made-up price is not.
+  summaryBlockFor(variable: VariableRow): PivotBlock | null {
+    return this.rawSummary.data.find((block) => this.variableCodeForBlock(block) === variable.code) ?? null;
+  }
+
+  coverageFor(variable: VariableRow): { total: number; missing: number; share: number } | null {
+    return this.blockCoverage(this.summaryBlockFor(variable));
+  }
+
+  /** Block-based coverage. Both rails price a variable the same way, so the
+   *  lookup lives here and coverageFor() stays the variable-based entry. */
+  blockCoverage(block: PivotBlock | null | undefined): { total: number; missing: number; share: number } | null {
+    if (!block) return null;
+    const total = this.statisticMetricNumber(block, 'Total');
+    if (total <= 0) return null;
+    const missing = Math.min(this.statisticMissingValue(block), total);
+    return { total, missing, share: missing / total };
+  }
+
+  /** Display-only grouping. The pivot keeps machine-readable strings so CSV
+   *  export stays numeric — a quoted "289,788" reads as text in pandas — and
+   *  every numeric lookup keeps parsing. Only what a human reads gets
+   *  separators, and trailing zeros drop out because they carry no information
+   *  the way toFixed(2) printed them (47334358.00, 112.00). */
+  displayNumber(value: string | undefined | null): string {
+    if (!value || value === 'N/A') return value ?? '';
+    const n = Number(value.replace(/,/g, ''));
+    if (!Number.isFinite(n)) return value;
+    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  /** Missing is only interpretable against Total. The bare count forces the
+   *  reader to divide before they can act, and this table is where the
+   *  preprocessing decision is actually made. Deliberately not severity-coloured:
+   *  the rail colours a list you compare across, while this table shows one
+   *  variable whose datasets usually share one share, so the same red would
+   *  paint every cell and rank nothing. */
+  missingShareNote(block: PivotBlock, row: PivotBlock['rows'][number], dataset: string): string | null {
+    if (row.metric !== 'Missing') return null;
+    const parse = (metric: string) =>
+      Number((block.rows.find((item) => item.metric === metric)?.values[dataset] ?? '').replace(/,/g, ''));
+    const missing = parse('Missing');
+    const total = parse('Total');
+    if (!Number.isFinite(missing) || !Number.isFinite(total) || total <= 0) return null;
+    return this.coveragePercent({ share: Math.min(missing / total, 1) });
+  }
+
+  /** The rail's foot: coverage re-pooled over every variable currently shown.
+   *  Per-variable shares are not additive, so this sums the counts and divides
+   *  once — averaging 0.7% and 100% would state a number that describes no
+   *  dataset. Null when no shown block has statistics, so the foot disappears
+   *  rather than reporting 0%. */
+  selectionCoverage(kind: SummaryKind): { total: number; missing: number; share: number; variables: number } | null {
+    let total = 0;
+    let missing = 0;
+    let variables = 0;
+    for (const block of this.filteredStatisticBlocks(kind)) {
+      const coverage = this.blockCoverage(block);
+      if (!coverage) continue;
+      total += coverage.total;
+      missing += coverage.missing;
+      variables += 1;
+    }
+    if (variables === 0 || total <= 0) return null;
+    return { total, missing, share: Math.min(missing / total, 1), variables };
+  }
+
+  /** The pooled column is a rollup, not another dataset. Normalised through the
+   *  same label lookup the header uses, because the pivot columns are already
+   *  labelled and the header labels them again — this holds either way. */
+  isRollupColumn(column: string): boolean {
+    return this.datasetLabel(column) === this.datasetLabel('all datasets');
+  }
+
+  private isCountMetric(metric: string | undefined): boolean {
+    return metric === 'Datapoints' || metric === 'Missing' || metric === 'Total';
+  }
+
+  /** Group heading rendered above rows[index], or null when the row continues
+   *  the group above it. A group starts where count-ness changes. */
+  metricGroupLabel(rows: PivotBlock['rows'], index: number): string | null {
+    const here = this.isCountMetric(rows[index]?.metric);
+    if (index === 0 || this.isCountMetric(rows[index - 1]?.metric) !== here) {
+      return here ? 'Coverage' : 'Distribution';
+    }
+    return null;
+  }
+
+  coveragePercent(coverage: { share: number }): string {
+    const pct = coverage.share * 100;
+    return `${pct >= 10 || pct === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+  }
+
+  /** The full count belongs in its tooltip; the row only carries the share. */
+  coverageTitle(coverage: { total: number; missing: number }): string {
+    return `${coverage.missing.toLocaleString()} of ${coverage.total.toLocaleString()} values missing`;
+  }
+
+  /** An unpriced decision must say why it is unpriced, not render blank.
+     Shared by both preprocessing evidence panes. */
+  summaryUnavailableNote(): string {
+    return this.rawSummary.isLoading
+      ? 'Loading dataset statistics\u2026'
+      : 'No dataset statistics are available for this variable, so neither the distribution nor the row cost can be shown.';
+  }
+
+  /** Three bands. At the old single 10% floor 30% and 100% rendered in the same
+   *  red, so across a rail of variables the colour ranked nothing. 10% keeps the
+   *  studio's existing "worth noticing" onset; 50% is where a variable stops
+   *  being usable. The exact figure always sits beside the colour. */
+  coverageSeverity(coverage: { share: number }): 'none' | 'warning' | 'high' {
+    if (coverage.share >= 0.5) return 'high';
+    if (coverage.share >= 0.1) return 'warning';
+    return 'none';
+  }
+
+  distributionFor(variable: VariableRow): Array<{ label: string; value: string }> {
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    // A nominal block carries no quantile rows at all, so the lookups come back
+    // 'N/A'; those are absent data, not values, and must not render as a row of N/A.
+    return (['min', 'q1', 'q2', 'q3', 'max'] as const)
+      .map((key) => ({
+        label: this.metricLabel[key],
+        value: this.displayNumber(this.statisticMetricText(block, this.metricLabel[key])),
+      }))
+      .filter((point) => point.value !== 'N/A');
+  }
+
+  /** Category frequencies. In the pivot these are the rows after the three
+   *  count metrics, so anything that is not a count metric is a category — but
+   *  only for a nominal block. A numeric block's remaining rows are Mean/Std/
+   *  Min/Q1/Q2/Q3/Max, which are not categories and were being relabelled. */
+  categoryCountsFor(variable: VariableRow, limit = 6): Array<{ label: string; value: string; share: number }> {
+    if (!this.isCategoricalVariable(variable)) return [];
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    const base = new Set(['Datapoints', 'Missing', 'Total']);
+    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
+    const datapoints = Number((block.rows.find((row) => row.metric === 'Datapoints')?.values[dataset] ?? '').replace(/,/g, ''));
+    return block.rows
+      .filter((row) => !base.has(row.metric))
+      .map((row) => {
+        const value = row.values[dataset] ?? '';
+        const count = Number(value.replace(/,/g, ''));
+        return {
+          label: row.metric,
+          value: this.displayNumber(value || '0'),
+          share: Number.isFinite(count) && datapoints > 0 ? Math.min(count / datapoints, 1) : 0,
+        };
+      })
+      .slice(0, limit);
+  }
+
+  /** The selected missing-value action restated in rows, so it can be judged. */
+  missingActionConsequence(variable: VariableRow): string | null {
+    const coverage = this.coverageFor(variable);
+    if (!coverage) return null;
+    const total = coverage.total.toLocaleString();
+    const missing = coverage.missing.toLocaleString();
+    const share = this.coveragePercent(coverage);
+    const action = this.ruleFor(variable).action;
+    if (action === 'drop') {
+      return coverage.missing > 0
+        ? `Drops up to ${missing} of ${total} rows (${share}).`
+        : `No missing values, so no rows are dropped.`;
+    }
+    if (action === 'no_action') return `${missing} of ${total} values (${share}) stay missing.`;
+    const fill = action === 'constant' ? 'a fixed value' : `the ${action}`;
+    return `Fills ${missing} of ${total} values (${share}) with ${fill}. Rows kept.`;
   }
 
   ruleFor(variable: VariableRow): PreprocessingRule {
@@ -1213,9 +1911,9 @@ export class StatisticAnalysisPanelComponent {
       this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
       this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
       this.processedSummary = this.createEmptySummary(false);
-      this.expStudioService.setAppliedDescriptivePreprocessing(null);
+      this.persistAppliedDescriptivePreprocessing(null);
       this.preprocessingStatus = 'none';
-      this.sectionOpen.processed = false;
+      this.sectionOpen.update((open) => ({ ...open, processed: false }));
       this.successMessage = '';
       this.emitProgressState();
       this.cdr.markForCheck();
@@ -1225,6 +1923,7 @@ export class StatisticAnalysisPanelComponent {
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
     this.isApplyingPreprocessing = true;
     this.processedSummary = this.createEmptySummary(true);
+    this.summaryExpanded.update((expanded) => ({ ...expanded, setup: true }));
     this.goToSection('processed');
     this.preprocessingValidationErrors = {};
     this.outlierValidationErrors = {};
@@ -1246,21 +1945,22 @@ export class StatisticAnalysisPanelComponent {
         this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
         this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
         this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
-        this.keepProcessedSectionOpenOnNextReconcile = true;
-        this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
+        this.persistAppliedDescriptivePreprocessing(preprocessing);
+        this.userPreprocessingApplied = true;
         this.preprocessingStatus = 'applied';
         this.isApplyingPreprocessing = false;
         this.successMessage = '';
         this.refreshActiveHistogramPreview('processed');
         this.emitProgressState();
-        this.sectionOpen.processed = true;
+        // Apply & Continue: hand the user to the next station, not to the summary they just applied.
+        this.goToSection('transformation');
         this.cdr.markForCheck();
       },
       error: (err) => {
         console.error(err);
         this.isApplyingPreprocessing = false;
         this.processedSummary = this.createEmptySummary(false);
-        this.sectionOpen.processed = true;
+        this.sectionOpen.update((open) => ({ ...open, processed: true }));
         this.cdr.markForCheck();
       },
     });
@@ -1429,20 +2129,31 @@ export class StatisticAnalysisPanelComponent {
   }
 
   private sectionElement(section: SectionKey): ElementRef<HTMLElement> | undefined {
-    if (section === 'raw') return this.rawSection;
-    if (section === 'setup') return this.setupSection;
-    if (section === 'filters') return this.filtersSection;
-    return this.processedSection;
+    switch (section) {
+      case 'raw':
+        return this.rawSection;
+      case 'setup':
+        return this.setupSection;
+      case 'filters':
+        return this.filtersSection;
+      case 'processed':
+        return this.processedSection;
+      case 'transformation':
+        return this.transformationSection;
+      default: {
+        const _exhaustive: never = section;
+        return _exhaustive;
+      }
+    }
   }
 
   private scrollSectionIntoView(section: SectionKey): void {
     const element = this.sectionElement(section)?.nativeElement;
     if (!element) return;
 
-    const target = element.querySelector<HTMLElement>('.workflow-section-header') ?? element;
     requestAnimationFrame(() => {
       window.scrollTo({
-        top: Math.max(target.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0),
+        top: Math.max(element.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0),
         behavior: 'smooth',
       });
     });
@@ -1716,8 +2427,7 @@ export class StatisticAnalysisPanelComponent {
     'chartsForBoxPlot' | 'chartsForNominal' | 'activeBoxPlotIndex' | 'activeNominalIndex'
   > {
     const selectedVars = this.expStudioService.selectedVariables() as VariableRow[];
-    const selectedCovars = this.expStudioService.selectedCovariates() as VariableRow[];
-    const unique = Array.from(new Map([...selectedVars, ...selectedCovars].map((v) => [v.code, v])).values());
+    const unique = Array.from(new Map(selectedVars.map((v) => [v.code, v])).values());
 
     const varsWithCounts = new Set<string>();
     for (const item of featurewise) {
@@ -1843,6 +2553,182 @@ export class StatisticAnalysisPanelComponent {
     return Object.keys(config).length ? config : null;
   }
 
+  /** Build the exaflow config for one card, or null when it is not yet complete. */
+  buildTransformationConfigForDraft(draft: TransformationColumnDraft): Record<string, unknown> | null {
+    const code = draft.code.trim();
+    if (!code) return null;
+    const rules: Record<string, BackendFilter> = {};
+    for (const r of draft.rules) {
+      const value = r.value.trim();
+      if (value && r.filter) rules[value] = r.filter;
+    }
+    if (!Object.keys(rules).length) return null;
+    const config: Record<string, unknown> = {
+      code,
+      strategy: 'filter_rules',
+      rules,
+    };
+    const def = draft.defaultEnumeration.trim();
+    if (def) config['default_enumeration'] = def;
+    return config;
+  }
+
+  /**
+   * Payload for the shared store: one object for a single column (legacy shape) or
+   * an array for two+. Incomplete cards drop out, and a duplicate-name card never
+   * reaches the store (only the first occurrence of a code is kept).
+   */
+  private transformationConfigPayload(): Record<string, unknown> | Record<string, unknown>[] | null {
+    const seen = new Set<string>();
+    const configs: Record<string, unknown>[] = [];
+    for (const config of this.transformationConfigs()) {
+      const code = String(config['code'] ?? '').trim();
+      if (code) {
+        if (seen.has(code)) continue;
+        seen.add(code);
+      }
+      configs.push(config);
+    }
+    if (!configs.length) return null;
+    return configs.length === 1 ? configs[0] : configs;
+  }
+
+  onTransformationChange(): void {
+    // Transformation is written into APPLIED_DESCRIPTIVE_PREPROCESSING on edit (it
+    // does not wait for the shared Apply preprocessing button). The Pending/Applied
+    // chip derives from the live drafts, so no separate applied snapshot is kept.
+    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    this.emitProgressState();
+    this.cdr.markForCheck();
+  }
+
+  /** Placeholder (null-count) rows for one card so Preview shows the category shape. */
+  private placeholderRowsForDraft(draft: TransformationColumnDraft): Array<{ value: string; count: number | null }> {
+    const configuredValues = draft.rules.map((r) => r.value.trim()).filter((v) => v.length > 0);
+    const rows: Array<{ value: string; count: number | null }> = configuredValues.map((value) => ({ value, count: null }));
+    const def = draft.defaultEnumeration.trim();
+    if (def && !configuredValues.includes(def)) {
+      rows.push({ value: def, count: null });
+    }
+    return rows;
+  }
+
+  refreshTransformationStatistics(): void {
+    // One stats table per named card; counts come from a single describe over all columns.
+    const placeholderBlocks = this.transformationDrafts
+      .filter((draft) => draft.code.trim().length > 0)
+      .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) }));
+    const configs = this.transformationConfigs();
+
+    if (!configs.length) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError = this.transformationRulesNeedFilters
+        ? 'Each named category needs a filter before counts can be loaded.'
+        : '';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const columnCodes = configs.map((config) => String(config['code'] ?? '').trim()).filter(Boolean);
+    const columnSet = new Set(columnCodes);
+    const sourceCodes = Array.from(
+      new Set(
+        [
+          ...configs.flatMap((config) =>
+            Object.values((config['rules'] as Record<string, BackendFilter>) ?? {}).flatMap((filter) =>
+              this.expStudioService.filterVariableCodes(filter)
+            )
+          ),
+          ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
+        ]
+          .map((code) => String(code).trim())
+          .filter((code) => !!code && !columnSet.has(code))
+      )
+    );
+
+    if (!sourceCodes.length) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError =
+        'Category filters must reference at least one data-model variable before counts can be loaded.';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const requestId = ++this.transformationStatsRequestId;
+    this.isTransformationStatsLoading = true;
+    this.transformationStatisticsError = '';
+    this.transformationStatistics = placeholderBlocks;
+    this.cdr.markForCheck();
+
+    const preprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
+    this.expStudioService
+      .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
+      .subscribe({
+        next: (response) => {
+          if (requestId !== this.transformationStatsRequestId) return;
+          if (!response) {
+            this.transformationStatisticsError = 'Failed to load category counts.';
+            this.isTransformationStatsLoading = false;
+            this.cdr.markForCheck();
+            return;
+          }
+          this.transformationStatistics = configs.map((config) => {
+            const code = String(config['code'] ?? '').trim();
+            const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
+            const def = String(config['default_enumeration'] ?? '').trim();
+            return {
+              code,
+              rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
+            };
+          });
+          const hasAnyCount = this.transformationStatistics.some((block) =>
+            block.rows.some((row) => typeof row.count === 'number' && Number.isFinite(row.count))
+          );
+          this.transformationStatisticsError = hasAnyCount
+            ? ''
+            : 'No counts were returned (privacy threshold or insufficient data after preprocessing).';
+          this.isTransformationStatsLoading = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          if (requestId !== this.transformationStatsRequestId) return;
+          this.transformationStatisticsError = 'Failed to load category counts.';
+          this.isTransformationStatsLoading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  private buildTransformationStatisticsFromDescribe(
+    response: unknown,
+    columnCode: string,
+    configuredValues: string[],
+    defaultEnumeration: string
+  ): Array<{ value: string; count: number | null }> {
+    const featurewise = getFeaturewiseDescribeRows(response);
+    const row =
+      featurewise.find(
+        (item: { variable?: string; dataset?: string }) =>
+          item?.variable === columnCode && String(item?.dataset ?? '') === 'all datasets'
+      ) ??
+      featurewise.find((item: { variable?: string }) => item?.variable === columnCode);
+    const counts = (row as { data?: { counts?: Record<string, number> } })?.data?.counts ?? {};
+    const ordered = [...configuredValues];
+    if (defaultEnumeration && !ordered.includes(defaultEnumeration)) {
+      ordered.push(defaultEnumeration);
+    }
+    Object.keys(counts).forEach((key) => {
+      if (!ordered.includes(key)) ordered.push(key);
+    });
+    return ordered.map((value) => {
+      const raw = counts[value];
+      const count = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+      return { value, count };
+    });
+  }
+
   private buildMissingPreprocessingConfig(
     rules: Record<string, PreprocessingRule>,
     allowedCodes = this.currentPreprocessingCodeSet()
@@ -1957,9 +2843,18 @@ export class StatisticAnalysisPanelComponent {
     const appliedPreprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
     if (appliedPreprocessing) {
       this.hydrateAppliedPreprocessing(appliedPreprocessing, currentCodes);
+      // Edit-mode hydration: the saved experiment already had preprocessing
+      // applied, so its step is genuinely complete (not a fresh auto-applied
+      // default). Create mode must stay out: auto-applied defaults there are
+      // persisted into the applied config without a user apply.
+      if (this.expStudioService.editingExistingExperiment()) {
+        this.userPreprocessingApplied = true;
+      }
     } else {
       this.ensureDefaultRulesForCurrentSelection(currentCodes);
       this.ensureOutlierDefaultsForCurrentSelection();
+      // No persisted config means this session has no explicit apply yet.
+      this.userPreprocessingApplied = false;
     }
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
@@ -1968,40 +2863,17 @@ export class StatisticAnalysisPanelComponent {
     this.outlierValidationErrors = Object.fromEntries(
       Object.entries(this.outlierValidationErrors).filter(([code]) => outlierCodes.has(code))
     );
-    if (this.keepProcessedSectionOpenOnNextReconcile) {
-      this.sectionOpen.processed = true;
-      this.keepProcessedSectionOpenOnNextReconcile = false;
+    this.sectionOpen.update((open) => ({ ...open, processed: false }));
+    this.successMessage = '';
+    this.ensureLongitudinalDefaults();
+    this.updatePreprocessingStatus();
+    this.syncAppliedPreprocessingForCurrentSelection();
+    if (this.preprocessingStatus === 'applied') {
+      this.fetchProcessedSummaryForAppliedPreprocessing();
     } else {
       this.processedSummary = this.createEmptySummary(false);
       this.processedSummaryKey = '';
-      this.sectionOpen.processed = false;
     }
-    this.successMessage = '';
-    this.ensureLongitudinalDefaults();
-    this.tryAutoApplyDefaultMissingPreprocessing();
-    this.updatePreprocessingStatus();
-    this.syncAppliedPreprocessingForCurrentSelection();
-  }
-
-  private tryAutoApplyDefaultMissingPreprocessing(): void {
-    if (!this.preprocessingVariables.length) return;
-    if (this.hasPendingMissingChanges) return;
-    const hasUnappliedDefault = this.preprocessingVariables.some(
-      (variable) => this.isPreprocessingVariableUsingDefault(variable) && !this.hasAppliedPreprocessing(variable.code)
-    );
-    if (!hasUnappliedDefault) return;
-
-    this.ensureDefaultRulesForCurrentSelection();
-    this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
-      this.appliedPreprocessingRules,
-      this.pendingPreprocessingRules
-    );
-    const preprocessing = this.buildPreprocessingConfig(this.appliedPreprocessingRules);
-    if (!preprocessing) return;
-
-    this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
-    this.preprocessingStatus = 'applied';
-    this.emitProgressState();
   }
 
   private fetchProcessedSummaryForAppliedPreprocessing(): void {
@@ -2119,6 +2991,40 @@ export class StatisticAnalysisPanelComponent {
       this.appliedLongitudinalStrategies = appliedStrategies;
       this.pendingLongitudinalStrategies = { ...appliedStrategies };
     }
+
+    this.hydrateAppliedTransformation(preprocessing);
+  }
+
+  private hydrateAppliedTransformation(preprocessing: PreprocessingConfig): void {
+    const persisted = preprocessing['categorical_column_creator'];
+    if (!persisted) return;
+    const creators = Array.isArray(persisted) ? persisted : [persisted];
+    const drafts = creators
+      .filter((raw): raw is Record<string, unknown> => !!raw && typeof raw === 'object')
+      .map((creator) =>
+        this.draftFromCreatorConfig(
+          creator as { code?: unknown; rules?: Record<string, BackendFilter>; default_enumeration?: unknown }
+        )
+      );
+    if (drafts.length) {
+      this.transformationDrafts = drafts;
+    }
+  }
+
+  /** Rebuild one editable card from a persisted categorical_column_creator config. */
+  private draftFromCreatorConfig(creator: {
+    code?: unknown;
+    rules?: Record<string, BackendFilter>;
+    default_enumeration?: unknown;
+  }): TransformationColumnDraft {
+    const rules = creator.rules ?? {};
+    return {
+      id: ++transformationDraftSeq,
+      code: creator.code == null ? '' : String(creator.code),
+      defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
+      rules: Object.entries(rules).map(([value, filter]) => ({ value, filter: filter ?? null })),
+      open: true,
+    };
   }
 
   private isMissingAction(value: string): value is MissingAction {
@@ -2156,12 +3062,24 @@ export class StatisticAnalysisPanelComponent {
   private emitProgressState(): void {
     this.progressStateChange.emit({
       pendingChangeCount: this.pendingChangeCount,
-      preprocessingStatus: this.preprocessingStatus,
+      // Report 'applied' only for an explicit user apply; auto-applied and
+      // hydrated defaults stay out of the emitted status so the studio stepper
+      // does not mark Data review Done without user work.
+      preprocessingStatus:
+        this.preprocessingStatus === 'applied' && !this.userPreprocessingApplied
+          ? 'none'
+          : this.preprocessingStatus,
+      transformationStatusLabel: this.transformationStatusLabel,
     });
   }
 
+  private persistAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
+    this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
+    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+  }
+
   private syncAppliedPreprocessingForCurrentSelection(): void {
-    this.expStudioService.setAppliedDescriptivePreprocessing(
+    this.persistAppliedDescriptivePreprocessing(
       this.buildPreprocessingConfig(this.appliedPreprocessingRules)
     );
   }
@@ -2305,14 +3223,12 @@ export class StatisticAnalysisPanelComponent {
 
   private buildSelectionKey(
     variables: VariableRow[],
-    covariates: VariableRow[],
     filters: VariableRow[],
     filterLogic: unknown,
     appliedPreprocessing: unknown
   ): string {
     return JSON.stringify({
       variables: variables.map((variable) => variable.code).sort(),
-      covariates: covariates.map((variable) => variable.code).sort(),
       filters: filters.map((variable) => variable.code).sort(),
       filterLogic,
       appliedPreprocessing,
@@ -2347,16 +3263,6 @@ export class StatisticAnalysisPanelComponent {
       ...variables,
       ...groups.flatMap((group) => this.flattenModelVariables(group.variables ?? [], group.groups ?? [])),
     ].filter((variable): variable is VariableRow => !!variable?.code);
-  }
-
-  private countFilterRules(node: any): number {
-    if (!node || !Array.isArray(node.rules)) return 0;
-    return node.rules.reduce((count: number, rule: any) => {
-      if (rule?.condition && Array.isArray(rule.rules)) {
-        return count + this.countFilterRules(rule);
-      }
-      return count + 1;
-    }, 0);
   }
 
   private variableForBlock(block: PivotBlock): VariableRow | null {

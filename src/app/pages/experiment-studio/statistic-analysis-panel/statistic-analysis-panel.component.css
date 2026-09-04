@@ -1,13 +1,13 @@
 .stats-panel-shell {
   --panel-success-bg: #dfefe4;
   --panel-success-text: #166534;
-  --panel-warning-text: color-mix(in srgb, var(--primary-color, #2B33E9) 70%, var(--accent-color, #FFBA08) 30%);
+  --panel-warning-text: color-mix(in srgb, var(--primary-color) 70%, var(--accent-color) 30%);
 
   background: transparent;
   display: flex;
   flex-direction: column;
   overflow: visible;
-  font-family: 'Alaska Regular', 'Alaska', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: inherit;
 }
 
 .modal-content {
@@ -18,38 +18,39 @@
   overflow: visible;
 }
 
+/* Segmented overlay switch. Mirrors the Datasets & Variables Chart/Details
+   control so both wizard steps read as one component family. */
 .modal-tabs {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 16px;
-  background: transparent;
-  border-radius: var(--radius-lg, 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--primary-color) 5%, white);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: 999px;
   margin: 0;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
 }
 
 .modal-tabs button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(43, 51, 233, 0.25);
+  border: 0;
   border-radius: 999px;
   min-height: 30px;
-  padding: 6px 16px;
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(4px);
-  color: var(--primary-color);
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   cursor: pointer;
   text-transform: none;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   transition:
     background 0.2s ease,
     color 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.1s ease;
+    box-shadow 0.2s ease;
 }
 
 .stats-panel-shell i {
@@ -60,17 +61,24 @@
   transform: none;
 }
 
-.modal-tabs button.active,
 .modal-tabs button:hover {
-  background: var(--primary-color, #2B33E9);
-  color: #ffffff;
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.2);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+  color: var(--text-main);
+}
+
+.modal-tabs button.active {
+  background: var(--card-bg);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-md, 0 1px 2px rgba(43, 51, 233, 0.06));
+}
+
+.modal-tabs button:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
 }
 
 .modal-body {
-  padding: 20px 0 0;
+  padding: 0;
   background: transparent;
   max-height: none;
   overflow: visible;
@@ -86,53 +94,607 @@
   min-height: 0;
 }
 
-.workflow-section {
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
-  border-radius: 0;
-  box-shadow: none;
-  overflow: visible;
-  scroll-margin-top: 84px;
-  transition: background-color 0.25s ease;
-  margin-bottom: 0;
+/* =========================================================================
+   VERTICAL NODE-PIPELINE CANVAS
+   ========================================================================= */
+
+/* Width is explicit on purpose: `margin: 0 auto` opts this flex item out of the
+   cross-axis stretch it would otherwise get, so an auto width resolves to
+   max-content — the widest open section then set the width of every station
+   card (the summary table made the whole rail ~120px wider than Filtering).
+   One capped width keeps Filtering, both summaries and Preprocessing on the
+   same two edges. */
+.pipeline-canvas-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, var(--studio-step-max, 1160px));
+  max-width: 100%;
+  margin: 0 auto;
+  gap: 0;
 }
 
-.workflow-section:last-child {
-  border-bottom: none;
-}
-
-.workflow-section:hover {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.workflow-section-header {
+/* Overview rows carry a single line of copy plus one action, so they read as a
+   compact flowchart at `--studio-pipeline-overview-max`. An added node re-expands
+   to the full rail width, which is what the QueryBuilder, summary tables and
+   charts need. `align-self` opts the row out of the shell's cross-axis stretch. */
+.pipeline-node.is-dormant,
+.pipeline-terminal-card {
+  align-self: center;
   width: 100%;
-  border: 0;
-  appearance: none;
-  background: transparent;
-  color: var(--text-main, #0f172a);
+  max-width: var(--studio-pipeline-overview-max, 860px);
+}
+
+/* The header titles the whole rail rather than one step, so it spans the shell
+   like an added node and borrows that node's frame (radius, border, shadow and
+   the `14px 18px` rhythm). There is no global `box-sizing` reset, so the header
+   declares it: `min-height: 75px` then reads as the rendered height, a hair over
+   the 68px station header row below it (14px + 38px icon tile + 14px + borders),
+   so the canvas header can never look shorter than the first node. */
+.pipeline-canvas-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 75px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 16px rgba(43, 51, 233, 0.08);
   gap: 16px;
-  padding: 16px 0;
-  cursor: pointer;
-  font-size: 1.05rem;
+}
+
+.pipeline-header-title-group h2 {
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--text-main);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.01em;
+}
+
+.pipeline-header-title-group p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pipeline-header-stats {
+  flex-shrink: 0;
+}
+
+.pipeline-stage-counter {
+  font-size: 0.76rem;
   font-weight: 700;
-  text-align: left;
-  text-transform: none;
-  border-radius: 0;
-  transition: background 0.2s ease, border-radius 0.2s ease;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
+  padding: 5px 13px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
-.workflow-section-header:hover {
-  background: rgba(255, 255, 255, 0.28);
+/* Pipeline Node Card */
+.pipeline-node {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, rgba(43, 51, 233, 0.12));
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
 }
 
-.workflow-section:has(.workflow-section-body.open) .workflow-section-header {
-  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
+.pipeline-node.is-active {
+  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+  box-shadow: 0 4px 16px rgba(43, 51, 233, 0.08);
+}
+
+.pipeline-node.is-dormant {
+  background: #ffffff;
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 25%, #cbd5e1);
+  box-shadow: none;
+}
+
+.pipeline-node.is-dormant:hover {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 2%, white);
+  box-shadow: 0 2px 10px rgba(43, 51, 233, 0.06);
+}
+
+.pipeline-node-dormant {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  gap: 14px;
+}
+
+.dormant-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.dormant-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.btn-add-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  border: 1.5px solid var(--primary-color);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-add-step:hover {
+  background: var(--primary-color);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(43, 51, 233, 0.25);
+}
+
+.btn-remove-step-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
   background: transparent;
+  border: 1px solid #e2e8f0;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-step-node:hover {
+  color: var(--danger, #ef4444);
+  border-color: var(--danger, #ef4444);
+  background: color-mix(in srgb, var(--danger) 8%, white);
+}
+
+.pipeline-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
+  gap: 12px;
+}
+
+.pipeline-node-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pipeline-node-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.pipeline-node-title-group h3 {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.pipeline-node-subtitle {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.pipeline-node-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pipeline-status-badge {
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  border: 1px solid #e2e8f0;
+  letter-spacing: 0.02em;
+}
+
+.pipeline-status-badge.applied {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.pipeline-status-badge.pending {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.pipeline-status-badge.optional {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+  color: var(--primary-color);
+  border-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+.pipeline-status-badge.default {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  border-color: color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.pipeline-node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.pipeline-default-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
+  padding: 1px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+
+.pipeline-node-body {
+  padding: 0;
+}
+
+/* Sub-node rail: compact connected tree of active sub-steps, shown while the
+   stage header is collapsed. Rail line + milestone dot echo the pipeline spine. */
+.pipeline-subnodes-tree {
+  padding: 2px 18px 14px 26px;
+}
+
+.pipeline-subnode-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+}
+
+.pipeline-subnode-rail {
+  position: relative;
+  flex-shrink: 0;
+  width: 14px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Continuous line through the rail column; dots punch through it. */
+.pipeline-subnode-rail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--primary-color) 18%, #cbd5e1);
+}
+
+.pipeline-subnode-item:first-child .pipeline-subnode-rail::before {
+  top: 12px;
+}
+
+.pipeline-subnode-item:last-child .pipeline-subnode-rail::before {
+  bottom: calc(100% - 12px);
+}
+
+.pipeline-subnode-dot {
+  position: relative;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--card-bg, #ffffff);
+  border: 2px solid color-mix(in srgb, var(--primary-color) 45%, #cbd5e1);
+}
+
+.pipeline-subnode-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  margin-bottom: 6px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, rgba(43, 51, 233, 0.12));
+  border-radius: var(--radius-md, 8px);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.pipeline-subnode-content:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 2%, white);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.08);
+}
+
+.pipeline-subnode-content > i {
+  color: var(--primary-color);
+  font-size: 0.82rem;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.pipeline-subnode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pipeline-subnode-title {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-main);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-subnode-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-subnode-status {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.pipeline-subnode-status[data-tone='applied'] {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pipeline-subnode-status[data-tone='default'] {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.pipeline-subnode-status[data-tone='pending'] {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Vertical Directional Connectors */
+.pipeline-connector {
+  height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 0;
+}
+
+.pipeline-connector-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--primary-color) 18%, #cbd5e1);
+  z-index: 1;
+}
+
+.pipeline-connector-line.is-active {
+  background: var(--primary-color);
+}
+
+.pipeline-connector-arrow {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid color-mix(in srgb, var(--primary-color) 25%, #cbd5e1);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  z-index: 2;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Add-on action: the button is the dashed target itself (full width), so the
+   hover elevation lands on the thing the user is about to click. */
+.btn-add-dashed {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--primary-color) 2.5%, white);
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border-radius: var(--radius-md, 8px);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-add-dashed:hover {
+  background: color-mix(in srgb, var(--primary-color) 7%, white);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.08);
+}
+
+.btn-add-dashed:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+.btn-add-dashed i {
+  font-size: 0.78rem;
+}
+
+/* Terminal Card */
+.pipeline-terminal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: #ffffff;
+  border: 1px solid var(--border-color, rgba(43, 51, 233, 0.15));
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 14px rgba(43, 51, 233, 0.05);
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.pipeline-terminal-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pipeline-terminal-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: var(--success, #10b981);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.pipeline-terminal-info h4 {
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--text-main);
+  margin: 0 0 2px 0;
+}
+
+.pipeline-terminal-info p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.btn-finish-pipeline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: var(--primary-color);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.25);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-finish-pipeline:hover {
+  background: var(--primary-dark, #1b21a3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.35);
+}
+
+@media (max-width: 768px) {
+  .pipeline-node-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pipeline-node-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .pipeline-terminal-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-finish-pipeline {
+    justify-content: center;
+  }
+}
+
+
+.workflow-section {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  scroll-margin-top: calc(
+    var(--studio-stepper-offset, calc(64px + 8px)) +
+      var(--studio-stepper-height, 64px) +
+      8px
+  );
+  transition: background-color 0.25s ease;
+  margin-bottom: 0;
 }
 
 .workflow-section-body {
@@ -140,12 +702,78 @@
   padding: 14px 0 16px;
 }
 
-.preprocessing-section .workflow-section-body {
-  padding-bottom: 16px;
+/* Inside a pipeline node the station card draws its own frame; without an inset
+   it sat flush on the node border and the two 1px lines vibrated as one. */
+.pipeline-node .workflow-section-body {
+  padding-inline: 16px;
 }
 
 .workflow-section-body.open {
   display: block;
+}
+
+/* Collapsed stations are zero-height but still eat the .review-body gap; drop them from layout. */
+.review-body > .workflow-section:not(:has(> .workflow-section-body.open)) {
+  display: none;
+}
+
+.station-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+/* Stations sit in a gapped shell: the preview bar needs no extra bottom margin. */
+.preprocessing-shell .station-preview-bar {
+  margin-bottom: 0;
+}
+
+/* The switch hugs its own segments; the toggle on the right stays right-aligned. */
+.station-preview-bar .summary-tabs {
+  flex: 0 0 auto;
+  margin: 0;
+  justify-content: flex-start;
+}
+
+.station-preview-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 auto;
+  padding: 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+  border-radius: var(--radius-md, 8px);
+  background: var(--card-bg);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.station-preview-toggle i {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.station-preview-toggle:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+}
+
+.station-preview-toggle:disabled {
+  color: var(--primary-color);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.station-preview-toggle:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
 }
 
 .summary-tabs {
@@ -159,10 +787,10 @@
   font-size: 0.9rem;
   color: var(--text-muted);
   padding: 24px;
-  background: rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: inset 0 2px 10px rgba(43, 51, 233, 0.02);
-  border-radius: 12px;
+  background: var(--studio-card-header-bg);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  box-shadow: none;
+  border-radius: var(--radius-lg, 12px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -171,18 +799,19 @@
   justify-content: center;
 }
 
+/* The icon is the only cue that a station is idle, so it must stay above 3:1. */
 .empty-state-block i {
   font-size: 2.25rem;
   color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-light, #7F9CE8) 18%, white 82%);
+  background: color-mix(in srgb, var(--primary-light) 18%, white 82%);
   padding: 18px;
   border-radius: 50%;
-  border: 1px solid rgba(43,51,233,0.1);
-  box-shadow: 0 4px 12px rgba(43,51,233,0.05);
-  opacity: 0.35;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  box-shadow: none;
 }
 
-.empty-state-block p { margin: 0; font-weight: 700; color: var(--text-main); }
+/* One notch below .station-card-title so the panel heading still leads. */
+.empty-state-block p { margin: 0; font-weight: 600; color: var(--text-main); }
 
 .empty-state-block span { font-size: 0.85rem; color: var(--text-muted); }
 
@@ -191,14 +820,19 @@
   margin: 0 0 12px;
   padding: 14px 18px;
   font-size: 0.82rem;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: var(--radius-lg, 12px);
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
   color: var(--text-main);
   animation: feedbackSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-feedback-warning {
+  background: rgba(255, 186, 8, 0.12);
+  border-color: rgba(255, 186, 8, 0.35);
+  border-left: 4px solid var(--accent-color);
+  color: #92400e;
 }
 
 @keyframes feedbackSlideIn {
@@ -266,34 +900,6 @@
   font-size: 0.8rem;
 }
 
-/* ── A. Preprocessing toolbar: section heading + inline search ── */
-.preprocessing-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid rgba(43, 51, 233, 0.06);
-}
-
-.preprocessing-section-heading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #64748b;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.preprocessing-section-heading i {
-  font-size: 0.85rem;
-  opacity: 0.7;
-}
-
 .search-inline {
   position: relative;
   max-width: 280px;
@@ -308,7 +914,7 @@
   min-height: 34px;
   border: 1px solid rgba(43, 51, 233, 0.15);
   background: rgba(255, 255, 255, 0.9);
-  color: #0f172a;
+  color: var(--text-main);
   border-radius: 8px;
   padding: 6px 9px;
   font-size: 0.8rem;
@@ -318,13 +924,13 @@
     background 0.2s ease;
 }
 
-.preprocessing-search:focus,
-.table-input:focus,
-.table-select:focus {
+.preprocessing-search:focus-visible,
+.table-input:focus-visible,
+.table-select:focus-visible {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.15), 0 4px 12px rgba(15, 23, 42, 0.04);
-  background: #ffffff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  background: var(--card-bg);
 }
 
 .preprocessing-documentation-panel {
@@ -377,7 +983,7 @@
 
 .preprocessing-documentation-trigger > i:first-child {
   font-size: 0.8rem;
-  color: var(--primary-color, #2b33e9);
+  color: var(--primary-color);
   opacity: 0.9;
 }
 
@@ -386,7 +992,7 @@
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #334155;
+  color: var(--chart-label-color);
   white-space: nowrap;
 }
 
@@ -406,7 +1012,7 @@
 }
 
 .preprocessing-documentation-panel[open] .preprocessing-documentation-label {
-  color: color-mix(in srgb, var(--primary-color, #2b33e9) 78%, #1e293b);
+  color: var(--primary-dark);
 }
 
 .preprocessing-documentation-content {
@@ -415,12 +1021,12 @@
   padding: 14px 16px 16px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(248, 251, 255, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
+  background: var(--studio-card-header-bg);
   box-shadow: none;
   font-family: inherit;
   font-size: 0.875rem;
   line-height: 1.65;
-  color: #334155;
+  color: var(--chart-label-color);
   letter-spacing: 0.004em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -432,7 +1038,7 @@
   margin: 0 0 14px;
   font-size: 0.875rem;
   line-height: 1.65;
-  color: #334155;
+  color: var(--chart-label-color);
 }
 
 .preprocessing-documentation-content .preprocessing-doc-intro {
@@ -465,7 +1071,7 @@
   margin: 0 0 20px;
   padding: 0;
   list-style: none;
-  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  border-top: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
 }
 
 .preprocessing-documentation-content .preprocessing-doc-list:last-child {
@@ -480,7 +1086,7 @@
   align-items: start;
   padding: 11px 0;
   border: 0;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
   border-radius: 0;
   background: transparent;
 }
@@ -497,89 +1103,13 @@
 .preprocessing-documentation-content .preprocessing-doc-term {
   font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--primary-color, #2b33e9);
+  color: var(--primary-color);
 }
 
 .preprocessing-documentation-content .preprocessing-doc-desc {
   font-size: 0.8125rem;
   line-height: 1.6;
-  color: #475569;
-}
-
-.step-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(43, 51, 233, 0.08);
-  color: var(--primary-color, #2B33E9);
-  font-weight: 800;
-  margin-right: 14px;
-  font-size: 0.9rem;
-  border: 2px solid rgba(43, 51, 233, 0.1);
-  transition: all 0.25s ease;
-}
-
-.workflow-section:has(.workflow-section-body.open) .step-badge {
-  background: var(--primary-color, #2B33E9);
-  color: #ffffff;
-  border-color: transparent;
-  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.25);
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.status-neutral {
-  background: color-mix(in srgb, var(--text-muted) 9%, white 91%);
   color: var(--text-muted);
-  border: 1px solid color-mix(in srgb, var(--text-muted) 15%, transparent);
-}
-
-.status-amber {
-  background: color-mix(in srgb, var(--accent-color) 12%, transparent);
-  color: var(--panel-warning-text);
-  border: 1px solid color-mix(in srgb, var(--accent-color) 28%, transparent);
-}
-
-.status-green {
-  background: var(--panel-success-bg);
-  color: var(--panel-success-text);
-  border: 1px solid color-mix(in srgb, var(--panel-success-text) 18%, transparent);
-}
-
-.longitudinal-heading {
-  margin-bottom: 0;
-}
-
-.longitudinal-info-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  background: rgba(43, 51, 233, 0.04);
-  border: 1px solid rgba(43, 51, 233, 0.08);
-  border-radius: 10px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.longitudinal-info-banner i {
-  color: var(--primary-color);
-  font-size: 0.95rem;
-  flex-shrink: 0;
 }
 
 .longitudinal-controls {
@@ -617,107 +1147,6 @@
   margin: -4px 0 10px;
 }
 
-.outlier-preview-status,
-.preprocessing-pending-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
-  color: var(--text-secondary, #64748b);
-}
-
-.preview-status-text,
-.pending-status-text {
-  letter-spacing: 0.01em;
-}
-
-.pending-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.5rem;
-  background: color-mix(in srgb, var(--accent-color) 18%, white 82%);
-  color: var(--panel-warning-text);
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.82rem;
-  line-height: 1;
-}
-
-.preprocessing-action-row.is-all-set .pending-chip {
-  background: color-mix(in srgb, var(--panel-success-text) 14%, white 86%);
-  color: var(--panel-success-text);
-}
-
-.preprocessing-action-row.is-all-set .pending-status-text {
-  color: var(--panel-success-text);
-  font-weight: 700;
-}
-
-.preprocessing-action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.reset-changes-btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 7px 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--primary-color, #2b33e9);
-  background: transparent;
-  border: none;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
-  white-space: nowrap;
-}
-
-.reset-changes-btn:hover:not(:disabled) {
-  background: rgba(43, 51, 233, 0.08);
-}
-
-.reset-changes-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.preview-report-btn,
-.apply-preprocessing-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #fff;
-  background: var(--primary-color, #2b33e9);
-  border: none;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
-  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.18);
-  white-space: nowrap;
-}
-
-.preview-report-btn:hover:not(:disabled),
-.apply-preprocessing-btn:hover:not(:disabled) {
-  background: #1f27c7;
-  box-shadow: 0 3px 12px rgba(43, 51, 233, 0.28);
-}
-
-.preview-report-btn:disabled,
-.apply-preprocessing-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
 .outlier-preview-skeleton {
   margin: 0;
 }
@@ -725,9 +1154,9 @@
 .outlier-preview-panel {
   margin: 0;
   padding: 14px 16px 16px;
-  background: #ffffff;
+  background: var(--card-bg);
   border: 1px solid rgba(127, 156, 232, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg, 12px);
   box-shadow: 0 4px 14px rgba(127, 156, 232, 0.05);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -739,81 +1168,345 @@
   overflow-x: auto;
 }
 
-.preprocessing-browser {
-  max-height: 460px;
+/* Preprocessing stations are ONE card, not two. styles.css owns the card, the
+   rail/panel split and the scroll contract; both summary panels use
+   .statistics-browser as a left rail, so the pill toolbar that used to live here
+   made this the only surface in the step that rendered the shared class
+   differently — the adjacent-panel test in DESIGN.md. This file owns the row
+   internals only. */
+
+.preprocessing-browser .chart-search {
+  margin-top: 2px;
+}
+
+.preprocessing-browser .preprocessing-search {
+  width: 100%;
+  min-width: 0;
+}
+
+/* A 240px rail has no room for a count justified to the far edge. */
+.preprocessing-browser .statistics-browser-header {
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.preprocessing-browser .preprocessing-variable-group {
+  gap: 2px;
+  margin-top: 12px;
+}
+
+/* The group heading already names the state, so repeating it on every row said
+   the same thing up to 9 times per station; the state dot carries it instead. */
+.preprocessing-browser .preprocessing-state-mini {
+  display: none;
+}
+
+.preprocessing-browser .empty-state-block {
+  margin-top: 8px;
+}
+
+/* The shared .statistics-browser row owns layout, padding and selection.
+   Only the narrower rail's type size is a local concern. */
+.preprocessing-browser .statistics-variable-btn > span:first-of-type {
+  font-size: 0.8rem;
+}
+
+/* The global narrow rule re-shows the state chip inside a column-direction
+   header, where it stretched into a full-width pill. */
+.preprocessing-detail-panel .preprocessing-state-chip {
+  width: fit-content;
+}
+
+/* Two-pane card: the editor owns a column sized to its controls and the
+   evidence rail takes the rest of the card, bleeding to the edges so it reads
+   as one designed surface rather than a box floating inside a box. No border or
+   shadow here — the workspace is the card, and re-declaring them at this
+   specificity is what drew a second frame inside the first. */
+.preprocessing-detail-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 14px 26px;
+  padding: 16px;
+}
+
+/* The winsorizer carries four controls, so it needs the wider editor column. */
+.outlier-preprocessing-workspace .preprocessing-detail-panel {
+  grid-template-columns: minmax(260px, 560px) minmax(0, 1fr);
+}
+
+/* The header names the variable, so it owns the full card width; the editor and
+   the evidence rail sit side by side beneath it. */
+.preprocessing-detail-panel .statistics-panel-header {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.preprocessing-detail-panel .preprocessing-detail-section {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.preprocessing-detail-panel > .empty-state-block {
+  grid-column: 1 / -1;
+}
+
+.preprocessing-detail-panel h4 {
+  margin: 2px 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* The rail is a horizontal band of real figures, not a stacked sidebar: two
+   groups across the width it actually has. It stays in the editor's row so it
+   cannot stretch the header (a full-height span inflated it to 169px), and
+   pulls up through the row gap so its tonal fill sits flush under the header. */
+.preprocessing-evidence {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  /* auto-fit, not a fixed 2 columns: with only coverage present the group owns
+     the whole pane instead of wrapping its text at half width. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* Top-aligned, not centred: with the pane stretched by the rail this is what
+     puts DATASET COVERAGE on the same line as MISSING VALUE HANDLING across the
+     divider. Centring reads as a floating block. */
+  align-content: start;
+  gap: 12px 32px;
+  /* Negative margins match the panel's 16px padding exactly so the tonal pane
+     reaches the card edge; 2px short and it reads as a card inside a card. */
+  margin: -16px -16px -16px 0;
+  padding: 16px;
+  border-left: 1px solid var(--studio-card-header-border);
+  background: var(--bg-neutral);
+}
+
+.preprocessing-evidence-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.preprocessing-stat-grid,
+.preprocessing-stat-strip {
+  display: grid;
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.preprocessing-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Flex-wrap, not a fixed column count: these are real measured values and a
+   MAX of 47334358.00 is far wider than a MEDIAN of 155.00. A fixed 5-column
+   grid clipped the widest number against the card edge; wrapping moves the
+   whole stat to the next line so a figure is never partially shown. */
+.preprocessing-stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+}
+
+.preprocessing-stat-strip .preprocessing-stat {
+  flex: 0 0 auto;
+}
+
+.preprocessing-stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.preprocessing-stat dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.preprocessing-stat dd {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  /* A number must never break mid-digit; the strip wraps instead. */
+  white-space: nowrap;
+}
+
+/* Filled coverage meter — an outline-only gauge would not encode the value.
+   --success is only 2.07:1 against this track, so a 0%-missing row renders an
+   empty track (which is the correct reading) rather than a pale green nub. */
+.preprocessing-meter {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
+  overflow: hidden;
+}
+
+.preprocessing-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* Keep a non-zero share visible even when it is tiny. */
+.preprocessing-evidence[data-severity='warning'] .preprocessing-meter-fill,
+.preprocessing-evidence[data-severity='high'] .preprocessing-meter-fill {
+  min-width: 6px;
+}
+
+.preprocessing-evidence[data-severity='warning'] .preprocessing-meter-fill {
+  /* --accent-color alone is 1.9:1 on the track; deepened with the brand's own
+     filter brown so the fill clears 3:1 without inventing a new hex. */
+  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
+}
+
+.preprocessing-evidence[data-severity='high'] .preprocessing-meter-fill {
+  background: var(--danger);
+}
+
+.preprocessing-consequence {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.preprocessing-evidence-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preprocessing-evidence-wide {
+  grid-column: 1 / -1;
+}
+
+.preprocessing-frequency-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
   padding: 0;
-  border: none;
+  list-style: none;
+}
+
+.preprocessing-frequency {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(48px, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.preprocessing-frequency-label {
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preprocessing-frequency-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
+  overflow: hidden;
+}
+
+.preprocessing-frequency-bar {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.preprocessing-frequency-value {
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below the two columns the rail can no longer sit beside the editor; it becomes
+   a banded footer of the same card instead of a detached box. */
+@media (max-width: 900px) {
+  .preprocessing-detail-panel,
+  .outlier-preprocessing-workspace .preprocessing-detail-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .preprocessing-detail-panel .statistics-panel-header,
+  .preprocessing-detail-panel .preprocessing-detail-section,
+  .preprocessing-detail-panel .preprocessing-evidence {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .preprocessing-evidence {
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0 -16px -14px;
+    border-top: 1px solid var(--studio-card-header-border);
+    border-left: 0;
+  }
+
+  .preprocessing-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+
+/* The boxed row and its hover/active border are gone: the shared rail row is
+   flat with a leading accent edge, so a per-surface border here was the only
+   thing still making this rail look different from the summary rails. */
+
+/* The per-pill state chip was removed because it repeated its own group heading
+   up to 9 times. The state still has to scan at a glance, so it moves to a dot
+   that inherits from the group. Colours are deepened toward --text-main because
+   --success (2.5:1) and --accent-color (1.9:1) both fail the 3:1 graphic floor. */
+.preprocessing-variable-btn::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: transparent;
+  /* 55% hit 2.59:1 against the pill; 75% is 4.2:1 and matches the toggle track border. */
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-muted) 75%, transparent);
+}
+
+.preprocessing-variable-group[data-state='applied'] .preprocessing-variable-btn::before {
+  background: color-mix(in srgb, var(--success) 55%, var(--text-main));
   box-shadow: none;
 }
 
-.preprocessing-variable-btn {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(127, 156, 232, 0.14);
-  transition: background 0.2s ease, border-color 0.2s ease;
+.preprocessing-variable-group[data-state='pending'] .preprocessing-variable-btn::before {
+  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
+  box-shadow: none;
 }
 
-.preprocessing-variable-btn:hover,
-.preprocessing-variable-btn.active {
-  background: #fff;
-  border-color: rgba(43, 51, 233, 0.3);
-}
-
-.preprocessing-variable-btn.active {
-  border-left: 3px solid var(--primary-color);
+.preprocessing-variable-group[data-state='default'] .preprocessing-variable-btn::before {
+  background: var(--primary-color);
+  box-shadow: none;
 }
 
 .preprocessing-variable-btn .statistics-variable-meta {
   align-items: flex-start;
   gap: 6px;
 }
-
-.preprocessing-state-mini,
-.preprocessing-state-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(71, 85, 105, 0.14);
-  border-radius: 999px;
-  background: rgba(248, 250, 252, 0.88);
-  color: #475569;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.preprocessing-state-mini {
-  padding: 3px 7px;
-  font-size: 0.66rem;
-}
-
-.preprocessing-state-chip {
-  padding: 6px 10px;
-  font-size: 0.74rem;
-}
-
-.preprocessing-state-mini.state-pending,
-.preprocessing-state-chip.state-pending {
-  background: color-mix(in srgb, var(--accent-color) 14%, white 86%);
-  border-color: color-mix(in srgb, var(--accent-color) 30%, transparent);
-  color: #92400e;
-}
-
-.preprocessing-state-mini.state-applied,
-.preprocessing-state-chip.state-applied {
-  background: var(--panel-success-bg);
-  border-color: color-mix(in srgb, var(--panel-success-text) 18%, transparent);
-  color: var(--panel-success-text);
-}
-
-.preprocessing-state-mini.state-default,
-.preprocessing-state-chip.state-default {
-  background: rgba(43, 51, 233, 0.06);
-  border-color: rgba(43, 51, 233, 0.18);
-  color: var(--primary-color, #2B33E9);
-}
-
 .preprocessing-detail-section {
   padding: 0;
   border: 0;
@@ -826,9 +1519,9 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -838,26 +1531,13 @@
   opacity: 0.68;
 }
 
-.preprocessing-default-note {
-  margin: 0 0 12px;
-  color: #64748b;
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.preprocessing-default-note--header {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.72rem;
-  line-height: 1.3;
-  font-weight: 500;
-  text-align: right;
-}
-
 .preprocessing-control-grid {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 18px;
+  /* auto-fit + 1fr gave a 200px select two 602px tracks. Tracks stop at 300px
+     and the row stops at its content instead of spanning the panel. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 300px));
+  justify-content: start;
 }
 
 .inline-toggle-container {
@@ -867,7 +1547,17 @@
 }
 
 .outlier-control-grid {
-  grid-template-columns: max-content repeat(3, minmax(110px, 1fr));
+  grid-template-columns: max-content repeat(3, minmax(120px, 180px));
+  justify-content: start;
+}
+
+/* Four tracks need ~420px; below that the Fold control was clipped out of the
+   panel entirely (no page overflow, so it failed silently). Declared after the
+   base rule so it actually wins. */
+@media (max-width: 720px) {
+  .outlier-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .preprocessing-control {
@@ -875,7 +1565,7 @@
   gap: 6px;
   color: #1e293b;
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: normal;
   text-transform: none;
 }
@@ -891,6 +1581,13 @@
   width: 0;
   height: 0;
 }
+/* The input is invisible and zero-sized, and styles.css excludes checkboxes from
+   the studio focus rule, so nothing else can draw the ring. Put it on the slider
+   (the element the user actually sees) with a solid token-coloured outline. */
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
 .toggle-slider {
   position: absolute;
   cursor: pointer;
@@ -898,13 +1595,14 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: color-mix(in srgb, var(--primary-light) 12%, #eef2f7 88%);
+  /* OFF must read as a control and as "not on": the old near-white fill hit 1.2:1. */
+  background: color-mix(in srgb, var(--text-muted) 22%, white);
   transition:
     background 0.22s ease,
     border-color 0.22s ease,
     box-shadow 0.22s ease;
   border-radius: 999px;
-  border: 1px solid rgba(43,51,233,0.08);
+  border: 1px solid color-mix(in srgb, var(--text-muted) 75%, transparent);
 }
 .toggle-slider:before {
   content: "";
@@ -913,15 +1611,18 @@
   width: 18px;
   left: 3px;
   top: 2.5px;
-  background: #fff;
+  background: var(--card-bg);
   border-radius: 50%;
   transition:
     transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.22s ease;
-  box-shadow: 0 2px 6px rgba(15,23,42,0.08);
+  /* Ring keeps the knob legible on both the OFF and ON track. */
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(15, 23, 42, 0.12);
 }
 .toggle-switch input:checked + .toggle-slider {
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-dark, #1d25b8));
+  /* Flat primary: every other studio gradient is a near-white surface wash, and
+     a two-stop brand ramp is invisible on a 44x24 track anyway. */
+  background: var(--primary-color);
   border-color: rgba(43,51,233,0.24);
   box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
 }
@@ -932,7 +1633,7 @@
 .row-error {
   margin-top: 5px;
   color: #b91c1c;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-align: left;
 }
@@ -942,6 +1643,7 @@
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .table-input:disabled,
@@ -954,11 +1656,11 @@ button:disabled {
 
 .federated-info-note {
   background: rgba(43,51,233,0.06);
-  color: var(--text-main, #334155);
+  color: var(--text-main);
   padding: 10px;
   margin-bottom: 15px;
   border-left: 4px solid var(--primary-color);
-  border-radius: 6px;
+  border-radius: var(--radius-sm, 4px);
   font-size: 0.9rem;
   display: flex;
   align-items: center;
@@ -978,7 +1680,7 @@ button:disabled {
   padding: 6px 12px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 0.8rem;
   letter-spacing: 0.2px;
   transition:
     background 0.15s ease-in-out,
@@ -996,7 +1698,7 @@ button:disabled {
 
 .toolbar-seg:focus-visible,
 .toolbar-icon-btn:focus-visible {
-  outline: 2px solid var(--primary-light, #7F9CE8);
+  outline: 2px solid var(--primary-light);
   outline-offset: 2px;
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent),
@@ -1005,7 +1707,7 @@ button:disabled {
 
 .toolbar-seg:disabled {
   background: color-mix(in srgb, var(--glass-bg) 72%, white 28%);
-  color: #94a3b8;
+  color: color-mix(in srgb, var(--text-muted) 55%, white);
 }
 
 .toolbar-icon-btn i {
@@ -1019,7 +1721,7 @@ button:disabled {
   border-radius: 4px;
   border: none;
   background: var(--primary-color);
-  color: #ffffff;
+  color: var(--card-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1027,7 +1729,7 @@ button:disabled {
   box-shadow: 0 5px 12px rgba(43, 51, 233, 0.18);
   gap: 6px;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 0.8rem;
   letter-spacing: 0.2px;
   transition:
     transform 0.14s ease-in-out,
@@ -1042,65 +1744,17 @@ button:disabled {
 }
 
 .toolbar-icon-btn:active:not(:disabled),
-.toolbar-seg:active:not(:disabled),
-.summary-export-btn:active:not(:disabled),
-.modal-tabs button:active:not(:disabled),
-.workflow-section-header:active {
+.toolbar-seg:active:not(:disabled) {
   transform: scale(0.98);
 }
 
 .toolbar-icon-btn:disabled {
-  background: #cbd5e1;
+  /* Inactive by fill, not by unreadable label (white on #cbd5e1 was 1.5:1). */
+  background: color-mix(in srgb, var(--text-muted) 12%, white);
+  color: var(--text-muted);
   box-shadow: none;
   filter: none;
   transform: none;
-}
-
-.summary-export-btn {
-  min-height: 28px;
-  padding: 5px 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--primary-color);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  gap: 5px;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0;
-  transition:
-    background 0.16s ease-in-out,
-    border-color 0.16s ease-in-out,
-    color 0.16s ease-in-out;
-}
-
-.summary-export-btn:hover {
-  background: rgba(43, 51, 233, 0.08);
-  border-color: rgba(43, 51, 233, 0.14);
-}
-
-.summary-export-btn:focus-visible {
-  outline: 2px solid var(--primary-light, #7F9CE8);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 16%, transparent);
-}
-
-.summary-export-btn i {
-  font-size: 0.95em;
-  transform: translateY(1px);
-}
-
-.accordion-icon {
-  font-size: 12px;
-  opacity: 0.75;
-  transition: transform 0.18s ease;
-}
-
-.accordion-icon.open {
-  transform: rotate(180deg);
 }
 
 .table-wrapper {
@@ -1111,8 +1765,8 @@ button:disabled {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: var(--card-bg);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1122,11 +1776,11 @@ button:disabled {
   top: 0;
   z-index: 3;
   background: color-mix(in srgb, var(--primary-light) 13%, white 87%);
-  color: #64748b;
+  color: var(--text-muted);
   text-align: center;
   padding: 10px 14px;
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: 0.75rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 14%, transparent);
@@ -1138,20 +1792,12 @@ button:disabled {
   padding: 14px 16px;
   font-size: 0.85rem;
   color: var(--text-main);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
   font-variant-numeric: tabular-nums;
 }
 
 .data-table tbody tr:last-child td {
   border-bottom: 0;
-}
-
-.data-table tbody tr:nth-child(odd) {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-
-.data-table tbody tr:nth-child(even) {
-  background-color: transparent;
 }
 
 .data-table tbody tr:hover {
@@ -1165,12 +1811,6 @@ button:disabled {
   color: var(--text-muted);
   text-align: left;
   padding-left: 16px;
-  transition: border-left 0.12s ease, padding-left 0.12s ease;
-}
-
-.metric-cell:hover {
-  border-left: 3px solid var(--primary-color);
-  padding-left: 13px;
 }
 
 .statistics-table th:not(:first-child),
@@ -1180,7 +1820,29 @@ button:disabled {
 
 .statistics-table td:not(:first-child) {
   color: var(--text-main);
-  font-weight: 650;
+  /* Twelve rows of semibold digits emphasise nothing. Values read at 400 so the
+     pooled column and the metric labels are what carry weight. */
+  font-weight: 400;
+}
+
+/* The rollup is the column a reader is scanning for; it keeps the emphasis the
+   per-dataset columns just gave up. :not() keeps it above the rule above. */
+.statistics-table td.statistics-col-rollup:not(:first-child) {
+  font-weight: 600;
+}
+
+/* Targets .metric-cell, not td:first-child: the group heading row is a
+   colspan first child too, and a :first-child rule outranks the group's own
+   700 and flattens COVERAGE / DISTRIBUTION into the row labels. */
+.statistics-table td.metric-cell {
+  font-weight: 500;
+}
+
+/* The global rule for this row loses to .data-table td:first-child (the group
+   row is a colspan first child), so 700 was declared here and never applied.
+   Declared in this file so it actually wins. */
+.statistics-table tr.statistics-metric-group td {
+  font-weight: 700;
 }
 
 .statistics-table-wrapper.statistics-table-wrapper--numeric {
@@ -1214,7 +1876,7 @@ button:disabled {
   max-width: none;
   min-height: 360px;
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
   border-radius: 8px;
   padding: 10px 12px;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
@@ -1228,7 +1890,7 @@ button:disabled {
   height: auto;
   opacity: 1;
   pointer-events: none;
-  background: #fff;
+  background: var(--card-bg);
 }
 
 .hidden-charts-for-export app-chart-renderer {
@@ -1258,7 +1920,7 @@ button:disabled {
   }
 
   .modal-body {
-    padding: 16px 0 0;
+    padding: 0;
     max-height: none;
     overflow: visible;
   }
@@ -1269,14 +1931,6 @@ button:disabled {
 
   .summary-tabs {
     margin: -12px -12px 12px;
-  }
-
-  .preprocessing-toolbar,
-  .outlier-preview-action-row,
-  .preprocessing-action-row {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
   }
 
   .search-inline {
@@ -1293,15 +1947,6 @@ button:disabled {
     gap: 8px;
   }
 
-  .preprocessing-action-buttons {
-    justify-content: stretch;
-    width: 100%;
-  }
-
-  .preprocessing-action-buttons button {
-    flex: 1 1 auto;
-  }
-
   .data-table th,
   .data-table td {
     padding: 6px 8px;
@@ -1310,6 +1955,229 @@ button:disabled {
 
   .toolbar-seg {
     padding: 6px 12px;
-    font-size: 13px;
+    font-size: 0.8125rem;
+  }
+}
+
+/* ===== TRANSFORMATION: CREATE CATEGORICAL COLUMN =====
+   Chrome comes from app-station-card / app-station-list-row / app-station-action-bar;
+   only the field and table styling is local. */
+.transformation-create {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Pill tabs reuse existing .modal-tabs styles. */
+/* The two identity fields belong to one decision (what this column is called and
+   what it falls back to), so they share a row instead of stacking as two full-height gaps. */
+.transformation-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.transformation-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.transformation-field label {
+  color: #1e293b;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.transformation-field input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 38px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.transformation-field input:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+/* Rules heading (weight 800 section label) with its own count and add trigger. */
+.transformation-rules-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.transformation-rules-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transformation-rules-title > i {
+  color: var(--primary-color);
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+/* Same count-chip anatomy as .pipeline-status-badge. */
+.transformation-rules-count {
+  padding: 2px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-add-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1.5px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-add-category:hover {
+  background: color-mix(in srgb, var(--primary-color) 9%, white);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.1);
+}
+
+.btn-add-category:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+.btn-add-category i {
+  font-size: 0.72rem;
+}
+
+/* Empty state (mirrors .empty-filter-group: dashed primary border, horizontal flex) */
+.transformation-empty-rules {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed rgba(43, 51, 233, 0.22);
+  border-radius: var(--radius-lg, 12px);
+  background: color-mix(in srgb, var(--primary-color) 2%, white);
+  color: #64748b;
+  padding: 14px 16px;
+}
+
+.transformation-empty-rules > i {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+.transformation-empty-rules span {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.transformation-rules {
+  display: grid;
+  gap: 12px;
+}
+
+/* Category rule rows reuse the shared station row chrome; only the accent differs here. */
+.transformation-rule {
+  --group-accent: 100, 128, 225;
+}
+
+.transformation-rule-fields {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.transformation-rule-value {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 38px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.transformation-rule-value:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+/* Statistics preview: the card owns the frame, the table owns the rows. */
+.transformation-statistics {
+  display: grid;
+  gap: 12px;
+}
+
+.transformation-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(43, 51, 233, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.transformation-stats-table th,
+.transformation-stats-table td {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+  font-variant-numeric: tabular-nums;
+}
+
+.transformation-stats-table th {
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.transformation-stats-table tr:last-child td {
+  border-bottom: none;
+}
+
+.transformation-stats-table td {
+  color: var(--chart-label-color);
+}
+
+@media (max-width: 768px) {
+  .transformation-empty-rules {
+    align-items: flex-start;
   }
 }

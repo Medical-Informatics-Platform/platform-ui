@@ -25,7 +25,7 @@
 - [ ] Redirect behavior remains same-origin and intentional.
 
 ## UI and Accessibility
-- [ ] Visible UI changes follow `DESIGN_SYSTEM.yaml`.
+- [ ] Visible UI changes follow `DESIGN.md`.
 - [ ] Text, controls, and layouts work at relevant desktop/mobile sizes.
 - [ ] Interactive controls have clear labels/states.
 - [ ] Existing keyboard and screen-reader affordances are not degraded.

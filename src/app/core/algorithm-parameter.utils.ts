@@ -94,7 +94,7 @@ export function optionBindingValue(option: unknown): string {
   return normalized?.code ?? String(option);
 }
 
-export function isEmptyParameterValue(value: unknown): boolean {
+function isEmptyParameterValue(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value === 'string' && value.trim() === '') return true;
   return false;

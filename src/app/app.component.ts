@@ -16,7 +16,6 @@ import { filter, map, startWith } from 'rxjs';
 export class AppComponent implements OnInit {
   authService = inject(AuthService);
   private router = inject(Router);
-  title = 'fl-platform';
 
   readonly notebookRouteActive = toSignal(
     this.router.events.pipe(

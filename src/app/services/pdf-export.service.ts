@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
+import { captureHtmlToPng, renderMipVersion } from '../core/pdf.utils';
 
 export interface PdfExportOptions {
     title: string;
@@ -245,15 +246,9 @@ export class PdfExportService {
                     if (!chartEl) continue;
 
                     try {
-                        const canvas = await html2canvas(chartEl, {
-                            backgroundColor: '#ffffff',
-                            scale: 3,
-                            useCORS: true,
-                            logging: false,
-                        });
-                        const imgData = canvas.toDataURL('image/png');
+                        const { dataUrl: imgData, width: canvasWidth, height: canvasHeight } = await captureHtmlToPng(chartEl, 3);
                         const imgWidth = 180;
-                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                        const imgHeight = (canvasHeight * imgWidth) / canvasWidth;
 
                         doc.setFontSize(11);
                         doc.text(label, 15, yOffset);
@@ -289,15 +284,9 @@ export class PdfExportService {
                     if (!chartEl) continue;
 
                     try {
-                        const canvas = await html2canvas(chartEl, {
-                            backgroundColor: '#ffffff',
-                            scale: 3,
-                            useCORS: true,
-                            logging: false,
-                        });
-                        const imgData = canvas.toDataURL('image/png');
+                        const { dataUrl: imgData, width: canvasWidth, height: canvasHeight } = await captureHtmlToPng(chartEl, 3);
                         const imgWidth = 180;
-                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                        const imgHeight = (canvasHeight * imgWidth) / canvasWidth;
 
                         doc.setFontSize(11);
                         doc.text(label, 15, yOffset);
@@ -314,16 +303,12 @@ export class PdfExportService {
             }
 
             if (data.mipVersion) {
-                const totalPages = (doc as any).getNumberOfPages();
-                doc.setPage(totalPages);
-                doc.setFont('helvetica', 'italic');
-                doc.setFontSize(9);
-                doc.setTextColor(150);
-                const versionText = `MIP Version: ${data.mipVersion}`;
-                const textWidth = doc.getTextWidth(versionText);
-                const pageWidth = doc.internal.pageSize.getWidth();
-                const pageHeight = doc.internal.pageSize.getHeight();
-                doc.text(versionText, pageWidth - 10 - textWidth, pageHeight - 10);
+                renderMipVersion(doc, data.mipVersion, {
+                    pageWidth: doc.internal.pageSize.getWidth(),
+                    pageHeight: doc.internal.pageSize.getHeight(),
+                    right: 10,
+                    bottom: 10,
+                });
             }
 
             doc.save('descriptive_statistics.pdf');

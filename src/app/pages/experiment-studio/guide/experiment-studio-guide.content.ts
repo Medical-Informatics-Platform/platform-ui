@@ -12,9 +12,10 @@ export interface ExperimentStudioGuideStep {
   advanceOnTargetClick?: boolean;
   requirement?:
   | 'selected-sex'
-  | 'covariate-sex'
+  | 'variable-sex'
   | 'selected-age'
   | 'variable-age'
+  | 'roles-assigned'
   | 'algorithm-selected'
   | 'experiment-result-ready'
   | 'save-as-opened'
@@ -37,7 +38,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'welcome',
     section: 'Explore',
-    title: 'Welcome to the Medical Informatics Platform',
+    title: 'Experiment Studio User Guide',
     body: 'This guide walks you through Experiment Studio step by step. During interactive steps, you can only interact with the highlighted <strong>blue panel</strong> on the page—the rest of the interface stays dimmed until you press Next.',
   },
   {
@@ -58,29 +59,28 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'navigation',
     section: 'Explore',
     title: 'Navigation',
-    body: 'Use the left rail to move between datasets and variables, data review and preprocessing, and the algorithm area. The link back to the dashboard is also here.',
+    body: 'Use the step bar across the top to move between Data Exploration, Data Handling, Algorithm Selection, and Experiment Execution. The link back to the dashboard is also here. Once you add at least one variable, continue from the footer at the bottom of the current view — data review is optional, so you can skip straight to the algorithm if you prefer.',
     selector: '[data-guide="studio-navigation"]',
   },
   {
-    id: 'pathology',
+    id: 'study-context',
     section: 'Explore',
-    title: 'Pathology',
-    body: 'Choose the pathology you want to work with. The available variables and datasets update from this selection.',
-    selector: '[data-guide="data-model-selector"]',
-  },
-  {
-    id: 'datasets',
-    section: 'Explore',
-    title: 'Datasets',
-    body: 'Pick the datasets or cohorts that should be included in the current analysis.',
-    selector: '[data-guide="dataset-selector"]',
+    title: 'Pathology & Datasets',
+    body: 'Choose the pathology you want to work with, then pick the datasets or cohorts to include in the current analysis. Click the chip to open both selectors — the available variables update from this selection.',
+    selector: '[data-guide="study-context"]',
+    allowTargetInteraction: true,
+    interactionSelectors: [
+      '[data-guide="data-model-selector"]',
+      '[data-guide="dataset-selector"]',
+    ],
   },
   {
     id: 'search-variables',
     section: 'Explore',
     title: 'Search Variables',
-    body: 'Search for variables or groups, then narrow the results by Variables or Groups and by variable type.',
+    body: 'Click the search icon to open the search bar, then search for variables or groups and narrow the results by Variables or Groups and by variable type.',
     selector: '[data-guide="search-bar"]',
+    allowTargetInteraction: true,
   },
   {
     id: 'variable-selection',
@@ -101,7 +101,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'variable-containers',
     section: 'Explore',
     title: 'Compose Your Experiment',
-    body: 'Use this panel to place the selected item into Variables or Covariates. You can also review and remove the selections already included in the experiment.',
+    body: 'Select an item in the Map or List view, then click Add (or double-click the item). Open the count button in the details header to review, remove, or clear selected variables.',
     selector: '[data-guide="variable-containers"]',
   },
   {
@@ -125,11 +125,11 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'add-sex-covariate',
     section: 'Explore',
-    title: 'Add {{GUIDE_COVARIATE}} as Covariate',
+    title: 'Add {{GUIDE_COVARIATE}} as Variable',
     body: '',
-    selector: '[data-guide="guide-add-covariate"]',
+    selector: '[data-guide="guide-add-variable"]',
     allowTargetInteraction: true,
-    requirement: 'covariate-sex',
+    requirement: 'variable-sex',
   },
   {
     id: 'select-age-variable',
@@ -162,8 +162,8 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-intro',
     section: 'Analysis',
-    title: 'Data Review &amp; Preprocessing',
-    body: 'This workflow has four accordion steps below. The guide opens each one in turn so you can explore filtering, raw summaries, preprocessing, and processed results.',
+    title: 'Data Handling',
+    body: 'This workflow has three stations on the left rail: Filtering, Preprocessing, and Transformation. Use <strong>Preview data</strong> in a station footer to inspect the applied tables and charts. <strong>Apply &amp; Continue</strong> is optional and only needed when you have pending edits. Return with <strong>Edit filters</strong>, <strong>Edit preprocessing</strong> or <strong>Edit transformation</strong>.',
     selector: '[data-guide="analysis-section"]',
     allowTargetInteraction: false,
   },
@@ -171,7 +171,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'analysis-filtering',
     section: 'Analysis',
     title: '1. Filtering',
-    body: 'Optional: add filter rules to narrow the cohort. Preview the inline filter builder below, then continue when you are ready.',
+    body: 'Optional: add filter rules to narrow the cohort. With no rules, <strong>Preview data</strong> still shows the raw cohort. <strong>Apply &amp; Continue</strong> only when you have conditions to commit.',
     selector: '[data-guide="analysis-filtering"]',
     allowTargetInteraction: false,
   },
@@ -179,7 +179,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'analysis-raw-statistics',
     section: 'Analysis',
     title: '2. Raw Data Summary',
-    body: 'Select a variable on the left, then explore <strong>Statistics</strong>, <strong>Charts</strong>, or <strong>Histogram</strong>. Export PDF or CSV when you need a snapshot.',
+    body: '<strong>Preview data</strong> shows the tables. Use <strong>Charts</strong> or <strong>Histogram</strong> for other views, then <strong>Edit filters</strong>. Export PDF or CSV when you need a snapshot.',
     selector: '[data-guide="analysis-raw-summary"]',
     allowTargetInteraction: true,
   },
@@ -187,7 +187,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'analysis-preprocessing',
     section: 'Analysis',
     title: '3. Preprocessing',
-    body: 'Preview missing-value handling for each variable. You can configure and apply preprocessing later—press Next when you are ready to continue.',
+    body: 'Default NA removal is already in effect. Use <strong>Preview data</strong> to inspect processed tables without clicking Apply. <strong>Apply &amp; Continue</strong> only when you change the rules.',
     selector: '[data-guide="analysis-preprocessing"]',
     allowTargetInteraction: false,
   },
@@ -195,7 +195,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'analysis-processed-summary',
     section: 'Analysis',
     title: '4. Processed Data Summary',
-    body: 'After preprocessing is applied, compare processed statistics here. If this section is empty, return to preprocessing and click Apply.',
+    body: 'This is the processed view opened from Preprocessing <strong>Preview data</strong>. Default NA removal is already applied; use Apply only after you edit rules.',
     selector: '[data-guide="analysis-processed-summary"]',
     allowTargetInteraction: true,
   },
@@ -203,15 +203,24 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'experiment-intro',
     section: 'Experiment',
     title: 'Experiment Section',
-    body: 'This is where you choose an algorithm, configure any parameters, and run the analysis.',
+    body: 'This is where you assign outcomes and predictors, choose an algorithm, then configure parameters and run from the header.',
     selector: '[data-guide="experiment-workspace"]',
     allowTargetInteraction: false,
+  },
+  {
+    id: 'experiment-role-assignment',
+    section: 'Experiment',
+    title: 'Assign Variables &amp; Covariates',
+    body: 'On the algorithm panel, assign each pool variable as outcome (y) or predictor (x). Assigned variables move into the role slots and leave the list below — drag a chip between the slots to move it, or use × to return it. Matching methods update as you assign. The created transformation column can also be assigned here.',
+    selector: '[data-guide="guide-role-assignment"]',
+    allowTargetInteraction: true,
+    requirement: 'roles-assigned',
   },
   {
     id: 'experiment-select-algorithm',
     section: 'Experiment',
     title: 'Algorithm Selection',
-    body: 'Pick any available algorithm from the experiment panel. Green ticks mark algorithms that can run with your current variable and covariate setup.',
+    body: 'The catalog lists runnable methods per group by default — switch the chip to All to see the unavailable ones and their reasons. Clicking a method opens its documentation and parameter fields together in Algorithm configuration, right under the catalog.',
     selector: '[data-guide="experiment-workspace"]',
     allowTargetInteraction: true,
     requirement: 'algorithm-selected',
@@ -220,8 +229,8 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'experiment-run',
     section: 'Experiment',
     title: 'Run Experiment',
-    body: 'Review the selected algorithm configuration. If extra parameters are shown, set them first, then run the experiment.',
-    selector: '[data-guide="algorithm-settings"]',
+    body: 'Review the documentation and optional parameters, then use Run Experiment on the right of this bar.',
+    selector: '[data-guide="run-experiment"]',
     allowTargetInteraction: true,
     requirement: 'experiment-result-ready',
   },

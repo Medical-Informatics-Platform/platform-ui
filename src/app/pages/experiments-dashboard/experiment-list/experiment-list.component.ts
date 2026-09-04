@@ -6,6 +6,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExperimentSearchComponent } from '../experiment-search/experiment-search.component';
 import { Router, RouterModule } from '@angular/router';
+import { buildExperimentShareUrl, isExperimentOwner } from '../../../core/share.utils';
 import { ExperimentFilters } from '../experiment-search/experiment-filter.model';
 
 @Component({
@@ -53,7 +54,6 @@ export class ExperimentsListComponent implements OnInit {
 
   ngOnInit(): void {
     this.onlyMine.set(this.initialOnlyMine());
-    this.experimentsService.fetchGlobalTotal();
   }
 
   // toggle
@@ -110,27 +110,14 @@ export class ExperimentsListComponent implements OnInit {
     }, 2400);
   }
 
-  private buildShareUrl(expId: string): string {
-    const tree = this.router.createUrlTree(
-      ['/experiments-dashboard'],
-      { queryParams: { experiment: expId } }
-    );
-
-    const relative = this.router.serializeUrl(tree);
-    const origin = window.location.origin;
-
-    return origin + relative;
-  }
 
   isOwner(exp: Experiment): boolean {
-    const currentEmail = this.currentUserEmail();
-    if (!currentEmail || !exp.authorEmail) return false;
-    return currentEmail === exp.authorEmail;
+    return isExperimentOwner(this.currentUserEmail(), exp.authorEmail);
   }
 
   onCopyLinkClicked(exp: Experiment, event: MouseEvent) {
     event.stopPropagation();
-    const url = this.buildShareUrl(exp.id);
+    const url = buildExperimentShareUrl(this.router, exp.id);
 
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url).then(
@@ -176,9 +163,6 @@ export class ExperimentsListComponent implements OnInit {
       });
   }
 
-  // counts
-  readonly totalExperiments = computed(() => this.experimentsService.totalExperiments());
-  readonly visibleExperiments = computed(() => this.experimentsService.experiments().length);
 
   // pages
   readonly totalPages = computed(() => this.experimentsService.totalPages());

@@ -4,6 +4,28 @@
   min-height: 100vh;
 }
 
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -120%);
+  z-index: 10001;
+  padding: 8px 16px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translate(-50%, 0);
+  outline: 2px solid var(--text-main);
+  outline-offset: 2px;
+}
+
 main {
   flex: 1 1 auto;
   padding: 0;
@@ -19,13 +41,8 @@ main.main--notebook {
   box-sizing: border-box;
 }
 
-/* app-header and app-footer are components and will handle their own styles */
-app-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
-
+/* app-header and app-footer are components and will handle their own styles.
+   app-header carries no positioning of its own: .header is fixed and owns the stacking. */
 app-footer {
   margin-top: auto;
   flex-shrink: 0;

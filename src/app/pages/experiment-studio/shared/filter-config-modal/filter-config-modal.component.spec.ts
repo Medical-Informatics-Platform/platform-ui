@@ -81,7 +81,7 @@ describe('FilterConfigModalComponent block builder', () => {
 
     component.addGroup(root.id, 1);
     const group = component.rootGroup().rules[1] as any;
-    component.setGroupCondition(root.id, 'OR');
+    component.setBlockConnector(root.id, group.id, 'OR');
     component.addCondition(group.id, 0);
     condition = (component.rootGroup().rules[1] as any).rules[0];
     component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
@@ -223,5 +223,52 @@ describe('FilterConfigModalComponent block builder', () => {
       ],
       valid: true,
     }));
+  });
+
+  it('does not render Review data inside the filter helper', () => {
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.btn-preview')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.filter-helper')).toBeNull();
+
+    fixture.componentRef.setInput('inline', false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.btn-preview')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.filter-helper')).not.toBeNull();
+  });
+
+  it('frames nested groups but not the empty root group', () => {
+    fixture.detectChanges();
+    const root = fixture.nativeElement.querySelector('.filter-block-group.is-root') as HTMLElement;
+    expect(root.querySelector('.empty-filter-group')).toBeTruthy();
+    expect(root.textContent).toContain('No conditions yet.');
+    expect(root.textContent).toContain('Add condition');
+    expect(root.textContent).toContain('Group');
+
+    component.addGroup(component.rootGroup().id, 0);
+    fixture.detectChanges();
+
+    const nested = fixture.nativeElement.querySelector('.filter-block-group:not(.is-root)') as HTMLElement;
+    expect(nested).toBeTruthy();
+    expect(nested.textContent).toContain('Nested group');
+    expect(nested.querySelector('.empty-filter-group')).toBeTruthy();
+  });
+
+  it('exportFilterLogic returns payload without writing cohort filters', () => {
+    const root = component.rootGroup();
+    component.addCondition(root.id, 0);
+    const condition = component.rootGroup().rules[0] as any;
+    component.onConditionVariableTextChange(condition.id, 'Age (real)');
+    component.setConditionOperator(condition.id, '>');
+    component.setConditionValue(condition.id, '2');
+
+    const logic = component.exportFilterLogic();
+
+    expect(logic).toEqual(jasmine.objectContaining({
+      condition: jasmine.any(String),
+      rules: jasmine.any(Array),
+      valid: true,
+    }));
+    expect(expStudio.setFilters).not.toHaveBeenCalled();
+    expect(expStudio.setFilterLogic).not.toHaveBeenCalled();
   });
 });

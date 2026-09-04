@@ -62,7 +62,7 @@ Unknown / TODO: verify. No e2e runner is configured in this repository.
 | Change type | Required validation |
 |---|---|
 | UI-only component change | Relevant component spec if available, `npm run build`, and manual browser check for affected route. |
-| Styling-only change | `npm run build`, responsive browser check, and `DESIGN_SYSTEM.yaml` review. |
+| Styling-only change | `npm run build`, responsive browser check, and `DESIGN.md` review. |
 | Service/API integration change | Focused service/component specs, `npm run build`, and backend-backed manual check. |
 | Auth/permission/NDA change | Guard/service specs, `npm run build`, manual login/logout/redirect/NDA check, human review. |
 | Algorithm availability change | `algorithm-rules.service.spec.ts`, relevant component specs, `npm run build`, manual Studio check. |

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { of, Subject } from 'rxjs';
@@ -27,14 +28,14 @@ describe('StatisticAnalysisPanelComponent', () => {
             'getAppliedDescriptivePreprocessing',
             'setFilters',
             'setFilterLogic',
-            'toggleFilterConfigModal'
+            'setTransformationPreprocessing',
         ], {
             selectedVariables: signal([]),
-            selectedCovariates: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
             filterLogic: signal(null),
+            editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal(null),
             backendAlgorithms: signal({})
         });
@@ -83,13 +84,159 @@ describe('StatisticAnalysisPanelComponent', () => {
         return { age, sex };
     }
 
+    /** A minimal valid category rule payload, as QueryBuilder would export it. */
+    function categoryFilter(field = 'age', operator = 'greater', value = 65) {
+        return {
+            condition: 'AND' as const,
+            rules: [{
+                id: `${field}-${operator}`,
+                field,
+                type: 'integer' as const,
+                input: 'number' as const,
+                operator,
+                value,
+            }],
+        };
+    }
+
     function workflowSection(title: string): HTMLElement {
-        return (Array.from(fixture.nativeElement.querySelectorAll('.workflow-section')) as HTMLElement[])
-            .find((section) => section.textContent?.includes(title)) as HTMLElement;
+        const guideMap: Record<string, string> = {
+            'Raw Data Summary': 'analysis-raw-summary',
+            'Processed Data Summary': 'analysis-processed-summary',
+            Filtering: 'analysis-filtering',
+            Preprocessing: 'analysis-preprocessing',
+            Transformation: 'analysis-transformation',
+        };
+        // Stations render as .pipeline-node, the two summaries as .workflow-section.
+        const sections = () =>
+            Array.from(fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node')) as HTMLElement[];
+        const guide = guideMap[title];
+        if (guide) {
+            return sections().find((section) => section.getAttribute('data-guide') === guide) as HTMLElement;
+        }
+        return sections().find((section) => section.textContent?.includes(title)) as HTMLElement;
+    }
+
+    /**
+     * Pipeline nodes render dormant until they hold work or were opened this visit,
+     * so a spec that reads a station's editor has to open it first. Opening is a read.
+     */
+    function openStation(step: 'filters' | 'setup' | 'transformation'): HTMLElement {
+        component.addStep(step);
+        fixture.detectChanges();
+        return workflowSection({ filters: 'Filtering', setup: 'Preprocessing', transformation: 'Transformation' }[step]);
     }
 
     it('should create', () => {
         expect(component).toBeTruthy();
+    });
+
+    it('toggles Filtering exclusive of Raw Summary via Preview data', () => {
+        configureRawSummary();
+        component.goToSection('filters');
+        fixture.detectChanges();
+
+        const filtering = workflowSection('Filtering');
+        expect(component.sectionOpen().filters).toBeTrue();
+        expect(component.sectionOpen().raw).toBeFalse();
+
+        const preview = filtering.querySelector('.station-action-preview') as HTMLButtonElement;
+        expect(preview.textContent?.trim()).toBe('Preview data');
+        preview.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().filters).toBeFalse();
+        expect(component.sectionOpen().raw).toBeTrue();
+        expect(component.sectionOpen().setup).toBeFalse();
+
+        const raw = workflowSection('Raw Data Summary');
+        const tabLabels = Array.from(raw.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
+        expect(tabLabels).toEqual(['Charts', 'Histogram']);
+        expect(raw.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Edit filters');
+
+        const back = workflowSection('Raw Data Summary').querySelector('.station-preview-toggle') as HTMLButtonElement;
+        expect(back.textContent?.trim()).toBe('Edit filters');
+        back.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().filters).toBeTrue();
+        expect(component.sectionOpen().raw).toBeFalse();
+    });
+
+    it('places Preview data above the Preprocessing cards, exclusive of processed summary', () => {
+        configureRawSummary();
+        component.goToSection('setup');
+        fixture.detectChanges();
+
+        const preprocessing = workflowSection('Preprocessing');
+        const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
+        expect(preview.textContent?.trim()).toBe('Preview data');
+        expect(preprocessing.querySelector('.station-card-description')?.textContent?.trim()).toContain('Default: NA removal');
+        // The shared action bar owns the station's only preview control.
+        expect(preprocessing.querySelectorAll('.station-action-bar .station-action-preview').length).toBe(1);
+
+        preview.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.sectionOpen().processed).toBeTrue();
+
+        const processed = workflowSection('Processed Data Summary');
+        const tabLabels = Array.from(processed.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
+        expect(tabLabels).not.toContain('Statistics');
+        expect(processed.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Edit preprocessing');
+    });
+
+    /**
+     * Known gap, not a regression: "Preview data" is a jump link (goToSection('processed')),
+     * so the processed workspace stays empty until Apply runs a describe. Finding F1 of
+     * data-handling-flow-plan.md; goes green with Phase 3's transient pending preview.
+     */
+    xit('opens processed tables from Preview data without clicking Apply', () => {
+        mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) => {
+            mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(config as never);
+        });
+        configureRawSummary();
+        component.goToSection('setup');
+        fixture.detectChanges();
+
+        const preprocessing = workflowSection('Preprocessing');
+        const apply = preprocessing.querySelector('.station-action-apply') as HTMLButtonElement;
+        expect(apply.disabled).toBeTrue();
+        expect(preprocessing.textContent).not.toContain('No preprocessing has been applied yet');
+
+        const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
+        preview.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().processed).toBeTrue();
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.processedSummary.isLoading).toBeFalse();
+        expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+
+        const processed = workflowSection('Processed Data Summary');
+        expect(processed.textContent).not.toContain('No preprocessing has been applied yet');
+        expect(processed.querySelector('[aria-label="Processed summary variables"]')).toBeTruthy();
+    });
+
+    it('replaces Transformation Statistics tab with Preview data', () => {
+        configureRawSummary();
+        component.goToSection('transformation');
+        fixture.detectChanges();
+
+        const transformation = workflowSection('Transformation');
+        expect(transformation.querySelector('.transformation-tabs')).toBeNull();
+        const preview = transformation.querySelector('.station-action-preview') as HTMLButtonElement;
+        expect(preview.textContent?.trim()).toBe('Preview data');
+
+        preview.click();
+        fixture.detectChanges();
+
+        expect(component.transformationActiveTab).toBe('Statistics');
+        const back = transformation.querySelector('.station-preview-toggle') as HTMLButtonElement;
+        expect(back.textContent?.trim()).toBe('Edit transformation');
+        expect(transformation.querySelector('.transformation-create')).toBeNull();
+        expect(transformation.querySelector('.transformation-statistics')).toBeTruthy();
     });
 
     it('renders preprocessing step documentation from backend algorithm metadata', () => {
@@ -102,6 +249,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         });
 
+        openStation('setup');
+        component.enableOutlierHandling();
         fixture.detectChanges();
 
         const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -188,17 +337,25 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.rawSummary.nominalVariables.find(v => v.code === 'age')).toBeFalsy();
     });
 
-    it('renders the data review workflow without a model tab', () => {
+    it('renders the five workflow sections without a model tab', () => {
         fixture.detectChanges();
-        const text = fixture.nativeElement.textContent as string;
 
-        expect(text).toContain('DATA REVIEW & PREPROCESSING');
-        expect(text).toContain('Raw Data Summary');
-        expect(text).toContain('Preprocessing');
-        expect(text).toContain('Filtering');
-        expect(text).toContain('Processed Data Summary');
-        const buttons = fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>;
-        const buttonLabels = Array.from(buttons).map((button) => button.textContent?.trim());
+        // The sub-tab buttons moved to the studio stepper; the panel now
+        // exposes only the workflow sections, located by data-guide anchors.
+        const guides = (Array.from(
+            fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node')
+        ) as HTMLElement[]).map((section) => section.getAttribute('data-guide'));
+        expect(guides).toEqual([
+            'analysis-filtering',
+            'analysis-raw-summary',
+            'analysis-preprocessing',
+            'analysis-processed-summary',
+            'analysis-transformation',
+        ]);
+
+        const buttonLabels = (Array.from(
+            fixture.nativeElement.querySelectorAll('button')
+        ) as HTMLButtonElement[]).map((button) => button.textContent?.trim());
         expect(buttonLabels).not.toContain('Model');
     });
 
@@ -223,7 +380,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
 
-        fixture.detectChanges();
+        openStation('setup');
         expect(fixture.nativeElement.textContent).toContain('Required for longitudinal pathologies');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal Transformation');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal strategy');
@@ -268,9 +425,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.preprocessingSearch = 'no-match';
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
 
-        fixture.detectChanges();
-
-        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const preprocessingSection = openStation('setup');
         expect(preprocessingSection.querySelector('.empty-state-block')).toBeTruthy();
         expect(preprocessingSection.textContent).toContain('No variables match the current search.');
     });
@@ -279,10 +434,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
-        fixture.detectChanges();
 
-        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
-        const missingStep = (Array.from(preprocessingSection.querySelectorAll('.preprocessing-step-card')) as HTMLElement[])
+        const preprocessingSection = openStation('setup');
+        const missingStep = (Array.from(preprocessingSection.querySelectorAll('.station-card')) as HTMLElement[])
             .find((step) => step.textContent?.includes('Missing Values')) as HTMLElement;
 
         expect(missingStep.querySelector('.preprocessing-browser')).toBeTruthy();
@@ -291,13 +445,64 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(missingStep.textContent).toContain('Missing value handling');
     });
 
+    it('gives Filtering, Preprocessing and Transformation the same station anatomy', () => {
+        fixture.detectChanges();
+
+        openStation('filters');
+        openStation('setup');
+        openStation('transformation');
+
+        // Every node carries its own heading, at least one station card, and one shared
+        // Preview data action on its apply surface.
+        for (const title of ['Filtering', 'Preprocessing', 'Transformation']) {
+            const node = workflowSection(title);
+            expect(node.querySelector('h3')?.textContent?.trim()).toBeTruthy();
+            expect(node.querySelector('.station-card')).toBeTruthy();
+            expect(node.querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
+        }
+
+        // Titled cards keep the shared anatomy: icon tile + collapsible header.
+        const titled = (Array.from(
+            (fixture.nativeElement as HTMLElement).querySelectorAll('.pipeline-node .station-card')
+        ) as HTMLElement[]).filter((card) => card.querySelector('.station-card-title')?.textContent?.trim());
+        expect(titled.map((card) => card.querySelector('.station-card-title')?.textContent?.trim())).toEqual([
+            'Missing Values',
+            'Create new categorical column',
+        ]);
+        for (const card of titled) {
+            expect(card.querySelector('.station-card-icon i')).toBeTruthy();
+            expect(card.querySelector('button.station-card-header[aria-expanded]')).toBeTruthy();
+        }
+    });
+
+    it('keeps the preprocessing and transformation stations collapsible', () => {
+        fixture.detectChanges();
+
+        // Filtering is the only static station; the other three toggle through their header.
+        openStation('setup');
+        openStation('transformation');
+        component.enableOutlierHandling();
+        fixture.detectChanges();
+
+        const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.pipeline-node .station-card-header'));
+        expect(headers.filter((header) => header.tagName === 'BUTTON' && header.hasAttribute('aria-expanded')).length).toBe(3);
+
+        const missingHeader = headers.find((header) => header.textContent?.includes('Missing Values')) as HTMLButtonElement;
+        expect(missingHeader.getAttribute('aria-expanded')).toBe('true');
+
+        missingHeader.click();
+        fixture.detectChanges();
+
+        expect(component.preprocessingStepOpen.missing).toBeFalse();
+        expect(missingHeader.getAttribute('aria-expanded')).toBe('false');
+    });
+
     it('updates preprocessing detail controls when a variable is selected', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
-        fixture.detectChanges();
 
-        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const preprocessingSection = openStation('setup');
         const sexButton = (Array.from(preprocessingSection.querySelectorAll('.preprocessing-variable-btn')) as HTMLButtonElement[])
             .find((button) => button.textContent?.includes('Sex'));
         sexButton?.click();
@@ -359,8 +564,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // Missing Values defaults (NA removal) are implicit, so they don't
         // contribute to the pending count. Only the longitudinal step counts.
+        openStation('setup');
         expect(component.pendingChangeCount).toBe(1);
-        expect(component.preprocessingStatusLabel).toBe('1 pending step');
         expect(fixture.nativeElement.textContent).toContain('1 pending step');
     });
 
@@ -376,9 +581,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         };
         (mockExpService.selectedVariables as any).set([variable]);
         component.onMissingActionChange(variable, 'constant');
-        fixture.detectChanges();
 
-        const preprocessingSection = fixture.nativeElement.querySelector('.preprocessing-section') as HTMLElement;
+        const preprocessingSection = openStation('setup');
         const options = Array.from(preprocessingSection.querySelectorAll('.preprocessing-detail-panel option')) as HTMLOptionElement[];
 
         expect(options.map((option) => option.textContent?.trim())).toContain('No');
@@ -419,41 +623,65 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         (mockExpService.selectedVariables as any).set([sex]);
         fixture.detectChanges();
+        // Dropping `age` from the selection must not drop its applied rule.
         expect(component.appliedPreprocessingRules['age']?.action).toBe('drop');
-        expect(component.preprocessingGroups.find((group) => group.key === 'applied')?.variables.map((v) => v.code)).toEqual(['sex']);
+        expect(Object.keys(component.appliedPreprocessingRules)).toEqual(['age']);
 
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
         const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
         const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
-        expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age', 'sex']);
-        expect(defaultGroup).toBeUndefined();
+        // `age` comes back as applied; `sex` was never applied and sits on the
+        // request-time NA-removal default (b0899cf removed the auto-persist).
+        expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
+        expect(defaultGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
 
-    it('auto-applies default NA removal when variables are first selected', () => {
+    it('keeps the default NA removal in memory when variables are first selected', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
-        expect(component.preprocessingStatus).toBe('applied');
-        expect(component.preprocessingVariableStateLabel(age)).toBe('Applied');
-        expect(component.preprocessingVariableStateLabel(sex)).toBe('Applied');
+        // The implicit default is shown as a default: algorithm runs get drop from
+        // resolveRequestPreprocessing, so it is not persisted work.
+        expect(component.preprocessingVariableStateLabel(age)).toBe('Default');
+        expect(component.preprocessingVariableStateLabel(sex)).toBe('Default');
         expect(component.pendingChangeCount).toBe(0);
-        expect(mockExpService.setAppliedDescriptivePreprocessing).toHaveBeenCalledWith({
-            missing_values_handler: {
-                strategies: {
-                    age: 'drop',
-                    sex: 'drop',
-                },
-            },
-        });
+        const persisted = mockExpService.setAppliedDescriptivePreprocessing.calls
+            .allArgs()
+            .map(([config]) => config)
+            .filter((config) => config !== null);
+        expect(persisted).toEqual([]);
+        expect(component.isStepAdded('setup')).toBeFalse();
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
+        expect(component.preprocessingStatus).toBe('none');
+        expect((component as any).userPreprocessingApplied).toBe(false);
     });
 
-    it('marks variables added after applied preprocessing as applied (NA removal default)', () => {
+    it('reports applied status only after a real apply', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        // The bare set spy does not round-trip the persisted config; wire it up
+        // so the post-apply reconcile hydrates from the applied config (as the
+        // real service does) instead of treating it as a fresh session.
+        mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) => {
+            mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(config as never);
+        });
+        (mockExpService.selectedVariables as any).set([age]);
+        component.onMissingActionChange(age, 'mean');
+        expect(component.preprocessingStatus).not.toBe('applied');
+
+        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        component.applyPreprocessing();
+        fixture.detectChanges();
+
+        expect((component as any).userPreprocessingApplied).toBe(true);
+        expect(component.preprocessingStatus).toBe('applied');
+    });
+
+    it('covers variables added after applied preprocessing with the inherited NA removal default', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const preprocessing = {
@@ -475,10 +703,12 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
-        expect(component.preprocessingVariableStateLabel(sex)).toBe('Applied');
+        // The NA drop for a newly added variable is injected per request, not stored, so the
+        // honest label is Default: covered by the inherited default, owed nothing, pending nothing.
+        expect(component.preprocessingVariableStateLabel(sex)).toBe('Default');
         expect(component.preprocessingVariableHasPendingChange(sex)).toBeFalse();
         expect(component.pendingChangeCount).toBe(0);
-        expect(defaultGroup).toBeUndefined();
+        expect(defaultGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
 
     it('creates pending state when a missing value action changes', () => {
@@ -524,7 +754,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.onMissingActionChange(variable, 'mean');
         component.applyPreprocessing();
 
-        expect(component.sectionOpen.processed).toBeTrue();
+        // Apply & Continue hands the user to the next station; the summary they just applied
+        // is reached through Preview data, and its statistic selection is kept for that trip.
+        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.sectionOpen().processed).toBeFalse();
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
     });
 
@@ -543,17 +776,16 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const processedSection = workflowSection('Processed Data Summary');
-        const processedHeader = processedSection.querySelector('.workflow-section-header') as HTMLElement;
         const processedBody = processedSection.querySelector('.workflow-section-body.open') as HTMLElement;
-        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.sectionOpen().processed).toBeTrue();
         expect(component.processedSummary.isLoading).toBeTrue();
-        expect(processedHeader.textContent).toContain('Processed Data Summary');
+        expect(processedSection.querySelector('[aria-label="Processed data summary loading"]')).toBeTruthy();
         expect(processedBody).toBeTruthy();
 
         setTimeout(() => {
             const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
             expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(Math.max(processedHeader.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
+            expect(scrollOptions.top).toBe(Math.max(processedSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
 
             response$.next({
                 result: {
@@ -569,7 +801,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             response$.complete();
             fixture.detectChanges();
 
-            expect(component.sectionOpen.processed).toBeTrue();
+            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(component.sectionOpen().processed).toBeFalse();
             expect(component.processedSummary.isLoading).toBeFalse();
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
 
@@ -579,7 +812,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             });
             fixture.detectChanges();
-            expect(component.sectionOpen.processed).toBeTrue();
+            expect(component.sectionOpen().processed).toBeFalse();
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
             done();
         });
@@ -597,10 +830,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         setTimeout(() => {
-            const filtersHeader = workflowSection('Filtering').querySelector('.workflow-section-header') as HTMLElement;
+            const filtersSection = workflowSection('Filtering');
             const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
             expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(Math.max(filtersHeader.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
+            expect(scrollOptions.top).toBe(Math.max(filtersSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
             done();
         });
     });
@@ -615,14 +848,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.applyPreprocessing();
         fixture.detectChanges();
 
-        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.sectionOpen().processed).toBeTrue();
         expect(component.processedSummary.isLoading).toBeTrue();
 
         response$.error(new Error('preprocessing failed'));
         fixture.detectChanges();
 
         const processedSection = workflowSection('Processed Data Summary');
-        expect(component.sectionOpen.processed).toBeTrue();
+        expect(component.sectionOpen().processed).toBeTrue();
         expect(component.processedSummary.isLoading).toBeFalse();
         expect(processedSection.textContent).not.toContain('Processed data summary loading');
     });
@@ -671,10 +904,29 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(text).toContain('PDF');
         expect(text).toContain('CSV');
         const variableButtons = Array.from(workspace.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
-        const ageButtonText = variableButtons.find((button) => button.textContent?.includes('Age'))?.textContent ?? '';
-        expect(ageButtonText).toContain('10 datapoints');
-        expect(ageButtonText).toContain('0 missing');
+        const ageButton = variableButtons.find((button) => button.textContent?.includes('Age'));
+        const ageButtonText = ageButton?.textContent ?? '';
+        // Deliberate change from "10 datapoints · 0 missing": the rail is a column
+        // you compare top to bottom, and absolute counts are not comparable across
+        // variables of different size. The share is, and it fits one line in the
+        // 300px rail; the counts stay in the row's tooltip.
+        expect(ageButtonText).toContain('0%');
+        expect(ageButton?.querySelector('.statistics-variable-coverage')?.getAttribute('title')).toContain('of 10');
         expect(ageButtonText).not.toContain('Numerical');
+    });
+
+    it('pools the rail foot over counts rather than averaging the row shares', () => {
+        configureRawSummary();
+        component.fetchDescriptiveStatistics();
+        fixture.detectChanges();
+
+        const pooled = component.selectionCoverage('raw');
+        expect(pooled?.variables).toBe(2);
+        expect(pooled?.total).toBe(21);
+        expect(pooled?.missing).toBe(1);
+        // Re-pooled: 1 of 21. Averaging the two row shares (0% and 9.1%) would
+        // report 4.6%, a number that describes no dataset in the selection.
+        expect(component.coveragePercent(pooled!)).toBe('4.8%');
     });
 
     it('marks only numeric summary tables for the compact no-scroll layout', () => {
@@ -869,8 +1121,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
-        (mockExpService.selectedVariables as any).set([age, sex]);
-        (mockExpService.selectedCovariates as any).set([bmi]);
+        (mockExpService.selectedVariables as any).set([age, sex, bmi]);
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
         fixture.detectChanges();
         mockExpService.loadDescriptiveOverview.calls.reset();
@@ -932,7 +1183,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             },
         }));
-        fixture.detectChanges();
+        openStation('setup');
         mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
 
         component.onOutlierEnabledChange(age, true);
@@ -1076,6 +1327,9 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.ruleFor(age).action).toBe('median');
         expect(component.ruleFor(sex).action).toBe('drop');
+        expect((component as any).userPreprocessingApplied).toBe(false);
+        // Internal status stays config-driven; the flag (and the emitted,
+        // downgraded status) is what keeps the stepper from claiming Done.
         expect(component.preprocessingStatus).toBe('applied');
         expect(component.pendingChangeCount).toBe(0);
     });
@@ -1111,6 +1365,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age']);
         expect(component.outlierRuleFor(age).enabled).toBeTrue();
         expect(component.outlierVariableStateLabel(age)).toBe('Applied');
+        // Internal status stays config-driven (outlier config is applied); the
+        // user-apply flag is what keeps the stepper from claiming Done.
+        expect((component as any).userPreprocessingApplied).toBe(false);
         expect(component.preprocessingStatus).toBe('applied');
         expect(component.pendingChangeCount).toBe(0);
     });
@@ -1309,9 +1566,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         };
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
-        mockExpService.loadDescriptiveOverview.and.returnValues(
-            of({ result: { featurewise: [] } }),
-            of({
+        mockExpService.loadDescriptiveOverview.and.callFake((_codes: string[], preprocessingArg?: unknown) => {
+            if (!preprocessingArg) {
+                return of({ result: { featurewise: [] } });
+            }
+            return of({
                 result: {
                     featurewise: [
                         {
@@ -1326,8 +1585,8 @@ describe('StatisticAnalysisPanelComponent', () => {
                         },
                     ],
                 },
-            })
-        );
+            });
+        });
 
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
@@ -1335,5 +1594,318 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age'], preprocessing);
         expect(component.processedSummary.data.length).toBe(1);
         expect(component.processedSummary.data[0].name).toBe('Age');
+    });
+
+    it('scrolls to the transformation section when that sub-tab is selected', (done) => {
+        configureRawSummary();
+        const scrollSpy = spyOn(window, 'scrollTo');
+        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            void Promise.resolve().then(() => callback(0));
+            return 0;
+        });
+
+        component.goToSection('transformation');
+        fixture.detectChanges();
+
+        setTimeout(() => {
+            const transformationSection = workflowSection('Transformation');
+            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
+            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(scrollOptions.behavior).toBe('smooth');
+            expect(scrollOptions.top).toBe(Math.max(
+                transformationSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(),
+                0
+            ));
+            done();
+        });
+    });
+
+    it('hydrates the transformation form from applied categorical_column_creator and keeps it on sync', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const filter = {
+            condition: 'AND' as const,
+            rules: [{
+                id: 'age-gt-65',
+                field: 'age',
+                type: 'integer' as const,
+                input: 'number' as const,
+                operator: 'greater',
+                value: 65,
+            }],
+        };
+        const transformation = {
+            code: 'mrs_good_outcome',
+            strategy: 'filter_rules',
+            rules: { good: filter },
+            default_enumeration: 'unknown',
+        };
+        const preprocessing = {
+            missing_values_handler: {
+                strategies: { age: 'drop' },
+            },
+            categorical_column_creator: transformation,
+        };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        expect(component.transformationDrafts.length).toBe(1);
+        const draft = component.transformationDrafts[0];
+        expect(draft.code).toBe('mrs_good_outcome');
+        expect(draft.defaultEnumeration).toBe('unknown');
+        expect(draft.rules).toEqual([{ value: 'good', filter }]);
+        expect(component.transformationStatusLabel).toBe('Applied');
+        // A single column re-persisting must keep the legacy one-object shape.
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith(transformation);
+    });
+
+    it('hydrates every saved categorical creator into its own card', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const filter = {
+            condition: 'AND' as const,
+            rules: [{
+                id: 'age-gt-65',
+                field: 'age',
+                type: 'integer' as const,
+                input: 'number' as const,
+                operator: 'greater',
+                value: 65,
+            }],
+        };
+        const creators = [
+            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
+            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+        ];
+        const preprocessing = { categorical_column_creator: creators };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        // Both steps hydrate; the last one must not win.
+        expect(component.transformationDrafts.map((draft) => draft.code)).toEqual(['group_a', 'group_b']);
+        expect(component.transformationDrafts[1].defaultEnumeration).toBe('other');
+        expect(component.transformationDraftStatus(component.transformationDrafts[0]).label).toBe('Applied');
+        expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Applied');
+
+        // Re-persisting the same cards keeps them as an ordered array of two.
+        mockExpService.setTransformationPreprocessing.calls.reset();
+        component.onTransformationChange();
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
+            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
+            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+        ]);
+    });
+
+    it('adds and removes extra categorical column cards, keeping at least one', () => {
+        // Scoped to the card list: the stage header carries its own Remove Step.
+        const cards = () => workflowSection('Transformation').querySelectorAll('.transformation-cards app-station-card');
+        const cardActions = () =>
+            Array.from(
+                workflowSection('Transformation').querySelectorAll('.transformation-cards .btn-remove-step-node')
+            ) as HTMLButtonElement[];
+        openStation('transformation');
+        expect(cards().length).toBe(1);
+        // The primary card has no Remove Step: Clear already covers it.
+        expect(cardActions().length).toBe(0);
+
+        (workflowSection('Transformation').querySelector('.transformation-cards .btn-add-dashed') as HTMLButtonElement)
+            .click();
+        fixture.detectChanges();
+
+        expect(component.transformationDrafts.length).toBe(2);
+        expect(cards().length).toBe(2);
+        // Only the extra card offers Remove Step.
+        expect(cardActions().length).toBe(1);
+        expect(cardActions()[0].textContent).toContain('Remove Step');
+
+        cardActions()[0].click();
+        fixture.detectChanges();
+
+        expect(component.transformationDrafts.length).toBe(1);
+        expect(cardActions().length).toBe(0);
+    });
+
+    it('clears the primary card instead of removing the last one', () => {
+        const draft = component.transformationDrafts[0];
+        draft.code = 'group_a';
+        draft.rules = [{ value: 'a', filter: { condition: 'AND', rules: [] } }];
+
+        component.removeTransformationDraft(draft.id);
+
+        expect(component.transformationDrafts.length).toBe(1);
+        expect(component.transformationDrafts[0].code).toBe('');
+        expect(component.transformationDrafts[0].rules).toEqual([]);
+    });
+
+    it('applies the transformation without leaving the pipeline', () => {
+        const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+        const filter = categoryFilter();
+        openStation('transformation');
+        const draft = component.transformationDrafts[0];
+        draft.code = 'mrs_good_outcome';
+        draft.rules = [{ value: 'good', filter }];
+        component.transformationRuleModals = {
+            toArray: () => [{ exportFilterLogic: () => filter, filterError: () => null }],
+        } as any;
+        component.transformationActiveTab = 'Statistics';
+        expect(component.sectionOpen().transformation).toBeTrue();
+
+        component.applyTransformation();
+        fixture.detectChanges();
+
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
+
+        // A successful Apply folds the stage to its sub-node overview instead of
+        // jumping ahead, and the next visit opens the editor, not the preview tab.
+        expect(component.sectionOpen().transformation).toBeFalse();
+        expect(component.transformationActiveTab).toBe('Create');
+        expect(component.transformationDrafts.every((card) => !card.open)).toBeTrue();
+        const body = workflowSection('Transformation').querySelector('.workflow-section-body');
+        expect(body?.classList.contains('open')).toBeFalse();
+
+        // The terminal card is the only control that advances to Algorithm.
+        component.finishDataHandling();
+        expect(navigate).toHaveBeenCalledWith('algorithm-section');
+    });
+
+    it('leaves the stage open when a stage with no derived column is applied', () => {
+        // Collapsing would reveal an empty overview, so an untouched stage stays put.
+        openStation('transformation');
+        component.transformationRuleModals = { toArray: () => [] } as any;
+
+        component.applyTransformation();
+
+        expect(component.sectionOpen().transformation).toBeTrue();
+    });
+
+    it('blocks Apply while two derived columns share a name', () => {
+        const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+        const filter = categoryFilter();
+        openStation('transformation');
+        component.addTransformationDraft();
+        component.transformationDrafts[0].code = 'group';
+        component.transformationDrafts[0].rules = [{ value: 'a', filter }];
+        component.transformationDrafts[1].code = 'group';
+        component.transformationDrafts[1].rules = [{ value: 'b', filter }];
+        component.transformationRuleModals = {
+            toArray: () => [
+                { exportFilterLogic: () => filter, filterError: () => null },
+                { exportFilterLogic: () => filter, filterError: () => null },
+            ],
+        } as any;
+
+        component.applyTransformation();
+
+        expect(component.transformationApplyError).toContain('unique name');
+        expect(navigate).not.toHaveBeenCalled();
+        // A refused Apply must not fold the stage: the editor holds the mistake.
+        expect(component.sectionOpen().transformation).toBeTrue();
+        // Only the first occurrence of a duplicated code reaches the store.
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith(
+            jasmine.objectContaining({ code: 'group' })
+        );
+        const persisted = mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0];
+        expect(Array.isArray(persisted)).toBeFalse();
+    });
+
+    it('copies live category filters onto rules before preview and apply', () => {
+        const filter = categoryFilter('age', 'greater', 65);
+        const secondFilter = categoryFilter('sex', 'equal', 1);
+        component.addTransformationDraft();
+        component.transformationDrafts[0].code = 'mrs_good_outcome';
+        component.transformationDrafts[0].rules = [{ value: 'good', filter: null }];
+        component.transformationDrafts[1].code = 'mrs_bad_outcome';
+        component.transformationDrafts[1].rules = [{ value: 'bad', filter: null }];
+        // One modal per rule, flattened in draft order, as the template emits them.
+        component.transformationRuleModals = {
+            toArray: () => [
+                { exportFilterLogic: () => filter, filterError: () => null },
+                { exportFilterLogic: () => secondFilter, filterError: () => null },
+            ],
+        } as any;
+
+        expect(component.commitTransformationRuleFilters()).toBeTrue();
+        expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
+        expect(component.transformationDrafts[1].rules[0].filter).toBe(secondFilter as any);
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
+            jasmine.objectContaining({ code: 'mrs_good_outcome' }),
+            jasmine.objectContaining({ code: 'mrs_bad_outcome' }),
+        ]);
+    });
+
+    describe('preprocessing evidence', () => {
+        it('prices the selected missing-value action in real rows', () => {
+            const { sex } = configureRawSummary();
+            component.fetchDescriptiveStatistics();
+            fixture.detectChanges();
+
+            const coverage = component.coverageFor(sex);
+            expect(coverage?.total).toBe(11);
+            expect(coverage?.missing).toBe(1);
+            expect(component.coveragePercent(coverage!)).toBe('9.1%');
+            // Below coverageSeverity's 10% warning onset, so it is deliberately
+            // uncoloured — the rail compares values, and 9.1% is the floor case.
+            expect(component.coverageSeverity(coverage!)).toBe('none');
+
+            component.onMissingActionChange(sex, 'drop');
+            expect(component.missingActionConsequence(sex)).toBe('Drops up to 1 of 11 rows (9.1%).');
+        });
+
+        it('reports category frequencies for a nominal variable only', () => {
+            const { age, sex } = configureRawSummary();
+            component.fetchDescriptiveStatistics();
+            fixture.detectChanges();
+
+            expect(component.categoryCountsFor(sex).map((row) => [row.label, row.value, row.share]))
+                .toEqual([['female', '6', 0.6], ['male', '4', 0.4]]);
+            // A numeric block's Mean/Std/Min/... rows are metrics, not categories.
+            expect(component.categoryCountsFor(age)).toEqual([]);
+        });
+
+        it('omits quantiles the payload does not carry instead of rendering N/A', () => {
+            const { age } = configureRawSummary();
+            component.fetchDescriptiveStatistics();
+            fixture.detectChanges();
+
+            expect(component.distributionFor(age)).toEqual([]);
+        });
+
+        it('shows no evidence at all before the descriptive stats arrive', () => {
+            // Default harness resolves an empty featurewise payload, so there is
+            // no block for this variable and the rail must render nothing.
+            expect(component.coverageFor({ code: 'age' })).toBeNull();
+            expect(component.missingActionConsequence({ code: 'age' })).toBeNull();
+            expect(component.distributionFor({ code: 'age' })).toEqual([]);
+        });
+
+        it('prices every picker row with that variable\'s own share missing', () => {
+            configureRawSummary();
+            component.fetchDescriptiveStatistics();
+            fixture.detectChanges();
+
+            openStation('setup');
+            const rows = Array.from(fixture.nativeElement.querySelectorAll('.preprocessing-variable-btn')) as HTMLElement[];
+            const sexRow = rows.find((row) => row.textContent?.includes('Sex'));
+            // sex: num_na 1 of num_total 11. age carries num_na 0 -> 0%.
+            expect(sexRow?.querySelector('.preprocessing-variable-coverage')?.textContent.trim()).toBe('9.1%');
+            // 9.1% is under coverageSeverity's 10% onset, so it is not red.
+            expect(sexRow?.querySelector('.preprocessing-variable-coverage')?.getAttribute('data-severity')).not.toBe('high');
+        });
+
+        it('states why the evidence pane is empty instead of rendering blank space', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            (mockExpService.selectedVariables as any).set([age]);
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+            openStation('setup');
+            component.selectPreprocessingVariable(age);
+            fixture.detectChanges();
+
+            expect(component.coverageFor(age)).toBeNull();
+            const note = fixture.nativeElement.querySelector('.preprocessing-evidence .preprocessing-consequence') as HTMLElement;
+            expect(note?.textContent?.trim()).toContain('No dataset statistics are available');
+        });
     });
 });

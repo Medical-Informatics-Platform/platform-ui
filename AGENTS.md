@@ -10,7 +10,7 @@ This repository contains `fl-platform`, the Angular 21 standalone frontend for t
 - `src/app/services/`: auth/session, experiment orchestration, dashboard data access, algorithm rules, labeling, runtime env, theme, errors, and PDF/CSV exports.
 - `src/app/models/`: frontend and backend DTOs/interfaces for users, algorithms, experiments, filters, and data models.
 - `src/app/core/`: algorithm mapping, result enum mapping, constants, and result utility logic.
-- `src/app/pages/experiment-studio/`: data model/dataset selection, variable/covariate/filter selection, QueryBuilder filter UI, algorithm configuration, run/edit flows, statistics, visualizations, and result rendering.
+- `src/app/pages/experiment-studio/`: step views switched via a sticky horizontal stepper — `experiment-studio.component` shows one step view at a time (Datasets & Variables · Data review & preprocessing · Algorithm); all views stay mounted (hidden via CSS) so state is preserved. On the Data review step the stepper expands a sub-step row (Filtering, Raw Summary, Preprocessing, Processed Summary, Transformation) that drives the `statistic-analysis-panel` sections (`goToSection`). Scroll offsets for in-panel section targets come from `experiment-studio-scroll.util.ts`, which reads the page's `--studio-stepper-*` tokens so anchors clear the (possibly expanded) stepper. Also contains variable/filter selection, QueryBuilder filter UI, algorithm configuration with variable role assignment (outcome y / covariates x on the algorithm panel), run/edit flows, statistics, visualizations, and result rendering.
 - `src/app/pages/experiments-dashboard/`: experiment list/search/pagination, detail view, compare mode, sharing, delete/edit/name updates, and result export.
 - `src/app/pages/terms-page/`: NDA/TOS display and acceptance flow.
 - `src/app/pages/account-page/`: account/profile view and logout entry.
@@ -19,7 +19,7 @@ This repository contains `fl-platform`, the Angular 21 standalone frontend for t
 - `src/assets/`: runtime `env.js`, logos/icons, footer assets, and terms markdown.
 - `public/`: static files copied to the Angular build output.
 - `src/styles.css`: global styling and QueryBuilder theming.
-- `DESIGN_SYSTEM.yaml`: MIP visual/brand guidance; consult before UI styling changes.
+- `DESIGN.md`: MIP visual/brand guidance and app tokens; consult before UI styling changes.
 - `Dockerfile`, `docker-entrypoint.sh`, `nginx.conf.template`: container build and nginx/runtime environment injection.
 - `.github/workflows/`: image publishing and EBRAINS mirror workflows.
 - `docs/`: project documentation, QA checklists, visualization audits, and the durable context system under `docs/context/`.
@@ -120,7 +120,7 @@ When a high-output command is justified, announce why it is needed, say it may c
 - Use `inject()` consistently with nearby services/components.
 - Keep TypeScript strictness intact; `tsconfig.json` enables strict templates, no unused locals/parameters, no implicit returns, and related checks.
 - Use CSS component styles (`styleLanguage: css`) and global styles only for app-wide concerns.
-- Follow `DESIGN_SYSTEM.yaml` for UI aesthetics, brand colors, logo usage, typography, spacing, and visual hierarchy.
+- Follow `DESIGN.md` for UI aesthetics, brand colors, logo usage, typography, spacing, and visual hierarchy.
 - Keep backend API paths relative (`/services/...`) so proxy/nginx routing continues to work.
 - Handle backend errors explicitly through local state or `ErrorService`; avoid hiding failures.
 - Use existing mapper, label, and registry helpers before adding new presentation logic.
@@ -158,4 +158,4 @@ Every agent change should include:
 - Public API, route, runtime env, and backend contract changes are documented when made.
 - Relevant unit tests, build, or manual QA steps passed, or skipped checks are explicitly reported with reasons.
 - No unrelated user work, generated artifacts, lockfiles, or formatting churn were introduced.
-- For UI changes, `DESIGN_SYSTEM.yaml` was consulted and responsive/authenticated flows were considered.
+- For UI changes, `DESIGN.md` was consulted and responsive/authenticated flows were considered.

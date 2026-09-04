@@ -15,7 +15,6 @@ export class ExperimentsDashboardService {
   // WritableSignal
   experiments: WritableSignal<Experiment[]> = signal<Experiment[]>([]);
   totalExperiments = signal<number>(0);
-  globalTotalExperiments = signal<number>(0);
   totalPages = signal<number>(0);
   currentPage = signal<number>(0);
 
@@ -70,27 +69,6 @@ export class ExperimentsDashboardService {
       });
   }
 
-  fetchGlobalTotal(): void {
-    const params = {
-      page: '0',
-      size: '1',
-      mine: 'false',
-      includeShared: 'true'
-    };
-    this.http
-      .get<{ experiments: BackendExperiment[], totalExperiments: number, totalPages: number, currentPage: number }>(this.apiUrl, {
-        params: params
-      })
-      .subscribe({
-        next: (response) => {
-          this.globalTotalExperiments.set(response?.totalExperiments || 0);
-        },
-        error: (err) => {
-          console.error('[ExperimentsDashboardService] fetchGlobalTotal error', err);
-        }
-      });
-  }
-
   // For edit / hydrate (metadata)
   getExperiment(uuid: string) {
     return this.http.get<BackendExperiment>(`${this.apiUrl}/${uuid}`);
@@ -118,10 +96,6 @@ export class ExperimentsDashboardService {
   // For compare / results view
   getExperimentResult(uuid: string) {
     return this.http.get<BackendExperimentWithResult>(`${this.apiUrl}/${uuid}`);
-  }
-
-  updateExperimentShared(uuid: string, shared: boolean) {
-    return this.http.patch(`/services/experiments/${uuid}`, { shared });
   }
 
   toggleExperimentShare(experimentId: string, newShared: boolean) {

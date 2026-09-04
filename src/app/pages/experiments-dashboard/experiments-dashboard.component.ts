@@ -48,12 +48,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   compareMode = signal(false);
   private sharedExperimentId = signal<string | null>(null);
   private sharedFetchInFlight = signal<string | null>(null);
-
-  // Greeting name: default "researcher"
-  greetingName = computed(() => {
-    const user = this.authService.authState().user;
-    return this.deriveGreetingName(user);
-  });
   errorMessage = computed(() => this.errorService.error());
   readonly pathologyAccessWarning = this.experimentStudioService.pathologyAccessWarning;
   readonly dismissedPathologyWarning = signal(false);
@@ -134,32 +128,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
 
   dismissPathologyWarning() {
     this.dismissedPathologyWarning.set(true);
-  }
-
-  private deriveGreetingName(user: any | null): string {
-    if (!user) {
-      return 'researcher';
-    }
-
-    const raw =
-      (user.fullname as string | undefined) ||
-      (user.username as string | undefined) ||
-      '';
-
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      return 'researcher';
-    }
-
-    const lower = trimmed.toLowerCase();
-    // if no user name or anonymous, set it to generic
-    if (lower === 'anonymous' || lower === 'anon') {
-      return 'researcher';
-    }
-
-    // keep only first name for casual greeting
-    const firstPart = trimmed.split(' ')[0];
-    return firstPart || 'researcher';
   }
 
   // COMPARE MODE

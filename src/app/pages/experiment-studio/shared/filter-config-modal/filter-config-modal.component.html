@@ -16,12 +16,14 @@
     </div>
     }
 
+    @if (!inline()) {
     <div class="filter-helper">
       <div class="helper-content">
         <i class="fas fa-info-circle info-icon"></i>
-        <p>Build filter logic from editable condition and group blocks. Connector chips define how neighboring blocks are combined.</p>
+        <p>Add conditions and combine them with AND or OR.</p>
       </div>
     </div>
+    }
 
     <div class="filter-modal-body">
       @if(allFilterVariables().length > 0) {
@@ -45,6 +47,7 @@
       }
     </div>
 
+    @if (!inline()) {
     <div class="filter-modal-footer">
       <div class="footer-left">
         @if (activeRulesCount() > 0) {
@@ -59,15 +62,14 @@
 
       <div class="filter-actions">
         <button class="btn-secondary" type="button" (click)="clearFilters()">Clear</button>
-        @if (!inline()) {
         <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
-        }
         <button class="btn-primary-gradient" type="button" [disabled]="activeRulesCount() === 0" (click)="saveFilters()">
           <i class="fas fa-check icon-left"></i>
           Apply Filters
         </button>
       </div>
     </div>
+    }
   </div>
 </div>
 
@@ -87,9 +89,11 @@
         <span>{{ depth === 0 ? 'Filter group' : 'Nested group' }}</span>
       </div>
       <div class="filter-group-actions">
+        @if (group.rules.length > 0) {
         <button type="button" class="builder-token-btn" (click)="addCondition(group.id, 0)">
           <i class="fas fa-plus"></i> Condition
         </button>
+        }
         <button type="button" class="builder-token-btn" (click)="addGroup(group.id, 0)">
           <i class="fas fa-plus"></i> Group
         </button>
@@ -126,7 +130,7 @@
         }
 
         @if (block.kind === 'condition') {
-        <div class="condition-block">
+        <app-station-list-row removeLabel="Remove condition" (remove)="removeBlock(block.id)">
           <div class="condition-fields">
             <label>
               <span>Variable</span>
@@ -162,10 +166,7 @@
             </label>
             }
           </div>
-          <button type="button" class="remove-block-btn" (click)="removeBlock(block.id)" aria-label="Remove condition">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
+        </app-station-list-row>
         } @else {
         <ng-container
           [ngTemplateOutlet]="groupTemplate"

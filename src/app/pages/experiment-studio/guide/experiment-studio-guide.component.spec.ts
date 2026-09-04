@@ -16,7 +16,8 @@ describe('ExperimentStudioGuideComponent', () => {
     hasPersistedStudioWork: jasmine.Spy;
     pathologyAccessWarning: ReturnType<typeof signal>;
     selectedVariables: ReturnType<typeof signal>;
-    selectedCovariates: ReturnType<typeof signal>;
+    algorithmY: ReturnType<typeof signal>;
+    algorithmX: ReturnType<typeof signal>;
     selectedAlgorithm: ReturnType<typeof signal>;
     currentExperimentUUID: ReturnType<typeof signal>;
   };
@@ -38,7 +39,8 @@ describe('ExperimentStudioGuideComponent', () => {
       hasPersistedStudioWork: jasmine.createSpy('hasPersistedStudioWork').and.returnValue(false),
       pathologyAccessWarning: signal(null),
       selectedVariables: signal([]),
-      selectedCovariates: signal([]),
+      algorithmY: signal([]),
+      algorithmX: signal([]),
       selectedAlgorithm: signal(null),
       currentExperimentUUID: signal<string | null>(null),
     };
@@ -58,8 +60,17 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   afterEach(() => {
-    document.querySelectorAll('.studio-sidenav').forEach((element) => element.remove());
+    document.querySelectorAll('.studio-stepper').forEach((element) => element.remove());
     document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+  });
+
+  it('does not auto-open the guide on first visit', () => {
+    expect(component.isOpen()).toBeFalse();
+
+    component.startGuide();
+
+    expect(component.isOpen()).toBeTrue();
+    component.closeGuide();
   });
 
   it('does not reset studio state on the first guide visit', () => {
@@ -339,13 +350,15 @@ describe('ExperimentStudioGuideComponent', () => {
     const steps = (component as any).resolveSteps();
 
     expect(replaced).toBe('Use Biological Sex as Covariate and Age Years as Variable.');
-    expect(steps.find((step: any) => step.id === 'add-sex-covariate')?.title).toBe('Add Biological Sex as Covariate');
+    expect(steps.find((step: any) => step.id === 'add-sex-covariate')?.title).toBe('Add Biological Sex as Variable');
     expect(steps.find((step: any) => step.id === 'add-age-variable')?.title).toBe('Add Age Years as Variable');
   });
 
-  it('treats the Age guide step as complete only when Age is added to Variables', () => {
-    experimentStudioService.selectedCovariates.set([{ code: 'sex', label: 'Sex' }]);
-    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age' }]);
+  it('treats the Age guide step as complete only when both targets are added to the variables pool', () => {
+    experimentStudioService.selectedVariables.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
 
     expect((component as any).isStepRequirementSatisfied({ requirement: 'variable-age' })).toBeTrue();
   });
@@ -357,9 +370,9 @@ describe('ExperimentStudioGuideComponent', () => {
     expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBeTrue();
   });
 
-  it('marks the add-sex and add-age guide steps as requiring action until the assignment is completed', () => {
+  it('marks the add-sex and add-age guide steps as requiring action until the variables are added', () => {
     component.activeSteps.set([
-      { id: 'add-sex-covariate', section: 'Explore', title: 'Add Sex', body: '', requirement: 'covariate-sex' },
+      { id: 'add-sex-covariate', section: 'Explore', title: 'Add Sex', body: '', requirement: 'variable-sex' },
       { id: 'add-age-variable', section: 'Explore', title: 'Add Age', body: '', requirement: 'variable-age' },
     ] as any);
 
@@ -367,15 +380,47 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(component.stepNeedsAction()).toBeTrue();
     expect(component.nextButtonLabel()).toBe('Action required');
 
-    experimentStudioService.selectedCovariates.set([{ code: 'sex', label: 'Sex' }]);
+    experimentStudioService.selectedVariables.set([{ code: 'sex', label: 'Sex' }]);
     expect(component.stepNeedsAction()).toBeFalse();
 
     component.currentIndex.set(1);
     expect(component.stepNeedsAction()).toBeTrue();
     expect(component.nextButtonLabel()).toBe('Action required');
 
-    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age' }]);
+    experimentStudioService.selectedVariables.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
     expect(component.stepNeedsAction()).toBeFalse();
+  });
+
+  it('requires the guide variable (Age) in y and the guide covariate (Sex) in x', () => {
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+
+    // Guide covariate (Sex) in x only; Age not yet assigned.
+    experimentStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+
+    // Both targets in y (wrong mix) does not satisfy the requirement.
+    experimentStudioService.algorithmY.set([
+      { code: 'age', label: 'Age' },
+      { code: 'sex', label: 'Sex' },
+    ]);
+    experimentStudioService.algorithmX.set([]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+
+    // Guide variable (Age) in x (wrong mix) does not satisfy the requirement.
+    experimentStudioService.algorithmY.set([]);
+    experimentStudioService.algorithmX.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+
+    // Guide variable (Age) in y and guide covariate (Sex) in x satisfies it.
+    experimentStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
+    experimentStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeTrue();
   });
 
   it('keeps future experiment steps in the guide flow even before the save flow is opened', () => {
@@ -522,7 +567,7 @@ describe('ExperimentStudioGuideComponent', () => {
     const filteringStep = steps.find((step: any) => step.id === 'analysis-filtering');
 
     expect(filteringStep?.allowTargetInteraction).toBeFalse();
-    expect(filteringStep?.body).toContain('Preview the inline filter builder');
+    expect(filteringStep?.body).toContain('add filter rules to narrow the cohort');
   });
 
   it('keeps the Analysis preprocessing step as a preview-only walkthrough', () => {
@@ -530,7 +575,7 @@ describe('ExperimentStudioGuideComponent', () => {
     const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
 
     expect(preprocessingStep?.allowTargetInteraction).toBeFalse();
-    expect(preprocessingStep?.body).toContain('Preview missing-value handling');
+    expect(preprocessingStep?.body).toContain('Default NA removal is already in effect');
   });
 
   it('keeps the raw and processed summary guide steps interactive across the full section', () => {

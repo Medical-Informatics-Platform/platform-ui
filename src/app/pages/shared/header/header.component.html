@@ -1,47 +1,53 @@
-<header class="header header--transparent">
+<header class="header" [class.header--studio]="isStudioRoute()">
   <!-- Logo -->
   <a class="branding" routerLink="/experiments-dashboard" (click)="goHome($event)" aria-label="Go to home">
-    <img src="assets/mip-logo-short.png" alt="MIP Logo" class="logo" />
+    <img src="assets/mip-logo-short.png" alt="MIP logo" class="logo" width="480" height="162" />
   </a>
 
-  <!-- Theme Toggle + User Icon -->
   <div class="header-actions">
-    @if (runtimeEnv.notebookEnabled && isLoggedIn()) {
-    <nav class="header-nav header-nav--actions" aria-label="Primary">
+    @if (isStudioRoute()) {
+    <nav class="header-nav" aria-label="Studio actions">
+      <a
+        href="/experiments-dashboard"
+        class="header-nav-link header-nav-link--dashboard"
+        (click)="goToDashboard($event)"
+        aria-label="Back to my experiments"
+        title="My experiments"
+      >
+        <span class="header-nav-link__title">My experiments</span>
+      </a>
+    </nav>
+    } @if (runtimeEnv.notebookEnabled && isLoggedIn() && !isStudioRoute()) {
+    <nav class="header-nav" aria-label="Primary">
       <a
         routerLink="/notebook"
         routerLinkActive="header-nav-link--active"
+        [attr.aria-current]="notebookRouteActive() ? 'page' : null"
         class="header-nav-link header-nav-link--notebook"
         [class.header-nav-link--discover]="!notebookNav.hasVisited()"
-        aria-label="Jupyter Notebook, powered by AI agents"
+        aria-label="Jupyter Notebook"
       >
         <span class="header-nav-link__text">
           <span class="header-nav-link__title">Jupyter Notebook</span>
-          <span class="header-nav-link__subtitle">Powered by AI agents</span>
         </span>
-        <img src="assets/notebook-ai-icon.svg" alt="" class="header-nav-link__icon" width="28" height="28" />
+        <img src="assets/notebook-ai-icon.svg" alt="" class="header-nav-link__icon" width="20" height="20" />
       </a>
     </nav>
-  }
-
-    @if (showGuideSlot()) {
-    <div class="header-guide-slot" aria-hidden="true"></div>
     }
 
     <div class="user-icon">
       @if (isLoggedIn()) {
-      <!-- LOGGED IN: go to account -->
-      <a class="sign-in-btn" routerLink="/account">
+      <a class="sign-in-btn" routerLink="/account" aria-label="Account settings" title="Account settings">
         <span class="account-guide-target" data-guide="header-account">
-          <img src="assets/user-icon.png" alt="User Picture" class="account-picture" />
+          <img src="assets/user-icon.png" alt="" class="account-picture" width="40" height="40" />
         </span>
       </a>
       } @else {
-      <!-- LOGGED OUT: trigger login -->
-      <button class="sign-in-btn" (click)="login()">
+      <button class="sign-in-btn" (click)="login()" aria-label="Sign in">
         <span class="account-guide-target" data-guide="header-account">
-          <img src="assets/grey-avatar.png" alt="Sign In" class="account-picture" />
+          <img src="assets/grey-avatar.png" alt="" class="account-picture" width="40" height="40" />
         </span>
+        <span class="sign-in-btn__label">Sign in</span>
       </button>
       }
     </div>

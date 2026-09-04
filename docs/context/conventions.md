@@ -30,7 +30,7 @@
 ### UI and Styling
 - Use component CSS for feature-specific styles.
 - Use `src/styles.css` for app-wide styles and QueryBuilder theming.
-- Consult `DESIGN_SYSTEM.yaml` before visual changes.
+- Consult `DESIGN.md` before visual changes.
 - Existing branding assets live under `src/assets`.
 
 ### Visualization and Algorithm Results

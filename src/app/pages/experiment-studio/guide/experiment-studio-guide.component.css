@@ -1,13 +1,13 @@
 :host {
-  --guide-accent: #2b33e9;
-  --guide-accent-secondary: #7f9ce8;
+  --guide-accent: var(--primary-color);
+  --guide-accent-secondary: var(--primary-light);
   --guide-accent-soft: rgba(223, 239, 228, 0.78);
   --guide-card-bg: rgba(255, 255, 255, 0.86);
   --guide-card-surface: rgba(244, 247, 255, 0.74);
   --guide-highlight-glow: rgba(43, 51, 233, 0.24);
   --guide-overlay: rgba(2, 6, 23, 0.65);
-  --guide-ink: #0f172a;
-  --guide-muted: #475569;
+  --guide-ink: var(--text-main);
+  --guide-muted: var(--text-muted);
   --guide-border: rgba(127, 156, 232, 0.2);
   position: relative;
   z-index: 1500;

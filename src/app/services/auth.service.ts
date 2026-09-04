@@ -38,7 +38,7 @@ export class AuthService {
     this.refreshAuthState().subscribe();
   }
 
-  refreshAuthState(): Observable<User | null> {
+  private refreshAuthState(): Observable<User | null> {
     this.authStateSignal.set({ status: 'checking' });
     return this.refreshUser();
   }
@@ -155,7 +155,4 @@ export class AuthService {
     return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   }
 
-  getToken(): Observable<string> {
-    return this.http.get('/services/activeUser/token', { responseType: 'text' });
-  }
 }
