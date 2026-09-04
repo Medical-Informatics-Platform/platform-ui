@@ -151,6 +151,20 @@ describe('SearchBarComponent', () => {
     expect(highlighted).toContain('<mark>Age</mark>');
   });
 
+  it('escapes HTML in labels because the result is bound via innerHTML', () => {
+    const { component } = setupComponent();
+    // Even with no query, the raw label must not reach [innerHTML].
+    const plain = component.highlight('Age <script>');
+    expect(plain).toContain('&lt;script&gt;');
+    expect(plain).not.toContain('<script');
+
+    component.searchQuery = 'Age';
+    const highlighted = component.highlight('Age <script>');
+    expect(highlighted).toContain('<mark>Age</mark>');
+    expect(highlighted).toContain('&lt;script&gt;');
+    expect(highlighted).not.toContain('<script');
+  });
+
   it('formats breadcrumbs properly for variable results', () => {
     const { component } = setupComponent();
     const item: MetadataSearchResult = {

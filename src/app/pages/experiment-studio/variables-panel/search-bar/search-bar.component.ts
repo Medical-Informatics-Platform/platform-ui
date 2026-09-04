@@ -75,10 +75,17 @@ export class SearchBarComponent implements OnChanges {
     this.activeIndex = -1;
   }
 
+  /** Result is bound via [innerHTML]; escape first, then add <mark> tags. */
   highlight(name: string): string {
-    if (!this.searchQuery) return name;
+    const safe = String(name ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    if (!this.searchQuery) return safe;
     const re = new RegExp(`(${this.escapeRegExp(this.searchQuery)})`, 'gi');
-    return name.replace(re, '<mark>$1</mark>');
+    return safe.replace(re, '<mark>$1</mark>');
   }
 
   onOutsideClick(event: Event): void {
