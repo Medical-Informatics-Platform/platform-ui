@@ -14,91 +14,65 @@ export class ExperimentLabelService {
 
   private expStudio = inject(ExperimentStudioService);
 
-  constructor() { }
-
-
   async getLabelMap(domain: string | null | undefined): Promise<Record<string, string>> {
-    if (!domain) return {};
-
-    const cached = this.cache.get(domain);
-    if (cached) return cached;
-
-    const inflight = this.inflight.get(domain);
-    if (inflight) return inflight;
-
-    const p = (async () => {
-      try {
-        const models = await firstValueFrom(this.expStudio.loadAllDataModels()) as DataModel[];
-        const model = findDataModelByCodeVersion(domain, models);
-
-        if (!model) return {};
-
-        const converted = this.expStudio.convertToD3Hierarchy(model);
-        const map: Record<string, string> = {
-          [domain]: model.label || domain
-        };
-
-        converted.allVariables.forEach((v: any) => {
-          if (v?.code) {
-            map[v.code] = v.label || v.code;
-
-            // Also add enumerations to the flat map (especially useful for datasets)
-            if (v.code.toLowerCase() === 'dataset' && Array.isArray(v.enumerations)) {
-              v.enumerations.forEach((e: any) => {
-                const eCode = e?.code ?? e?.label ?? e?.name;
-                if (eCode) map[eCode] = e.label || e.name || eCode;
-              });
-            }
+    return this.cached(domain, this.cache, this.inflight, {}, (model, converted) => {
+      const map: Record<string, string> = { [domain!]: model.label || domain! };
+      for (const v of converted.allVariables) {
+        if (!v?.code) continue;
+        map[v.code] = v.label || v.code;
+        if (v.code.toLowerCase() === 'dataset' && Array.isArray(v.enumerations)) {
+          for (const e of v.enumerations) {
+            const eCode = e?.code ?? e?.label ?? e?.name;
+            if (eCode) map[eCode] = e.label || e.name || eCode;
           }
-        });
-
-        return map;
-      } catch (err) {
-        console.error('[ExperimentLabelService] failed to load data models', err);
-        return {};
-      } finally {
-        this.inflight.delete(domain);
+        }
       }
-    })();
-
-    this.inflight.set(domain, p);
-
-    const result = await p;
-    this.cache.set(domain, result);
-    return result;
+      return map;
+    }, 'data models');
   }
 
   async getEnumMaps(domain: string | null | undefined): Promise<EnumMaps> {
-    if (!domain) return {};
+    return this.cached(
+      domain,
+      this.enumCache,
+      this.enumInflight,
+      {},
+      (_model, converted) => buildEnumMapForVariables(converted.allVariables),
+      'enum maps',
+    );
+  }
 
-    const cached = this.enumCache.get(domain);
-    if (cached) return cached;
-
-    const inflight = this.enumInflight.get(domain);
-    if (inflight) return inflight;
+  private async cached<T>(
+    domain: string | null | undefined,
+    cache: Map<string, T>,
+    inflight: Map<string, Promise<T>>,
+    empty: T,
+    build: (model: DataModel, converted: ReturnType<ExperimentStudioService['convertToD3Hierarchy']>) => T,
+    errorLabel: string,
+  ): Promise<T> {
+    if (!domain) return empty;
+    const hit = cache.get(domain);
+    if (hit) return hit;
+    const pending = inflight.get(domain);
+    if (pending) return pending;
 
     const p = (async () => {
       try {
         const models = await firstValueFrom(this.expStudio.loadAllDataModels()) as DataModel[];
         const model = findDataModelByCodeVersion(domain, models);
-
-        if (!model) return {};
-
-        const converted = this.expStudio.convertToD3Hierarchy(model);
-        return buildEnumMapForVariables(converted.allVariables);
+        if (!model) return empty;
+        return build(model, this.expStudio.convertToD3Hierarchy(model));
       } catch (err) {
-        console.error('[ExperimentLabelService] failed to load enum maps', err);
-        return {};
+        console.error(`[ExperimentLabelService] failed to load ${errorLabel}`, err);
+        return empty;
       } finally {
-        this.enumInflight.delete(domain);
+        inflight.delete(domain);
       }
     })();
 
-    this.enumInflight.set(domain, p);
-
+    inflight.set(domain, p);
     const result = await p;
-    this.enumCache.set(domain, result);
+    cache.set(domain, result);
     return result;
   }
-
 }

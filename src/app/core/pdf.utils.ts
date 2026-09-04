@@ -1,7 +1,7 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-export interface CapturedHtmlImage {
+interface CapturedHtmlImage {
   dataUrl: string;
   width: number;
   height: number;
@@ -25,7 +25,7 @@ export async function captureHtmlToPng(
   };
 }
 
-export interface MipVersionFooterOptions {
+interface MipVersionFooterOptions {
   pageWidth: number;
   pageHeight: number;
   /** Distance from the right edge to the end of the text. */
@@ -44,7 +44,7 @@ export function renderMipVersion(
   options: MipVersionFooterOptions
 ): void {
   const { pageWidth, pageHeight, right, bottom } = options;
-  const totalPages = (doc as unknown as { getNumberOfPages(): number }).getNumberOfPages();
+  const totalPages = doc.getNumberOfPages();
   doc.setPage(totalPages);
 
   doc.setFont('helvetica', 'italic');

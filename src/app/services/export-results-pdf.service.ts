@@ -115,10 +115,11 @@ export class ResultsPdfExportService {
     });
 
     if (payload.details.mipVersion) {
-      this.renderMipVersion(doc, payload.details.mipVersion, {
+      renderMipVersion(doc, payload.details.mipVersion, {
         pageWidth,
         pageHeight,
-        margin,
+        right: margin.right,
+        bottom: margin.bottom + 2,
       });
     }
 
@@ -584,22 +585,5 @@ export class ResultsPdfExportService {
 
   private formatTimestamp(date: Date): string {
     return date.toLocaleString();
-  }
-
-  private renderMipVersion(
-    doc: jsPDF,
-    version: string,
-    options: {
-      pageWidth: number;
-      pageHeight: number;
-      margin: { left: number; right: number; bottom: number };
-    }
-  ): void {
-    renderMipVersion(doc, version, {
-      pageWidth: options.pageWidth,
-      pageHeight: options.pageHeight,
-      right: options.margin.right,
-      bottom: options.margin.bottom + 2,
-    });
   }
 }

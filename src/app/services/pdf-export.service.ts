@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas';
 import autoTable from 'jspdf-autotable';
 import { captureHtmlToPng, renderMipVersion } from '../core/pdf.utils';
 
-export interface PdfExportOptions {
+interface PdfExportOptions {
     title: string;
     nodeLabel: string;
     modelLabel: string;
@@ -18,7 +18,7 @@ export interface PdfExportOptions {
     isGroupView: boolean;
 }
 
-export interface DescriptiveStatsData {
+interface DescriptiveStatsData {
     pathologyName?: string;
     variables: any[];
     models: any[];
@@ -40,9 +40,7 @@ export class PdfExportService {
         element: HTMLElement,
         options: PdfExportOptions
     ): Promise<void> {
-        document.body.classList.add('pdf-exporting');
-        await new Promise(res => setTimeout(res, 50));
-
+        return this.withExportClass(async () => {
         try {
             const doc = new jsPDF('p', 'mm', 'a4');
             const { title, nodeLabel, modelLabel, datasetLabels, description, meta, isGroupView } = options;
@@ -172,15 +170,12 @@ export class PdfExportService {
         } catch (err) {
             console.error('Histogram PDF export failed:', err);
             throw err;
-        } finally {
-            document.body.classList.remove('pdf-exporting');
         }
+        });
     }
 
     async exportDescriptiveStatisticsPdf(data: DescriptiveStatsData): Promise<void> {
-        document.body.classList.add('pdf-exporting');
-        await new Promise(res => setTimeout(res, 50));
-
+        return this.withExportClass(async () => {
         const doc = new jsPDF();
         let yOffset = 10;
 
@@ -315,6 +310,15 @@ export class PdfExportService {
         } catch (err) {
             console.error('Descriptive statistics PDF export failed:', err);
             throw err;
+        }
+        });
+    }
+
+    private async withExportClass<T>(fn: () => Promise<T>): Promise<T> {
+        document.body.classList.add('pdf-exporting');
+        await new Promise((res) => setTimeout(res, 50));
+        try {
+            return await fn();
         } finally {
             document.body.classList.remove('pdf-exporting');
         }
