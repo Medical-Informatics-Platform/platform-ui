@@ -76,38 +76,14 @@ describe('SelectedVariablesComponent', () => {
     expect(rows.length).toBe(2);
   });
 
-  it('paginates when the pool exceeds the page size', () => {
+  it('lists every selected variable in the popover', () => {
     experimentStudioService.selectedVariables.set(Array.from({ length: 7 }, (_, i) => ({ code: `v${i}`, label: `Var ${i}`, type: 'real' })));
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
     openPopover(fixture);
 
-    expect(fixture.nativeElement.querySelectorAll('.selected-vars-row').length).toBe(5);
-    expect((fixture.nativeElement.querySelector('.selected-vars-range') as HTMLElement).textContent?.trim()).toBe('1–5 of 7');
-
-    fixture.componentInstance.nextPage();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.querySelectorAll('.selected-vars-row').length).toBe(2);
-    expect((fixture.nativeElement.querySelector('.selected-vars-range') as HTMLElement).textContent?.trim()).toBe('6–7 of 7');
-    expect((fixture.nativeElement.querySelector('[aria-label="Next page"]') as HTMLButtonElement).disabled).toBeTrue();
-  });
-
-  it('clamps the page index when a removal shrinks the list', () => {
-    experimentStudioService.selectedVariables.set(Array.from({ length: 6 }, (_, i) => ({ code: `v${i}`, label: `Var ${i}`, type: 'real' })));
-    const fixture = TestBed.createComponent(SelectedVariablesComponent);
-    fixture.detectChanges();
-    openPopover(fixture);
-
-    fixture.componentInstance.nextPage();
-    fixture.detectChanges();
-    expect(fixture.componentInstance.pageIndex()).toBe(1);
-
-    fixture.componentInstance.removeItem({ code: 'v5' });
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.pageIndex()).toBe(0);
-    expect(fixture.nativeElement.querySelectorAll('.selected-vars-row').length).toBe(5);
+    expect(fixture.nativeElement.querySelectorAll('.selected-vars-row').length).toBe(7);
+    expect(fixture.nativeElement.querySelector('.selected-vars-pager')).toBeNull();
   });
 
   it('summarises values as enumeration chips or a numeric range', () => {
@@ -163,5 +139,34 @@ describe('SelectedVariablesComponent', () => {
     fixture.componentInstance.clearList();
 
     expect(experimentStudioService.setVariables).toHaveBeenCalledWith([]);
+  });
+
+  it('closes the popover on Escape', () => {
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.detectChanges();
+    openPopover(fixture);
+    expect(fixture.componentInstance.isOpen()).toBeTrue();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.isOpen()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.selected-variables-popover')).toBeNull();
+  });
+
+  it('closes on an outside click but stays open on an inside click', () => {
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.detectChanges();
+    openPopover(fixture);
+
+    // A click on the popover's own content must not close it.
+    const popover = fixture.nativeElement.querySelector('.selected-variables-popover') as HTMLElement;
+    popover.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOpen()).toBeTrue();
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isOpen()).toBeFalse();
   });
 });

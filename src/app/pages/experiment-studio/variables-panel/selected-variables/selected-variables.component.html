@@ -41,7 +41,7 @@
         <td class="parameter-empty" colspan="4">No variables in this experiment yet.</td>
       </tr>
       }
-      @for (variable of pagedVariables(); track variable.code ?? variable.label) {
+      @for (variable of variables(); track variable.code ?? variable.label) {
       @let values = valuesSummary(variable);
       <tr
         class="selected-vars-row"
@@ -79,27 +79,5 @@
       }
     </tbody>
   </table>
-
-  @if (variables().length > 0) {
-  <div class="selected-vars-pager">
-    <span class="selected-vars-range">{{ rangeLabel() }}</span>
-    <div class="selected-vars-pager-controls">
-      <button
-        type="button"
-        class="selected-vars-page-btn"
-        aria-label="Previous page"
-        [disabled]="isFirstPage()"
-        (click)="prevPage()"
-      >&lsaquo;</button>
-      <button
-        type="button"
-        class="selected-vars-page-btn"
-        aria-label="Next page"
-        [disabled]="isLastPage()"
-        (click)="nextPage()"
-      >&rsaquo;</button>
-    </div>
-  </div>
-  }
 </div>
 }
