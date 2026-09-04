@@ -177,4 +177,18 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.algorithmY()).toEqual([]);
     expect(fixture.componentInstance.roleOf(age)).toBe('');
   });
+
+  it('setRole unassigns only the node\'s own role, leaving the other role untouched', () => {
+    experimentStudioService.algorithmY.set([sex]);
+    experimentStudioService.algorithmX.set([age]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.setRole(age, '');
+
+    expect(experimentStudioService.setAlgorithmX).toHaveBeenCalledWith([]);
+    expect(experimentStudioService.algorithmX()).toEqual([]);
+    // age never was an outcome: setAlgorithmY must not be touched at all.
+    expect(experimentStudioService.setAlgorithmY).not.toHaveBeenCalled();
+    expect(experimentStudioService.algorithmY()).toEqual([sex]);
+  });
 });

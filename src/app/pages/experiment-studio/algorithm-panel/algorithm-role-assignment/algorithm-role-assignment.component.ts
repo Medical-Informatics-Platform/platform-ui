@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 
-export type AlgorithmRole = 'y' | 'x';
-export type PoolRole = AlgorithmRole | '';
+type AlgorithmRole = 'y' | 'x';
+type PoolRole = AlgorithmRole | '';
 
 @Component({
   selector: 'app-algorithm-role-assignment',
@@ -57,19 +57,10 @@ export class AlgorithmRoleAssignmentComponent {
   }
 
   setRole(node: any, role: PoolRole): void {
-    switch (role) {
-      case '':
-        if (this.isAssigned(node, 'y')) this.removeFrom('y', node);
-        else if (this.isAssigned(node, 'x')) this.removeFrom('x', node);
-        return;
-      case 'y':
-      case 'x':
-        this.assignTo(role, node);
-        return;
-      default: {
-        const _exhaustive: never = role;
-        return _exhaustive;
-      }
+    if (role) this.assignTo(role, node);
+    else {
+      const current = this.roleOf(node);
+      if (current) this.removeFrom(current, node);
     }
   }
 
@@ -103,14 +94,6 @@ export class AlgorithmRoleAssignmentComponent {
       this.expStudioService.setAlgorithmY(next);
     } else {
       this.expStudioService.setAlgorithmX(next);
-    }
-  }
-
-  clear(role: AlgorithmRole): void {
-    if (role === 'y') {
-      this.expStudioService.setAlgorithmY([]);
-    } else {
-      this.expStudioService.setAlgorithmX([]);
     }
   }
 
