@@ -106,7 +106,7 @@ describe('StudioStepperComponent', () => {
   });
 
   it('never renders a run control here — running belongs to the studio action bar', () => {
-    publish({ activeSection: 'algorithm-section', canRun: true });
+    publish({ activeSection: 'algorithm-section' });
 
     expect((fixture.nativeElement as HTMLElement).querySelector('.stepper-run-btn')).toBeNull();
   });

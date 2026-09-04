@@ -19,7 +19,7 @@ export interface TableSpec {
   layout?: 'compact' | 'full';
 }
 
-export type TableBuilder = (result: any) => TableSpec[];
+type TableBuilder = (result: any) => TableSpec[];
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);

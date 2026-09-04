@@ -8,7 +8,6 @@ export type ExperimentStudioSection =
 export type DescriptiveStep = 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
 
 export type StepState = 'active' | 'available' | 'complete' | 'locked';
-export type SubstepLevel = 'done' | 'pending' | 'neutral';
 
 export interface StudioStepperState {
   activeSection: ExperimentStudioSection;
@@ -16,8 +15,6 @@ export interface StudioStepperState {
   lockedStepReason: string;
   /** Per-step override of `lockedStepReason` for steps that unlock on something else. */
   lockedStepReasons: Partial<Record<ExperimentStudioSection, string>>;
-  canRun: boolean;
-  runDisabledReason: string;
   isRunning: boolean;
 }
 
@@ -38,8 +35,6 @@ const DEFAULT_STATE: StudioStepperState = {
   },
   lockedStepReason: 'Add a dataset to unlock',
   lockedStepReasons: {},
-  canRun: false,
-  runDisabledReason: '',
   isRunning: false,
 };
 

@@ -114,7 +114,7 @@ export interface AnalysisPreprocessingStep {
   parameters: Record<string, unknown>;
 }
 
-export interface AnalysisAlgorithm {
+interface AnalysisAlgorithm {
   name: string;
   x?: string[] | null;
   y?: string[] | null;

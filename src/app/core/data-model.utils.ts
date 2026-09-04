@@ -25,26 +25,25 @@ export function buildEnumMapForVariables(
   allVariables: Array<{ code?: unknown; enumerations?: Array<{ code?: unknown; label?: unknown; name?: unknown }> }>
 ): EnumMaps {
   const maps: EnumMaps = {};
-  allVariables.forEach((v: any) => {
-    const enums = Array.isArray(v?.enumerations) ? v.enumerations : [];
-    if (!enums.length) return;
+  for (const v of allVariables) {
+    const enums = Array.isArray(v.enumerations) ? v.enumerations : [];
+    if (!enums.length) continue;
 
-    const code = String(v?.code ?? '');
-    if (!code) return;
+    const code = String(v.code ?? '');
+    if (!code) continue;
 
     const enumMap: Record<string, string> = {};
-    enums.forEach((e: any) => {
+    for (const e of enums) {
       const raw = e?.code ?? e?.label ?? e?.name;
-      if (raw === null || raw === undefined) return;
+      if (raw === null || raw === undefined) continue;
       const key = String(raw);
-      const label = e?.label ?? e?.name ?? String(raw);
-      enumMap[key] = label;
-    });
+      enumMap[key] = String(e?.label ?? e?.name ?? raw);
+    }
 
     if (Object.keys(enumMap).length > 0) {
       maps[code] = enumMap;
     }
-  });
+  }
   return maps;
 }
 

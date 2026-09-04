@@ -6,7 +6,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, tap, filter } from 'rxjs/operators';
 import { User } from '../models/user.interface';
 
-export type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';
 
 export interface AuthState {
   status: AuthStatus;

@@ -19,7 +19,7 @@ import { buildHistogramChart } from './renderers/histogram-chart';
 import { buildNaiveBayesPriorsChart } from './renderers/naive-bayes-priors-chart';
 import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-forest-chart';
 
-export interface AlgorithmChartConfig {
+interface AlgorithmChartConfig {
   build: (input: any) => EChartsOption[];
   inputPath: string;
 }

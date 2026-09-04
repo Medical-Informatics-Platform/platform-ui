@@ -25,12 +25,12 @@ import {
   ExperimentStudioSection,
 } from '../../services/experiment-studio-navigation.service';
 
-export type StudioSectionId =
+type StudioSectionId =
   | 'variables-top'
   | 'statistics-section'
   | 'algorithm-section'
   | 'execution-section';
-export type AlgorithmSubstepKey = 'setup' | 'parameters';
+type AlgorithmSubstepKey = 'setup' | 'parameters';
 
 @Component({
   selector: 'app-experiment-studio',
@@ -227,8 +227,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
   };
 
   readonly unlockAnnouncement = signal<string | null>(null);
-  private statisticsWasLocked = true;
-  private firstUnlockRun = true;
+  private prevLocked = this.railStatus()['statistics-section'] === 'locked';
   private unlockTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
@@ -245,17 +244,13 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
 
     effect(() => {
       const locked = this.railStatus()['statistics-section'] === 'locked';
-      if (this.firstUnlockRun) {
-        this.firstUnlockRun = false;
-        this.statisticsWasLocked = locked;
-        return;
-      }
-      if (!locked && this.statisticsWasLocked) {
+      const wasLocked = this.prevLocked;
+      this.prevLocked = locked;
+      if (wasLocked && !locked) {
         this.unlockAnnouncement.set('Data Handling and Algorithm Selection are now available.');
         if (this.unlockTimer) clearTimeout(this.unlockTimer);
         this.unlockTimer = setTimeout(() => this.unlockAnnouncement.set(null), 1500);
       }
-      this.statisticsWasLocked = locked;
     });
   }
 

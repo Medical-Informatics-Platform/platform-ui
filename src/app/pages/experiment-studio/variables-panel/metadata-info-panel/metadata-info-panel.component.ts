@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { D3HierarchyNode } from '../../../../models/data-model.interface';
 import { countLeafNodes } from '../../../../core/data-model.utils';
 
-export interface MetadataPathNode {
+interface MetadataPathNode {
   code: string;
   label: string;
 }
 
-export interface MetadataGroupInfo {
+interface MetadataGroupInfo {
   groupCount: number;
   hasGroups: boolean;
 }

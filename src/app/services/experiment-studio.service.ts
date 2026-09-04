@@ -284,9 +284,7 @@ export class ExperimentStudioService {
       this.algorithmYSignal.set(this.uniqueByCode(legacyVars));
       this.algorithmXSignal.set(this.uniqueByCode(legacyCovs));
     }
-    // Roles must be disjoint: if a code is in both legacy lists, keep y, drop from x.
-    const yCodes = new Set(this.algorithmYSignal().map((v) => v.code));
-    this.algorithmXSignal.set(this.algorithmXSignal().filter((v) => !yCodes.has(v.code)));
+    this.setRole('y', this.algorithmYSignal());
     // Pool = unique(y ∪ x)
     this.selectedVariablesSignal.set(
       this.uniqueByCode([...this.algorithmYSignal(), ...this.algorithmXSignal()])
@@ -296,17 +294,20 @@ export class ExperimentStudioService {
   }
 
   setAlgorithmY(nodes: any[]): void {
-    this.algorithmYSignal.set(this.uniqueByCode(nodes));
-    // Keep y/x disjoint: drop any x node with a code that is now in y.
-    const yCodes = new Set(this.algorithmYSignal().map((v) => v.code));
-    this.algorithmXSignal.set(this.algorithmXSignal().filter((v) => !yCodes.has(v.code)));
+    this.setRole('y', nodes);
   }
 
   setAlgorithmX(nodes: any[]): void {
-    this.algorithmXSignal.set(this.uniqueByCode(nodes));
-    // Keep x/y disjoint: drop any y node with a code that is now in x.
-    const xCodes = new Set(this.algorithmXSignal().map((v) => v.code));
-    this.algorithmYSignal.set(this.algorithmYSignal().filter((v) => !xCodes.has(v.code)));
+    this.setRole('x', nodes);
+  }
+
+  private setRole(role: 'y' | 'x', nodes: any[]): void {
+    const unique = this.uniqueByCode(nodes);
+    const thisSignal = role === 'y' ? this.algorithmYSignal : this.algorithmXSignal;
+    const otherSignal = role === 'y' ? this.algorithmXSignal : this.algorithmYSignal;
+    thisSignal.set(unique);
+    const codes = new Set(unique.map((v) => v.code));
+    otherSignal.set(otherSignal().filter((v) => !codes.has(v.code)));
   }
 
   private uniqueByCode(nodes: any[]): any[] {
@@ -359,14 +360,7 @@ export class ExperimentStudioService {
     if (def && !enumerations.some((e) => e.code === def)) {
       enumerations.push({ code: def, label: def });
     }
-    return {
-      code,
-      label: code,
-      name: code,
-      type: 'text',
-      enumerations,
-      isCreatedColumn: true,
-    };
+    return { ...this.syntheticDerivedNode(code), enumerations };
   }
 
   /** Synthetic node for every applied transformation column, exposed in the assignable pool. */
