@@ -32,9 +32,8 @@ import {
   validateOutlierRule,
 } from '../../../core/outlier-rules';
 import { AlgorithmRoleAssignmentComponent } from './algorithm-role-assignment/algorithm-role-assignment.component';
-import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 
-export type AlgorithmStudioSubstep = 'setup' | 'parameters';
+type AlgorithmStudioSubstep = 'setup' | 'parameters';
 
 type AlgorithmRunRequirementKind = 'availability' | 'preprocessing';
 
@@ -370,14 +369,6 @@ export class AlgorithmPanelComponent {
   };
 
   constructor() {
-    effect(() => {
-      const canRun = this.canRun();
-      const runDisabledReason = this.runDisabledReason();
-      untracked(() => {
-        this.studioNavigation.publishState({ canRun, runDisabledReason });
-      });
-    });
-
     effect(() => {
       const algorithm = this.selectedAlgorithm();
       if (!algorithm) {
@@ -1147,16 +1138,10 @@ export class AlgorithmPanelComponent {
     this.hideTooltip();
   }
 
-  /** Scrolls a studio anchor clear of the sticky header and sub-header. */
+  /** Scrolls a studio anchor; `scroll-margin-top` on the target clears sticky chrome. */
   private scrollStudioTargetIntoView(target: HTMLElement | null, focus = false): void {
     if (!target) return;
-    window.scrollTo({
-      top: Math.max(
-        target.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(),
-        0
-      ),
-      behavior: 'smooth',
-    });
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     if (focus) target.focus({ preventScroll: true });
   }
 

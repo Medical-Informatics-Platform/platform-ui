@@ -17,6 +17,9 @@
   overflow: auto;
   padding: 12px 14px 14px;
   box-sizing: border-box;
+  scroll-margin-top: calc(
+    var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
+  );
 }
 
 .pane-head {

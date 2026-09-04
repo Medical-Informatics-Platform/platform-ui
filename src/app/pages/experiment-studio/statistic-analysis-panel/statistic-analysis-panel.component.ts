@@ -37,7 +37,6 @@ import { StationCardComponent, StationStatus } from '../shared/station-card/stat
 import { StationListRowComponent } from '../shared/station-list-row/station-list-row.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
-import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { countFilterRules } from '../shared/filter-rule-count.util';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
@@ -63,10 +62,11 @@ import {
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'raw' | 'processed';
-export type SectionKey = 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
+type SectionKey = 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
-export type PreprocessingStatus = 'none' | 'pending' | 'applied';
+type PreprocessingStatus = 'none' | 'pending' | 'applied';
+type PrepKind = 'missing' | 'outlier' | 'longitudinal';
 
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
@@ -91,7 +91,7 @@ function emptyTransformationDraft(): TransformationColumnDraft {
 }
 
 /** One sub-step of a pipeline stage, rendered on the pipeline-overview rail. */
-export interface PipelineSubNode {
+interface PipelineSubNode {
   // Preprocessing stations use fixed ids; transformation sub-nodes carry a
   // `transformation:<code>` id so the rail can list one card per derived column.
   id: string;
@@ -243,12 +243,16 @@ export class StatisticAnalysisPanelComponent {
   outlierPreviewRows: OutlierPreviewRow[] = [];
   outlierPreviewError = '';
   isLoadingOutlierPreview = false;
-  preprocessingSearch = '';
-  outlierPreprocessingSearch = '';
-  longitudinalPreprocessingSearch = '';
-  selectedMissingPreprocessingCode: string | null = null;
-  selectedOutlierPreprocessingCode: string | null = null;
-  selectedLongitudinalPreprocessingCode: string | null = null;
+  prepSearch: Record<PrepKind, string> = {
+    missing: '',
+    outlier: '',
+    longitudinal: '',
+  };
+  selectedPrepCode: Record<PrepKind, string | null> = {
+    missing: null,
+    outlier: null,
+    longitudinal: null,
+  };
   statisticsSearch: Record<SummaryKind, string> = {
     raw: '',
     processed: '',
@@ -274,22 +278,12 @@ export class StatisticAnalysisPanelComponent {
     transformation: true,
   };
 
-  /**
-   * Pipeline Canvas State: stages opened during this visit only.
-   * Presence on screen is derived (see isStepAdded); this overlay exists so a
-   * stage the user just opened stays visible even while it holds no work yet.
-   */
   readonly addedSteps = signal<Record<'filters' | 'setup' | 'transformation', boolean>>({
     filters: false,
     setup: false,
     transformation: false,
   });
 
-  /**
-   * A stage is active when it was opened this visit OR when its work is in the
-   * persisted request config. The node state must never disagree with what the
-   * next request actually carries, so persisted work always wins.
-   */
   isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
     if (this.addedSteps()[step]) return true;
     if (step === 'filters') return this.filterRuleCount() > 0;
@@ -797,59 +791,26 @@ export class StatisticAnalysisPanelComponent {
     ).filter((variable) => !!variable?.code);
   }
 
-  get filteredPreprocessingVariables(): VariableRow[] {
-    const query = this.preprocessingSearch.trim().toLowerCase();
-    return this.filterPreprocessingVariables(query);
-  }
-
-  get filteredLongitudinalPreprocessingVariables(): VariableRow[] {
-    const query = this.longitudinalPreprocessingSearch.trim().toLowerCase();
-    return this.filterPreprocessingVariables(query);
+  filteredPrepVariables(kind: PrepKind): VariableRow[] {
+    const query = this.prepSearch[kind].trim().toLowerCase();
+    const pool = kind === 'outlier' ? this.outlierPreprocessingVariables : this.preprocessingVariables;
+    if (!query) return pool;
+    return pool.filter((variable) => {
+      const label = this.variableLabel(variable).toLowerCase();
+      return label.includes(query) || String(variable.code).toLowerCase().includes(query);
+    });
   }
 
   get outlierPreprocessingVariables(): VariableRow[] {
     return this.preprocessingVariables.filter((variable) => isOutlierEligibleVariable(variable));
   }
 
-  get filteredOutlierPreprocessingVariables(): VariableRow[] {
-    const query = this.outlierPreprocessingSearch.trim().toLowerCase();
-    if (!query) return this.outlierPreprocessingVariables;
-    return this.outlierPreprocessingVariables.filter((variable) => {
-      const label = this.variableLabel(variable).toLowerCase();
-      return label.includes(query) || String(variable.code).toLowerCase().includes(query);
-    });
-  }
-
-  private filterPreprocessingVariables(query: string): VariableRow[] {
-    if (!query) return this.preprocessingVariables;
-    return this.preprocessingVariables.filter((variable) => {
-      const label = this.variableLabel(variable).toLowerCase();
-      return label.includes(query) || String(variable.code).toLowerCase().includes(query);
-    });
-  }
-
-  get preprocessingGroups(): PreprocessingGroup[] {
+  prepGroups(kind: PrepKind): PreprocessingGroup[] {
     return this.buildPreprocessingGroups(
-      this.filteredPreprocessingVariables,
-      (variable) => this.preprocessingVariableHasPendingChange(variable),
-      (variable) => this.hasAppliedPreprocessing(variable.code),
-      (variable) => this.isPreprocessingVariableUsingDefault(variable)
-    );
-  }
-
-  get longitudinalPreprocessingGroups(): PreprocessingGroup[] {
-    return this.buildPreprocessingGroups(
-      this.filteredLongitudinalPreprocessingVariables,
-      (variable) => this.longitudinalVariableHasPendingChange(variable),
-      (variable) => this.hasAppliedLongitudinalPreprocessing(variable.code)
-    );
-  }
-
-  get outlierPreprocessingGroups(): PreprocessingGroup[] {
-    return this.buildPreprocessingGroups(
-      this.filteredOutlierPreprocessingVariables,
-      (variable) => this.outlierVariableHasPendingChange(variable),
-      (variable) => this.hasAppliedOutlierPreprocessing(variable.code)
+      this.filteredPrepVariables(kind),
+      (variable) => this.prepVariableHasPendingChange(kind, variable),
+      (variable) => this.prepVariableIsApplied(kind, variable),
+      kind === 'missing' ? (variable) => this.isPreprocessingVariableUsingDefault(variable) : () => false,
     );
   }
 
@@ -896,40 +857,71 @@ export class StatisticAnalysisPanelComponent {
     return groups.filter((group) => group.variables.length > 0);
   }
 
-  selectedPreprocessingVariable(): VariableRow | null {
-    const filtered = this.filteredPreprocessingVariables;
+  selectedPrepVariable(kind: PrepKind): VariableRow | null {
+    const filtered = this.filteredPrepVariables(kind);
     if (!filtered.length) return null;
-    return filtered.find((variable) => variable.code === this.selectedMissingPreprocessingCode) ?? filtered[0];
+    return filtered.find((variable) => variable.code === this.selectedPrepCode[kind]) ?? filtered[0];
   }
 
-  selectPreprocessingVariable(variable: VariableRow): void {
-    this.selectedMissingPreprocessingCode = variable.code;
+  selectPrepVariable(kind: PrepKind, variable: VariableRow): void {
+    this.selectedPrepCode[kind] = variable.code;
     this.cdr.markForCheck();
   }
 
-  isPreprocessingVariableSelected(variable: VariableRow): boolean {
-    return this.selectedPreprocessingVariable()?.code === variable.code;
+  isPrepVariableSelected(kind: PrepKind, variable: VariableRow): boolean {
+    return this.selectedPrepVariable(kind)?.code === variable.code;
   }
 
-  preprocessingVariableStateLabel(variable: VariableRow): string {
-    if (this.preprocessingVariableHasPendingChange(variable)) return 'Pending';
-    if (this.hasAppliedPreprocessing(variable.code)) return 'Applied';
-    if (this.isPreprocessingVariableUsingDefault(variable)) return 'Default';
+  prepVariableStateLabel(kind: PrepKind, variable: VariableRow): string {
+    if (this.prepVariableHasPendingChange(kind, variable)) return 'Pending';
+    if (this.prepVariableIsApplied(kind, variable)) return 'Applied';
+    if (kind === 'missing' && this.isPreprocessingVariableUsingDefault(variable)) return 'Default';
     return 'Not applied';
   }
 
-  preprocessingVariableHasPendingChange(variable: VariableRow): boolean {
-    const appliedRule = this.appliedPreprocessingRules[variable.code];
-    const pendingRule = this.pendingPreprocessingRules[variable.code]
-      ?? (appliedRule ? undefined : this.defaultRule(variable.code));
-    // Unchanged default (NA removal) for a variable that has no active applied
-    // rule isn't a pending action: the default is implicit. A `no_action`
-    // applied placeholder (from hydration of unrelated variables) is treated
-    // as "no applied rule" here so newly added variables show as Default.
-    if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(variable.code)) {
-      return false;
+  prepVariableHasPendingChange(kind: PrepKind, variable: VariableRow): boolean {
+    switch (kind) {
+      case 'missing': {
+        const appliedRule = this.appliedPreprocessingRules[variable.code];
+        const pendingRule = this.pendingPreprocessingRules[variable.code]
+          ?? (appliedRule ? undefined : this.defaultRule(variable.code));
+        if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(variable.code)) {
+          return false;
+        }
+        return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
+      }
+      case 'outlier': {
+        const appliedRule = this.appliedOutlierRules[variable.code];
+        const pendingRule = this.pendingOutlierRules[variable.code]
+          ?? (appliedRule ? undefined : this.defaultOutlierRule(variable.code));
+        return serializeOutlierRule(pendingRule) !== serializeOutlierRule(appliedRule);
+      }
+      case 'longitudinal': {
+        if (!this.isLongitudinalModel) return false;
+        const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+        const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? null;
+        return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
+      }
+      default: {
+        const _exhaustive: never = kind;
+        return _exhaustive;
+      }
     }
-    return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
+  }
+
+  private prepVariableIsApplied(kind: PrepKind, variable: VariableRow): boolean {
+    switch (kind) {
+      case 'missing':
+        return this.hasAppliedPreprocessing(variable.code);
+      case 'outlier':
+        return this.hasAppliedOutlierPreprocessing(variable.code);
+      case 'longitudinal':
+        return this.hasAppliedLongitudinalPreprocessing(variable.code);
+      default: {
+        const _exhaustive: never = kind;
+        return _exhaustive;
+      }
+    }
   }
 
   isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
@@ -944,62 +936,6 @@ export class StatisticAnalysisPanelComponent {
     return rule.enabled === true
       && rule.action === 'drop'
       && (rule.value === undefined || rule.value === '');
-  }
-
-  selectedOutlierPreprocessingVariable(): VariableRow | null {
-    const filtered = this.filteredOutlierPreprocessingVariables;
-    if (!filtered.length) return null;
-    return filtered.find((variable) => variable.code === this.selectedOutlierPreprocessingCode) ?? filtered[0];
-  }
-
-  selectOutlierPreprocessingVariable(variable: VariableRow): void {
-    this.selectedOutlierPreprocessingCode = variable.code;
-    this.cdr.markForCheck();
-  }
-
-  isOutlierPreprocessingVariableSelected(variable: VariableRow): boolean {
-    return this.selectedOutlierPreprocessingVariable()?.code === variable.code;
-  }
-
-  outlierVariableStateLabel(variable: VariableRow): string {
-    if (this.outlierVariableHasPendingChange(variable)) return 'Pending';
-    if (this.hasAppliedOutlierPreprocessing(variable.code)) return 'Applied';
-    return 'Not applied';
-  }
-
-  outlierVariableHasPendingChange(variable: VariableRow): boolean {
-    const appliedRule = this.appliedOutlierRules[variable.code];
-    const pendingRule = this.pendingOutlierRules[variable.code]
-      ?? (appliedRule ? undefined : this.defaultOutlierRule(variable.code));
-    return serializeOutlierRule(pendingRule) !== serializeOutlierRule(appliedRule);
-  }
-
-  selectedLongitudinalPreprocessingVariable(): VariableRow | null {
-    const filtered = this.filteredLongitudinalPreprocessingVariables;
-    if (!filtered.length) return null;
-    return filtered.find((variable) => variable.code === this.selectedLongitudinalPreprocessingCode) ?? filtered[0];
-  }
-
-  selectLongitudinalPreprocessingVariable(variable: VariableRow): void {
-    this.selectedLongitudinalPreprocessingCode = variable.code;
-    this.cdr.markForCheck();
-  }
-
-  isLongitudinalPreprocessingVariableSelected(variable: VariableRow): boolean {
-    return this.selectedLongitudinalPreprocessingVariable()?.code === variable.code;
-  }
-
-  longitudinalVariableStateLabel(variable: VariableRow): string {
-    if (this.longitudinalVariableHasPendingChange(variable)) return 'Pending';
-    if (this.hasAppliedLongitudinalPreprocessing(variable.code)) return 'Applied';
-    return 'Not applied';
-  }
-
-  longitudinalVariableHasPendingChange(variable: VariableRow): boolean {
-    if (!this.isLongitudinalModel) return false;
-    const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
-    const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? null;
-    return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
   }
 
   get longitudinalVisitPairHasPendingChange(): boolean {
@@ -1478,24 +1414,15 @@ export class StatisticAnalysisPanelComponent {
     return { total, missing, share: missing / total };
   }
 
-  /** Display-only grouping. The pivot keeps machine-readable strings so CSV
-   *  export stays numeric — a quoted "289,788" reads as text in pandas — and
-   *  every numeric lookup keeps parsing. Only what a human reads gets
-   *  separators, and trailing zeros drop out because they carry no information
-   *  the way toFixed(2) printed them (47334358.00, 112.00). */
+  /** Display form of a canonical pivot value: parse the stored string, then
+   *  locale-group it. Storage and CSV export use `formatNumber`, never this. */
   displayNumber(value: string | undefined | null): string {
-    if (!value || value === 'N/A') return value ?? '';
-    const n = Number(value.replace(/,/g, ''));
+    if (value === null || value === undefined || value === '') return value ?? '';
+    const n = Number(String(value).replace(/,/g, ''));
     if (!Number.isFinite(n)) return value;
     return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 
-  /** Missing is only interpretable against Total. The bare count forces the
-   *  reader to divide before they can act, and this table is where the
-   *  preprocessing decision is actually made. Deliberately not severity-coloured:
-   *  the rail colours a list you compare across, while this table shows one
-   *  variable whose datasets usually share one share, so the same red would
-   *  paint every cell and rank nothing. */
   missingShareNote(block: PivotBlock, row: PivotBlock['rows'][number], dataset: string): string | null {
     if (row.metric !== 'Missing') return null;
     const parse = (metric: string) =>
@@ -1548,8 +1475,7 @@ export class StatisticAnalysisPanelComponent {
   }
 
   coveragePercent(coverage: { share: number }): string {
-    const pct = coverage.share * 100;
-    return `${pct >= 10 || pct === 0 ? pct.toFixed(0) : pct.toFixed(1)}%`;
+    return this.formatPercent(coverage.share * 100);
   }
 
   /** The full count belongs in its tooltip; the row only carries the share. */
@@ -2152,10 +2078,7 @@ export class StatisticAnalysisPanelComponent {
     if (!element) return;
 
     requestAnimationFrame(() => {
-      window.scrollTo({
-        top: Math.max(element.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0),
-        behavior: 'smooth',
-      });
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -2497,15 +2420,15 @@ export class StatisticAnalysisPanelComponent {
       const variableCode = String(item.variable ?? '');
       return {
         variable: this.variableLabelForCode(variableCode),
-        dataset: this.formatOutlierPreviewValue(item.dataset),
+        dataset: String(item.dataset ?? '').trim() || '-',
         strategy: outlierStrategyLabel(String(data['strategy'] ?? '')),
         tail: outlierTailLabel(String(data['tail'] ?? '')),
-        fold: this.formatOutlierPreviewValue(data['fold']),
-        lowerBound: this.formatOutlierPreviewValue(data['lower_bound']),
-        upperBound: this.formatOutlierPreviewValue(data['upper_bound']),
-        lowerOutliers: this.formatOutlierPreviewValue(data['lower_outlier_count']),
-        upperOutliers: this.formatOutlierPreviewValue(data['upper_outlier_count']),
-        totalOutliers: this.formatOutlierPreviewValue(data['total_outlier_count']),
+        fold: this.formatOutlierBound(data['fold']),
+        lowerBound: this.formatOutlierBound(data['lower_bound']),
+        upperBound: this.formatOutlierBound(data['upper_bound']),
+        lowerOutliers: this.formatInteger(data['lower_outlier_count'], '-'),
+        upperOutliers: this.formatInteger(data['upper_outlier_count'], '-'),
+        totalOutliers: this.formatInteger(data['total_outlier_count'], '-'),
         outlierPercentage: this.formatOutlierPercentage(data['total_outlier_percentage']),
       };
     });
@@ -2516,21 +2439,39 @@ export class StatisticAnalysisPanelComponent {
     return variable ? this.variableLabel(variable) : code;
   }
 
-  private formatOutlierPreviewValue(value: unknown): string {
+  /** Canonical (painted + exported) pivot cell: fixed 2 decimals, no grouping. */
+  private formatNumber(value: unknown): string {
+    if (value === null || value === undefined || value === '') return 'N/A';
+    const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+    if (!Number.isFinite(n)) return String(value);
+    return n.toFixed(2);
+  }
+
+  /** Outlier preview bounds keep the old 6-decimal preview precision. */
+  private formatOutlierBound(value: unknown): string {
     if (value === null || value === undefined || value === '') return '-';
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return Number.isInteger(value)
-        ? value.toLocaleString()
-        : value.toLocaleString(undefined, { maximumFractionDigits: 6 });
-    }
-    return String(value);
+    const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+    if (!Number.isFinite(n)) return String(value);
+    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  }
+
+  private formatInteger(value: unknown, empty = 'N/A'): string {
+    if (value === null || value === undefined || value === '') return empty;
+    const n = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    return String(Math.round(n));
+  }
+
+  private formatPercent(pct: number, digits?: number): string {
+    const d = digits ?? (pct >= 10 || pct === 0 ? 0 : 1);
+    return `${pct.toFixed(d)}%`;
   }
 
   private formatOutlierPercentage(value: unknown): string {
     if (value === null || value === undefined || value === '') return '-';
     const num = typeof value === 'number' ? value : parseFloat(String(value));
     if (!Number.isFinite(num)) return '-';
-    return num.toFixed(2) + '%';
+    return this.formatPercent(num, 2);
   }
 
   private buildPreprocessingConfig(
@@ -3306,20 +3247,6 @@ export class StatisticAnalysisPanelComponent {
     return mapped > 0 ? mappedBins : bins;
   }
 
-  private fmt(v: unknown): string {
-    if (v === null || v === undefined) return 'N/A';
-    if (typeof v === 'number') return v.toFixed(2);
-    const n = Number(v);
-    return Number.isFinite(n) ? n.toFixed(2) : String(v);
-  }
-
-  private fmtCount(v: unknown): string {
-    if (v === null || v === undefined) return 'N/A';
-    if (typeof v === 'number' && Number.isFinite(v)) return String(Math.round(v));
-    const n = Number(v);
-    return Number.isFinite(n) ? String(Math.round(n)) : String(v);
-  }
-
   private getEnumLabelMap(variable: VariableRow | undefined): Map<string, string> {
     const enums = Array.isArray(variable?.enumerations) ? variable.enumerations : [];
     const map = new Map<string, string>();
@@ -3388,7 +3315,7 @@ export class StatisticAnalysisPanelComponent {
               metric.key === 'num_datapoints' ? byDataset[ds]?.num_dtps :
                 metric.key === 'num_missing' ? byDataset[ds]?.num_na :
                   byDataset[ds]?.num_total;
-            values[ds] = this.fmtCount(raw);
+            values[ds] = this.formatInteger(raw);
           }
           return { metric: metric.label, values };
         });
@@ -3399,7 +3326,7 @@ export class StatisticAnalysisPanelComponent {
           const label = enumMap.get(key) ?? key;
           const values: Record<string, string> = {};
           for (const ds of datasetOrder) {
-            values[ds] = this.fmtCount(byDataset[ds]?.counts?.[key]);
+            values[ds] = this.formatInteger(byDataset[ds]?.counts?.[key]);
           }
           rows.push({ metric: label, values });
         });
@@ -3419,7 +3346,7 @@ export class StatisticAnalysisPanelComponent {
                     metric.key === 'std' ? byDataset[ds]?.std :
                       metric.key === 'q2' ? byDataset[ds]?.q2 :
                         byDataset[ds]?.[metric.key];
-            values[ds] = countKeys.has(metric.key) ? this.fmtCount(raw) : this.fmt(raw);
+            values[ds] = countKeys.has(metric.key) ? this.formatInteger(raw) : this.formatNumber(raw);
           }
           return { metric: metric.label, values };
         });

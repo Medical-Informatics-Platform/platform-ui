@@ -431,17 +431,17 @@
                 <aside class="statistics-browser preprocessing-browser" aria-label="Preprocessing variables">
                   <div class="statistics-browser-header">
                     <span>Variables</span>
-                    <small>{{ filteredPreprocessingVariables.length }} shown</small>
+                    <small>{{ filteredPrepVariables('missing').length }} shown</small>
                   </div>
                   <div class="search-inline chart-search">
-                    <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="preprocessingSearch" />
+                    <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="prepSearch.missing" />
                   </div>
 
-                  @for (group of preprocessingGroups; track group.key) {
+                  @for (group of prepGroups('missing'); track group.key) {
                   <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
                     <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
                     @for (variable of group.variables; track variable.code) {
-                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPreprocessingVariableSelected(variable)" (click)="selectPreprocessingVariable(variable)">
+                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPrepVariableSelected('missing', variable)" (click)="selectPrepVariable('missing', variable)">
                       <span>{{ variableLabel(variable) }}</span>
                       <span class="statistics-variable-meta">
                         @if (coverageFor(variable); as coverage) {
@@ -449,18 +449,18 @@
                         }
                         <span
                           class="preprocessing-state-mini"
-                          [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
-                          [class.state-applied]="preprocessingVariableStateLabel(variable) === 'Applied'"
-                          [class.state-default]="preprocessingVariableStateLabel(variable) === 'Default'"
+                          [class.state-pending]="prepVariableHasPendingChange('missing', variable)"
+                          [class.state-applied]="prepVariableStateLabel('missing', variable) === 'Applied'"
+                          [class.state-default]="prepVariableStateLabel('missing', variable) === 'Default'"
                         >
-                          {{ preprocessingVariableStateLabel(variable) }}
+                          {{ prepVariableStateLabel('missing', variable) }}
                         </span>
                       </span>
                     </button>
                     }
                   </div>
                   }
-                  @if (preprocessingGroups.length === 0) {
+                  @if (prepGroups('missing').length === 0) {
                   <div class="empty-state-block compact-empty">
                     <i class="fa fa-search"></i>
                     <p>No variables match the current search.</p>
@@ -470,7 +470,7 @@
                 </aside>
 
                 <div class="statistics-panel preprocessing-detail-panel">
-                  @if (selectedPreprocessingVariable(); as variable) {
+                  @if (selectedPrepVariable('missing'); as variable) {
                   <div class="statistics-panel-header">
                     <div>
                       <span class="statistics-panel-kicker">{{ variableTypeLabel(variable) }} variable</span>
@@ -478,11 +478,11 @@
                     </div>
                     <span
                       class="preprocessing-state-chip"
-                      [class.state-pending]="preprocessingVariableHasPendingChange(variable)"
-                      [class.state-applied]="preprocessingVariableStateLabel(variable) === 'Applied'"
-                      [class.state-default]="preprocessingVariableStateLabel(variable) === 'Default'"
+                      [class.state-pending]="prepVariableHasPendingChange('missing', variable)"
+                      [class.state-applied]="prepVariableStateLabel('missing', variable) === 'Applied'"
+                      [class.state-default]="prepVariableStateLabel('missing', variable) === 'Default'"
                     >
-                      {{ preprocessingVariableStateLabel(variable) }}
+                      {{ prepVariableStateLabel('missing', variable) }}
                     </span>
                   </div>
 
@@ -652,32 +652,32 @@
                 <aside class="statistics-browser preprocessing-browser" aria-label="Outlier preprocessing variables">
                   <div class="statistics-browser-header">
                     <span>Variables</span>
-                    <small>{{ filteredOutlierPreprocessingVariables.length }} shown</small>
+                    <small>{{ filteredPrepVariables('outlier').length }} shown</small>
                   </div>
                   <div class="search-inline chart-search">
-                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="outlierPreprocessingSearch" />
+                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="prepSearch.outlier" />
                   </div>
 
-                  @for (group of outlierPreprocessingGroups; track group.key) {
+                  @for (group of prepGroups('outlier'); track group.key) {
                   <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
                     <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
                     @for (variable of group.variables; track variable.code) {
-                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isOutlierPreprocessingVariableSelected(variable)" (click)="selectOutlierPreprocessingVariable(variable)">
+                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPrepVariableSelected('outlier', variable)" (click)="selectPrepVariable('outlier', variable)">
                       <span>{{ variableLabel(variable) }}</span>
                       <span class="statistics-variable-meta">
                         <span
                           class="preprocessing-state-mini"
-                          [class.state-pending]="outlierVariableHasPendingChange(variable)"
-                          [class.state-applied]="outlierVariableStateLabel(variable) === 'Applied'"
+                          [class.state-pending]="prepVariableHasPendingChange('outlier', variable)"
+                          [class.state-applied]="prepVariableStateLabel('outlier', variable) === 'Applied'"
                         >
-                          {{ outlierVariableStateLabel(variable) }}
+                          {{ prepVariableStateLabel('outlier', variable) }}
                         </span>
                       </span>
                     </button>
                     }
                   </div>
                   }
-                  @if (outlierPreprocessingGroups.length === 0) {
+                  @if (prepGroups('outlier').length === 0) {
                   <div class="empty-state-block compact-empty">
                     <i class="fa fa-search"></i>
                     <p>No variables match the current search.</p>
@@ -688,7 +688,7 @@
 
                 <div class="preprocessing-detail-column">
                   <div class="statistics-panel preprocessing-detail-panel">
-                    @if (selectedOutlierPreprocessingVariable(); as variable) {
+                    @if (selectedPrepVariable('outlier'); as variable) {
                     <div class="statistics-panel-header">
                       <div>
                         <span class="statistics-panel-kicker">Numerical variable</span>
@@ -696,10 +696,10 @@
                       </div>
                       <span
                         class="preprocessing-state-chip"
-                        [class.state-pending]="outlierVariableHasPendingChange(variable)"
-                        [class.state-applied]="outlierVariableStateLabel(variable) === 'Applied'"
+                        [class.state-pending]="prepVariableHasPendingChange('outlier', variable)"
+                        [class.state-applied]="prepVariableStateLabel('outlier', variable) === 'Applied'"
                       >
-                        {{ outlierVariableStateLabel(variable) }}
+                        {{ prepVariableStateLabel('outlier', variable) }}
                       </span>
                     </div>
 
@@ -915,33 +915,33 @@
                 <aside class="statistics-browser preprocessing-browser" aria-label="Longitudinal preprocessing variables">
                   <div class="statistics-browser-header">
                     <span>Variables</span>
-                    <small>{{ filteredLongitudinalPreprocessingVariables.length }} shown</small>
+                    <small>{{ filteredPrepVariables('longitudinal').length }} shown</small>
                   </div>
                   <div class="search-inline chart-search">
-                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="longitudinalPreprocessingSearch" />
+                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="prepSearch.longitudinal" />
                   </div>
 
-                  @for (group of longitudinalPreprocessingGroups; track group.key) {
+                  @for (group of prepGroups('longitudinal'); track group.key) {
                   <div class="statistics-variable-group preprocessing-variable-group">
                     <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
                     @for (variable of group.variables; track variable.code) {
-                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isLongitudinalPreprocessingVariableSelected(variable)" (click)="selectLongitudinalPreprocessingVariable(variable)">
+                    <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPrepVariableSelected('longitudinal', variable)" (click)="selectPrepVariable('longitudinal', variable)">
                       <span>{{ variableLabel(variable) }}</span>
                       <span class="statistics-variable-meta">
                         <small>{{ variableTypeLabel(variable) }}</small>
                         <span
                           class="preprocessing-state-mini"
-                          [class.state-pending]="longitudinalVariableHasPendingChange(variable)"
-                          [class.state-applied]="longitudinalVariableStateLabel(variable) === 'Applied'"
+                          [class.state-pending]="prepVariableHasPendingChange('longitudinal', variable)"
+                          [class.state-applied]="prepVariableStateLabel('longitudinal', variable) === 'Applied'"
                         >
-                          {{ longitudinalVariableStateLabel(variable) }}
+                          {{ prepVariableStateLabel('longitudinal', variable) }}
                         </span>
                       </span>
                     </button>
                     }
                   </div>
                   }
-                  @if (longitudinalPreprocessingGroups.length === 0) {
+                  @if (prepGroups('longitudinal').length === 0) {
                   <div class="empty-state-block compact-empty">
                     <i class="fa fa-search"></i>
                     <p>No variables match the current search.</p>
@@ -951,7 +951,7 @@
                 </aside>
 
                 <div class="statistics-panel preprocessing-detail-panel">
-                  @if (selectedLongitudinalPreprocessingVariable(); as variable) {
+                  @if (selectedPrepVariable('longitudinal'); as variable) {
                   <div class="statistics-panel-header">
                     <div>
                       <span class="statistics-panel-kicker">{{ variableTypeLabel(variable) }} variable</span>
@@ -959,10 +959,10 @@
                     </div>
                     <span
                       class="preprocessing-state-chip"
-                      [class.state-pending]="longitudinalVariableHasPendingChange(variable)"
-                      [class.state-applied]="longitudinalVariableStateLabel(variable) === 'Applied'"
+                      [class.state-pending]="prepVariableHasPendingChange('longitudinal', variable)"
+                      [class.state-applied]="prepVariableStateLabel('longitudinal', variable) === 'Applied'"
                     >
-                      {{ longitudinalVariableStateLabel(variable) }}
+                      {{ prepVariableStateLabel('longitudinal', variable) }}
                     </span>
                   </div>
 

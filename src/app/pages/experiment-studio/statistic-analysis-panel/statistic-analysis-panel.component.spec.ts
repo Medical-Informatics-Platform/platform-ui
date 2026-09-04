@@ -4,10 +4,10 @@ import { ExperimentStudioService } from '../../../services/experiment-studio.ser
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
+import { CsvExportService } from '../../../services/csv-export.service';
 import { of, Subject } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
-import { getExperimentStudioScrollOffset } from '../experiment-studio-scroll.util';
 
 describe('StatisticAnalysisPanelComponent', () => {
     let component: StatisticAnalysisPanelComponent;
@@ -398,9 +398,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             { code: 'age', label: 'Age', type: 'real' },
             { code: 'biol_sex', label: 'Biological Sex', type: 'nominal' },
         ]);
-        component.preprocessingSearch = 'age';
+        component.prepSearch.missing = 'age';
 
-        expect(component.filteredPreprocessingVariables.map((v) => v.code)).toEqual(['age']);
+        expect(component.filteredPrepVariables('missing').map((v) => v.code)).toEqual(['age']);
     });
 
     it('shows the same empty state for longitudinal preprocessing when search has no matches', () => {
@@ -422,7 +422,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([
             { code: 'age', label: 'Age', type: 'real' },
         ]);
-        component.preprocessingSearch = 'no-match';
+        component.prepSearch.missing = 'no-match';
         mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
 
         const preprocessingSection = openStation('setup');
@@ -508,7 +508,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         sexButton?.click();
         fixture.detectChanges();
 
-        expect(component.selectedPreprocessingVariable()?.code).toBe('sex');
+        expect(component.selectedPrepVariable('missing')?.code).toBe('sex');
         expect(preprocessingSection.querySelector('.preprocessing-detail-panel h4')?.textContent).toContain('Sex');
     });
 
@@ -533,12 +533,12 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
         fixture.detectChanges();
 
-        component.selectPreprocessingVariable(sex);
-        component.selectLongitudinalPreprocessingVariable(age);
+        component.selectPrepVariable('missing', sex);
+        component.selectPrepVariable('longitudinal', age);
         fixture.detectChanges();
 
-        expect(component.selectedPreprocessingVariable()?.code).toBe('sex');
-        expect(component.selectedLongitudinalPreprocessingVariable()?.code).toBe('age');
+        expect(component.selectedPrepVariable('missing')?.code).toBe('sex');
+        expect(component.selectedPrepVariable('longitudinal')?.code).toBe('age');
     });
 
     it('counts pending preprocessing by step instead of by variable rule', () => {
@@ -600,9 +600,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             age: { variableCode: 'age', action: 'drop', value: '', enabled: true },
         };
 
-        const pendingGroup = component.preprocessingGroups.find((group) => group.key === 'pending');
-        const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
-        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
+        const pendingGroup = component.prepGroups('missing').find((group) => group.key === 'pending');
+        const appliedGroup = component.prepGroups('missing').find((group) => group.key === 'applied');
+        const defaultGroup = component.prepGroups('missing').find((group) => group.key === 'default');
 
         // `sex` was just added and sits on the implicit NA-removal default.
         expect(pendingGroup).toBeUndefined();
@@ -630,8 +630,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
-        const appliedGroup = component.preprocessingGroups.find((group) => group.key === 'applied');
-        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
+        const appliedGroup = component.prepGroups('missing').find((group) => group.key === 'applied');
+        const defaultGroup = component.prepGroups('missing').find((group) => group.key === 'default');
         // `age` comes back as applied; `sex` was never applied and sits on the
         // request-time NA-removal default (b0899cf removed the auto-persist).
         expect(appliedGroup?.variables.map((v) => v.code)).toEqual(['age']);
@@ -647,8 +647,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // The implicit default is shown as a default: algorithm runs get drop from
         // resolveRequestPreprocessing, so it is not persisted work.
-        expect(component.preprocessingVariableStateLabel(age)).toBe('Default');
-        expect(component.preprocessingVariableStateLabel(sex)).toBe('Default');
+        expect(component.prepVariableStateLabel('missing',age)).toBe('Default');
+        expect(component.prepVariableStateLabel('missing',sex)).toBe('Default');
         expect(component.pendingChangeCount).toBe(0);
         const persisted = mockExpService.setAppliedDescriptivePreprocessing.calls
             .allArgs()
@@ -696,17 +696,17 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        expect(component.preprocessingVariableStateLabel(age)).toBe('Applied');
+        expect(component.prepVariableStateLabel('missing',age)).toBe('Applied');
         expect(component.pendingChangeCount).toBe(0);
 
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
-        const defaultGroup = component.preprocessingGroups.find((group) => group.key === 'default');
+        const defaultGroup = component.prepGroups('missing').find((group) => group.key === 'default');
         // The NA drop for a newly added variable is injected per request, not stored, so the
         // honest label is Default: covered by the inherited default, owed nothing, pending nothing.
-        expect(component.preprocessingVariableStateLabel(sex)).toBe('Default');
-        expect(component.preprocessingVariableHasPendingChange(sex)).toBeFalse();
+        expect(component.prepVariableStateLabel('missing',sex)).toBe('Default');
+        expect(component.prepVariableHasPendingChange('missing', sex)).toBeFalse();
         expect(component.pendingChangeCount).toBe(0);
         expect(defaultGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
@@ -764,7 +764,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('opens and scrolls to the processed summary while preprocessing is loading', (done) => {
         const { age } = configureRawSummary();
         const response$ = new Subject<unknown>();
-        const scrollSpy = spyOn(window, 'scrollTo');
+        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
         spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
@@ -783,9 +783,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(processedBody).toBeTruthy();
 
         setTimeout(() => {
-            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
-            expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(Math.max(processedSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
+            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
 
             response$.next({
                 result: {
@@ -818,9 +816,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
     });
 
-    it('uses the same header-aware offset for every workflow subsection', (done) => {
+    it('scrolls the workflow subsection into view', (done) => {
         configureRawSummary();
-        const scrollSpy = spyOn(window, 'scrollTo');
+        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
         spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
@@ -830,10 +828,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         setTimeout(() => {
-            const filtersSection = workflowSection('Filtering');
-            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
-            expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(Math.max(filtersSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(), 0));
+            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
             done();
         });
     });
@@ -1210,6 +1205,8 @@ describe('StatisticAnalysisPanelComponent', () => {
                 variable: 'Age',
                 dataset: 'dataset-a',
                 strategy: 'IQR',
+                fold: '1.5',
+                upperBound: '90',
                 lowerBound: '-',
                 lowerOutliers: '0',
                 totalOutliers: '2',
@@ -1364,7 +1361,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age']);
         expect(component.outlierRuleFor(age).enabled).toBeTrue();
-        expect(component.outlierVariableStateLabel(age)).toBe('Applied');
+        expect(component.prepVariableStateLabel('outlier', age)).toBe('Applied');
         // Internal status stays config-driven (outlier config is applied); the
         // user-apply flag is what keeps the stepper from claiming Done.
         expect((component as any).userPreprocessingApplied).toBe(false);
@@ -1598,7 +1595,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('scrolls to the transformation section when that sub-tab is selected', (done) => {
         configureRawSummary();
-        const scrollSpy = spyOn(window, 'scrollTo');
+        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
         spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
@@ -1608,14 +1605,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         setTimeout(() => {
-            const transformationSection = workflowSection('Transformation');
-            const scrollOptions = scrollSpy.calls.mostRecent().args[0] as ScrollToOptions;
             expect(component.sectionOpen().transformation).toBeTrue();
-            expect(scrollOptions.behavior).toBe('smooth');
-            expect(scrollOptions.top).toBe(Math.max(
-                transformationSection.getBoundingClientRect().top + window.scrollY - getExperimentStudioScrollOffset(),
-                0
-            ));
+            expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
             done();
         });
     });
@@ -1900,12 +1891,48 @@ describe('StatisticAnalysisPanelComponent', () => {
             (mockExpService.selectedVariables as any).set([age]);
             mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
             openStation('setup');
-            component.selectPreprocessingVariable(age);
+            component.selectPrepVariable('missing', age);
             fixture.detectChanges();
 
             expect(component.coverageFor(age)).toBeNull();
             const note = fixture.nativeElement.querySelector('.preprocessing-evidence .preprocessing-consequence') as HTMLElement;
             expect(note?.textContent?.trim()).toContain('No dataset statistics are available');
+        });
+    });
+
+    describe('summary number formatting', () => {
+        it('keeps pivot values canonical for CSV and groups only at display time', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                result: {
+                    featurewise: [
+                        { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 1234.5 } },
+                    ],
+                },
+            }));
+            (mockExpService.selectedVariables as any).set([age]);
+            component.fetchDescriptiveStatistics();
+            fixture.detectChanges();
+
+            // Stored cell value is the same string the CSV export reads: fixed
+            // decimals, no locale grouping (1234.5 -> "1234.50", not "1,234.50").
+            const meanRow = component.rawSummary.data
+                .find((block) => block.code === 'age')
+                ?.rows.find((row) => row.metric === 'Mean');
+            expect(meanRow?.values['all datasets']).toBe('1234.50');
+
+            const csvSpy = spyOn(TestBed.inject(CsvExportService), 'exportToCsv');
+            component.exportSummaryToCSV('raw');
+            expect(csvSpy).toHaveBeenCalledWith(
+                jasmine.arrayContaining([jasmine.objectContaining({ Metric: 'Mean', Dataset: 'All datasets', Value: '1234.50' })]),
+                ['Variable', 'Metric', 'Dataset', 'Value'],
+                'raw_data_summary.csv',
+            );
+
+            // Grouping happens only on the way to the table, parsed from the canonical string.
+            expect(component.displayNumber('1234.50'))
+                .toBe((1234.5).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+            expect(component.displayNumber('1234.50')).not.toBe('1234.50');
         });
     });
 });

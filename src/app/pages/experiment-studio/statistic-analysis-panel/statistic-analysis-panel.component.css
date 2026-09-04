@@ -1,3 +1,10 @@
+.workflow-section,
+.pipeline-node {
+  scroll-margin-top: calc(
+    var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
+  );
+}
+
 .stats-panel-shell {
   --panel-success-bg: #dfefe4;
   --panel-success-text: #166534;
@@ -688,11 +695,6 @@
   border-radius: 0;
   box-shadow: none;
   overflow: visible;
-  scroll-margin-top: calc(
-    var(--studio-stepper-offset, calc(64px + 8px)) +
-      var(--studio-stepper-height, 64px) +
-      8px
-  );
   transition: background-color 0.25s ease;
   margin-bottom: 0;
 }

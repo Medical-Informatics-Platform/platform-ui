@@ -350,7 +350,7 @@
   margin-bottom: 0;
   display: none;
   scroll-margin-top: calc(
-    var(--header-height, 64px) + var(--warning-banner-space, 0px) + 16px
+    var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
   );
 }
 
