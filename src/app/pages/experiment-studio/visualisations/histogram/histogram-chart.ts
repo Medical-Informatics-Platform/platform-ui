@@ -115,6 +115,70 @@ function shouldRotateXLabels(
   return (hasStringBins && estimatedLines > 1) || hasLongNumericBins || (hasStringBins && bins.length > 8);
 }
 
+function attachChartTooltip(
+  container: HTMLElement,
+  formatTitle: (binLabel: string) => string = (binLabel) => binLabel,
+) {
+  container.style.position = 'relative';
+  const tooltip = d3
+    .select(container)
+    .append('div')
+    .style('position', 'absolute')
+    .style('visibility', 'hidden')
+    .style('background-color', '#ffffff')
+    .style('color', '#0f172a')
+    .style('padding', '8px 12px')
+    .style('border-radius', '6px')
+    .style('font-size', '12px')
+    .style('font-weight', '500')
+    .style('box-shadow', '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)')
+    .style('border', '1px solid #e2e8f0')
+    .style('max-width', '250px')
+    .style('white-space', 'normal')
+    .style('pointer-events', 'none')
+    .style('z-index', '10');
+
+  const smartFormat = (d: any): string => {
+    if (typeof d !== 'number' || isNaN(d)) return String(d);
+    const abs = Math.abs(d);
+    if (Number.isInteger(d)) return d.toString();
+    if (abs > 10000) return d3.format('.2f')(d);
+    if (abs > 0 && abs < 0.01) return d3.format('.2e')(d);
+    return d3.format('.2f')(d);
+  };
+
+  const formatCountLabel = (count: number | null): string =>
+    count === null ? 'Masked for privacy (count below minimum threshold)' : smartFormat(count);
+
+  const showTooltip = (binLabel: string, count: number | null) => {
+    tooltip
+      .style('visibility', 'visible')
+      .html(`
+          <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${formatTitle(binLabel)}</div>
+          <div>Count: ${formatCountLabel(count)}</div>
+        `);
+  };
+
+  const moveTooltip = (event: MouseEvent) => {
+    const [x, y] = d3.pointer(event, container);
+    const tooltipNode = tooltip.node() as HTMLElement;
+    const tooltipWidth = tooltipNode?.offsetWidth || 100;
+    const tooltipHeight = tooltipNode?.offsetHeight || 60;
+    const bounds = container.getBoundingClientRect();
+    let left = x + 15;
+    let top = y - 10;
+    if (left + tooltipWidth > bounds.width) left = x - tooltipWidth - 15;
+    if (top + tooltipHeight > bounds.height) top = y - tooltipHeight - 10;
+    tooltip.style('left', `${left}px`).style('top', `${top}px`);
+  };
+
+  const hideTooltip = () => {
+    tooltip.style('visibility', 'hidden');
+  };
+
+  return { smartFormat, showTooltip, moveTooltip, hideTooltip };
+}
+
 export function createHistogram(
   data: {
     bins: string[];
@@ -130,18 +194,16 @@ export function createHistogram(
     orientation?: 'vertical' | 'horizontal';
   } = {}
 ): void {
-  const isDark = false;
-
   if (config.orientation === 'horizontal') {
     createHorizontalBarChart(data, container, config);
     return;
   }
 
-  const textColor = isDark ? '#f1f5f9' : '#475569';
-  const mutedTextColor = isDark ? '#94a3b8' : '#64748b';
-  const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
-  const domainColor = isDark ? 'rgba(255, 255, 255, 0.2)' : '#cbd5e1';
-  const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
+  const textColor = '#475569';
+  const mutedTextColor = '#64748b';
+  const gridColor = '#e2e8f0';
+  const domainColor = '#cbd5e1';
+  const barColor = config.color || '#2b33e9';
 
   const clipped = shouldClipNullEdges(data.bins)
     ? clipHistogramNullEdges(data.bins, data.counts)
@@ -256,61 +318,11 @@ export function createHistogram(
     );
 
 
-  // Tooltip
-  const tooltip = d3
-    .select(container)
-    .append('div')
-    .style('position', 'absolute')
-    .style('visibility', 'hidden')
-    .style('background-color', isDark ? '#1e293b' : '#ffffff')
-    .style('color', isDark ? '#f1f5f9' : '#0f172a')
-    .style('padding', '8px 12px')
-    .style('border-radius', '6px')
-    .style('font-size', '12px')
-    .style('font-weight', '500')
-    .style('box-shadow', '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)')
-    .style('border', `1px solid ${isDark ? '#334155' : '#e2e8f0'}`)
-    .style('max-width', '250px')
-    .style('white-space', 'normal')
-    .style('pointer-events', 'none')
-    .style('z-index', '10');
-
+  const { smartFormat, showTooltip, moveTooltip, hideTooltip } = attachChartTooltip(
+    container,
+    (binLabel) => `${data.variableName ? data.variableName + ': ' : ''}${binLabel}`,
+  );
   const getBarSelector = (index: number) => `.bar[data-index="${index}"]`;
-  const formatCountLabel = (count: number | null): string =>
-    count === null ? 'Masked for privacy (count below minimum threshold)' : smartFormat(count);
-  const showTooltip = (binLabel: string, count: number | null) => {
-    tooltip
-      .style('visibility', 'visible')
-      .html(`
-          <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${data.variableName ? data.variableName + ': ' : ''}${binLabel}</div>
-          <div>Count: ${formatCountLabel(count)}</div>
-        `);
-  };
-  const moveTooltip = (event: MouseEvent) => {
-    const [x, y] = d3.pointer(event, container);
-
-    // Keep tooltip within container bounds
-    const tooltipNode = tooltip.node() as HTMLElement;
-    const tooltipWidth = tooltipNode?.offsetWidth || 100;
-    const tooltipHeight = tooltipNode?.offsetHeight || 60;
-
-    let left = x + 15;
-    let top = y - 10;
-
-    // Flip if too close to right edge
-    if (left + tooltipWidth > containerWidth) {
-      left = x - tooltipWidth - 15;
-    }
-
-    // Flip if too close to bottom edge
-    if (top + tooltipHeight > containerHeight) {
-      top = y - tooltipHeight - 10;
-    }
-
-    tooltip
-      .style('left', `${left}px`)
-      .style('top', `${top}px`);
-  };
 
   // Visible bars: proportional heights only.
   chart
@@ -350,19 +362,8 @@ export function createHistogram(
     })
     .on('mouseout', function (_event, d) {
       chart.select(getBarSelector(d.index)).attr('opacity', 0.85).attr('filter', null);
-      tooltip.style('visibility', 'hidden');
+      hideTooltip();
     });
-
-  // Smart number formatter
-  function smartFormat(d: any): string {
-    if (typeof d !== 'number' || isNaN(d)) return String(d);
-    const abs = Math.abs(d);
-
-    if (Number.isInteger(d)) return d.toString();
-    if (abs > 10000) return d3.format('.2f')(d);
-    if (abs > 0 && abs < 0.01) return d3.format('.2e')(d);
-    return d3.format('.2f')(d);
-  }
 
   const xTickValues = denseNumericLabels
     ? selectXTickValues(bins, chartWidth, maxLabelLength)
@@ -473,11 +474,10 @@ function createHorizontalBarChart(
     orientation?: 'vertical' | 'horizontal';
   } = {}
 ): void {
-  const isDark = false;
-  const textColor = isDark ? '#f1f5f9' : '#475569';
-  const mutedTextColor = isDark ? '#94a3b8' : '#64748b';
-  const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0';
-  const barColor = isDark ? '#7f9ce8' : (config.color || '#2b33e9');
+  const textColor = '#475569';
+  const mutedTextColor = '#64748b';
+  const gridColor = '#e2e8f0';
+  const barColor = config.color || '#2b33e9';
   const containerRect = container.getBoundingClientRect();
   const containerWidth = containerRect.width || 640;
 
@@ -544,57 +544,8 @@ function createHorizontalBarChart(
       .attr('stroke-dasharray', '3,3')
     );
 
-  // Tooltip
-  const tooltip = d3
-    .select(container)
-    .append('div')
-    .style('position', 'absolute')
-    .style('visibility', 'hidden')
-    .style('background-color', isDark ? '#1e293b' : '#ffffff')
-    .style('color', isDark ? '#f1f5f9' : '#0f172a')
-    .style('padding', '8px 12px')
-    .style('border-radius', '6px')
-    .style('font-size', '12px')
-    .style('font-weight', '500')
-    .style('box-shadow', '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)')
-    .style('border', `1px solid ${isDark ? '#334155' : '#e2e8f0'}`)
-    .style('max-width', '250px')
-    .style('white-space', 'normal')
-    .style('pointer-events', 'none')
-    .style('z-index', '10');
-
-  const smartFormat = (d: any): string => {
-    if (typeof d !== 'number' || isNaN(d)) return String(d);
-    const abs = Math.abs(d);
-    if (Number.isInteger(d)) return d.toString();
-    if (abs > 10000) return d3.format('.2f')(d);
-    if (abs > 0 && abs < 0.01) return d3.format('.2e')(d);
-    return d3.format('.2f')(d);
-  };
-
-  const formatCountLabel = (count: number | null): string =>
-    count === null ? 'Masked for privacy (count below minimum threshold)' : smartFormat(count);
-
+  const { smartFormat, showTooltip, moveTooltip, hideTooltip } = attachChartTooltip(container);
   const getBarSelector = (index: number) => `.bar[data-index="${index}"]`;
-  const showTooltip = (binLabel: string, count: number | null) => {
-    tooltip
-      .style('visibility', 'visible')
-      .html(`
-        <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${binLabel}</div>
-        <div>Count: ${formatCountLabel(count)}</div>
-      `);
-  };
-  const moveTooltip = (event: MouseEvent) => {
-    const [x, y] = d3.pointer(event, container);
-    const tooltipNode = tooltip.node() as HTMLElement;
-    const tooltipWidth = tooltipNode?.offsetWidth || 100;
-    const tooltipHeight = tooltipNode?.offsetHeight || 60;
-    let left = x + 15;
-    let top = y - 10;
-    if (left + tooltipWidth > containerWidth) left = x - tooltipWidth - 15;
-    if (top + tooltipHeight > containerHeight) top = y - tooltipHeight - 10;
-    tooltip.style('left', `${left}px`).style('top', `${top}px`);
-  };
 
   const binPoints = bins.map((bin, index) => ({
     bin,
@@ -657,7 +608,7 @@ function createHorizontalBarChart(
     })
     .on('mouseout', function (_event, d) {
       chart.select(getBarSelector(d.index)).attr('opacity', 0.85).attr('filter', null);
-      tooltip.style('visibility', 'hidden');
+      hideTooltip();
     });
 
   // Y axis (category labels): long clinical names wrap to two lines instead of
@@ -690,7 +641,7 @@ function createHorizontalBarChart(
   chart.append('g')
     .attr('transform', `translate(0, ${innerHeight})`)
     .call(d3.axisBottom(xScale).ticks(Math.min(8, Math.max(3, Math.floor(innerWidth / 80)))).tickSize(0).tickPadding(8).tickFormat((d: any) => smartFormat(d)))
-    .call((g) => g.select('.domain').attr('stroke', isDark ? 'rgba(255, 255, 255, 0.2)' : '#cbd5e1'))
+    .call((g) => g.select('.domain').attr('stroke', '#cbd5e1'))
     .selectAll('text')
     .attr('font-size', '11px')
     .attr('font-weight', '500')
