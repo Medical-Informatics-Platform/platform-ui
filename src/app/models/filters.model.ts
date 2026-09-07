@@ -1,4 +1,4 @@
-export type BackendRule = {
+type BackendRule = {
   id: string;
   field: string;
   type: 'string' | 'integer' | 'real';   // backend works with "string", not "nominal"
@@ -7,7 +7,7 @@ export type BackendRule = {
   value: any;
 };
 
-export type BackendFilterNode = BackendRule | BackendFilter;
+type BackendFilterNode = BackendRule | BackendFilter;
 
 export type BackendFilter = {
   condition: 'AND' | 'OR';
