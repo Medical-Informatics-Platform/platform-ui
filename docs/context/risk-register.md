@@ -15,4 +15,4 @@
 | Docker image publishing | Release workflow uses registry credentials and pushes images. | `.github/workflows/publish_images.yml`. | Never print secrets; review registry/tag changes carefully. | Yes |
 | EBRAINS mirroring | Workflow pushes code/tags to an external GitLab mirror. | `.github/workflows/ebrains.yml`. | Avoid changing mirror refs or credentials handling without owner review. | Yes |
 | Dependencies | Updates can affect Angular build, bundle output, and chart/export libraries. | `package.json`, `package-lock.json`. | Explain need, review lockfile, run build/tests. | Yes |
-| Design and branding | UI changes can violate MIP brand guidelines. | `DESIGN_SYSTEM.yaml`, logos/assets. | Follow approved colors, logo rules, and UI hierarchy. | For visible brand changes |
+| Design and branding | UI changes can violate MIP brand guidelines. | `DESIGN.md`, logos/assets. | Follow approved colors, logo rules, and UI hierarchy. | For visible brand changes |

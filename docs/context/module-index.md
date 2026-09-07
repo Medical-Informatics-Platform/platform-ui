@@ -34,7 +34,7 @@ Notes: Prefer extending existing interfaces over ad hoc `any` where practical.
 
 ## `src/app/core`
 Purpose: Algorithm/result mapping, constants, and utility logic.
-Key files: `algorithm-mappers.ts`, `algorithm-result-enum-mapper.ts`, `constants/algorithm.constants.ts`, `outlier-rules.ts`.
+Key files: `algorithm-mappers.ts`, `algorithm-result-enum-mapper.ts`, `constants/algorithm.constants.ts`, `outlier-rules.ts`, `share.utils.ts`, `route-path.utils.ts`.
 Used by: Experiment Studio, result rendering, services, and tests.
 Rules: Treat algorithm key aliases and result schema mappings as compatibility-sensitive.
 Tests: `algorithm-mappers.spec.ts`, `algorithm-result-enum-mapper.spec.ts`.
@@ -54,7 +54,7 @@ Key files: `charts/chart-registry.ts`, `charts/chart-builder.service.ts`, `auto-
 Used by: Algorithm result panels, dashboard detail/compare, and statistics views.
 Rules: Register new algorithm outputs in the existing registries; preserve legacy aliases when changing algorithm keys.
 Tests: Registry and renderer specs live in this subtree.
-Notes: See `docs/exareme3-frontend-visualization-audit.md` for historical visualization gaps and compatibility notes.
+Notes: Registry keys and legacy aliases are compatibility-sensitive; check stored experiment data before removing an alias.
 
 ## `src/app/pages/experiments-dashboard`
 Purpose: Experiment listing, filtering, detail, compare, sharing, rename, and deletion UI.
@@ -102,7 +102,7 @@ Key files: `env.js`, `tos.md`, logos/footer assets.
 Used by: App runtime, Angular build assets, nginx container output.
 Rules: Do not commit secrets into `env.js`; it is runtime-populated in containers.
 Tests: Build verifies asset paths.
-Notes: Brand/logo usage should follow `DESIGN_SYSTEM.yaml`.
+Notes: Brand/logo usage should follow `DESIGN.md`.
 
 ## `Dockerfile`, `docker-entrypoint.sh`, `nginx.conf.template`
 Purpose: Build and serve the Angular app in nginx with runtime environment injection.
