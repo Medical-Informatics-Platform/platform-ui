@@ -10,6 +10,10 @@
     "prewatch": "node scripts/check-node-version.mjs",
     "watch": "ng build --watch --configuration development",
     "pretest": "node scripts/check-node-version.mjs",
+    "pretypecheck": "node scripts/check-node-version.mjs",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
+    "check:dead-code": "node scripts/check-dead-code.mjs",
+    "verify": "npm run typecheck && npm run check:dead-code && npm run build",
     "test": "ng test"
   },
   "private": true,
