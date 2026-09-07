@@ -6,6 +6,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExperimentSearchComponent } from '../experiment-search/experiment-search.component';
 import { Router, RouterModule } from '@angular/router';
+import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
 import { ExperimentFilters } from '../experiment-search/experiment-filter.model';
 
 @Component({
@@ -53,7 +54,6 @@ export class ExperimentsListComponent implements OnInit {
 
   ngOnInit(): void {
     this.onlyMine.set(this.initialOnlyMine());
-    this.experimentsService.fetchGlobalTotal();
   }
 
   // toggle
@@ -110,40 +110,14 @@ export class ExperimentsListComponent implements OnInit {
     }, 2400);
   }
 
-  private buildShareUrl(expId: string): string {
-    const tree = this.router.createUrlTree(
-      ['/experiments-dashboard'],
-      { queryParams: { experiment: expId } }
-    );
-
-    const relative = this.router.serializeUrl(tree);
-    const origin = window.location.origin;
-
-    return origin + relative;
-  }
 
   isOwner(exp: Experiment): boolean {
-    const currentEmail = this.currentUserEmail();
-    if (!currentEmail || !exp.authorEmail) return false;
-    return currentEmail === exp.authorEmail;
+    return isExperimentOwner(this.currentUserEmail(), exp.authorEmail);
   }
 
   onCopyLinkClicked(exp: Experiment, event: MouseEvent) {
     event.stopPropagation();
-    const url = this.buildShareUrl(exp.id);
-
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(
-        () => this.showCopyToast('Link copied to clipboard', exp.id),
-        (err) => {
-          console.warn('Failed to copy share URL:', err);
-          this.showCopyToast('Could not copy link — check console.', exp.id);
-        }
-      );
-    } else {
-      console.warn('Clipboard API not available, share URL:', url);
-      this.showCopyToast('Clipboard not available — check console log.', exp.id);
-    }
+    copyShareUrl(buildExperimentShareUrl(this.router, exp.id)).then((message) => this.showCopyToast(message, exp.id));
   }
 
   onToggleShare(exp: Experiment, event: MouseEvent) {
@@ -160,25 +134,14 @@ export class ExperimentsListComponent implements OnInit {
     this.experimentsService
       .toggleExperimentShare(exp.id, newShared)
       .subscribe({
-        next: () => {
-          if (newShared) {
-            this.showCopyToast('Experiment is now shared', exp.id);
-            // Auto-copy link when enabling share? User request implies separation, but usually convenient.
-            // Requirement says "split the button". I will keep them separate as requested.
-          } else {
-            this.showCopyToast('Experiment is no longer shared', exp.id);
-          }
-        },
+        next: () => this.showCopyToast(shareToggleToast(newShared), exp.id),
         error: (err) => {
           console.error('Failed to toggle share:', err);
-          this.showCopyToast('Failed to update share state', exp.id);
+          this.showCopyToast(SHARE_TOAST.toggleFailed, exp.id);
         },
       });
   }
 
-  // counts
-  readonly totalExperiments = computed(() => this.experimentsService.totalExperiments());
-  readonly visibleExperiments = computed(() => this.experimentsService.experiments().length);
 
   // pages
   readonly totalPages = computed(() => this.experimentsService.totalPages());
