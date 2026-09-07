@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, effect, signal, computed, output, i
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { StationListRowComponent } from '../station-list-row/station-list-row.component';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -26,7 +27,7 @@ interface FilterConditionBlock {
 
 @Component({
   selector: 'app-filter-config-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StationListRowComponent],
   templateUrl: './filter-config-modal.component.html',
   styleUrl: './filter-config-modal.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,9 +36,6 @@ export class FilterConfigModalComponent {
   private expStudio = inject(ExperimentStudioService);
 
   readonly filterLogic = input<any | null>(null);
-  readonly inline = input(false);
-  readonly closeModal = output<void>();
-  readonly filtersApplyStarted = output<void>();
   readonly filtersApplied = output<void>();
 
   readonly allFilterVariables = signal<any[]>([]);
@@ -76,12 +74,6 @@ export class FilterConfigModalComponent {
     this.filterError.set(null);
   }
 
-  setGroupCondition(groupId: string, condition: GroupCondition): void {
-    this.updateGroup(groupId, (group) => ({
-      ...group,
-      rules: group.rules.map((block, index) => index === 0 ? { ...block, connector: undefined } : { ...block, connector: condition }),
-    }));
-  }
 
   setBlockConnector(groupId: string, blockId: string, condition: GroupCondition): void {
     this.updateGroup(groupId, (group) => ({
@@ -167,20 +159,27 @@ export class FilterConfigModalComponent {
     return `${label}${type}`;
   }
 
-  blockTrackBy(_index: number, block: FilterBlock): string {
-    return block.id;
-  }
-
-  saveFilters(): void {
-    this.filtersApplyStarted.emit(undefined);
+  /**
+   * Validate the current builder and return backend filter logic without writing
+   * cohort filters on ExperimentStudioService.
+   */
+  exportFilterLogic(): any | null {
     const validationError = this.validateGroup(this.rootGroup());
     if (validationError) {
       this.filterError.set(validationError);
-      return;
+      return null;
     }
 
     const normalized = this.normalizeGroup(this.rootGroup());
-    const toStore = normalized.rules.length > 0 ? this.formatFiltersForBackend(normalized) : null;
+    this.filterError.set(null);
+    return normalized.rules.length > 0 ? this.formatFiltersForBackend(normalized) : null;
+  }
+
+  saveFilters(): void {
+    const toStore = this.exportFilterLogic();
+    if (this.filterError()) {
+      return;
+    }
     const selectedFilters = toStore
       ? this.extractFilterCodes(toStore)
         .map((code) => this.allFilterVariables().find((variable) => variable.code === code))
@@ -190,12 +189,7 @@ export class FilterConfigModalComponent {
     this.expStudio.setFilters(selectedFilters);
     this.expStudio.setFilterLogic(toStore);
     this.filtersApplied.emit(undefined);
-    this.closeModal.emit(undefined);
     this.filterError.set(null);
-  }
-
-  cancel(): void {
-    this.closeModal.emit(undefined);
   }
 
   clearFilters(): void {
