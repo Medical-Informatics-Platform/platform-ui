@@ -1,4 +1,36 @@
-import { clipHistogramNullEdges, selectXTickValues, shouldClipNullEdges } from './histogram-chart';
+import { clipHistogramNullEdges, orderHorizontalBarRows, selectXTickValues, shouldClipNullEdges, wrapCategoryLabel } from './histogram-chart';
+
+describe('wrapCategoryLabel', () => {
+  it('keeps short labels on a single line', () => {
+    expect(wrapCategoryLabel('Age')).toEqual(['Age']);
+    expect(wrapCategoryLabel('Detailed acute treatment')).toEqual(['Detailed acute treatment']);
+  });
+
+  it('breaks long labels at a space near the midpoint', () => {
+    expect(wrapCategoryLabel('Cerebrovascular risk assessment protocol')).toEqual([
+      'Cerebrovascular risk',
+      'assessment protocol',
+    ]);
+  });
+
+  it('breaks at the only space when it is the nearest break point', () => {
+    // 30 chars, single space at index 25 -> the only available word break.
+    expect(wrapCategoryLabel('abcdefghijklmnopqrstuvwxy z123')).toEqual([
+      'abcdefghijklmnopqrstuvwxy',
+      'z123',
+    ]);
+  });
+
+  it('keeps a label with no space on one line', () => {
+    expect(wrapCategoryLabel('abcdefghijklmnopABCDEFGHIJKLMNOP')).toEqual([
+      'abcdefghijklmnopABCDEFGHIJKLMNOP',
+    ]);
+  });
+
+  it('returns the empty label unchanged', () => {
+    expect(wrapCategoryLabel('')).toEqual(['']);
+  });
+});
 
 describe('clipHistogramNullEdges', () => {
   it('trims leading and trailing null counts but keeps interior null bins', () => {
@@ -52,6 +84,23 @@ describe('selectXTickValues', () => {
     expect(ticks.length).toBeGreaterThanOrEqual(4);
     expect(ticks[0]).toBe('110');
     expect(ticks[ticks.length - 1]).toBe('215');
+  });
+});
+
+describe('orderHorizontalBarRows', () => {
+  it('keeps numeric histogram bins in value order', () => {
+    expect(orderHorizontalBarRows(['30', '45', '60'], [10, 80, 20])).toEqual([
+      { bin: '30', count: 10 },
+      { bin: '45', count: 80 },
+      { bin: '60', count: 20 },
+    ]);
+  });
+
+  it('sorts named group bins by count descending', () => {
+    expect(orderHorizontalBarRows(['Acute', 'Hospitalization'], [4, 12])).toEqual([
+      { bin: 'Hospitalization', count: 12 },
+      { bin: 'Acute', count: 4 },
+    ]);
   });
 });
 

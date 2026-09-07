@@ -16,7 +16,7 @@ import {
   output,
   input
 } from '@angular/core';
-import { createZoomableCirclePacking } from './zoomable-circle-packing';
+import { createZoomableCirclePacking, DEFAULT_BUBBLE_COLORS } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 
 @Component({
@@ -32,12 +32,11 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   private cdr = inject(ChangeDetectorRef);
 
   private readonly guideState = inject(ExperimentStudioGuideStateService);
-  private readonly tutorialHighlightColor = '#22c55e';
+  private readonly tutorialHighlightColor = '#DFEFE4';
 
   readonly d3Data = input<any | null>(null);
   readonly highlightNode = input<any | null>(null);
   readonly selectedVariables = input<any[]>([]);
-  readonly selectedCovariates = input<any[]>([]);
   readonly selectedFilters = input<any[]>([]);
   readonly bubbleColors = input<Partial<{
     variable: string;
@@ -57,7 +56,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   private viewReady = false;
   private refreshColorsFn!: (options?: {
     selectedVariables?: any[];
-    selectedCovariates?: any[];
     selectedFilters?: any[];
     colors?: Partial<BubbleChartComponent['colors']>;
   }) => void;
@@ -70,14 +68,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
 
   readonly error = signal<string | null>(null); // Holds the current error message
-  readonly COLORBLIND_PALETTE = {
-    variable: '#ffba08',     // MIP golden yellow (from portal-frontend)
-    covariate: '#bba66f',    // MIP tan/beige (from portal-frontend)
-    filter: '#483300',       // MIP dark brown (from portal-frontend)
-    selected: '#3f6078',     // MIP steel blue (from portal-frontend)
-    groupStart: '#c8d5f0',   // Light pale blue (from portal-frontend)
-    groupEnd: '#3340e8',     // Deep blue (from portal-frontend)
-  };
+  readonly COLORBLIND_PALETTE = { ...DEFAULT_BUBBLE_COLORS };
 
   colors: {
     variable: string;
@@ -163,9 +154,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     }
 
     if (
-      (changes['selectedVariables'] ||
-        changes['selectedCovariates'] ||
-        changes['selectedFilters']) &&
+      (changes['selectedVariables'] || changes['selectedFilters']) &&
       this.refreshColorsFn
     ) {
       this.refreshColorsFn(this.buildRefreshOptions());
@@ -221,46 +210,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   }
 
-  public updateSelectionColors(): void {
-    if (!this.zoomToNodeFn) return;
-    this.renderChart(); // re-render to update fills
-  }
-
-  onNodeClick(node: any): void {
-    this.selectedNodeChange.emit(node);
-  }
-
-  public zoomToNode(variable: any): void {
-    if (this.zoomToNodeFn) {
-      this.zoomToNodeFn(variable);
-    } else {
-      console.warn('zoomToNodeFn not ready yet, retrying...');
-      setTimeout(() => {
-        if (this.zoomToNodeFn) {
-          this.zoomToNodeFn(variable);
-        }
-      }, 15);
-    }
-  }
-
-  public refreshColors(newOptions?: {
-    selectedVariables?: any[];
-    selectedCovariates?: any[];
-    selectedFilters?: any[];
-  }): void {
-    if (this.refreshColorsFn) {
-      this.refreshColorsFn({
-        ...this.buildRefreshOptions(),
-        ...(newOptions ?? {}),
-      });
-    } else {
-      console.warn('refreshColorsFn not ready yet.');
-    }
-  }
-
   private buildRefreshOptions(): {
     selectedVariables: any[];
-    selectedCovariates: any[];
     selectedFilters: any[];
     colors: {
       variable: string;
@@ -275,7 +226,6 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   } {
     return {
       selectedVariables: this.selectedVariables(),
-      selectedCovariates: this.selectedCovariates(),
       selectedFilters: this.selectedFilters(),
       colors: this.colors,
       tutorialHighlightCode: this.getPendingTutorialHighlightCode(),
@@ -298,7 +248,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       case 'select-age-variable':
         return this.guideState.matchesTutorialCovariate(this.highlightNode(), expected);
       case 'add-sex-covariate':
-        return this.selectedCovariates().some((node) => this.guideState.matchesTutorialCovariate(node, expected));
+        return this.selectedVariables().some((node) => this.guideState.matchesTutorialCovariate(node, expected));
       case 'add-age-variable':
         return this.selectedVariables().some((node) => this.guideState.matchesTutorialCovariate(node, expected));
       default:
