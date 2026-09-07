@@ -5,7 +5,7 @@ import {
 
 export { EXPERIMENT_STUDIO_GUIDE_LABELS };
 
-export type ExperimentsDashboardGuidePlacement = 'top' | 'right' | 'bottom' | 'left' | 'center';
+type ExperimentsDashboardGuidePlacement = 'top' | 'right' | 'bottom' | 'left' | 'center';
 
 export interface ExperimentsDashboardGuideStep {
   id: string;
@@ -25,15 +25,15 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
   {
     id: 'dashboard-overview',
     section: 'Explore',
-    title: 'Experiments Dashboard',
-    body: 'The dashboard is your entry point for saved work. From here you can create a new experiment, reopen an existing one, see experiments shared with you, or compare multiple runs.',
+    title: 'My experiments',
+    body: 'This is your experiments home (<strong>My experiments</strong> in the header). From here you can create a new experiment, reopen an existing one, see experiments shared with you, or compare multiple runs. Open Studio anytime from the header <strong>Studio</strong> link.',
     maskBackground: 'transparent',
   },
   {
     id: 'workspace',
     section: 'Explore',
-    title: 'Experiment List',
-    body: 'The left pane contains your experiment history. Select a run to inspect it in the workbench, or use New when you want to start an experiment from scratch.',
+    title: 'Experiment list',
+    body: 'The left pane is your experiment history. Select a run to inspect it in the workbench on the right, or use <strong>New</strong> to start from scratch in Studio.',
     selector: '[data-guide="dashboard-workspace"]',
     placement: 'right',
   },
@@ -67,8 +67,8 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
   {
     id: 'new-experiment',
     section: 'Experiment',
-    title: 'New Experiment',
-    body: 'Open Experiment Studio to create a new experiment from scratch.',
+    title: 'New experiment',
+    body: 'Use <strong>New</strong> to open Experiment Studio and create an experiment from scratch. You can also jump there with the header <strong>Studio</strong> link.',
     selector: '[data-guide="dashboard-new"]',
     placement: 'bottom',
   },

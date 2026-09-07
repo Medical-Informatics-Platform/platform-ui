@@ -1,10 +1,11 @@
 import { CommonModule, DOCUMENT } from '@angular/common';
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import {
   EXPERIMENTS_DASHBOARD_GUIDE_STEPS,
   EXPERIMENT_STUDIO_GUIDE_LABELS,
   ExperimentsDashboardGuideStep,
 } from './experiments-dashboard-guide.content';
+import { GuideLauncher, GuideLauncherService } from '../../../services/guide-launcher.service';
 
 interface GuideRect {
   top: number;
@@ -28,10 +29,17 @@ interface GuideRect {
     '(document:click)': 'onDocumentClick($event)',
   },
 })
-export class ExperimentsDashboardGuideComponent implements AfterViewInit {
+export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly document = inject(DOCUMENT);
+  private readonly guideLauncher = inject(GuideLauncherService);
   private readonly autoStartStorageKey = 'mip.guide.experiments-dashboard.autostarted';
   private layoutTimer: number | null = null;
+
+  /** Handed to the bar, which draws the control (see GuideLauncherService). */
+  private readonly launcherHandle: GuideLauncher = {
+    label: EXPERIMENT_STUDIO_GUIDE_LABELS.launcher,
+    start: () => this.startGuide(),
+  };
 
   @ViewChild('guideCard')
   private guideCard?: ElementRef<HTMLElement>;
@@ -71,8 +79,19 @@ export class ExperimentsDashboardGuideComponent implements AfterViewInit {
     return step.requirementHint ?? 'Use the highlighted element to continue.';
   });
 
+  ngOnInit(): void {
+    this.guideLauncher.register(this.launcherHandle);
+  }
+
   ngAfterViewInit(): void {
     window.setTimeout(() => this.startGuide(false), 900);
+  }
+
+  ngOnDestroy(): void {
+    this.guideLauncher.unregister(this.launcherHandle);
+    if (this.layoutTimer !== null) {
+      window.clearTimeout(this.layoutTimer);
+    }
   }
 
   startGuide(manual = true): void {
