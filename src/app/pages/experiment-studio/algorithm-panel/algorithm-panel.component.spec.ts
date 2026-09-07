@@ -18,7 +18,9 @@ describe('AlgorithmPanelComponent', () => {
   let experimentStudioService: {
     selectedAlgorithm: ReturnType<typeof signal<AlgorithmConfig | null>>;
     selectedVariables: ReturnType<typeof signal<any[]>>;
-    selectedCovariates: ReturnType<typeof signal<any[]>>;
+    algorithmY: ReturnType<typeof signal<any[]>>;
+    algorithmX: ReturnType<typeof signal<any[]>>;
+    algorithmAssignableVariables: ReturnType<typeof signal<any[]>>;
     selectedFilters: ReturnType<typeof signal<any[]>>;
     selectedDatasets: ReturnType<typeof signal<string[]>>;
     selectedDataModel: ReturnType<typeof signal<any>>;
@@ -28,6 +30,13 @@ describe('AlgorithmPanelComponent', () => {
     isRunning: ReturnType<typeof signal<boolean>>;
     currentExperimentUUID: ReturnType<typeof signal<string | null>>;
     lastUsedAlgorithm: ReturnType<typeof signal<string>>;
+    runResult: ReturnType<typeof signal<any>>;
+    runError: ReturnType<typeof signal<string | null>>;
+    lastRunSchema: ReturnType<typeof signal<any[]>>;
+    hasRunStarted: ReturnType<typeof signal<boolean>>;
+    runStatusText: ReturnType<typeof signal<string>>;
+    variableLabelMap: ReturnType<typeof signal<Record<string, string>>>;
+    notifySaveSucceeded: jasmine.Spy;
     availableDatasets: ReturnType<typeof signal<any[]>>;
     getCategoricalEnumMaps: jasmine.Spy;
     isCrossValidationOnly: jasmine.Spy;
@@ -36,6 +45,7 @@ describe('AlgorithmPanelComponent', () => {
     getTransformationBase: jasmine.Spy;
     getTransformationVariant: jasmine.Spy;
     hasAppliedDescriptivePreprocessing: jasmine.Spy;
+    hasRequestPreprocessingForRun: jasmine.Spy;
     isAlgorithmAvailable: jasmine.Spy;
     getAlgorithmAvailability: jasmine.Spy;
     setAlgorithm: jasmine.Spy;
@@ -70,13 +80,15 @@ describe('AlgorithmPanelComponent', () => {
   beforeEach(async () => {
     studioNavigation = jasmine.createSpyObj<ExperimentStudioNavigationService>(
       'ExperimentStudioNavigationService',
-      ['goToVariableSelection', 'goToPreprocessing'],
+      ['goToVariableSelection', 'goToPreprocessing', 'publishState'],
     );
 
     experimentStudioService = {
       selectedAlgorithm: signal<AlgorithmConfig | null>(algorithm),
       selectedVariables: signal<any[]>([{ code: 'y', label: 'Y variable' }]),
-      selectedCovariates: signal<any[]>([]),
+      algorithmY: signal<any[]>([]),
+      algorithmX: signal<any[]>([]),
+      algorithmAssignableVariables: signal<any[]>([{ code: 'y', label: 'Y variable', type: 'real' }]),
       selectedFilters: signal<any[]>([]),
       selectedDatasets: signal<string[]>([]),
       selectedDataModel: signal<any>(null),
@@ -86,6 +98,13 @@ describe('AlgorithmPanelComponent', () => {
       isRunning: signal(false),
       currentExperimentUUID: signal<string | null>(null),
       lastUsedAlgorithm: signal(''),
+      runResult: signal<any>(null),
+      runError: signal<string | null>(null),
+      lastRunSchema: signal<any[]>([]),
+      hasRunStarted: signal(false),
+      runStatusText: signal('Processing experiment...'),
+      variableLabelMap: signal<Record<string, string>>({}),
+      notifySaveSucceeded: jasmine.createSpy('notifySaveSucceeded'),
       availableDatasets: signal<any[]>([]),
       getCategoricalEnumMaps: jasmine.createSpy('getCategoricalEnumMaps').and.returnValue({}),
       isCrossValidationOnly: jasmine.createSpy('isCrossValidationOnly').and.returnValue(false),
@@ -94,6 +113,7 @@ describe('AlgorithmPanelComponent', () => {
       getTransformationBase: jasmine.createSpy('getTransformationBase').and.returnValue(null),
       getTransformationVariant: jasmine.createSpy('getTransformationVariant').and.returnValue(null),
       hasAppliedDescriptivePreprocessing: jasmine.createSpy('hasAppliedDescriptivePreprocessing').and.returnValue(true),
+      hasRequestPreprocessingForRun: jasmine.createSpy('hasRequestPreprocessingForRun').and.returnValue(false),
       isAlgorithmAvailable: jasmine.createSpy('isAlgorithmAvailable').and.returnValue(true),
       getAlgorithmAvailability: jasmine.createSpy('getAlgorithmAvailability').and.returnValue({
         available: true,
@@ -134,6 +154,7 @@ describe('AlgorithmPanelComponent', () => {
   });
 
   it('renders all algorithm configuration fields without an advanced toggle', async () => {
+    fixture.componentInstance.setStudioSubstep('parameters');
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -143,7 +164,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(fields.length).toBe(4);
     expect(nativeElement.textContent).toContain('Fourth');
     expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBeFalse();
-    expect((nativeElement.querySelector('[data-guide="run-experiment"]') as HTMLButtonElement)?.disabled).toBeFalse();
+    expect(fixture.componentInstance.canRun()).toBeTrue();
     expect(nativeElement.textContent).not.toContain('Show advanced configuration');
     expect(nativeElement.textContent).not.toContain('Hide advanced configuration');
   });
@@ -158,11 +179,12 @@ describe('AlgorithmPanelComponent', () => {
       },
     };
 
-    expect(fixture.componentInstance.getVariableRequirement(optionalCovariateAlgorithm)).toContain('Variable:');
+    expect(fixture.componentInstance.getVariableRequirement(optionalCovariateAlgorithm)).toContain('Outcome:');
     expect(fixture.componentInstance.getCovariateRequirement(optionalCovariateAlgorithm)).toBeNull();
   });
 
   it('renders selected algorithm documentation separately from the short description', async () => {
+    fixture.componentInstance.setStudioSubstep('parameters');
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -173,11 +195,11 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.textContent).toContain('Documentation');
     expect(details?.textContent).toContain('Line one.');
     expect(details?.textContent).toContain('Line two.');
-    expect(details?.open).toBeFalse();
+    expect(details?.open).toBeTrue();
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
-  it('shows disabled algorithm availability reasons in the tooltip, not the card', async () => {
+  it('shows disabled algorithm availability reasons on the card and in the tooltip', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,
       name: 'needs_two_variables',
@@ -185,11 +207,11 @@ describe('AlgorithmPanelComponent', () => {
       isDisabled: true,
       availability: {
         available: false,
-        summary: 'Variable needs at least 2, selected 1.',
+        summary: 'Outcome needs at least 2, selected 1.',
         details: [
           {
             role: 'y',
-            label: 'Variable',
+            label: 'Outcome',
             selectedCount: 1,
             minCount: 2,
             maxCount: 3,
@@ -197,8 +219,8 @@ describe('AlgorithmPanelComponent', () => {
             types: ['real'],
             stattypes: ['nominal'],
             messages: [
-              'Variable needs at least 2, selected 1.',
-              'Variable type must be one of real.',
+              'Outcome needs at least 2, selected 1.',
+              'Outcome type must be one of real.',
             ],
             satisfied: false,
           },
@@ -206,9 +228,13 @@ describe('AlgorithmPanelComponent', () => {
       },
     };
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
-
+    fixture.componentInstance.showOnlyActive.set(false);
     fixture.detectChanges();
     await fixture.whenStable();
+
+    // Groups without runnable methods start collapsed: reveal the Test group.
+    ((fixture.nativeElement as HTMLElement).querySelector('.algorithm-match-cat') as HTMLButtonElement).click();
+    fixture.detectChanges();
 
     const component = fixture.componentInstance;
     component.tooltipVisible.set(true);
@@ -216,15 +242,14 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const algorithmItem = nativeElement.querySelector('li') as HTMLElement;
+    const algorithmItem = nativeElement.querySelector('.algo-tile') as HTMLElement;
     expect(algorithmItem.textContent).toContain('Needs Two Variables');
-    expect(algorithmItem.textContent).not.toContain('Variable needs at least 2, selected 1.');
-    expect(algorithmItem.querySelector('.algo-unavailable-reason')).toBeNull();
-    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Variable needs at least 2, selected 1.');
+    expect(algorithmItem.querySelector('.algo-why')?.textContent).toContain('Outcome needs at least 2, selected 1.');
+    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome needs at least 2, selected 1.');
     expect(nativeElement.textContent).toContain('Availability');
-    expect(nativeElement.textContent).toContain('Variable: 2-3, selected 1');
+    expect(nativeElement.textContent).toContain('Outcome: 2-3, selected 1');
     expect(nativeElement.textContent).toContain('type: real');
-    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Variable type must be one of real.');
+    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome type must be one of real.');
     expect(nativeElement.textContent).not.toContain('type: nominal');
     expect(nativeElement.textContent).not.toContain('stattypes: nominal');
   });
@@ -232,7 +257,7 @@ describe('AlgorithmPanelComponent', () => {
   it('displays text availability types as nominal in requirement tips', () => {
     const text = fixture.componentInstance.availabilityRequirementText({
       role: 'x',
-      label: 'Covariate',
+      label: 'Predictor',
       selectedCount: 1,
       minCount: 1,
       maxCount: null,
@@ -247,7 +272,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(text).not.toContain('text');
   });
 
-  it('hides type-only availability reasons on algorithm cards', async () => {
+  it('shows type availability reasons on algorithm cards', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,
       name: 'type_only_algorithm',
@@ -255,32 +280,35 @@ describe('AlgorithmPanelComponent', () => {
       isDisabled: true,
       availability: {
         available: false,
-        summary: 'Variable type must be one of real.',
+        summary: 'Outcome type must be one of real.',
         details: [
           {
             role: 'y',
-            label: 'Variable',
+            label: 'Outcome',
             selectedCount: 1,
             minCount: 1,
             maxCount: 1,
             required: true,
             types: ['real'],
             stattypes: [],
-            messages: ['Variable type must be one of real.'],
+            messages: ['Outcome type must be one of real.'],
             satisfied: false,
           },
         ],
       },
     };
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
-
+    fixture.componentInstance.showOnlyActive.set(false);
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const algorithmItem = fixture.nativeElement.querySelector('li') as HTMLElement;
+    // Groups without runnable methods start collapsed: reveal the Test group.
+    ((fixture.nativeElement as HTMLElement).querySelector('.algorithm-match-cat') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const algorithmItem = fixture.nativeElement.querySelector('.algo-tile') as HTMLElement;
     expect(algorithmItem.textContent).toContain('Type Only Algorithm');
-    expect(algorithmItem.querySelector('.algo-unavailable-reason')).toBeNull();
-    expect(algorithmItem.textContent).not.toContain('Variable type must be one of real.');
+    expect(algorithmItem.querySelector('.algo-why')?.textContent).toContain('Outcome type must be one of real.');
   });
 
   it('selects unavailable algorithms as a read-only preview with expandable documentation', async () => {
@@ -295,7 +323,7 @@ describe('AlgorithmPanelComponent', () => {
       ],
       availability: {
         available: false,
-        summary: 'Variable type must be one of text.',
+        summary: 'Outcome type must be one of text.',
         details: [],
       },
     };
@@ -306,11 +334,15 @@ describe('AlgorithmPanelComponent', () => {
       ? unavailableAlgorithm.availability
       : { available: true, summary: '', details: [] });
 
-    fixture.componentInstance.openCategories.set(['Test']);
+    fixture.componentInstance.showOnlyActive.set(false);
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const unavailableListItem = (fixture.nativeElement as HTMLElement).querySelector('li.disabled-algo') as HTMLElement;
+    // Groups without runnable methods start collapsed: reveal the Test group.
+    ((fixture.nativeElement as HTMLElement).querySelector('.algorithm-match-cat') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const unavailableListItem = (fixture.nativeElement as HTMLElement).querySelector('.algo-tile.disabled-algo') as HTMLElement;
     expect(getComputedStyle(unavailableListItem).cursor).toBe('pointer');
 
     fixture.componentInstance.onAlgorithmClick(unavailableAlgorithm);
@@ -319,23 +351,25 @@ describe('AlgorithmPanelComponent', () => {
 
     const nativeElement = fixture.nativeElement as HTMLElement;
     const details = nativeElement.querySelector('.documentation-panel') as HTMLDetailsElement;
-    const fieldset = nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement;
-    const requirementsPanel = nativeElement.querySelector('.algorithm-requirements-panel') as HTMLElement;
-    const input = fieldset.querySelector('input.config-input') as HTMLInputElement;
-    const runButton = nativeElement.querySelector('[data-guide="run-experiment"]') as HTMLButtonElement;
 
     expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
     expect(details?.textContent).toContain('Unavailable docs.');
+    expect(details?.open).toBeTrue();
+
+    fixture.componentInstance.setStudioSubstep('parameters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const runRoot = fixture.nativeElement as HTMLElement;
+    const fieldset = runRoot.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement;
+    const requirementsPanel = runRoot.querySelector('.algorithm-requirements-panel') as HTMLElement;
     expect(requirementsPanel?.textContent).toContain('Complete before running');
-    expect(requirementsPanel?.textContent).toContain('Variable type must be one of nominal.');
+    expect(requirementsPanel?.textContent).toContain('Outcome type must be one of nominal.');
     expect(requirementsPanel?.textContent).not.toContain('text');
-    expect(details?.open).toBeFalse();
-    details.open = true;
-    expect(details.open).toBeTrue();
-    expect(fieldset?.disabled).toBeTrue();
+    expect(fieldset).toBeTruthy();
+    expect(fieldset.disabled).toBeTrue();
     expect(getComputedStyle(fieldset).pointerEvents).toBe('none');
-    expect(input?.matches(':disabled')).toBeTrue();
-    expect(runButton?.disabled).toBeTrue();
+    expect(fixture.componentInstance.canRun()).toBeFalse();
 
     fixture.componentInstance.onClickRunExp();
     expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
@@ -377,11 +411,12 @@ describe('AlgorithmPanelComponent', () => {
     experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
     experimentStudioService.backendAlgorithms.set({ cox_regression_classical: coxAlgorithm });
     experimentStudioService.availableGroupedAlgorithms.set({ Regression: [coxAlgorithm] });
-    experimentStudioService.selectedCovariates.set([
+    experimentStudioService.algorithmX.set([
       { code: 'event_status', label: 'Event status', type: 'nominal' },
       { code: 'age', label: 'Age', type: 'real' },
     ]);
 
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -424,7 +459,7 @@ describe('AlgorithmPanelComponent', () => {
     };
 
     experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
-    experimentStudioService.selectedCovariates.set([
+    experimentStudioService.algorithmX.set([
       {
         code: 'procedure',
         label: 'Procedure',
@@ -439,6 +474,7 @@ describe('AlgorithmPanelComponent', () => {
       cox_regression_classical: { event_var: 'procedure' },
     });
 
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -490,7 +526,7 @@ describe('AlgorithmPanelComponent', () => {
     };
 
     experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
-    experimentStudioService.selectedCovariates.set([
+    experimentStudioService.algorithmX.set([
       {
         code: 'sex',
         label: 'Sex',
@@ -539,8 +575,9 @@ describe('AlgorithmPanelComponent', () => {
     };
 
     experimentStudioService.selectedAlgorithm.set(coxAlgorithm);
-    experimentStudioService.selectedCovariates.set([]);
+    experimentStudioService.algorithmX.set([]);
 
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -572,7 +609,12 @@ describe('AlgorithmPanelComponent', () => {
       { code: 'age', label: 'Age', type: 'real' },
       { code: 'sex', label: 'Sex', type: 'nominal' },
     ]);
-    experimentStudioService.selectedCovariates.set([{ code: 'bmi', label: 'BMI', type: 'real' }]);
+    experimentStudioService.algorithmX.set([{ code: 'bmi', label: 'BMI', type: 'real' }]);
+    experimentStudioService.algorithmAssignableVariables.set([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'sex', label: 'Sex', type: 'nominal' },
+      { code: 'bmi', label: 'BMI', type: 'real' },
+    ]);
     experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
     experimentStudioService.runSelectedAlgorithmTransient.and.returnValue(of({
       status: 'success',
@@ -614,6 +656,7 @@ describe('AlgorithmPanelComponent', () => {
     };
     experimentStudioService.selectedAlgorithm.set(outlierAlgorithm);
     experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
+    experimentStudioService.algorithmAssignableVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
     experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -635,17 +678,17 @@ describe('AlgorithmPanelComponent', () => {
       name: 'unavailable_algorithm',
       availability: {
         available: false,
-        summary: 'Variable needs at least 1, selected 0.',
+        summary: 'Outcome needs at least 1, selected 0.',
         details: [{
           role: 'y',
-          label: 'Variable',
+          label: 'Outcome',
           selectedCount: 0,
           minCount: 1,
           maxCount: 1,
           required: true,
           types: [],
           stattypes: [],
-          messages: ['Variable needs at least 1, selected 0.'],
+          messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,
         }],
       },
@@ -661,34 +704,35 @@ describe('AlgorithmPanelComponent', () => {
     ));
     experimentStudioService.selectedAlgorithm.set(unavailableAlgorithm);
     experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
     const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-requirement-item');
     expect(items.length).toBe(2);
-    expect(items[0]?.textContent).toContain('Variable needs at least 1, selected 0.');
-    expect(items[0]?.textContent).toContain('Select variable');
+    expect(items[0]?.textContent).toContain('Outcome needs at least 1, selected 0.');
+    expect(items[0]?.textContent).toContain('Assign outcome');
     expect(items[1]?.textContent).toContain('Apply missing value preprocessing');
     expect(items[1]?.textContent).toContain('Go to preprocessing');
   });
 
-  it('navigates to variable selection from the requirements list', async () => {
+  it('keeps the availability run-requirement action on the algorithm panel for role assignment', async () => {
     const unavailableAlgorithm: AlgorithmConfig = {
       ...algorithm,
       name: 'unavailable_algorithm',
       availability: {
         available: false,
-        summary: 'Variable needs at least 1, selected 0.',
+        summary: 'Outcome needs at least 1, selected 0.',
         details: [{
           role: 'y',
-          label: 'Variable',
+          label: 'Outcome',
           selectedCount: 0,
           minCount: 1,
           maxCount: 1,
           required: true,
           types: [],
           stattypes: [],
-          messages: ['Variable needs at least 1, selected 0.'],
+          messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,
         }],
       },
@@ -703,6 +747,7 @@ describe('AlgorithmPanelComponent', () => {
         : { available: true, summary: '', details: [] }
     ));
     experimentStudioService.selectedAlgorithm.set(unavailableAlgorithm);
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -710,14 +755,16 @@ describe('AlgorithmPanelComponent', () => {
       '.algorithm-requirement-item .algorithm-requirement-action',
     ) as HTMLButtonElement;
 
-    expect(action?.textContent).toContain('Select variable');
+    expect(action?.textContent).toContain('Assign outcome');
     action.click();
-    expect(studioNavigation.goToVariableSelection).toHaveBeenCalledWith('parameters-listing');
+    // Role assignment lives on this panel; the action does not navigate back to variables.
+    expect(studioNavigation.goToVariableSelection).not.toHaveBeenCalled();
   });
 
   it('navigates to preprocessing from the requirements list', async () => {
     experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
     experimentStudioService.selectedAlgorithm.set({ ...algorithm });
+    fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -730,15 +777,329 @@ describe('AlgorithmPanelComponent', () => {
     expect(studioNavigation.goToPreprocessing).toHaveBeenCalled();
   });
 
-  it('shows All when no algorithms are active and Active only when at least one is available', () => {
-    const disabledAlgorithm = { ...algorithm, isDisabled: true };
+  it('lists unavailable methods with their why badge in All mode', () => {
+    const disabledAlgorithm = {
+      ...algorithm,
+      isDisabled: true,
+      availability: {
+        available: false,
+        summary: 'Needs an outcome',
+        details: [],
+      },
+    };
 
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
+    experimentStudioService.getAlgorithmAvailability.and.returnValue({
+      available: false,
+      summary: 'Needs an outcome',
+      details: [],
+    });
+    fixture.componentInstance.showOnlyActive.set(false);
     fixture.detectChanges();
     expect(fixture.componentInstance.showOnlyActive()).toBeFalse();
 
-    experimentStudioService.availableGroupedAlgorithms.set({ Test: [algorithm] });
+    // The group holds the selected method, so it is open even with nothing runnable.
+    const tile = (fixture.nativeElement as HTMLElement).querySelector('.algo-tile');
+    expect(tile?.textContent).toContain('Flat Config Algorithm');
+    expect(tile?.querySelector('.algo-why')?.textContent).toContain('Needs an outcome');
+  });
+
+  it('nests the matching catalog in the outcomes board', () => {
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const board = root.querySelector('.algorithm-roles-board');
+    expect(board?.querySelector('[data-guide="algorithm-selection"]')).toBeTruthy();
+    expect(board?.querySelector('.algo-tile')?.textContent).toContain('Flat Config Algorithm');
+  });
+
+  it('places the experiment pool beside the catalog in one row above details and parameters', () => {
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const workspace = root.querySelector('.algorithm-workspace');
+    expect(workspace?.querySelector('app-algorithm-role-assignment')).toBeTruthy();
+    expect(workspace?.querySelector('[data-guide="algorithm-selection"]')).toBeTruthy();
+    // Parameters are a band under the row, not a column inside it.
+    expect(workspace?.querySelector('.algorithm-params')).toBeNull();
+    expect(root.querySelector('.algo-tile')).toBeTruthy();
+    expect(root.querySelector('.algorithm-params')).toBeTruthy();
+    expect(root.querySelector('.algorithm-roles-footer')).toBeNull();
+  });
+
+  it('opens the configure view when a matching method is clicked', async () => {
+    experimentStudioService.selectedAlgorithm.set(null);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.algo-tile')).toBeTruthy();
+    expect(root.querySelector('.documentation-panel')).toBeNull();
+
+    fixture.componentInstance.onAlgorithmClick(algorithm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.studioSubstep()).toBe('parameters');
+    const details = root.querySelector('.documentation-panel') as HTMLDetailsElement | null;
+    expect(details?.open).toBeTrue();
+    expect(details?.textContent).toContain('Line one.');
+    expect(root.querySelector('.config-form')).toBeTruthy();
+    // Setup stays on screen: the method grid is still rendered above the board.
+    expect(root.querySelector('.algo-tile')).toBeTruthy();
+  });
+
+  it('renders setup and configuration in one unified card', () => {
+    fixture.componentInstance.onAlgorithmClick(algorithm);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const boards = root.querySelectorAll('.algorithm-roles-board');
+    // One frame: roles, catalog, parameters, and details share a single studio card.
+    expect(boards.length).toBe(1);
+    expect(boards[0]?.querySelector('.algo-tile')).toBeTruthy();
+    const paramsPane = root.querySelector('[data-guide="algorithm-settings"]');
+    expect(boards[0]?.contains(paramsPane)).toBeTrue();
+
+    // The parameters pane must not paint its own card frame on top of the unified
+    // card, otherwise the workspace reads as separate cards again.
+    const styles = getComputedStyle(paramsPane as HTMLElement);
+    expect(styles.borderTopWidth).toBe('0px');
+    expect(styles.backgroundColor).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+    expect(styles.boxShadow).toBe('none');
+  });
+
+  it('stacks the details band and parameters under the pool-and-catalog row', async () => {
+    experimentStudioService.selectedAlgorithm.set(null);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const workspace = root.querySelector('.algorithm-workspace');
+    const params = root.querySelector('[data-guide="algorithm-settings"]');
+    // Nothing selected: parameters still render as the lower band with guidance.
+    expect(params?.querySelector('.algorithm-params__empty')).toBeTruthy();
+    expect(root.querySelector('.algorithm-details')).toBeNull();
+
+    fixture.componentInstance.onAlgorithmClick(algorithm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(params!.querySelector('.algorithm-params__empty')).toBeNull();
+    expect(params!.querySelector('.config-form')).toBeTruthy();
+    // Details render between the top row and the parameters band.
+    const details = root.querySelector('.algorithm-details');
+    expect(details).toBeTruthy();
+    expect(
+      !!(workspace!.compareDocumentPosition(details!) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBeTrue();
+    expect(
+      !!(details!.compareDocumentPosition(params!) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBeTrue();
+  });
+
+  it('keeps matching methods visible on setup until a method is chosen', () => {
+    experimentStudioService.selectedAlgorithm.set(null);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.documentation-panel')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.algo-tile')).toBeTruthy();
+  });
+
+  it('defaults to runnable only and reveals unavailable methods on demand', () => {
+    // The catalog ships in Runnable mode: the chip is pressed from the first render.
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.pill-toggle')?.getAttribute('aria-pressed')).toBe('true');
+
+    const disabledAlgorithm = { ...algorithm, isDisabled: true, label: 'Locked Algorithm' };
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
+    fixture.componentInstance.showOnlyActive.set(false);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    // All mode lists unavailable methods with their reason; the group stays open
+    // because it holds the selected method.
+    expect(root.querySelector('.algo-tile')?.textContent).toContain('Locked Algorithm');
+
+    const filter = root.querySelector('.pill-toggle') as HTMLButtonElement;
+    // The single status chip reads All {runnable}/{total} until toggled back.
+    expect(filter?.textContent).toContain('All');
+    expect(filter?.textContent).toContain('0/1');
+    expect(filter?.getAttribute('aria-pressed')).toBe('false');
+
+    filter.click();
     fixture.detectChanges();
     expect(fixture.componentInstance.showOnlyActive()).toBeTrue();
+    expect(filter.getAttribute('aria-pressed')).toBe('true');
+    expect(filter.textContent).toContain('Runnable');
+    expect(root.querySelector('.algo-tile')).toBeNull();
+    expect(root.textContent).toContain('No runnable methods for this assignment.');
+  });
+
+  it('filters the catalog instantly by search text', () => {
+    const kruskal: AlgorithmConfig = { ...algorithm, name: 'kruskal', label: 'Kruskal-Wallis' };
+    experimentStudioService.availableGroupedAlgorithms.set({ Test: [algorithm, kruskal] });
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelectorAll('.algo-tile').length).toBe(2);
+
+    fixture.componentInstance.algoSearchQuery.set('kruskal');
+    fixture.detectChanges();
+    const tiles = root.querySelectorAll('.algo-tile');
+    expect(tiles.length).toBe(1);
+    expect(tiles[0].textContent).toContain('Kruskal-Wallis');
+
+    fixture.componentInstance.algoSearchQuery.set('no-such-method');
+    fixture.detectChanges();
+    expect(root.querySelector('.algo-tile')).toBeNull();
+    expect(root.textContent).toContain('No methods match');
+  });
+
+  /**
+   * Two Matching-method groups with no selection: the first holds runnable methods,
+   * the second is unavailable, for the default-expansion specs.
+   */
+  function loadMethodGroups(): { groupComparison: AlgorithmConfig[]; association: AlgorithmConfig } {
+    const anova: AlgorithmConfig = { ...algorithm, name: 'anova_oneway', label: 'One-way ANOVA' };
+    const kruskal: AlgorithmConfig = { ...algorithm, name: 'kruskal', label: 'Kruskal-Wallis' };
+    const association: AlgorithmConfig = {
+      ...algorithm,
+      name: 'correlation',
+      label: 'Correlation',
+      isDisabled: true,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(null);
+    experimentStudioService.availableGroupedAlgorithms.set({
+      'Group comparison': [anova, kruskal],
+      Association: [association],
+    });
+    // These specs study category expansion over the full catalog, so opt into All mode.
+    fixture.componentInstance.showOnlyActive.set(false);
+    fixture.detectChanges();
+
+    return { groupComparison: [anova, kruskal], association };
+  }
+
+  function categoryHeader(row: Element): HTMLButtonElement {
+    return row.querySelector('.algorithm-match-cat') as HTMLButtonElement;
+  }
+
+  it('opens only groups with runnable methods and keeps the rest collapsed', async () => {
+    loadMethodGroups();
+    await fixture.whenStable();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-match-row');
+    expect(rows.length).toBe(2);
+    expect(categoryHeader(rows[0]).textContent).toContain('Group comparison');
+    // Group comparison holds runnable methods: open by default.
+    expect(categoryHeader(rows[0]).getAttribute('aria-expanded')).toBe('true');
+    expect(rows[0].querySelector('.algo-tile')?.textContent).toContain('One-way ANOVA');
+    // Association has nothing runnable: collapsed until clicked.
+    expect(categoryHeader(rows[1]).getAttribute('aria-expanded')).toBe('false');
+    expect(rows[1].querySelector('.algo-tile')).toBeNull();
+  });
+
+  it('expands and collapses matching method groups independently', async () => {
+    loadMethodGroups();
+    await fixture.whenStable();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-match-row');
+
+    categoryHeader(rows[1]).click();
+    fixture.detectChanges();
+    expect(rows[1].querySelector('.algo-tile')?.textContent).toContain('Correlation');
+    expect(rows[0].querySelector('.algo-tile')).toBeTruthy();
+
+    categoryHeader(rows[0]).click();
+    fixture.detectChanges();
+    expect(rows[0].querySelector('.algo-tile')).toBeNull();
+    expect(rows[1].querySelector('.algo-tile')).toBeTruthy();
+  });
+
+  it('opens the group of the selected method without closing the others', async () => {
+    const { groupComparison } = loadMethodGroups();
+    await fixture.whenStable();
+
+    const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-match-row');
+    categoryHeader(rows[0]).click();
+    fixture.detectChanges();
+    expect(rows[0].querySelector('.algo-tile')).toBeNull();
+
+    fixture.componentInstance.onAlgorithmClick(groupComparison[1]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(categoryHeader(rows[0]).getAttribute('aria-expanded')).toBe('true');
+    expect(rows[0].querySelector('.algo-tile')?.textContent).toContain('One-way ANOVA');
+    expect(rows[1].querySelector('.algo-tile')).toBeNull();
+  });
+
+  it('wires the role assignment component into the algorithm workspace', () => {
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-algorithm-role-assignment')).toBeTruthy();
+  });
+
+  it('exposes y/x role selections to the availability and config helpers', () => {
+    experimentStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
+    experimentStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    expect(component.yVar()).toBe('age');
+    expect(component.xVar()).toBe('sex');
+  });
+
+  it('keeps parameters off Setup until a method is chosen', () => {
+    experimentStudioService.selectedAlgorithm.set(null);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.config-form')).toBeNull();
+    expect(root.querySelector('.algorithm-readonly-fieldset')).toBeNull();
+    expect(root.querySelector('.documentation-panel')).toBeNull();
+
+    fixture.componentInstance.onAlgorithmClick(algorithm);
+    fixture.detectChanges();
+
+    expect(root.querySelector('.documentation-panel')).toBeTruthy();
+  });
+
+  it('keeps documentation in the details band and parameters under it', () => {
+    const component = fixture.componentInstance;
+    component.setStudioSubstep('parameters');
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const params = root.querySelector('.algorithm-params');
+    expect(params?.querySelector('.config-form')).toBeTruthy();
+    expect(params?.querySelector('.documentation-panel')).toBeNull();
+    const details = root.querySelector('.algorithm-details');
+    expect(details?.querySelector('.documentation-panel')).toBeTruthy();
+    expect(details?.querySelector('.config-form')).toBeNull();
+    expect(root.querySelector('[data-guide="run-experiment"]')).toBeNull();
+    expect(component.canRun()).toBeTrue();
+  });
+
+  it('shows parameters on Parameter selection', () => {
+    const component = fixture.componentInstance;
+    component.setStudioSubstep('parameters');
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.config-form')).toBeTruthy();
+    expect(root.querySelector('[data-guide="algorithm-settings"]')).toBeTruthy();
+    const labels = Array.from(root.querySelectorAll('.config-field > label')).map(
+      (label) => label.textContent?.trim(),
+    );
+    expect(labels).toEqual(jasmine.arrayContaining(['First', 'Second', 'Third', 'Fourth']));
+    expect(component.configForm().get('first')?.value).toBe(1);
+  });
+
+  it('refuses to save an experiment without a name', () => {
+    const component = fixture.componentInstance;
+
+    component.onSaveAs('   ');
+
+    expect(component.errorMsg()).toContain('name');
+    expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
+    expect(experimentStudioService.setRunning).not.toHaveBeenCalled();
   });
 });
