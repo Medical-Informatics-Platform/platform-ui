@@ -11,9 +11,3 @@ export interface ExperimentFilters {
   status: 'any' | 'success' | 'error';
   shared: 'any' | 'shared' | 'private';
 }
-
-export interface ExperimentFilterOptions {
-  algorithms: string[];
-  authors: string[];
-  variables: string[];
-}
