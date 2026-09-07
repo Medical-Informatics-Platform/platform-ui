@@ -35,7 +35,6 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   readonly data = input<D3HierarchyNode | null>(null);
   readonly highlightNode = input<D3HierarchyNode | null>(null);
   readonly selectedVariables = input<D3HierarchyNode[]>([]);
-  readonly selectedCovariates = input<D3HierarchyNode[]>([]);
   readonly selectedNodeChange = output<D3HierarchyNode>();
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
 
@@ -50,6 +49,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   private viewReady = false;
   private lastDataRef: D3HierarchyNode | null = null;
   private skipNextHighlightExpand = false;
+  private lastSize = { width: 0, height: 0 };
 
   constructor() {
     effect(() => {
@@ -66,7 +66,6 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
       if (!renderer) return;
       renderer.refreshSelection({
         selectedVariables: this.selectedVariables(),
-        selectedCovariates: this.selectedCovariates(),
         highlightNode,
       });
       if (highlightNode) {
@@ -85,11 +84,25 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     const canvas = this.chartCanvas()?.nativeElement;
     if (!canvas || typeof ResizeObserver === 'undefined') return;
 
+    // Initialize lastSize before observing to prevent the observer's initial
+    // callback from triggering a second full rebuild of the tree.
+    const rect = canvas.getBoundingClientRect();
+    this.lastSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
+
     this.ngZone.runOutsideAngular(() => {
-      this.resizeObserver = new ResizeObserver(() => {
+      this.resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+
+        const roundedW = Math.floor(entry.contentRect.width);
+        const roundedH = Math.floor(entry.contentRect.height);
+        if (roundedW === this.lastSize.width && roundedH === this.lastSize.height) return;
+        if (roundedW === 0 || roundedH === 0) return;
+
+        this.lastSize = { width: roundedW, height: roundedH };
         window.clearTimeout(this.resizeTimer);
         this.resizeTimer = window.setTimeout(() => {
-          this.ngZone.run(() => this.render());
+          this.ngZone.run(() => this.renderer?.resize());
         }, 120);
       });
       this.resizeObserver.observe(canvas);
@@ -120,7 +133,6 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     this.error.set(null);
     this.renderer = createCollapsibleTree(data, canvas, {
       selectedVariables: this.selectedVariables(),
-      selectedCovariates: this.selectedCovariates(),
       highlightNode: this.highlightNode(),
       onNodeClick: (node) => {
         // This selection originates from the renderer itself; avoid immediately
