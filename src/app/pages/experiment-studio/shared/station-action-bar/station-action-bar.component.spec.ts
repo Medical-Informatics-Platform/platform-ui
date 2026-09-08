@@ -14,6 +14,7 @@ import { StationActionBarComponent } from './station-action-bar.component';
       [resetLabel]="resetLabel()"
       applyLabel="Apply Preprocessing"
       applyIcon="fa fa-magic"
+      [applyVariant]="variant()"
       [applyDisabled]="count() === 0"
       (reset)="resetClicks = resetClicks + 1"
       (apply)="applyClicks = applyClicks + 1"></app-station-action-bar>
@@ -24,6 +25,7 @@ class HostComponent {
   readonly text = signal('pending steps');
   readonly tone = signal<'default' | 'pending' | 'applied'>('pending');
   readonly resetLabel = signal('Reset Changes');
+  readonly variant = signal<'primary' | 'quiet'>('primary');
   resetClicks = 0;
   applyClicks = 0;
 }
@@ -32,12 +34,21 @@ describe('StationActionBarComponent', () => {
   let fixture: ComponentFixture<HostComponent>;
 
   /** Zoneless: signal writes are what mark the fixture dirty, so state is driven through signals. */
-  function render(state: { count?: number; text?: string; tone?: 'default' | 'pending' | 'applied'; resetLabel?: string } = {}): HTMLElement {
+  function render(
+    state: {
+      count?: number;
+      text?: string;
+      tone?: 'default' | 'pending' | 'applied';
+      resetLabel?: string;
+      variant?: 'primary' | 'quiet';
+    } = {}
+  ): HTMLElement {
     const host = fixture.componentInstance;
     if (state.count !== undefined) host.count.set(state.count);
     if (state.text !== undefined) host.text.set(state.text);
     if (state.tone !== undefined) host.tone.set(state.tone);
     if (state.resetLabel !== undefined) host.resetLabel.set(state.resetLabel);
+    if (state.variant !== undefined) host.variant.set(state.variant);
     fixture.detectChanges();
     return fixture.nativeElement;
   }
@@ -76,5 +87,13 @@ describe('StationActionBarComponent', () => {
     expect(html.querySelector('.station-action-reset')).toBeFalsy();
     expect(html.querySelector<HTMLButtonElement>('.station-action-apply')!.disabled).toBeTrue();
     expect(html.querySelector('.station-action-bar')?.classList.contains('tone-applied')).toBeTrue();
+  });
+
+  it('draws the primary slot as a solid button by default and as an outline when quiet', () => {
+    const primary = render();
+    expect(primary.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBeFalse();
+
+    const quiet = render({ variant: 'quiet' });
+    expect(quiet.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBeTrue();
   });
 });

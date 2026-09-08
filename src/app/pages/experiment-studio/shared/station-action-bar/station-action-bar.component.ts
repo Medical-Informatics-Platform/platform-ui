@@ -20,6 +20,12 @@ export class StationActionBarComponent {
   readonly previewLabel = input('');
   readonly applyLabel = input('Apply');
   readonly applyIcon = input('');
+  /**
+   * 'quiet' draws the primary slot as an outline instead of a solid fill. Used when the
+   * slot has nothing to commit and says Close: the solid button stays reserved for a
+   * change that will actually be written.
+   */
+  readonly applyVariant = input<'primary' | 'quiet'>('primary');
   readonly resetDisabled = input(false);
   readonly applyDisabled = input(false);
   /** Footer variant: drops the own border/radius so it merges with the station card's bottom border. */

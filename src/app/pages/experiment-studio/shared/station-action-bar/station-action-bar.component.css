@@ -143,6 +143,19 @@
   box-shadow: 0 3px 12px rgba(43, 51, 233, 0.28);
 }
 
+/* Close, not Apply: same slot and same geometry, ring drawn as an inset shadow so adding
+   a border never nudges the button against its Clear / Preview neighbours. */
+.station-action-apply.is-quiet {
+  background: transparent;
+  color: var(--text-main);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 24%, transparent);
+}
+
+.station-action-apply.is-quiet:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+  box-shadow: inset 0 0 0 1px var(--primary-color);
+}
+
 .station-action-reset:disabled,
 .station-action-apply:disabled {
   opacity: 0.45;

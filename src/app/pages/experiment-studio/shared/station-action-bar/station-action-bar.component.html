@@ -19,7 +19,13 @@
     @if (previewLabel()) {
     <button type="button" class="station-action-preview" (click)="preview.emit()">{{ previewLabel() }}</button>
     }
-    <button type="button" class="station-action-apply" [disabled]="applyDisabled()" (click)="apply.emit()">
+    <button
+      type="button"
+      class="station-action-apply"
+      [class.is-quiet]="applyVariant() === 'quiet'"
+      [disabled]="applyDisabled()"
+      (click)="apply.emit()"
+    >
       @if (applyIcon()) {
       <i [attr.class]="'icon-left ' + applyIcon()" aria-hidden="true"></i>
       }
