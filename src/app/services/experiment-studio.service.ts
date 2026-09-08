@@ -905,7 +905,8 @@ export class ExperimentStudioService {
     effectiveAlgorithmName: string | null = null,
     customName: string | null = null,
     bins: number | null = null,
-    preprocessingOverride?: PreprocessingConfig | null
+    preprocessingOverride?: PreprocessingConfig | null,
+    includeFilters = true
   ): any {
     let algoConfig: AlgorithmConfig | undefined;
 
@@ -942,8 +943,9 @@ export class ExperimentStudioService {
     config = this.normalizeParameterConfig(algoConfig, config);
 
 
-    // filters logic
-    const filterLogic = this._filterLogic();
+    // filters logic - `includeFilters: false` is the step-0 source snapshot,
+    // which previews the selection with no cohort filter attached.
+    const filterLogic = includeFilters ? this._filterLogic() : null;
     const hasFilters =
       !!(
         filterLogic &&
@@ -1540,7 +1542,8 @@ export class ExperimentStudioService {
     algorithmName: string,
     nodeCodes: string[] | null = null,
     bins: number | null = null,
-    preprocessingOverride?: PreprocessingConfig | null
+    preprocessingOverride?: PreprocessingConfig | null,
+    includeFilters = true
   ): Observable<any> {
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const requestBody = this.buildRequestBody(
@@ -1550,7 +1553,8 @@ export class ExperimentStudioService {
         null,
         null,
         bins,
-        preprocessingOverride
+        preprocessingOverride,
+        includeFilters
       );
       return this.submitTransientRequest(requestBody).pipe(
         map(resp => this.normalizeResponse(algorithmName, resp))
@@ -1565,9 +1569,12 @@ export class ExperimentStudioService {
   private buildDescriptiveRequestBody(
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null,
-    sourceVariableCodes: string[] | null = null
+    sourceVariableCodes: string[] | null = null,
+    includeFilters = true
   ): ExperimentCreateRequest {
-    const filters = this.filterLogic();
+    // `includeFilters: false` is the step-0 source snapshot: the same describe
+    // run with no cohort filter attached, i.e. the data exactly as selected.
+    const filters = includeFilters ? this.filterLogic() : null;
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
     const yPayload = variableCodes.length ? variableCodes : null;
     // Derived columns (e.g. categorical_column_creator output) belong in algorithm.y
@@ -1641,12 +1648,14 @@ export class ExperimentStudioService {
   loadDescriptiveOverview(
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null,
-    sourceVariableCodes: string[] | null = null
+    sourceVariableCodes: string[] | null = null,
+    includeFilters = true
   ): Observable<any> {
     const requestBody = this.buildDescriptiveRequestBody(
       variableCodes,
       preprocessing,
-      sourceVariableCodes
+      sourceVariableCodes,
+      includeFilters
     );
 
     return this.submitTransientRequest(requestBody).pipe(

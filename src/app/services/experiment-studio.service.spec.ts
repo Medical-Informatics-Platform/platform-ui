@@ -454,6 +454,28 @@ describe('ExperimentStudioService', () => {
     req.flush({ result: { featurewise: [] } });
   });
 
+  it('keeps the cohort filter out of the step 0 source snapshot only', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    // A filter on a CDE that is not in the variable pool.
+    service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
+
+    service.loadDescriptiveOverview(['age']).subscribe();
+    const rawReq = httpMock.expectOne('/services/experiments/transient');
+    expect(rawReq.request.body.analysis.inputdata.filters).not.toBeNull();
+    expect(rawReq.request.body.analysis.inputdata.variables).toContain('site');
+    rawReq.flush({ result: { featurewise: [] } });
+
+    // Step 0 describes the data as selected: no filter payload, and the filter
+    // field is no longer dragged into the input pool.
+    service.loadDescriptiveOverview(['age'], null, null, false).subscribe();
+    const sourceReq = httpMock.expectOne('/services/experiments/transient');
+    expect(sourceReq.request.body.analysis.inputdata.filters).toBeNull();
+    expect(sourceReq.request.body.analysis.inputdata.variables).not.toContain('site');
+    expect(sourceReq.request.body.analysis.preprocessing).toBeNull();
+    sourceReq.flush({ result: { featurewise: [] } });
+  });
+
   it('sends processed descriptive overview requests with explicit preprocessing', () => {
     service.setSelectedDataModel(mockDataModel);
     service.setSelectedDatasets(['ds1']);
