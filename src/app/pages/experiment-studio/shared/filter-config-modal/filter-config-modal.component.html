@@ -18,7 +18,7 @@
       <div class="where-error" role="alert">{{ filterError() }}</div>
       }
       } @else {
-      <div class="where-error" role="status">No filterable variables are available for this pathology.</div>
+      <div class="where-error" role="status">{{ emptyPoolMessage() }}</div>
       }
     </div>
   </div>

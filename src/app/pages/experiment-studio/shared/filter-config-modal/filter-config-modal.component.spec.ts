@@ -26,6 +26,19 @@ describe('FilterConfigModalComponent block builder', () => {
           },
         ],
       }),
+      selectedVariables: signal<any[]>([
+        {
+          code: 'sex',
+          label: 'Sex',
+          type: 'nominal',
+          enumerations: [
+            { code: 'female', label: 'Female' },
+            { code: 'male', label: 'Male' },
+          ],
+        },
+        { code: 'mrs_score', label: 'mRS score', type: 'integer' },
+        { code: 'notes', label: 'Notes', type: 'text' },
+      ]),
       setFilters: jasmine.createSpy('setFilters'),
       setFilterLogic: jasmine.createSpy('setFilterLogic'),
     };
@@ -248,6 +261,44 @@ describe('FilterConfigModalComponent block builder', () => {
     expect(nested).toBeTruthy();
     expect(nested.textContent).toContain('Nested group');
     expect(nested.querySelector('.empty-filter-group')).toBeTruthy();
+  });
+
+  it('offers only the selected variables to a transformation rule builder', async () => {
+    fixture.componentRef.setInput('variableScope', 'selectedVariables');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // `age` exists in the data model but was never selected; `notes` cannot be filtered on.
+    const codes = component.allFilterVariables().map((variable: any) => variable.code);
+    expect(codes).toEqual(['sex', 'mrs_score']);
+
+    component.addCondition(component.rootGroup().id, 0);
+    fixture.detectChanges();
+    const suggestions = Array.from(fixture.nativeElement.querySelectorAll('.condition-fields datalist option'))
+      .map((option) => (option as HTMLOptionElement).value);
+    expect(suggestions).toEqual(['Sex (nominal)', 'mRS score (integer)']);
+  });
+
+  it('keeps the whole data model in the pool for the cohort filter station', async () => {
+    expStudio.selectedDataModel.set({
+      code: 'dm',
+      label: 'Data model',
+      variables: [{ code: 'mrs_score', label: 'mRS score', type: 'integer' }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.allFilterVariables().map((variable: any) => variable.code)).toEqual(['mrs_score']);
+  });
+
+  it('asks for a variable selection when the scoped pool is empty', async () => {
+    expStudio.selectedVariables.set([]);
+    fixture.componentRef.setInput('variableScope', 'selectedVariables');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.where-error').textContent)
+      .toContain('No variables are selected for the Data Handling pipeline yet.');
   });
 
   it('exportFilterLogic returns payload without writing cohort filters', () => {

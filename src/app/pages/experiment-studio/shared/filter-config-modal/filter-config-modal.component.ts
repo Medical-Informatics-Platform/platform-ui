@@ -36,6 +36,13 @@ export class FilterConfigModalComponent {
   private expStudio = inject(ExperimentStudioService);
 
   readonly filterLogic = input<any | null>(null);
+  /**
+   * Which variables the builder may reference. The cohort-filter station needs the
+   * whole data model because any CDE can define a cohort. The transformation
+   * category-rule builders pass 'selectedVariables' so a rule can only be built from
+   * the variables carried into the Data Handling pipeline.
+   */
+  readonly variableScope = input<'dataModel' | 'selectedVariables'>('dataModel');
   readonly filtersApplied = output<void>();
 
   readonly allFilterVariables = signal<any[]>([]);
@@ -43,10 +50,15 @@ export class FilterConfigModalComponent {
   readonly filterError = signal<string | null>(null);
   readonly previewExpression = computed(() => this.groupPreview(this.rootGroup()));
   readonly activeRulesCount = computed(() => this.countRules(this.rootGroup()));
+  readonly emptyPoolMessage = computed(() => this.variableScope() === 'selectedVariables'
+    ? 'No variables are selected for the Data Handling pipeline yet. Select variables in Data Exploration first.'
+    : 'No filterable variables are available for this pathology.');
 
   constructor() {
     effect(() => {
-      this.allFilterVariables.set(this.flattenDataModelVariables(this.expStudio.selectedDataModel()));
+      this.allFilterVariables.set(this.variableScope() === 'selectedVariables'
+        ? this.normalizeFilterVariables(this.expStudio.selectedVariables())
+        : this.flattenDataModelVariables(this.expStudio.selectedDataModel()));
     });
 
     effect(() => {
@@ -469,8 +481,27 @@ export class FilterConfigModalComponent {
 
   private flattenDataModelVariables(model: DataModel | null): any[] {
     if (!model) return [];
+    const collected: Variable[] = [];
+    const visitGroups = (groups: Group[] = []): void => {
+      groups.forEach((group) => {
+        collected.push(...(group.variables ?? []));
+        visitGroups(group.groups ?? []);
+      });
+    };
+
+    collected.push(...(model.variables ?? []));
+    visitGroups(model.groups ?? []);
+    return this.normalizeFilterVariables(collected);
+  }
+
+  /**
+   * Pool guard shared by both sources: keeps the fields the builder renders and drops
+   * types it cannot express. Selected CDE nodes carry experiment metadata (supported
+   * algorithms, role flags) that must not leak into a filter condition.
+   */
+  private normalizeFilterVariables(variables: Variable[]): any[] {
     const seen = new Map<string, any>();
-    const addVariable = (variable: Variable): void => {
+    variables.forEach((variable) => {
       if (!variable?.code || seen.has(variable.code)) return;
       const type = String(variable.type ?? '').toLowerCase();
       if (!['real', 'integer', 'nominal'].includes(type)) return;
@@ -481,16 +512,7 @@ export class FilterConfigModalComponent {
         type: variable.type,
         enumerations: variable.enumerations,
       });
-    };
-    const visitGroups = (groups: Group[] = []): void => {
-      groups.forEach((group) => {
-        (group.variables ?? []).forEach(addVariable);
-        visitGroups(group.groups ?? []);
-      });
-    };
-
-    (model.variables ?? []).forEach(addVariable);
-    visitGroups(model.groups ?? []);
+    });
     return Array.from(seen.values());
   }
 
