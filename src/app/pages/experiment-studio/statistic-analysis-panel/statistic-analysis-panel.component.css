@@ -100,7 +100,11 @@
   gap: 0;
 }
 
-/* Overview rows carry a single line of copy plus one action, so they read as a
+/* Dashed is a statement about the request, not about effort: only a stage that will
+   contribute nothing to the next run wears it. Preprocessing never qualifies - default
+   NaN removal runs whether or not anyone opens it - so that node is always a solid card
+   and the rail says Default instead of Applied.
+   Overview rows carry a single line of copy plus one action, so they read as a
    compact flowchart at `--studio-pipeline-overview-max`. An added node re-expands
    to the full rail width, which is what the QueryBuilder, summary tables and
    charts need. `align-self` opts the row out of the shell's cross-axis stretch. */
@@ -189,6 +193,25 @@
   border-color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 2%, white);
   box-shadow: 0 2px 10px rgba(43, 51, 233, 0.06);
+}
+
+/* Step 0 is permanent, so it borrows the compact width of the dormant rows
+   rather than the full rail; only its snapshot needs the wide pivot table, and
+   widening then keeps the card and the table on the same two edges. */
+.pipeline-node.is-readonly {
+  align-self: center;
+  width: 100%;
+  max-width: var(--studio-pipeline-overview-max, 860px);
+}
+
+.pipeline-node.is-readonly.is-active {
+  align-self: stretch;
+  max-width: 100%;
+}
+
+/* No body to divide from while the snapshot is hidden. */
+.pipeline-node.is-readonly:not(.is-active) .pipeline-node-header {
+  border-bottom: none;
 }
 
 .pipeline-node-dormant {
@@ -344,26 +367,12 @@
   border-color: color-mix(in srgb, var(--primary-color) 22%, transparent);
 }
 
-.pipeline-node-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 2px;
-}
-
-.pipeline-default-pill {
+/* Step 0 is a read, not a stage to add, so its badge keeps the neutral ink of
+   the base rule rather than the Optional / Default / Applied stage tones. */
+.pipeline-status-badge.readonly {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.7rem;
-  font-weight: 650;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
-  padding: 1px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.01em;
 }
 
 .pipeline-node-body {
@@ -503,6 +512,37 @@
   background: #fffbeb;
   color: #b45309;
   border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+/* Dashed rail row: a sub-step the stage can still create. It rides the same spine as
+   the live rows, so "add" reads as the next node in the flow instead of a button glued
+   under the card - and it stays reachable while the stage is collapsed. */
+.pipeline-subnode-item.is-ghost .pipeline-subnode-content {
+  background: color-mix(in srgb, var(--primary-color) 2.5%, white);
+  border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.pipeline-subnode-item.is-ghost .pipeline-subnode-content:hover {
+  background: color-mix(in srgb, var(--primary-color) 7%, white);
+  border-color: var(--primary-color);
+  border-style: solid;
+}
+
+.pipeline-subnode-item.is-ghost .pipeline-subnode-dot {
+  border-style: dashed;
+}
+
+.pipeline-subnode-item.is-ghost .pipeline-subnode-title {
+  color: var(--primary-color);
+}
+
+/* Beats `.pipeline-subnode-content > i`, which sizes the leading glyph. */
+.pipeline-subnode-content > .pipeline-subnode-add {
+  margin-left: auto;
+  width: auto;
+  font-size: 0.7rem;
 }
 
 /* Vertical Directional Connectors */

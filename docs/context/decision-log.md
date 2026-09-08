@@ -75,3 +75,31 @@ Consequences: Container runtime can change backend/notebook/version settings wit
 Files affected: `docker-entrypoint.sh`, `src/assets/env.js`, `src/app/services/runtime-env.service.ts`.
 
 Date: Unknown / TODO: verify.
+
+### Decision: Step 0 of the Data Handling Pipeline is a read-only source snapshot
+
+Status: Accepted
+
+Context: The pipeline canvas started at `1. Cohort Filtering`, so the earliest preview a user could reach (`Raw Summary`) was already the filtered cohort. Nothing showed the selection before any rule was applied.
+
+Decision: Add pipeline node `0. Source Data` to the statistic analysis panel: a permanent read-only node that describes the selected variables with no filter payload and no preprocessing steps. It renders the shared summary workspace - the `#summaryWorkspace` template the Raw and Processed previews use (variable browser, statistics, charts, histograms, PDF/CSV) - fed by its own `SummaryView`, with the exit copy and the empty-state line passed through the outlet context. It is deliberately not a stage: it never enters `addedSteps`, the stage counter, or the experiment request, and it exposes no rule editor.
+
+Consequences: Step 0 costs no new presentation code and the Processed summary now renders through the same outlet, so a summary change lands once for all three surfaces; each surface keeps its own `data-guide` anchors through `SUMMARY_GUIDE_ANCHORS`. Both `loadDescriptiveOverview` and `getAlgorithmResults` / `buildRequestBody` gained a trailing `includeFilters` flag (default `true`) so the numeric histogram tab cannot show the filtered cohort under a read-only "filters are not applied" heading. One extra on-demand `/services/experiments/transient` describe per opened snapshot, fetched on open and refetched when the selected variables or datasets change while it is open; the cohort filter and the applied preprocessing are deliberately outside that cache key because the request omits both. Payload shapes are unchanged; the flag only omits `inputdata.filters`, so Raw and Processed keep their filtered behaviour. Because two live instances would double every count-based DOM query and hand the User Guide anchors to a hidden surface, the step-0 instance renders only while open and keeps no `data-guide` anchors.
+
+Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.pipeline.spec.ts`, `src/app/services/experiment-studio.service.ts`.
+
+Date: 2026-09-08.
+
+### Decision: The dashed pipeline card means "contributes nothing", not "not customised"
+
+Status: Accepted
+
+Context: Preprocessing rendered as a dashed dormant card until the user opened it, carrying a `Default: Missing NaN removal` pill and a `Default Active` badge. That was visually indistinguishable from Filtering and Transformation, which really do nothing until added, even though MIP drops rows with missing values on every run whether or not anyone opens the stage. Growing a stage also required expanding it first to reach the dashed add button inside the station.
+
+Decision: Make the card frame describe the request rather than the effort. A node wears the dashed card only when it will contribute nothing to the next run (Filtering, Transformations). Preprocessing always renders as an added node and its collapsed sub-node rail tags the untouched handler `Default` (`PipelineSubNode.statusTone: 'default'`) instead of `Applied`. The same rail gains dashed rows (`addablePreprocessingSlots`, the transformation `Add derived column` row) that add and open their sub-step in one click. The editor body stays gated on `isStepAdded('setup')`, so the untouched state costs no station DOM, and the canvas counter reads `of 3 stages configured` because a default is not user work.
+
+Consequences: `is-dormant` no longer applies to `setup`, so anything that identified that stage by dormancy has to target `.pipeline-subnode-item` instead; the rail's `default` tone is now the only "untouched" marker and `.pipeline-default-pill` / `.pipeline-node-title-row` are gone. The counter can legitimately read `0 of 3 stages configured` under a solid Preprocessing card. No request payload, endpoint, or guard changes; authenticated pipeline behaviour still needs manual browser QA.
+
+Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.pipeline.spec.ts`, `src/app/pages/experiment-studio/guide/experiment-studio-guide.content.ts`.
+
+Date: 2026-09-08.

@@ -8,11 +8,13 @@ import {
   inject,
   QueryList,
   signal,
+  untracked,
   ViewChild,
   ViewChildren,
   output,
   input
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
@@ -61,12 +63,26 @@ import {
 } from '../../../core/outlier-rules';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
-type SummaryKind = 'raw' | 'processed';
-type SectionKey = 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
+type SummaryKind = 'source' | 'raw' | 'processed';
+type SectionKey = 'source' | 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
 type PreprocessingStatus = 'none' | 'pending' | 'applied';
 type PrepKind = 'missing' | 'outlier' | 'longitudinal';
+
+type SummaryAnchorKey = 'charts' | 'details' | 'export';
+
+/**
+ * Where each summary surface wears a `data-guide` anchor. They are not uniform: the Raw
+ * surface owns the overlay-tab and export anchors, the Processed surface only its details
+ * panel, and step 0 is a read-only duplicate of the Raw surface, so it wears none — the
+ * same anchor on a hidden node would hand the tour or a QA selector the wrong surface.
+ */
+const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string | null>> = {
+  source: { charts: null, details: null, export: null },
+  raw: { charts: 'analysis-charts', details: 'analysis-raw-details', export: 'analysis-export' },
+  processed: { charts: null, details: 'analysis-processed-details', export: null },
+};
 
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
@@ -101,6 +117,7 @@ interface PipelineSubNode {
   statusLabel: string;
   statusTone: 'applied' | 'default' | 'pending';
 }
+
 type MetricKey =
   | 'num_dtps' | 'num_na' | 'num_total'
   | 'mean' | 'std' | 'min' | 'q1' | 'q2' | 'q3' | 'max';
@@ -186,7 +203,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -203,6 +220,8 @@ export class StatisticAnalysisPanelComponent {
   readonly variables = input<unknown[]>([]);
   readonly filters = input<unknown[]>([]);
   readonly progressStateChange = output<DescriptiveProgressState>();
+  @ViewChild('sourceSection')
+  sourceSection?: ElementRef<HTMLElement>;
   @ViewChild('rawSection')
   rawSection?: ElementRef<HTMLElement>;
   @ViewChild('setupSection')
@@ -228,6 +247,8 @@ export class StatisticAnalysisPanelComponent {
 
   rawSummary = this.createEmptySummary(true);
   processedSummary = this.createEmptySummary(false);
+  /** Step 0 snapshot: the same `SummaryView` the Raw and Processed surfaces use. */
+  sourceSummary = this.createEmptySummary(true);
   pendingPreprocessingRules: Record<string, PreprocessingRule> = {};
   appliedPreprocessingRules: Record<string, PreprocessingRule> = {};
   appliedLongitudinalEnabled = false;
@@ -257,7 +278,9 @@ export class StatisticAnalysisPanelComponent {
     outlier: null,
     longitudinal: null,
   };
-  statisticsSearch: Record<SummaryKind, string> = {
+  // Record<string, ..>: the shared summary template indexes it with its own kind.
+  statisticsSearch: Record<string, string> = {
+    source: '',
     raw: '',
     processed: '',
   };
@@ -265,6 +288,7 @@ export class StatisticAnalysisPanelComponent {
   isExporting = false;
   isLoading = true;
   readonly sectionOpen = signal<Record<SectionKey, boolean>>({
+    source: false,
     raw: false,
     setup: false,
     filters: true,
@@ -333,6 +357,20 @@ export class StatisticAnalysisPanelComponent {
     this.cdr.markForCheck();
   }
 
+  /**
+   * The station footer's primary slot commits pending conditions. An empty builder has
+   * nothing to commit and nothing to keep — an optional step with no rules is exactly the
+   * dormant card — so the same slot closes the station and hands the pipeline back.
+   */
+  commitOrCloseFilterStation(modal: FilterConfigModalComponent): void {
+    if (modal.activeRulesCount() > 0) {
+      modal.saveFilters();
+      return;
+    }
+    this.removeStep('filters');
+    this.requestSectionScroll('filters');
+  }
+
   get activeStagesCount(): number {
     return (['filters', 'setup', 'transformation'] as const).filter((step) => this.isStepAdded(step)).length;
   }
@@ -372,13 +410,33 @@ export class StatisticAnalysisPanelComponent {
     this.studioNavigation.navigateToSection('algorithm-section');
   }
 
+  /**
+   * The untouched stage still ships default NaN removal, so the card never claims to be
+   * empty; it says what is in effect and what clicking it would change.
+   */
+  get preprocessingSubtitle(): string {
+    return this.isStepAdded('setup')
+      ? 'Handle missing values and optional outlier clipping'
+      : 'Default NaN removal is already in effect - customize imputation or add outlier clipping';
+  }
+
+  /** Header chip tone; the label reads off it so copy and colour cannot drift. */
+  get preprocessingBadgeTone(): 'applied' | 'pending' | 'default' {
+    if (this.pendingChangeCount > 0) return 'pending';
+    return this.preprocessingStatus === 'applied' ? 'applied' : 'default';
+  }
+
   get preprocessingStatusLabel(): string {
-    if (this.pendingChangeCount > 0) return 'Pending changes';
-    if (this.preprocessingStatus === 'applied') {
-      const count = this.appliedPreprocessingCount;
-      return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
+    switch (this.preprocessingBadgeTone) {
+      case 'pending':
+        return 'Pending changes';
+      case 'applied': {
+        const count = this.appliedPreprocessingCount;
+        return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
+      }
+      default:
+        return 'Default';
     }
-    return 'Default';
   }
 
   /**
@@ -466,6 +524,22 @@ export class StatisticAnalysisPanelComponent {
     }
     if (subNode === 'outlier') this.userEnabledOutliers.set(true);
     this.cdr.markForCheck();
+  }
+
+  /** A dashed rail row adds and opens its sub-step in one click, writing nothing. */
+  addPreprocessingSubNode(subNode: 'outlier' | 'longitudinal'): void {
+    if (!this.isStepAdded('setup')) this.addStep('setup');
+    this.jumpToSubNode('setup', subNode);
+  }
+
+  /** Same for the Transformation stage: opens the editor on a fresh derived column. */
+  addTransformationSubNode(): void {
+    // An added stage always keeps one editor, so reuse the blank card it may already hold
+    // rather than stacking a second empty one on top of it.
+    if (!this.transformationDrafts.some((draft) => !this.draftHasWork(draft))) {
+      this.addTransformationDraft();
+    }
+    this.addStep('transformation');
   }
 
   private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
@@ -580,6 +654,7 @@ export class StatisticAnalysisPanelComponent {
 
   private selectionKey = '';
   private processedSummaryKey = '';
+  private sourceSummaryKey = '';
   private scrollRequestId = 0;
   private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
   private readonly guideState = inject(ExperimentStudioGuideStateService);
@@ -632,6 +707,8 @@ export class StatisticAnalysisPanelComponent {
       if (!variables.length && !filters.length) {
         this.rawSummary = this.createEmptySummary(false);
         this.processedSummary = this.createEmptySummary(false);
+        this.sourceSummary = this.createEmptySummary(false);
+        this.sourceSummaryKey = '';
         this.processedData = [];
         this.isLoading = false;
         this.expStudioService.clearDataExclusionWarnings();
@@ -641,6 +718,9 @@ export class StatisticAnalysisPanelComponent {
 
       this.fetchDescriptiveStatistics();
       this.fetchProcessedSummaryForAppliedPreprocessing();
+      // untracked: the snapshot refreshes with the selection, but sectionOpen must
+      // not become a dependency of this effect or every section switch refetches raw.
+      if (untracked(this.sectionOpen).source) this.ensureSourceSummary();
     });
 
     effect(() => {
@@ -1108,6 +1188,7 @@ export class StatisticAnalysisPanelComponent {
       setup: previewSetup,
     });
     this.sectionOpen.set({
+      source: section === 'source',
       filters: filtersStation && !previewFilters,
       raw: previewFilters,
       setup: setupStation && !previewSetup,
@@ -1118,7 +1199,95 @@ export class StatisticAnalysisPanelComponent {
       this.transformationActiveTab = 'Create';
     }
     this.cdr.markForCheck();
+    this.requestSectionScroll(section);
+  }
+
+  /**
+   * Scrolling is a request, not a call: the section is measured only after the template
+   * has reacted to whatever just opened or closed. Shared by goToSection and the stations'
+   * Close action, which folds an editor away and must not leave the viewport stranded.
+   */
+  private requestSectionScroll(section: SectionKey): void {
     this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
+  }
+
+  /**
+   * Step 0 is a read: it shows the selection as stored and can never write the
+   * experiment request, so it toggles a section instead of adding a stage.
+   */
+  toggleSourcePreview(): void {
+    if (this.sectionOpen().source) {
+      this.collapseAllWorkflowSections();
+      this.cdr.markForCheck();
+      return;
+    }
+    this.goToSection('source');
+    this.ensureSourceSummary();
+  }
+
+  /**
+   * The snapshot's own cache key: the variable and dataset scope it describes. The
+   * shared `selectionKey` also folds in the cohort filter and the applied preprocessing,
+   * neither of which this request carries, so keying on it would refetch an identical
+   * snapshot on every committed filter rule while the preview happens to be open.
+   */
+  private get sourceScopeKey(): string {
+    return JSON.stringify({
+      variables: this.preprocessingVariables.map((variable) => variable.code).sort(),
+      datasets: this.expStudioService.selectedDatasets(),
+    });
+  }
+
+  /** The snapshot follows the selection, so reopening it after a change refetches. */
+  ensureSourceSummary(): void {
+    if (this.sourceSummary.isLoading || this.sourceSummaryKey === this.sourceScopeKey) return;
+    this.fetchSourceSummary();
+  }
+
+  /**
+   * The same describe run that feeds the Raw summary with the cohort filter and
+   * the preprocessing steps left off. It fills a `SummaryView`, so step 0 reuses
+   * the shared summary workspace - browser, statistics, charts, histograms,
+   * export - instead of a second presentation of its own.
+   */
+  fetchSourceSummary(): void {
+    const variableCodes = this.preprocessingVariables.map((item) => item.code);
+    const hasScope = !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
+    if (!hasScope || !variableCodes.length) {
+      this.sourceSummary = this.createEmptySummary(false);
+      this.sourceSummaryKey = '';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const requestedKey = this.sourceScopeKey;
+    this.sourceSummary = { ...this.sourceSummary, isLoading: true };
+    this.cdr.markForCheck();
+
+    // No filter payload, no preprocessing steps: the data exactly as selected.
+    this.expStudioService.loadDescriptiveOverview(variableCodes, null, null, false).subscribe({
+      next: (response) => {
+        this.sourceSummary = this.buildSummaryFromResponse(response, 'source');
+        this.sourceSummaryKey = requestedKey;
+        this.refreshActiveHistogramPreview('source');
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error(err);
+        this.sourceSummary = { ...this.sourceSummary, isLoading: false };
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /** Heading and aria text, so one summary template reads correctly for all three kinds. */
+  summaryKindLabel(kind: SummaryKind): string {
+    return kind === 'source' ? 'Source data' : kind === 'raw' ? 'Raw data' : 'Processed data';
+  }
+
+  /** Anchor name for one slot of the shared summary template; see `SUMMARY_GUIDE_ANCHORS`. */
+  summaryGuideAnchor(kind: SummaryKind, anchor: SummaryAnchorKey): string | null {
+    return SUMMARY_GUIDE_ANCHORS[kind][anchor];
   }
 
   toggleSummaryWorkspace(kind: SummaryKind): void {
@@ -1135,6 +1304,7 @@ export class StatisticAnalysisPanelComponent {
 
   collapseAllWorkflowSections(): void {
     this.sectionOpen.set({
+      source: false,
       raw: false,
       setup: false,
       filters: false,
@@ -1788,6 +1958,33 @@ export class StatisticAnalysisPanelComponent {
     });
   }
 
+  /** Primary slot label: a pending change is applied; an "All set" station is only closed. */
+  get preprocessingApplyLabel(): string {
+    if (this.isApplyingPreprocessing) return 'Applying…';
+    return this.pendingChangeCount > 0 ? 'Apply' : 'Close';
+  }
+
+  commitOrClosePreprocessing(): void {
+    if (this.pendingChangeCount > 0) {
+      this.applyPreprocessing();
+      return;
+    }
+    this.foldPreprocessingStation();
+  }
+
+  /**
+   * Fold the station: editor and processed workspace both close, nothing is reverted.
+   * Used by Close (nothing to commit) and by Apply once the describe has landed — the
+   * applied-config write already invalidates that workspace through the selection effect,
+   * so folding here is what really happens, not a guess. The node keeps its rail of
+   * applied sub-steps, and that rail is the way back into the editor.
+   */
+  private foldPreprocessingStation(): void {
+    this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('setup');
+  }
+
   applyPreprocessing(): void {
     this.ensureDefaultRulesForCurrentSelection();
     this.ensureOutlierDefaultsForCurrentSelection();
@@ -1862,8 +2059,10 @@ export class StatisticAnalysisPanelComponent {
         this.successMessage = '';
         this.refreshActiveHistogramPreview('processed');
         this.emitProgressState();
-        // Apply & Continue: hand the user to the next station, not to the summary they just applied.
-        this.goToSection('transformation');
+        // Apply saves and closes: fold this station, and do not open the next one.
+        // The summary just computed stays reachable through Preview data; moving on
+        // belongs to "Continue to Algorithm Selection".
+        this.foldPreprocessingStation();
         this.cdr.markForCheck();
       },
       error: (err) => {
@@ -1999,7 +2198,7 @@ export class StatisticAnalysisPanelComponent {
       )
     );
 
-    const filename = `${kind === 'raw' ? 'raw' : 'processed'}_data_summary.csv`;
+    const filename = `${kind}_data_summary.csv`;
     this.csvExportService.exportToCsv(rows, ['Variable', 'Metric', 'Dataset', 'Value'], filename);
   }
 
@@ -2024,12 +2223,19 @@ export class StatisticAnalysisPanelComponent {
     };
   }
 
-  private getSummary(kind: SummaryKind): SummaryView {
-    return kind === 'raw' ? this.rawSummary : this.processedSummary;
+  /** Every kind with a summary surface, in pipeline order. */
+  readonly summaryKinds: SummaryKind[] = ['source', 'raw', 'processed'];
+
+  getSummary(kind: SummaryKind): SummaryView {
+    if (kind === 'raw') return this.rawSummary;
+    if (kind === 'source') return this.sourceSummary;
+    return this.processedSummary;
   }
 
   private sectionElement(section: SectionKey): ElementRef<HTMLElement> | undefined {
     switch (section) {
+      case 'source':
+        return this.sourceSection;
       case 'raw':
         return this.rawSection;
       case 'setup':
@@ -2139,8 +2345,11 @@ export class StatisticAnalysisPanelComponent {
       ? this.expStudioService.getAppliedDescriptivePreprocessing()
       : null;
 
+    // Step 0 previews the unfiltered cohort, so its histogram must drop the
+    // filter too - otherwise the tab would show the filtered cohort under a
+    // "no filters applied" heading.
     this.expStudioService
-      .getAlgorithmResults(AlgorithmNames.HISTOGRAM, [code], null, preprocessingOverride)
+      .getAlgorithmResults(AlgorithmNames.HISTOGRAM, [code], null, preprocessingOverride, kind !== 'source')
       .subscribe({
         next: (response) => {
           const nextSummary = this.getSummary(kind);

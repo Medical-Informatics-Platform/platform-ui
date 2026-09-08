@@ -163,6 +163,72 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.sectionOpen().raw).toBeFalse();
     });
 
+    /**
+     * The station footer's primary slot only ever says Apply when there is something to
+     * commit; with an empty station it reads Close and folds the station away instead.
+     */
+    it('labels the filtering primary action Close while there is nothing to commit', () => {
+        configureRawSummary();
+        const filtering = openStation('filters');
+
+        const apply = filtering.querySelector('.station-action-apply') as HTMLButtonElement;
+        expect(apply.textContent?.trim()).toBe('Close');
+        expect(apply.disabled).toBeFalse();
+        expect(apply.classList.contains('is-quiet')).toBeTrue();
+
+        apply.click();
+        fixture.detectChanges();
+
+        // An optional station with no conditions has nothing to keep: it returns to its card.
+        expect(component.isStepAdded('filters')).toBeFalse();
+        expect(component.sectionOpen().filters).toBeFalse();
+        expect(workflowSection('Filtering').textContent).toContain('Add Filtering');
+    });
+
+    it('labels the filtering primary action Apply once conditions exist', () => {
+        configureRawSummary();
+        (mockExpService.filterLogic as any).set(categoryFilter());
+        const filtering = openStation('filters');
+        fixture.detectChanges();
+
+        const apply = filtering.querySelector('.station-action-apply') as HTMLButtonElement;
+        expect(apply.textContent?.trim()).toBe('Apply');
+        expect(apply.classList.contains('is-quiet')).toBeFalse();
+
+        apply.click();
+        fixture.detectChanges();
+
+        expect(mockExpService.setFilterLogic).toHaveBeenCalled();
+        // Saved, and still in the filtering station: it folds into its own Raw Summary,
+        // whose Edit filters toggle is the way back.
+        expect(component.sectionOpen().filters).toBeFalse();
+        expect(component.sectionOpen().raw).toBeTrue();
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.sectionOpen().transformation).toBeFalse();
+        expect(workflowSection('Raw Data Summary').querySelector('.station-preview-toggle')?.textContent)
+            .toContain('Edit filters');
+    });
+
+    it('closes the preprocessing editor from Close without writing anything', () => {
+        configureRawSummary();
+        const preprocessing = openStation('setup');
+
+        const apply = preprocessing.querySelector('.station-action-apply') as HTMLButtonElement;
+        expect(component.pendingChangeCount).toBe(0);
+        expect(apply.textContent?.trim()).toBe('Close');
+        expect(apply.disabled).toBeFalse();
+
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        apply.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.sectionOpen().processed).toBeFalse();
+        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+        // Nothing was reverted: the collapsed rail of applied steps is the way back in.
+        expect(preprocessing.querySelector('.pipeline-subnode-item')).toBeTruthy();
+    });
+
     it('places Preview data above the Preprocessing cards, exclusive of processed summary', () => {
         configureRawSummary();
         component.goToSection('setup');
@@ -202,7 +268,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const preprocessing = workflowSection('Preprocessing');
         const apply = preprocessing.querySelector('.station-action-apply') as HTMLButtonElement;
-        expect(apply.disabled).toBeTrue();
+        // Nothing pending: the slot reads Close (enabled) rather than a disabled Apply.
+        expect(apply.disabled).toBeFalse();
         expect(preprocessing.textContent).not.toContain('No preprocessing has been applied yet');
 
         const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
@@ -216,7 +283,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const processed = workflowSection('Processed Data Summary');
         expect(processed.textContent).not.toContain('No preprocessing has been applied yet');
-        expect(processed.querySelector('[aria-label="Processed summary variables"]')).toBeTruthy();
+        expect(processed.querySelector('[aria-label="Processed data summary variables"]')).toBeTruthy();
     });
 
     it('replaces Transformation Statistics tab with Preview data', () => {
@@ -337,15 +404,19 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.rawSummary.nominalVariables.find(v => v.code === 'age')).toBeFalsy();
     });
 
-    it('renders the five workflow sections without a model tab', () => {
+    it('renders the source snapshot ahead of the five workflow sections without a model tab', () => {
         fixture.detectChanges();
 
         // The sub-tab buttons moved to the studio stepper; the panel now
         // exposes only the workflow sections, located by data-guide anchors.
+        // Step 0 leads the flow: the read-only snapshot and its preview come
+        // before the three configurable stages.
         const guides = (Array.from(
             fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node')
         ) as HTMLElement[]).map((section) => section.getAttribute('data-guide'));
         expect(guides).toEqual([
+            'analysis-source-data',
+            'analysis-source-summary',
             'analysis-filtering',
             'analysis-raw-summary',
             'analysis-preprocessing',
@@ -754,10 +825,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.onMissingActionChange(variable, 'mean');
         component.applyPreprocessing();
 
-        // Apply & Continue hands the user to the next station; the summary they just applied
-        // is reached through Preview data, and its statistic selection is kept for that trip.
-        expect(component.sectionOpen().transformation).toBeTrue();
+        // Apply saves and closes the station: nothing is handed to the next one, and the
+        // summary it computed is still selected for the trip Preview data makes.
+        expect(component.sectionOpen().setup).toBeFalse();
         expect(component.sectionOpen().processed).toBeFalse();
+        expect(component.sectionOpen().transformation).toBeFalse();
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
     });
 
@@ -799,8 +871,11 @@ describe('StatisticAnalysisPanelComponent', () => {
             response$.complete();
             fixture.detectChanges();
 
-            expect(component.sectionOpen().transformation).toBeTrue();
+            // Apply folded the station instead of opening the next one; the summary is
+            // still built and selected, and Preview data is what shows it.
+            expect(component.sectionOpen().setup).toBeFalse();
             expect(component.sectionOpen().processed).toBeFalse();
+            expect(component.sectionOpen().transformation).toBeFalse();
             expect(component.processedSummary.isLoading).toBeFalse();
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
 
@@ -810,6 +885,8 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             });
             fixture.detectChanges();
+            // A later config write invalidates the workspace the same way, without
+            // losing the statistic selection built for it.
             expect(component.sectionOpen().processed).toBeFalse();
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
             done();
@@ -961,7 +1038,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         }));
         fixture.detectChanges();
 
-        const search = fixture.nativeElement.querySelector('input[aria-label="Search raw summary variables"]') as HTMLInputElement;
+        const search = fixture.nativeElement.querySelector('input[aria-label="Search raw data summary variables"]') as HTMLInputElement;
         search.value = 'sex';
         search.dispatchEvent(new Event('input'));
         fixture.detectChanges();
@@ -1493,7 +1570,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             'histogram',
             ['dose'],
             null,
-            null
+            // includeFilters: the raw summary is the filtered cohort.
+            null,
+            true
         );
     });
 
@@ -1543,7 +1622,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             'histogram',
             ['aspiration'],
             null,
-            preprocessing
+            preprocessing,
+            true
         );
         const block = component.selectedStatisticBlock('processed');
         expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(jasmine.objectContaining({
