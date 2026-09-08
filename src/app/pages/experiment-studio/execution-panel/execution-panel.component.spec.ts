@@ -22,6 +22,7 @@ describe('ExecutionPanelComponent', () => {
   const studio = {
     isRunning: signal(false),
     runResult: signal<Record<string, unknown> | null>(null),
+    runSetup: signal(null),
     runError: signal<string | null>(null),
     lastRunSchema: signal<unknown>(null),
     runStatusText: signal('Running the experiment…'),
@@ -90,6 +91,12 @@ describe('ExecutionPanelComponent', () => {
 
     html.querySelector<HTMLButtonElement>('.execution-error-action')!.click();
     expect(studioNavigation.navigateToSection).toHaveBeenCalledWith('algorithm-section');
+  });
+
+  it('keeps the setup rail out of the result workspace until a run captured one', () => {
+    const html = render({ result: {} });
+
+    expect(html.querySelector('.experiment-panel-aside')).toBeFalsy();
   });
 
   it('names an untitled result after its algorithm and keeps the result actions', () => {

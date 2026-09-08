@@ -52,6 +52,7 @@ describe('AlgorithmPanelComponent', () => {
     setRunning: jasmine.Spy;
     runSelectedAlgorithmTransient: jasmine.Spy;
     runSelectedAlgorithm: jasmine.Spy;
+    captureRunSetup: jasmine.Spy;
     getEffectivePreprocessingSummary: jasmine.Spy;
     getDatasetLabelMap: jasmine.Spy;
     getAppliedDescriptivePreprocessing: jasmine.Spy;
@@ -126,6 +127,7 @@ describe('AlgorithmPanelComponent', () => {
       setRunning: jasmine.createSpy('setRunning'),
       runSelectedAlgorithmTransient: jasmine.createSpy('runSelectedAlgorithmTransient'),
       runSelectedAlgorithm: jasmine.createSpy('runSelectedAlgorithm'),
+      captureRunSetup: jasmine.createSpy('captureRunSetup'),
       getEffectivePreprocessingSummary: jasmine.createSpy('getEffectivePreprocessingSummary').and.returnValue(null),
       getDatasetLabelMap: jasmine.createSpy('getDatasetLabelMap').and.returnValue({}),
       getAppliedDescriptivePreprocessing: jasmine.createSpy('getAppliedDescriptivePreprocessing').and.returnValue(null),
@@ -634,6 +636,7 @@ describe('AlgorithmPanelComponent', () => {
       tails: { age: 'both' },
       folds: { age: 0.05 },
     });
+    expect(experimentStudioService.captureRunSetup).toHaveBeenCalledWith('outlier_report');
     expect(experimentStudioService.runSelectedAlgorithmTransient).toHaveBeenCalledWith('outlier_report', 'outlier_report');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Age');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('BMI');

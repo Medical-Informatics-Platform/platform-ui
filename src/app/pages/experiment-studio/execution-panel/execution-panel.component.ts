@@ -7,15 +7,17 @@ import { ExperimentStudioNavigationService } from '../../../services/experiment-
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { prettifyLabel } from '../../../core/algorithm-mappers';
 import { AlgorithmResultComponent } from '../algorithm-panel/algorithm-result/algorithm-result.component';
+import { ExperimentSetupSummaryComponent } from './experiment-setup-summary/experiment-setup-summary.component';
 
 /**
- * Experiment Execution step: the run skeleton, its error state, and the result view.
+ * Experiment Execution step: the run skeleton, its error state, and the result view with
+ * its docked setup summary.
  * It owns no run configuration — Save As / Export stay on the algorithm panel, which owns
  * the parameter form, and are emitted back to it by the studio shell.
  */
 @Component({
   selector: 'app-execution-panel',
-  imports: [CommonModule, FormsModule, RouterLink, AlgorithmResultComponent],
+  imports: [CommonModule, FormsModule, RouterLink, AlgorithmResultComponent, ExperimentSetupSummaryComponent],
   templateUrl: './execution-panel.component.html',
   styleUrl: './execution-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +28,8 @@ export class ExecutionPanelComponent {
 
   readonly isRunning = this.expStudioService.isRunning;
   readonly result = this.expStudioService.runResult;
+  /** Setup behind the result; the summary aside is only rendered when a run captured one. */
+  readonly setupSnapshot = this.expStudioService.runSetup;
   readonly runError = this.expStudioService.runError;
   readonly schema = this.expStudioService.lastRunSchema;
   readonly loadingText = this.expStudioService.runStatusText;

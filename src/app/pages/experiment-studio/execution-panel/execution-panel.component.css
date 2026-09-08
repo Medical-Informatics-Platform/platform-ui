@@ -1,6 +1,23 @@
 /* Result workspace chrome (.experiment-panel-workspace, .result-section-toolbar, .toolbar-btn,
    .save-as-inline) is global in styles.css. Only this step's own surfaces live here. */
 
+/* Result workspace's second column (the grid track is declared in styles.css). Sticky below
+   the header + sub-header pair, like the other sticky offsets on this route; the card inside
+   scrolls itself, so the frame never grows past the viewport. */
+.experiment-panel-aside {
+  position: sticky;
+  top: calc(var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + 12px);
+  min-width: 0;
+}
+
+/* Under the workspace breakpoint the column drops below the result at full width, where
+   sticking a tall card to the bar only hides the page behind it. */
+@media (max-width: 1100px) {
+  .experiment-panel-aside {
+    position: static;
+  }
+}
+
 .panel-loader {
   margin: 20px 14px;
   display: flex;

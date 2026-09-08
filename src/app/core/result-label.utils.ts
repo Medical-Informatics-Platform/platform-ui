@@ -1,6 +1,6 @@
 /** Shared helpers for labeling and enriching experiment results in the dashboard. */
 
-interface LabeledItem {
+export interface LabeledItem {
   code: string;
   label: string;
 }

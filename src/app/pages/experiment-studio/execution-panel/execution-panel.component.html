@@ -82,6 +82,12 @@
       </div>
       }
     </section>
+
+    @if (setupSnapshot()) {
+    <aside class="experiment-panel-aside" aria-label="Experiment setup">
+      <app-experiment-setup-summary></app-experiment-setup-summary>
+    </aside>
+    }
   </div>
 } @else {
   <div class="execution-empty">

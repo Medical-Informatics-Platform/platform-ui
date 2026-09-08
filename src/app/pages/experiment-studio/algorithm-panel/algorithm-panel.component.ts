@@ -1220,6 +1220,10 @@ export class AlgorithmPanelComponent {
       ...(effectiveAlgorithmName !== baseAlgorithmName ? { [effectiveAlgorithmName]: configValues } : {})
     });
 
+    // Freeze the setup before the request leaves: the Execution step describes the run from
+    // this snapshot, and parameter edits after the run must not rewrite it.
+    this.experimentStudioService.captureRunSetup(finalAlgorithmName);
+
     const result$ = this.experimentStudioService.runSelectedAlgorithmTransient(
       baseAlgorithmName,
       finalAlgorithmName

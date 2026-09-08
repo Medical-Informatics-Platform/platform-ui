@@ -12,6 +12,7 @@ import {
   ExperimentCreateRequest,
 } from '../models/backend-algorithms.model';
 import { BackendFilter } from '../models/filters.model';
+import { ExperimentRunSetup, RunSetupSummaryRow } from '../models/experiment-run-setup.model';
 import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-definition.model';
 import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
@@ -33,11 +34,6 @@ interface PathologyAccessWarning {
 }
 
 export type PreprocessingConfig = Record<string, unknown>;
-
-interface PreprocessingSummaryEntry {
-  label: string;
-  value: string;
-}
 
 const MISSING_VALUES_HANDLER = 'missing_values_handler';
 const OUTLIER_WINSORIZER = 'outlier_winsorizer';
@@ -155,6 +151,13 @@ export class ExperimentStudioService {
   /** Execution unlocks the first time a run is dispatched in this studio session. */
   readonly hasRunStarted = signal(false);
   readonly runStatusText = signal('Processing experiment...');
+  /**
+   * Frozen inputs of the run that produced `runResult`; null until a run is dispatched.
+   * Read this instead of live state: editing a parameter does not clear a result that is
+   * already on screen, so live state can describe a run that never happened. Not persisted,
+   * exactly like `runResult`.
+   */
+  readonly runSetup = signal<ExperimentRunSetup | null>(null);
   /** Save As toast host: rendered by the Execution step, triggered from anywhere. */
   readonly saveSucceeded = signal(false);
 
@@ -175,6 +178,29 @@ export class ExperimentStudioService {
   readonly dataExclusionWarnings = this.dataExclusionWarningsSignal.asReadonly();
   private excludedDatasetsSignal = signal<string[]>([]);
   readonly excludedDatasets = this.excludedDatasetsSignal.asReadonly();
+
+  /**
+   * Freezes what the next run will send. The algorithm panel calls this once the final
+   * parameter values are stored, so datasets, filters, roles, preprocessing and parameters
+   * are all read from the same instant the request is built from.
+   */
+  captureRunSetup(algorithmName: string): void {
+    const configuredParameters = this.algorithmConfigurations()[algorithmName] ?? {};
+    this.runSetup.set({
+      algorithmKey: algorithmName,
+      dataModel: this.selectedDataModel()?.label ?? this.selectedDataModel()?.code ?? null,
+      datasets: [...this.selectedDatasets()],
+      outcome: this.roleCodes(this.algorithmY()),
+      covariates: this.roleCodes(this.algorithmX()),
+      filterLogic: this.filterLogic(),
+      preprocessing: this.getEffectivePreprocessingEntries(algorithmName, this.variableLabelMap()),
+      parameters: { ...configuredParameters },
+    });
+  }
+
+  private roleCodes(nodes: any[]): string[] {
+    return (nodes ?? []).map((node) => String(node?.code ?? '').trim()).filter(Boolean);
+  }
 
   // teardown for transient requests
   private destroy$ = new Subject<void>();
@@ -1217,8 +1243,15 @@ export class ExperimentStudioService {
     return hasContent ? next : null;
   }
 
-  getEffectivePreprocessingSummary(algorithmName: string | null | undefined): string {
-    if (!algorithmName) return 'none';
+  /**
+   * Effective preprocessing of a run for `algorithmName` as labelled rows — the same truth
+   * source as the request payload, including the defaults Exaflow applies anyway.
+   */
+  getEffectivePreprocessingEntries(
+    algorithmName: string | null | undefined,
+    labelMap: Record<string, string> = {}
+  ): RunSetupSummaryRow[] {
+    if (!algorithmName) return [];
     const poolCodes = this.selectedVariables().map((variable) => variable.code);
     const preprocessing = this.resolveRequestPreprocessing(
       algorithmName,
@@ -1226,11 +1259,19 @@ export class ExperimentStudioService {
       [],
       this.getStoredPreprocessingConfig(algorithmName)
     );
-    return this.formatPreprocessingConfig(preprocessing);
+    return this.formatPreprocessingEntries(preprocessing, labelMap);
+  }
+
+  getEffectivePreprocessingSummary(algorithmName: string | null | undefined): string {
+    return this.summarizePreprocessingEntries(this.getEffectivePreprocessingEntries(algorithmName));
   }
 
   formatPreprocessingConfig(preprocessing: unknown, labelMap: Record<string, string> = {}): string {
-    const entries = this.formatPreprocessingEntries(preprocessing, labelMap);
+    return this.summarizePreprocessingEntries(this.formatPreprocessingEntries(preprocessing, labelMap));
+  }
+
+  /** `Label: value` rows as the multi-line summary text, or 'none' when nothing was set. */
+  private summarizePreprocessingEntries(entries: RunSetupSummaryRow[]): string {
     return entries.length
       ? entries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
       : 'none';
@@ -1239,17 +1280,17 @@ export class ExperimentStudioService {
   formatPreprocessingEntries(
     preprocessing: unknown,
     labelMap: Record<string, string> = {}
-  ): PreprocessingSummaryEntry[] {
+  ): RunSetupSummaryRow[] {
     return this.summarizePreprocessingConfig(this.normalizePreprocessingConfig(preprocessing), labelMap);
   }
 
   private summarizePreprocessingConfig(
     preprocessing: PreprocessingConfig | null,
     labelMap: Record<string, string> = {}
-  ): PreprocessingSummaryEntry[] {
+  ): RunSetupSummaryRow[] {
     if (!preprocessing) return [];
 
-    const entries: PreprocessingSummaryEntry[] = [];
+    const entries: RunSetupSummaryRow[] = [];
     const missingValues = preprocessing[MISSING_VALUES_HANDLER] as { strategies?: Record<string, unknown> } | undefined;
     const strategies = missingValues?.strategies ?? {};
     const strategyEntries = Object.entries(strategies);
@@ -2110,6 +2151,7 @@ export class ExperimentStudioService {
     // execution step state (results are session-scoped, see hasRunStarted)
     this.runResult.set(null);
     this.runError.set(null);
+    this.runSetup.set(null);
     this.lastRunSchema.set([]);
     this.hasRunStarted.set(false);
     this.runStatusText.set('Processing experiment...');

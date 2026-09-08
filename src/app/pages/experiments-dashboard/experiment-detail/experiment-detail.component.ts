@@ -14,6 +14,7 @@ import { Router } from '@angular/router';
 import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
+import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { preprocessingStepsToRecord } from '../experiments-dashboard.mapper';
 
 @Component({
@@ -219,13 +220,12 @@ export class ExperimentDetailsComponent {
     withLabels(this.selectedExperiment()?.filters, this.codeToLabelSignal())
   );
 
-  readonly filterPreview = computed(() => {
-    const logic =
-      this.fullExperimentSignal()?.analysis?.inputdata?.filters ??
-      this.selectedExperiment()?.filterLogic;
-    if (!logic || !Array.isArray((logic as any).rules) || !(logic as any).rules.length) return '';
-    return this.formatFilterNode(logic);
-  });
+  readonly filterPreview = computed(() =>
+    formatFilterExpression(
+      this.fullExperimentSignal()?.analysis?.inputdata?.filters ?? this.selectedExperiment()?.filterLogic,
+      { labelMap: this.labelMap(), enumMaps: this.enumMaps() }
+    )
+  );
   readonly preprocessingPreview = computed(() => {
     const preprocessing =
       preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
@@ -485,63 +485,4 @@ export class ExperimentDetailsComponent {
     return schema.find((field: any) => String(field.key) === parameterKey) ?? null;
   }
 
-  private formatFilterNode(node: any): string {
-    if (!node) return '';
-
-    if (Array.isArray(node.rules)) {
-      const parts = node.rules
-        .map((rule: any) => this.formatFilterNode(rule))
-        .filter(Boolean);
-      if (!parts.length) return '';
-
-      const condition = String(node.condition || 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND';
-      const expression = parts.join(` ${condition} `);
-      return parts.length > 1 ? `(${expression})` : expression;
-    }
-
-    const field = String(node.field ?? node.id ?? '');
-    const label = this.labelMap()[field] ?? (field || 'Variable');
-    const operator = this.filterOperatorLabel(String(node.operator ?? 'equal'));
-
-    if (node.operator === 'is_null' || node.operator === 'is_not_null') {
-      return `${label} ${operator}`;
-    }
-
-    return `${label} ${operator} ${this.formatFilterValue(field, node.value)}`;
-  }
-
-  private filterOperatorLabel(operator: string): string {
-    switch (operator) {
-      case 'equal':
-      case '=':
-        return '=';
-      case 'not_equal':
-      case '!=':
-        return '!=';
-      case 'greater':
-      case '>':
-        return '>';
-      case 'greater_or_equal':
-      case '>=':
-        return '>=';
-      case 'less':
-      case '<':
-        return '<';
-      case 'less_or_equal':
-      case '<=':
-        return '<=';
-      case 'is_null':
-        return 'IS NULL';
-      case 'is_not_null':
-        return 'IS NOT NULL';
-      default:
-        return operator;
-    }
-  }
-
-  private formatFilterValue(field: string, value: any): string {
-    if (value === null || value === undefined || value === '') return 'value';
-    const valueKey = String(value);
-    return this.enumMaps()[field]?.[valueKey] ?? valueKey;
-  }
 }

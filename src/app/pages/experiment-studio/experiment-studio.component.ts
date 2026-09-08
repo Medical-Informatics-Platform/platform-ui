@@ -13,7 +13,7 @@ import {
   DescriptiveProgressState,
   StatisticAnalysisPanelComponent,
 } from './statistic-analysis-panel/statistic-analysis-panel.component';
-import { countFilterRules } from './shared/filter-rule-count.util';
+import { countFilterRules } from '../../core/filter-display.utils';
 import { Subject, takeUntil } from 'rxjs';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
 import { GuideSection } from './guide/experiment-studio-guide.content';

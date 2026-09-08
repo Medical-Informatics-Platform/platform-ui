@@ -40,7 +40,7 @@ import { StationListRowComponent } from '../shared/station-list-row/station-list
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
-import { countFilterRules } from '../shared/filter-rule-count.util';
+import { countFilterRules } from '../../../core/filter-display.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
