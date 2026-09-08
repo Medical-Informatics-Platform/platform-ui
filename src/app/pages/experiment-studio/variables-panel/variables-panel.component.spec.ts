@@ -527,6 +527,31 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.detailsPanelSubtitle()).toBe('2 groups in this view');
   });
 
+  it('prompts to pick a variable when a group holds only variables', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    const group = {
+      code: 'g1',
+      label: 'Acute treatment',
+      children: [
+        { code: 'a', label: 'A', type: 'real' },
+        { code: 'b', label: 'B', type: 'real' },
+      ],
+    };
+    component.d3Data = { code: 'stroke', label: 'Stroke 3.7', children: [group] };
+
+    component.onSelectedNodeChange(group);
+
+    expect(component.groupHistogramData()).toBeNull();
+    expect(component.emptyChartMessage()).toBe(
+      'Please select one of the variables in the representation on the left to see its histogram in the selected centers.',
+    );
+    expect(component.errorMessage()).toBeNull();
+    expect(component.isLoadingHistogram()).toBe(false);
+    expect(component.detailsPanelSubtitle()).toBe('2 variables in this group');
+    expect(component.isExportDisabled()).toBe(true);
+  });
+
   function flushLeafHistogram(component: VariablesPanelComponent): Promise<void> {
     component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
     component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });

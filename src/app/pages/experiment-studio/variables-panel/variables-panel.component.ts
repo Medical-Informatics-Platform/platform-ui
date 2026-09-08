@@ -28,6 +28,10 @@ import { countLeafNodes } from '../../../core/data-model.utils';
 
 type DetailsPanelTab = 'histogram' | 'info';
 
+/** Shown when the selected node groups variables only, so there is nothing to census. */
+const GROUP_OF_VARIABLES_ONLY_MESSAGE =
+  'Please select one of the variables in the representation on the left to see its histogram in the selected centers.';
+
 @Component({
   selector: 'app-variables-panel',
   templateUrl: './variables-panel.component.html',
@@ -560,6 +564,13 @@ export class VariablesPanelComponent implements OnDestroy {
         groupCount: items.length,
         hasGroups,
       });
+
+      // A group that holds only variables has nothing to census: every bar would be a
+      // single variable. Ask the user to pick a variable from the browser instead.
+      if (!hasGroups) {
+        this.emptyChartMessage.set(GROUP_OF_VARIABLES_ONLY_MESSAGE);
+        return;
+      }
 
       const rows = items
         .map((child: any) => ({
