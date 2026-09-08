@@ -206,14 +206,20 @@
   justify-content: center;
 }
 
-/* The signed-in label is a name, so it is capped rather than allowed to push the nav:
-   nothing to the left of slot 3 moves, but a 40-character fullname still has to stop. */
+/* The signed-in label is the fullname and it is shown in full: 32ch is wider than any real
+   Keycloak name, so nothing ordinary is cut. The bound is not cosmetic. The label sits in
+   slot 3, an `auto` track, and an `auto` track cannot shrink below its own min-content —
+   under `white-space: nowrap` that minimum is the whole string, so an unbounded name is not
+   absorbed by slot 2's `minmax(0, 1fr)`, it pushes the account group past the right edge of
+   the bar. `22vw` keeps the cap under the width the navigation needs at tablet sizes, and the
+   ellipsis is the overflow of an exceptional name, never the normal state. Below 768px the
+   label is hidden outright. Check 768 / 1024 / 1440 with a 40-character fullname. */
 .sign-in-btn__label {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--primary-color);
   white-space: nowrap;
-  max-width: 16ch;
+  max-width: min(32ch, 22vw);
   overflow: hidden;
   text-overflow: ellipsis;
 }
