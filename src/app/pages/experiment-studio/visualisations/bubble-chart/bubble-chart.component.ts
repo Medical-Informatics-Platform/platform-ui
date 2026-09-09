@@ -16,6 +16,7 @@ import {
   output,
   input
 } from '@angular/core';
+import { observeSize } from '../../../../core/observe-resize.util';
 import { createZoomableCirclePacking, DEFAULT_BUBBLE_COLORS } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 
@@ -60,10 +61,9 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     colors?: Partial<BubbleChartComponent['colors']>;
   }) => void;
   private destroyFn?: () => void;
-  private resizeObserver?: ResizeObserver;
-  private resizeRaf = 0;
-  private resizeDebounce: any = 0;
-  private lastSize = { width: 0, height: 0 };
+  private stopObservingSize: (() => void) | undefined;
+  /** Size the drawing in the DOM was measured at; zero while its step is hidden. */
+  private renderedSize = { width: 0, height: 0 };
   private isAnimating = false;
 
 
@@ -100,37 +100,17 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     this.viewReady = true;
     const canvas = this.chartCanvas?.nativeElement;
 
-    // Initialize lastSize BEFORE starting the observer to prevent immediate double-render
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      this.lastSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
-    }
-
     this.renderChart();
 
-    if (canvas && typeof ResizeObserver !== 'undefined') {
-      this.ngZone.runOutsideAngular(() => {
-        this.resizeObserver = new ResizeObserver(entries => {
-          const entry = entries[0];
-          if (!entry) return;
+    if (canvas) {
+      this.stopObservingSize = observeSize(canvas, this.ngZone, 150, (width, height) => {
+        // Zero size is the step being hidden - never a size worth drawing for.
+        if (width === 0 || height === 0 || this.isAnimating) return;
+        // Compared against the last actual draw, so a chart built while the step
+        // was hidden is redrawn when the step comes back.
+        if (width === this.renderedSize.width && height === this.renderedSize.height) return;
 
-          const { width, height } = entry.contentRect;
-          const roundedW = Math.floor(width);
-          const roundedH = Math.floor(height);
-
-          if (roundedW === this.lastSize.width && roundedH === this.lastSize.height) return;
-          if (this.isAnimating) return;
-          if (roundedW === 0 || roundedH === 0) return;
-
-          this.lastSize = { width: roundedW, height: roundedH };
-
-          // Debounce: wait until resizing stops before re-rendering
-          clearTimeout(this.resizeDebounce);
-          this.resizeDebounce = setTimeout(() => {
-            this.ngZone.run(() => this.renderChart());
-          }, 150);
-        });
-        this.resizeObserver.observe(canvas);
+        this.renderChart();
       });
     }
   }
@@ -163,9 +143,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   ngOnDestroy(): void {
     this.destroyFn?.();
-    this.resizeObserver?.disconnect();
-    if (this.resizeRaf) cancelAnimationFrame(this.resizeRaf);
-    clearTimeout(this.resizeDebounce);
+    this.stopObservingSize?.();
   }
 
   renderChart(): void {
@@ -184,6 +162,9 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
     // Clean up previous chart if exists (e.g. tooltip)
     this.destroyFn?.();
+
+    const rect = container.getBoundingClientRect();
+    this.renderedSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
 
     const { zoomToNode, refreshColors, destroy } = createZoomableCirclePacking(
       this.d3Data(),

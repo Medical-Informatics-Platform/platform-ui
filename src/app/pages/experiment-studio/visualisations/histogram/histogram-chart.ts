@@ -3,6 +3,13 @@ import * as d3 from 'd3';
 const MIN_X_TICKS = 4;
 const MAX_X_TICKS = 12;
 
+/**
+ * getBBox() returns an empty rect for text that has never been laid out - a chart
+ * inside a Studio step hidden with `display: none`, for example. Used where a
+ * measured label extent would otherwise collapse the layout to nothing.
+ */
+const UNMEASURED_LABEL_WIDTH_PX = 46;
+
 function binsAreNumeric(bins: string[]): boolean {
   return bins.length > 0 && bins.every((bin) => Number.isFinite(Number(bin)));
 }
@@ -236,8 +243,11 @@ export function createHistogram(
     .style('font-size', '16px')
     .text(yLabelText);
 
-  const yLabelBBox = (tempLabel.node() as SVGTextElement).getBBox();
+  const yLabelBBox = (tempLabel.node() as SVGTextElement | null)?.getBBox();
   tempLabel.remove();
+  const measuredYLabelWidth = yLabelBBox && yLabelBBox.width > 0
+    ? yLabelBBox.width
+    : UNMEASURED_LABEL_WIDTH_PX;
 
   const baseMargins = { top: 16, right: 10, bottom: 60, left: 40 };
   const maxLabelLength = bins.reduce((max, b) => Math.max(max, String(b).length), 0);
@@ -254,7 +264,7 @@ export function createHistogram(
     top: baseMargins.top,
     right: baseMargins.right,
     bottom: bottomMargin,
-    left: baseMargins.left + yLabelBBox.width + 8
+    left: baseMargins.left + measuredYLabelWidth + 8
   };
 
   const innerHeight = needsRotate
@@ -405,7 +415,7 @@ export function createHistogram(
   }
 
   const xAxisBBox = (xAxisGroup.node() as SVGGElement | null)?.getBBox();
-  if (xAxisBBox) {
+  if (xAxisBBox && xAxisBBox.height > 0) {
     const axisBottom = margin.top + innerHeight + xAxisBBox.y + xAxisBBox.height + 12;
     if (axisBottom > containerHeight) {
       containerHeight = Math.ceil(axisBottom);
@@ -445,8 +455,10 @@ export function createHistogram(
     .style('letter-spacing', '0.08em')
     .style('text-transform', 'uppercase');
 
+  // A zero-height bbox is the signature of an unlaid-out container; keep the
+  // computed height instead of collapsing the chart to a few visible pixels.
   const svgBBox = (svg.node() as SVGSVGElement | null)?.getBBox();
-  if (svgBBox) {
+  if (svgBBox && svgBBox.height > 0) {
     containerHeight = Math.ceil(svgBBox.y + svgBBox.height + 8);
     svg.attr('height', containerHeight);
   }

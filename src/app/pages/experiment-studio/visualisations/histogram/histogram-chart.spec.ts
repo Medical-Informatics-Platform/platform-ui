@@ -1,4 +1,11 @@
-import { clipHistogramNullEdges, orderHorizontalBarRows, selectXTickValues, shouldClipNullEdges, wrapCategoryLabel } from './histogram-chart';
+import {
+  clipHistogramNullEdges,
+  createHistogram,
+  orderHorizontalBarRows,
+  selectXTickValues,
+  shouldClipNullEdges,
+  wrapCategoryLabel,
+} from './histogram-chart';
 
 describe('wrapCategoryLabel', () => {
   it('keeps short labels on a single line', () => {
@@ -111,5 +118,49 @@ describe('shouldClipNullEdges', () => {
 
   it('returns false for nominal bins', () => {
     expect(shouldClipNullEdges(['yes', 'no', 'unknown'])).toBeFalse();
+  });
+});
+
+describe('createHistogram in an unlaid-out container', () => {
+  const SAMPLE = {
+    bins: ['0-1', '1-2', '2-3', '3-4', '4-5'],
+    counts: [12, 30, 22, 5, 1],
+    variableName: 'Age',
+  };
+  let host: HTMLDivElement;
+
+  afterEach(() => {
+    host?.remove();
+  });
+
+  /** Mirrors a Studio step hidden with `display: none`: every getBBox() is empty. */
+  function hiddenContainer(): HTMLDivElement {
+    host = document.createElement('div');
+    host.style.display = 'none';
+    const container = document.createElement('div');
+    container.style.width = '480px';
+    host.appendChild(container);
+    document.body.appendChild(host);
+    return container;
+  }
+
+  it('keeps the computed height for the vertical chart', () => {
+    const container = hiddenContainer();
+    createHistogram(SAMPLE, container, {});
+
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(Number(svg!.getAttribute('height'))).toBeGreaterThan(150);
+    expect(parseFloat(container.style.height)).toBeGreaterThan(150);
+  });
+
+  it('keeps the computed height for the horizontal chart', () => {
+    const container = hiddenContainer();
+    createHistogram(SAMPLE, container, { orientation: 'horizontal' });
+
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(Number(svg!.getAttribute('height'))).toBeGreaterThan(150);
+    expect(parseFloat(container.style.height)).toBeGreaterThan(150);
   });
 });

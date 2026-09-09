@@ -14,6 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
+import { observeSize } from '../../../../../core/observe-resize.util';
 import {
   CollapsibleTreeRenderer,
   createCollapsibleTree,
@@ -44,12 +45,12 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   private readonly ngZone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private renderer: CollapsibleTreeRenderer | null = null;
-  private resizeObserver?: ResizeObserver;
-  private resizeTimer = 0;
+  private stopObservingSize: (() => void) | undefined;
   private viewReady = false;
   private lastDataRef: D3HierarchyNode | null = null;
   private skipNextHighlightExpand = false;
-  private lastSize = { width: 0, height: 0 };
+  /** Size the drawing in the DOM was measured at; zero while its step is hidden. */
+  private renderedSize = { width: 0, height: 0 };
 
   constructor() {
     effect(() => {
@@ -82,37 +83,31 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     this.viewReady = true;
     this.render();
     const canvas = this.chartCanvas()?.nativeElement;
-    if (!canvas || typeof ResizeObserver === 'undefined') return;
+    if (!canvas) return;
 
-    // Initialize lastSize before observing to prevent the observer's initial
-    // callback from triggering a second full rebuild of the tree.
-    const rect = canvas.getBoundingClientRect();
-    this.lastSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
+    this.stopObservingSize = observeSize(canvas, this.ngZone, 120, (width, height) => {
+      // Zero size is the step being hidden - never a size worth drawing for.
+      if (width === 0 || height === 0) return;
+      // Compared against the last actual draw, so a tree built while the step was
+      // hidden is re-laid-out when the step comes back.
+      if (width === this.renderedSize.width && height === this.renderedSize.height) return;
 
-    this.ngZone.runOutsideAngular(() => {
-      this.resizeObserver = new ResizeObserver((entries) => {
-        const entry = entries[0];
-        if (!entry) return;
-
-        const roundedW = Math.floor(entry.contentRect.width);
-        const roundedH = Math.floor(entry.contentRect.height);
-        if (roundedW === this.lastSize.width && roundedH === this.lastSize.height) return;
-        if (roundedW === 0 || roundedH === 0) return;
-
-        this.lastSize = { width: roundedW, height: roundedH };
-        window.clearTimeout(this.resizeTimer);
-        this.resizeTimer = window.setTimeout(() => {
-          this.ngZone.run(() => this.renderer?.resize());
-        }, 120);
-      });
-      this.resizeObserver.observe(canvas);
+      this.renderer?.resize();
+      this.rememberRenderedSize();
     });
   }
 
   ngOnDestroy(): void {
     this.renderer?.destroy();
-    this.resizeObserver?.disconnect();
-    window.clearTimeout(this.resizeTimer);
+    this.stopObservingSize?.();
+  }
+
+  /** Records the box the drawing that follows was measured against. */
+  private rememberRenderedSize(): void {
+    const rect = this.chartCanvas()?.nativeElement?.getBoundingClientRect();
+    this.renderedSize = rect
+      ? { width: Math.floor(rect.width), height: Math.floor(rect.height) }
+      : { width: 0, height: 0 };
   }
 
   private render(): void {
@@ -131,6 +126,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     }
 
     this.error.set(null);
+    this.rememberRenderedSize();
     this.renderer = createCollapsibleTree(data, canvas, {
       selectedVariables: this.selectedVariables(),
       highlightNode: this.highlightNode(),
