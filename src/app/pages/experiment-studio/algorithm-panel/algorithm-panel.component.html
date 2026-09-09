@@ -6,8 +6,8 @@
     <div>
       <h5 class="algorithm-roles-board__title">Algorithm selection</h5>
       <p class="algorithm-roles-board__lede">
-        Assign outcomes and predictors, pick a method from the catalog, then review the details
-        and configure parameters below. Matching updates as you assign.
+        Assign outcomes and predictors, pick a method from the catalog on the left, then review
+        the details and configure the parameters on the right. Matching updates as you assign.
       </p>
     </div>
     <span class="algorithm-count-badge">
@@ -16,12 +16,14 @@
     </span>
   </header>
 
-  <div class="algorithm-workspace">
-    <div class="algorithm-pool">
-      <app-algorithm-role-assignment></app-algorithm-role-assignment>
-    </div>
+  <div class="algorithm-pool">
+    <app-algorithm-role-assignment></app-algorithm-role-assignment>
+  </div>
 
-    <aside class="algorithm-catalog" data-guide="algorithm-selection" aria-label="Algorithm catalog">
+  <div class="algorithm-workspace">
+    <aside class="algorithm-catalog" data-guide="algorithm-selection" aria-labelledby="catalog-title">
+      <h2 class="catalog-title" id="catalog-title">Algorithm catalog</h2>
+
       <div class="catalog-search">
         <label class="sr-only" for="algo-search">Search algorithms</label>
         <input
@@ -90,6 +92,7 @@
             >
               <span class="algo-tile-top">
                 <span class="algo-label">{{ algorithm.label }}</span>
+                <span class="algo-tile-cue" aria-hidden="true"></span>
               </span>
               @if (algorithm.isDisabled) {
               <span class="algo-why">{{ algorithmUnavailableReason(algorithm) }}</span>
@@ -109,342 +112,347 @@
       <p class="algorithm-match-empty">No methods in the catalog.</p>
       }
     </aside>
-  </div>
 
-  @if (selectedAlgorithm(); as algorithm) {
-  <section class="algorithm-details" aria-label="Algorithm configuration">
-    <div class="algorithm-details__header">
-      <div class="algorithm-details__heading">
-        <h2 class="algorithm-match-title">Algorithm configuration</h2>
-        @if (selectedAlgorithmCategory()) {
-        <span class="inspector-tag">{{ selectedAlgorithmCategory() }}</span>
-        }
-      </div>
-      <span class="algorithm-details__title">{{ algorithm.label }}</span>
-    </div>
-    @if (algorithm.description) {
-    <p class="config-description">{{ algorithm.description }}</p>
-    }
-    @if (selectedAlgorithmDocumentation()) {
-    <details class="documentation-panel" open>
-      <summary class="documentation-summary">
-        <span class="documentation-label">Documentation</span>
-      </summary>
-      <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
-    </details>
-    }
-  </section>
-  }
-
-    <section class="algorithm-params" data-guide="algorithm-settings" aria-label="Parameter selection">
+    <div class="algorithm-config-column">
       @if (selectedAlgorithm(); as algorithm) {
-      <div class="algorithm-params__body">
-          @if (algorithmRunRequirements().length > 0) {
-          <div class="studio-settings-block studio-settings-block--alert algorithm-requirements-panel" role="status" aria-label="Requirements before running">
-            <div class="algorithm-requirements-heading">
-              <span>Complete before running</span>
-            </div>
-            <ul class="algorithm-requirements-list">
-              @for (requirement of algorithmRunRequirements(); track requirement.id) {
-              <li class="algorithm-requirement-item">
-                <span class="algorithm-requirement-message">{{ requirement.message }}</span>
-                <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(requirement)">
-                  {{ requirement.actionLabel }}
-                </button>
-              </li>
-              }
-            </ul>
+      <section class="algorithm-details" aria-label="Algorithm configuration">
+        <div class="algorithm-details__header">
+          <div class="algorithm-details__heading">
+            <h2 class="algorithm-match-title">Algorithm configuration</h2>
+            @if (selectedAlgorithmCategory()) {
+            <span class="inspector-tag">{{ selectedAlgorithmCategory() }}</span>
+            }
           </div>
-          }
+          <span class="algorithm-details__title">{{ algorithm.label }}</span>
+        </div>
+        @if (algorithm.description) {
+        <p class="config-description">{{ algorithm.description }}</p>
+        }
+        @if (selectedAlgorithmDocumentation()) {
+        <details class="documentation-panel" open>
+          <summary class="documentation-summary">
+            <span class="documentation-chevron" aria-hidden="true"></span>
+            <span class="documentation-label">Documentation</span>
+            <span class="documentation-state documentation-state-shown">Shown</span>
+            <span class="documentation-state documentation-state-hidden">Hidden</span>
+          </summary>
+          <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
+        </details>
+        }
+      </section>
+      }
 
-          <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
-
-          @if (canToggleCrossValidation()) {
-          <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
-            <label class="checkbox-wrapper">
-              <input type="checkbox" [checked]="crossValidationEnabled()" (change)="toggleCrossValidation($event)" />
-              <span>Enable cross-validation</span>
-            </label>
-            <div class="cross-validation-hint">
-              Optional. Enable to run the cross-validation variant (default: 5 folds).
-            </div>
-          </div>
-          }
-
-          @if (isCrossValidationOnly()) {
-          <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
-            <div class="cross-validation-hint">
-              Cross-validation is enabled for this algorithm.
-            </div>
-          </div>
-          }
-
-          @if (canToggleTransformation()) {
-          <div class="studio-settings-block studio-settings-block--option transformation-toggle">
-            <label class="checkbox-wrapper">
-              <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
-              <span>Enable data transformations</span>
-            </label>
-            <div class="transformation-hint">
-              Optional. Pick a single transformation per variable.
-            </div>
-
-            @if (!selectedVariables.length) {
-            <div class="transformation-empty">
-              Select variables to configure transformations.
-            </div>
-            } @else {
-            <div class="transformation-grid" [class.disabled]="!transformationEnabled()">
-              <div class="transformation-header">Variable</div>
-              <div class="transformation-header">None</div>
-              <div class="transformation-header">Standardize</div>
-              <div class="transformation-header">Center</div>
-              <div class="transformation-header">Exp</div>
-
-              @for (v of selectedVariables; track v.code) {
-              <div class="transformation-cell transformation-label">
-                {{ v.label || v.name || v.code }}
+      <section class="algorithm-params" data-guide="algorithm-settings" aria-label="Parameter selection">
+        @if (selectedAlgorithm(); as algorithm) {
+        <div class="algorithm-params__body">
+            @if (algorithmRunRequirements().length > 0) {
+            <div class="studio-settings-block studio-settings-block--alert algorithm-requirements-panel" role="status" aria-label="Requirements before running">
+              <div class="algorithm-requirements-heading">
+                <span>Complete before running</span>
               </div>
-              <div class="transformation-cell">
-                <input type="radio" [name]="'transform-' + v.code" [value]="'none'"
-                  [checked]="getTransformationAssignment(v.code) === 'none'"
-                  (change)="setTransformationAssignment(v.code, 'none')" [disabled]="!transformationEnabled()" />
+              <ul class="algorithm-requirements-list">
+                @for (requirement of algorithmRunRequirements(); track requirement.id) {
+                <li class="algorithm-requirement-item">
+                  <span class="algorithm-requirement-message">{{ requirement.message }}</span>
+                  <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(requirement)">
+                    {{ requirement.actionLabel }}
+                  </button>
+                </li>
+                }
+              </ul>
+            </div>
+            }
+
+            <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
+
+            @if (canToggleCrossValidation()) {
+            <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" [checked]="crossValidationEnabled()" (change)="toggleCrossValidation($event)" />
+                <span>Enable cross-validation</span>
+              </label>
+              <div class="cross-validation-hint">
+                Optional. Enable to run the cross-validation variant (default: 5 folds).
               </div>
-              <div class="transformation-cell">
-                <input type="radio" [name]="'transform-' + v.code" [value]="'standardize'"
-                  [checked]="getTransformationAssignment(v.code) === 'standardize'"
-                  (change)="setTransformationAssignment(v.code, 'standardize')" [disabled]="!transformationEnabled()" />
+            </div>
+            }
+
+            @if (isCrossValidationOnly()) {
+            <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
+              <div class="cross-validation-hint">
+                Cross-validation is enabled for this algorithm.
               </div>
-              <div class="transformation-cell">
-                <input type="radio" [name]="'transform-' + v.code" [value]="'center'"
-                  [checked]="getTransformationAssignment(v.code) === 'center'"
-                  (change)="setTransformationAssignment(v.code, 'center')" [disabled]="!transformationEnabled()" />
+            </div>
+            }
+
+            @if (canToggleTransformation()) {
+            <div class="studio-settings-block studio-settings-block--option transformation-toggle">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
+                <span>Enable data transformations</span>
+              </label>
+              <div class="transformation-hint">
+                Optional. Pick a single transformation per variable.
               </div>
-              <div class="transformation-cell">
-                <input type="radio" [name]="'transform-' + v.code" [value]="'exp'"
-                  [checked]="getTransformationAssignment(v.code) === 'exp'"
-                  (change)="setTransformationAssignment(v.code, 'exp')" [disabled]="!transformationEnabled()" />
+
+              @if (!selectedVariables.length) {
+              <div class="transformation-empty">
+                Select variables to configure transformations.
+              </div>
+              } @else {
+              <div class="transformation-grid" [class.disabled]="!transformationEnabled()">
+                <div class="transformation-header">Variable</div>
+                <div class="transformation-header">None</div>
+                <div class="transformation-header">Standardize</div>
+                <div class="transformation-header">Center</div>
+                <div class="transformation-header">Exp</div>
+
+                @for (v of selectedVariables; track v.code) {
+                <div class="transformation-cell transformation-label">
+                  {{ v.label || v.name || v.code }}
+                </div>
+                <div class="transformation-cell">
+                  <input type="radio" [name]="'transform-' + v.code" [value]="'none'"
+                    [checked]="getTransformationAssignment(v.code) === 'none'"
+                    (change)="setTransformationAssignment(v.code, 'none')" [disabled]="!transformationEnabled()" />
+                </div>
+                <div class="transformation-cell">
+                  <input type="radio" [name]="'transform-' + v.code" [value]="'standardize'"
+                    [checked]="getTransformationAssignment(v.code) === 'standardize'"
+                    (change)="setTransformationAssignment(v.code, 'standardize')" [disabled]="!transformationEnabled()" />
+                </div>
+                <div class="transformation-cell">
+                  <input type="radio" [name]="'transform-' + v.code" [value]="'center'"
+                    [checked]="getTransformationAssignment(v.code) === 'center'"
+                    (change)="setTransformationAssignment(v.code, 'center')" [disabled]="!transformationEnabled()" />
+                </div>
+                <div class="transformation-cell">
+                  <input type="radio" [name]="'transform-' + v.code" [value]="'exp'"
+                    [checked]="getTransformationAssignment(v.code) === 'exp'"
+                    (change)="setTransformationAssignment(v.code, 'exp')" [disabled]="!transformationEnabled()" />
+                </div>
+                }
               </div>
               }
             </div>
             }
-          </div>
-          }
 
-          @if (errorMsg()) {
-          <div class="backend-error-banner">
-            <strong>Backend error: </strong>
-            <span>{{ errorMsg() }}</span>
-          </div>
-          }
-
-          @if (!hasAlgorithmParameterControls()) {
-          <div class="config-placeholder config-placeholder--minimal">
-            <div class="config-placeholder-content">
-              <h6>No additional parameters for this algorithm</h6>
-              <p>
-                This algorithm does not expose extra configuration fields. Review the
-                documentation and run the experiment when you are ready.
-              </p>
+            @if (errorMsg()) {
+            <div class="backend-error-banner">
+              <strong>Backend error: </strong>
+              <span>{{ errorMsg() }}</span>
             </div>
-          </div>
-          }
+            }
 
-          @if (isOutlierReportSelected()) {
-          <section class="outlier-report-editor" aria-label="Outlier report configuration">
-            <div class="outlier-editor-header">
-              <div>
-                <h6>Per-variable Outlier Rules</h6>
-              </div>
-              <span class="outlier-count">{{ outlierReportVariables().length }} numerical</span>
-            </div>
-
-            @if (outlierReportVariables().length > 0) {
-            <div class="outlier-table-wrapper">
-              <table class="outlier-table">
-                <thead>
-                  <tr>
-                    <th>Variable</th>
-                    <th>Enabled</th>
-                    <th>Strategy</th>
-                    <th>Tail</th>
-                    <th>Fold</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (variable of outlierReportVariables(); track variable.code) {
-                  <tr>
-                    <td>
-                      <span class="outlier-variable-label">{{ outlierVariableLabel(variable) }}</span>
-                      <small>{{ variable.code }}</small>
-                    </td>
-                    <td>
-                      <label class="checkbox-wrapper outlier-enable">
-                        <input type="checkbox" [checked]="outlierReportRuleFor(variable).enabled"
-                          (change)="onOutlierReportEnabledChange(variable, $any($event.target).checked)"
-                          [attr.aria-label]="'Enable ' + outlierVariableLabel(variable)" />
-                      </label>
-                    </td>
-                    <td>
-                      <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).strategy"
-                        (ngModelChange)="onOutlierReportStrategyChange(variable, $event)">
-                        @for (strategy of outlierStrategies; track strategy.value) {
-                        <option [ngValue]="strategy.value">{{ strategy.label }}</option>
-                        }
-                      </select>
-                    </td>
-                    <td>
-                      <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).tail"
-                        (ngModelChange)="onOutlierReportTailChange(variable, $event)">
-                        @for (tail of outlierTails; track tail.value) {
-                        <option [ngValue]="tail.value">{{ tail.label }}</option>
-                        }
-                      </select>
-                    </td>
-                    <td>
-                      <input class="config-input compact-input" type="number" step="any"
-                        [ngModel]="outlierReportRuleFor(variable).fold"
-                        (ngModelChange)="onOutlierReportFoldChange(variable, $event)"
-                        [class.input-error]="outlierReportRuleError(variable)" />
-                      @if (outlierReportRuleError(variable)) {
-                      <div class="validation-message config-error">{{ outlierReportRuleError(variable) }}</div>
-                      }
-                    </td>
-                  </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            } @else {
+            @if (!hasAlgorithmParameterControls()) {
             <div class="config-placeholder config-placeholder--minimal">
               <div class="config-placeholder-content">
-                <h6>No numerical variables selected</h6>
+                <h6>No additional parameters for this algorithm</h6>
+                <p>
+                  This algorithm does not expose extra configuration fields. Review the
+                  documentation and run the experiment when you are ready.
+                </p>
               </div>
             </div>
             }
-          </section>
-          }
 
-          @if (visibleConfigSchema().length) {
-          <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
-            @for (field of visibleConfigSchema(); track field.key) {
-            @if (configForm().get(field.key)) {
-            <div class="config-field">
-              <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
-                {{ prettyFieldLabel(field) }}
-                @if (field.required) {
-                <span class="required-tag">Required</span>
-                }
-              </label>
+            @if (isOutlierReportSelected()) {
+            <section class="outlier-report-editor" aria-label="Outlier report configuration">
+              <div class="outlier-editor-header">
+                <div>
+                  <h6>Per-variable Outlier Rules</h6>
+                </div>
+                <span class="outlier-count">{{ outlierReportVariables().length }} numerical</span>
+              </div>
 
-              @if (field.desc) {
-              <p class="config-field-desc">{{ field.desc }}</p>
-              }
-
-              @if (field.enumType === 'input_var_names' && field.type === 'select' && (!field.options || !field.options.length)) {
-              <p class="config-field-hint">
-                @if (field.enumSource?.includes('x')) {
-                Select covariates first. This parameter must be one of the variables in x.
-                } @else if (field.enumSource?.includes('y')) {
-                Select a variable first. This parameter must be one of the variables in y.
-                } @else {
-                Select the required variables before choosing this parameter.
-                }
-              </p>
-              }
-
-              @if (field.key === 'positive_class' && !selectedEventVarCode()) {
-              <p class="config-field-hint">Select an event indicator variable first.</p>
-              }
-
-              @if (field.key === 'positive_class' && selectedEventVarCode() && positiveClassOptions().length) {
-              <p class="config-field-hint">
-                Select the event level mapped to 1; all other levels are mapped to 0.
-              </p>
-              }
-
-              @if (field.key === 'positive_class' && selectedEventVarCode() && !positiveClassOptions().length) {
-              <p class="config-field-hint">
-                This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1).
-              </p>
-              }
-
-              @if (field.type === 'number') {
-              <input type="number" [formControlName]="field.key" class="config-input" [min]="field.min" [max]="field.max"
-                [step]="
-                    field.types?.includes('real') ||
-                    field.key === 'alpha' ||
-                    field.key === 'tol' ||
-                    field.key === 'mu'
-                      ? 'any'
-                      : 1
-                  " [placeholder]="
-                    field.default !== undefined ? field.default : 'Enter value...'
-                  " />
-
-              } @else if (field.type === 'select') {
-              <select [formControlName]="field.key" class="config-select">
-                <option [ngValue]="null" [disabled]="field.required">
-                  {{ field.required ? '-- Select --' : 'None (optional)' }}
-                </option>
-
-                @for (opt of field.options; track opt) {
-                <option [ngValue]="bindOptionValue(opt)">
-                  {{ opt.label ?? opt.name ?? opt }}
-                </option>
-                }
-              </select>
-              } @else if (field.type === 'multi-select') {
-              <select multiple [formControlName]="field.key" class="config-select">
-                @for (opt of field.options; track opt) {
-                <option [ngValue]="bindOptionValue(opt)">
-                  {{ opt.label ?? opt.name ?? opt }}
-                </option>
-                }
-              </select>
-              } @else if (field.type === 'checkbox') {
-              <label class="checkbox-wrapper">
-                <input type="checkbox" [formControlName]="field.key" />
-                <span>Enable</span>
-              </label>
+              @if (outlierReportVariables().length > 0) {
+              <div class="outlier-table-wrapper">
+                <table class="outlier-table">
+                  <thead>
+                    <tr>
+                      <th>Variable</th>
+                      <th>Enabled</th>
+                      <th>Strategy</th>
+                      <th>Tail</th>
+                      <th>Fold</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (variable of outlierReportVariables(); track variable.code) {
+                    <tr>
+                      <td>
+                        <span class="outlier-variable-label">{{ outlierVariableLabel(variable) }}</span>
+                        <small>{{ variable.code }}</small>
+                      </td>
+                      <td>
+                        <label class="checkbox-wrapper outlier-enable">
+                          <input type="checkbox" [checked]="outlierReportRuleFor(variable).enabled"
+                            (change)="onOutlierReportEnabledChange(variable, $any($event.target).checked)"
+                            [attr.aria-label]="'Enable ' + outlierVariableLabel(variable)" />
+                        </label>
+                      </td>
+                      <td>
+                        <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).strategy"
+                          (ngModelChange)="onOutlierReportStrategyChange(variable, $event)">
+                          @for (strategy of outlierStrategies; track strategy.value) {
+                          <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+                          }
+                        </select>
+                      </td>
+                      <td>
+                        <select class="config-select compact-select" [ngModel]="outlierReportRuleFor(variable).tail"
+                          (ngModelChange)="onOutlierReportTailChange(variable, $event)">
+                          @for (tail of outlierTails; track tail.value) {
+                          <option [ngValue]="tail.value">{{ tail.label }}</option>
+                          }
+                        </select>
+                      </td>
+                      <td>
+                        <input class="config-input compact-input" type="number" step="any"
+                          [ngModel]="outlierReportRuleFor(variable).fold"
+                          (ngModelChange)="onOutlierReportFoldChange(variable, $event)"
+                          [class.input-error]="outlierReportRuleError(variable)" />
+                        @if (outlierReportRuleError(variable)) {
+                        <div class="validation-message config-error">{{ outlierReportRuleError(variable) }}</div>
+                        }
+                      </td>
+                    </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
               } @else {
-              <input type="text" [formControlName]="field.key" class="config-input" placeholder="Enter value..." />
+              <div class="config-placeholder config-placeholder--minimal">
+                <div class="config-placeholder-content">
+                  <h6>No numerical variables selected</h6>
+                </div>
+              </div>
               }
+            </section>
+            }
 
-              @if (configForm().get(field.key)?.invalid &&
-              configForm().get(field.key)?.touched) {
-              <div class="validation-message config-error">
-                @if (configForm().get(field.key)?.hasError('required')) {
-                <small>This field is required.</small>
-                } @if (configForm().get(field.key)?.hasError('min')) {
-                <small>Value too small.</small>
-                } @if (configForm().get(field.key)?.hasError('max')) {
-                <small>Value too large.</small>
-                } @if (configForm().get(field.key)?.hasError('pattern')) {
-                <small>Invalid value.</small>
-                } @if (configForm().get(field.key)?.hasError('invalidOption')) {
-                <small>Select a value from the list.</small>
+            @if (visibleConfigSchema().length) {
+            <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
+              @for (field of visibleConfigSchema(); track field.key) {
+              @if (configForm().get(field.key)) {
+              <div class="config-field">
+                <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
+                  {{ prettyFieldLabel(field) }}
+                  @if (field.required) {
+                  <span class="required-tag">Required</span>
+                  }
+                </label>
+
+                @if (field.desc) {
+                <p class="config-field-desc">{{ field.desc }}</p>
+                }
+
+                @if (field.enumType === 'input_var_names' && field.type === 'select' && (!field.options || !field.options.length)) {
+                <p class="config-field-hint">
+                  @if (field.enumSource?.includes('x')) {
+                  Select covariates first. This parameter must be one of the variables in x.
+                  } @else if (field.enumSource?.includes('y')) {
+                  Select a variable first. This parameter must be one of the variables in y.
+                  } @else {
+                  Select the required variables before choosing this parameter.
+                  }
+                </p>
+                }
+
+                @if (field.key === 'positive_class' && !selectedEventVarCode()) {
+                <p class="config-field-hint">Select an event indicator variable first.</p>
+                }
+
+                @if (field.key === 'positive_class' && selectedEventVarCode() && positiveClassOptions().length) {
+                <p class="config-field-hint">
+                  Select the event level mapped to 1; all other levels are mapped to 0.
+                </p>
+                }
+
+                @if (field.key === 'positive_class' && selectedEventVarCode() && !positiveClassOptions().length) {
+                <p class="config-field-hint">
+                  This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1).
+                </p>
+                }
+
+                @if (field.type === 'number') {
+                <input type="number" [formControlName]="field.key" class="config-input" [min]="field.min" [max]="field.max"
+                  [step]="
+                      field.types?.includes('real') ||
+                      field.key === 'alpha' ||
+                      field.key === 'tol' ||
+                      field.key === 'mu'
+                        ? 'any'
+                        : 1
+                    " [placeholder]="
+                      field.default !== undefined ? field.default : 'Enter value...'
+                    " />
+
+                } @else if (field.type === 'select') {
+                <select [formControlName]="field.key" class="config-select">
+                  <option [ngValue]="null" [disabled]="field.required">
+                    {{ field.required ? '-- Select --' : 'None (optional)' }}
+                  </option>
+
+                  @for (opt of field.options; track opt) {
+                  <option [ngValue]="bindOptionValue(opt)">
+                    {{ opt.label ?? opt.name ?? opt }}
+                  </option>
+                  }
+                </select>
+                } @else if (field.type === 'multi-select') {
+                <select multiple [formControlName]="field.key" class="config-select">
+                  @for (opt of field.options; track opt) {
+                  <option [ngValue]="bindOptionValue(opt)">
+                    {{ opt.label ?? opt.name ?? opt }}
+                  </option>
+                  }
+                </select>
+                } @else if (field.type === 'checkbox') {
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" [formControlName]="field.key" />
+                  <span>Enable</span>
+                </label>
+                } @else {
+                <input type="text" [formControlName]="field.key" class="config-input" placeholder="Enter value..." />
+                }
+
+                @if (configForm().get(field.key)?.invalid &&
+                configForm().get(field.key)?.touched) {
+                <div class="validation-message config-error">
+                  @if (configForm().get(field.key)?.hasError('required')) {
+                  <small>This field is required.</small>
+                  } @if (configForm().get(field.key)?.hasError('min')) {
+                  <small>Value too small.</small>
+                  } @if (configForm().get(field.key)?.hasError('max')) {
+                  <small>Value too large.</small>
+                  } @if (configForm().get(field.key)?.hasError('pattern')) {
+                  <small>Invalid value.</small>
+                  } @if (configForm().get(field.key)?.hasError('invalidOption')) {
+                  <small>Select a value from the list.</small>
+                  }
+                </div>
                 }
               </div>
               }
-            </div>
+              }
+            </form>
             }
-            }
-          </form>
-          }
 
-          </fieldset>
-      </div>
-      } @else {
-      <div class="algorithm-params__empty">
-        <h3 class="algorithm-params__empty-title">No algorithm selected</h3>
-        <p class="algorithm-params__empty-text">
-          Select a runnable algorithm from the catalog to configure parameters and run the
-          experiment.
-        </p>
-      </div>
-      }
-    </section>
+            </fieldset>
+        </div>
+        } @else {
+        <div class="algorithm-params__empty">
+          <h3 class="algorithm-params__empty-title">No algorithm selected</h3>
+          <p class="algorithm-params__empty-text">
+            Select a runnable algorithm from the catalog to configure parameters and run the
+            experiment.
+          </p>
+        </div>
+        }
+      </section>
+    </div>
+  </div>
 </section>
 
 @if (tooltipVisible()) {

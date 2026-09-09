@@ -201,6 +201,27 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
+  it('states whether the documentation is shown or hidden', async () => {
+    fixture.componentInstance.setStudioSubstep('parameters');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const details = (fixture.nativeElement as HTMLElement).querySelector('.documentation-panel') as HTMLDetailsElement;
+    expect(details).toBeTruthy();
+
+    const visibleState = () => Array.from(details.querySelectorAll<HTMLElement>('.documentation-state'))
+      .filter((state) => getComputedStyle(state).display !== 'none')
+      .map((state) => state.textContent?.trim());
+
+    expect(details.open).toBeTrue();
+    expect(visibleState()).toEqual(['Shown']);
+
+    details.open = false;
+    fixture.detectChanges();
+
+    expect(visibleState()).toEqual(['Hidden']);
+  });
+
   it('shows disabled algorithm availability reasons on the card and in the tooltip', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,
@@ -815,16 +836,41 @@ describe('AlgorithmPanelComponent', () => {
     expect(board?.querySelector('.algo-tile')?.textContent).toContain('Flat Config Algorithm');
   });
 
-  it('places the experiment pool beside the catalog in one row above details and parameters', () => {
+  it('shows the pointing chevron only on the selected runnable tile', () => {
+    fixture.detectChanges();
+    const tiles = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.algo-tile'));
+    expect(tiles.length).toBeGreaterThan(0);
+
+    tiles.forEach((tile) => {
+      const cue = tile.querySelector<HTMLElement>('.algo-tile-cue');
+      const pointsAtConfig = tile.classList.contains('selected') && !tile.classList.contains('disabled-algo');
+      expect(getComputedStyle(cue!).display).toBe(pointsAtConfig ? 'block' : 'none');
+    });
+    const pointing = tiles.filter(
+      (tile) => getComputedStyle(tile.querySelector<HTMLElement>('.algo-tile-cue')!).display === 'block',
+    );
+    expect(pointing.length).toBe(1);
+  });
+
+  it('places the parameter pool above the catalog-and-configuration split', () => {
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
+    const pool = root.querySelector('.algorithm-pool');
     const workspace = root.querySelector('.algorithm-workspace');
-    expect(workspace?.querySelector('app-algorithm-role-assignment')).toBeTruthy();
+    // The pool is the full-width top band, a direct child under the card header.
+    expect(pool?.querySelector('app-algorithm-role-assignment')).toBeTruthy();
+    expect(pool?.parentElement?.classList.contains('algorithm-roles-board')).toBeTrue();
+    expect(
+      !!pool && !!workspace &&
+      !!(pool.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING)
+    ).toBeTrue();
+    // The bottom row is the master–detail split: catalog left, configuration right.
+    expect(workspace?.querySelector('app-algorithm-role-assignment')).toBeNull();
     expect(workspace?.querySelector('[data-guide="algorithm-selection"]')).toBeTruthy();
-    // Parameters are a band under the row, not a column inside it.
-    expect(workspace?.querySelector('.algorithm-params')).toBeNull();
+    expect(
+      workspace?.querySelector('.algorithm-config-column [data-guide="algorithm-settings"]')
+    ).toBeTruthy();
     expect(root.querySelector('.algo-tile')).toBeTruthy();
-    expect(root.querySelector('.algorithm-params')).toBeTruthy();
     expect(root.querySelector('.algorithm-roles-footer')).toBeNull();
   });
 
@@ -870,17 +916,19 @@ describe('AlgorithmPanelComponent', () => {
     expect(styles.boxShadow).toBe('none');
   });
 
-  it('stacks the details band and parameters under the pool-and-catalog row', async () => {
+  it('renders details and parameters in the configuration column beside the catalog', async () => {
     experimentStudioService.selectedAlgorithm.set(null);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const root = fixture.nativeElement as HTMLElement;
-    const workspace = root.querySelector('.algorithm-workspace');
+    const column = root.querySelector('.algorithm-workspace .algorithm-config-column');
+    const catalog = root.querySelector('[data-guide="algorithm-selection"]');
     const params = root.querySelector('[data-guide="algorithm-settings"]');
-    // Nothing selected: parameters still render as the lower band with guidance.
+    // Nothing selected: the column still offers guidance instead of a parameter form.
     expect(params?.querySelector('.algorithm-params__empty')).toBeTruthy();
     expect(root.querySelector('.algorithm-details')).toBeNull();
+    expect(column?.contains(params ?? null)).toBeTrue();
 
     fixture.componentInstance.onAlgorithmClick(algorithm);
     fixture.detectChanges();
@@ -888,12 +936,11 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(params!.querySelector('.algorithm-params__empty')).toBeNull();
     expect(params!.querySelector('.config-form')).toBeTruthy();
-    // Details render between the top row and the parameters band.
+    // Details head the column and the parameters follow them, both beside the catalog.
     const details = root.querySelector('.algorithm-details');
     expect(details).toBeTruthy();
-    expect(
-      !!(workspace!.compareDocumentPosition(details!) & Node.DOCUMENT_POSITION_FOLLOWING)
-    ).toBeTrue();
+    expect(column?.contains(details)).toBeTrue();
+    expect(catalog?.contains(details ?? null)).toBeFalse();
     expect(
       !!(details!.compareDocumentPosition(params!) & Node.DOCUMENT_POSITION_FOLLOWING)
     ).toBeTrue();

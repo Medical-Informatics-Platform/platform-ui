@@ -167,6 +167,43 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.algorithmY()).toEqual([age]);
   });
 
+  it('stacks the outcome rail above the predictor rail instead of side by side', () => {
+    experimentStudioService.algorithmY.set([age]);
+    experimentStudioService.algorithmX.set([sex, bmi]);
+    fixture.detectChanges();
+
+    const rails = (fixture.nativeElement as HTMLElement).querySelector('.rails') as HTMLElement;
+    const outcome = rails.querySelector<HTMLElement>('.rail--y');
+    const predictor = rails.querySelector<HTMLElement>('.rail--x');
+
+    expect(getComputedStyle(rails).gridTemplateColumns.split(' ').length).toBe(1);
+    const outcomeRect = outcome!.getBoundingClientRect();
+    const predictorRect = predictor!.getBoundingClientRect();
+    // The predictor slot starts where the outcome slot ends, at the same full width.
+    expect(predictorRect.top).toBeGreaterThanOrEqual(outcomeRect.bottom - 1);
+    expect(predictorRect.width).toBeCloseTo(outcomeRect.width, 0);
+  });
+
+
+  it('keeps the assignment column on the same row as the pool list, to its right', () => {
+    experimentStudioService.algorithmY.set([age]);
+    experimentStudioService.algorithmX.set([sex, bmi]);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const railsRect = (root.querySelector('.rails') as HTMLElement).getBoundingClientRect();
+    const rosterRect = (root.querySelector('.roster') as HTMLElement).getBoundingClientRect();
+
+    // Below the stacking breakpoint the rails return above the list, so the row
+    // relationship below is only meaningful on a desktop-width viewport.
+    if (window.innerWidth <= 640) {
+      pending('the pool row needs a viewport wider than 640px');
+    }
+
+    // Two columns of one row: the rails start to the right of the whole list.
+    expect(railsRect.left).toBeGreaterThanOrEqual(rosterRect.right - 1);
+    expect(railsRect.top).toBeLessThan(rosterRect.bottom);
+  });
   it('setRole unassigns a node back to the pool', () => {
     experimentStudioService.algorithmY.set([age]);
     fixture.detectChanges();

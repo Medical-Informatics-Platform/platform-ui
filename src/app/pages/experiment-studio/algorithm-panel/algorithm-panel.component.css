@@ -1,6 +1,7 @@
 /* Unified Algorithm Selection studio card.
-   One frame: Experiment pool and Algorithm catalog side by side on top,
-   Algorithm configuration (documentation + parameters) as a full-width band below.
+   One frame: the Experiment pool spans the full width as the top band, then a
+   master–detail row below it — Algorithm catalog on the left, Algorithm configuration
+   (documentation + parameters) scrolling in the column on the right.
    Tokens per DESIGN.md — typography, borders, subtle tints; no icon fonts. */
 
 /* ROOT LAYOUT - CONTAINER */
@@ -94,25 +95,31 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Top row: Experiment pool (left) · Algorithm catalog (right). The row height is
-   fixed and both panes scroll internally, so assignments and selections never
-   jump the page; details and parameters render as bands below. */
+/* BOTTOM ROW: Algorithm catalog (left) · Algorithm configuration (right). The row
+   height is fixed and both panes scroll internally, so picking a method never moves
+   the assignment rails out from under the pointer. */
 
 .algorithm-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 13fr) minmax(0, 7fr); /* 65% pool · 35% catalog */
+  grid-template-columns: minmax(300px, 36%) minmax(0, 64%); /* 36% catalog · 64% configuration */
   min-width: 0;
-  min-height: 28rem;
-  height: clamp(28rem, 58vh, 38rem);
+  min-height: 24rem;
+  height: clamp(24rem, 48vh, 40rem);
   overflow: hidden;
-  border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
 }
+
+/* TOP BAND: Experiment pool across the full card width — the variable list on the left,
+   the stacked outcome and predictor rails beside it on the right — so the band only has
+   to be tall enough for the scrolling list. */
 
 .algorithm-pool {
   display: flex;
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
+  height: clamp(18rem, 34vh, 24rem);
   overflow: hidden;
+  border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
 }
 
 .algorithm-pool > app-algorithm-role-assignment {
@@ -122,7 +129,17 @@
   overflow: hidden;
 }
 
-/* RIGHT OF TOP ROW: ALGORITHM CATALOG */
+/* LEFT OF THE BOTTOM ROW: ALGORITHM CATALOG */
+
+/* The catalog title mirrors the pool's pane head so the two panes read as peers. */
+.catalog-title {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-color);
+}
 
 .algorithm-catalog {
   display: flex;
@@ -134,7 +151,7 @@
   overflow: hidden;
   color: var(--text-main);
   box-sizing: border-box;
-  border-left: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+  border-right: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
 }
 
 .algorithm-match-title {
@@ -335,12 +352,29 @@
   background: color-mix(in srgb, var(--primary-light) 10%, white);
 }
 
-/* Selected method: accent bar, primary border, and a subtle tint so the row
-   the details and parameters bands below refer to is unmistakable. */
+/* Selected method: accent bar, primary border, and a subtle tint so the tile the
+   configuration column on the right refers to is unmistakable. */
 .algo-tile.selected:not(.disabled-algo) {
   border-color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 8%, white);
   box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* The chevron points from the chosen tile into the configuration column, so the eye
+   lands on the details without scanning. Hidden until the tile is the selection. */
+.algo-tile-cue {
+  display: none;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-top: 2px solid var(--primary-color);
+  border-right: 2px solid var(--primary-color);
+  transform: rotate(45deg);
+}
+
+.algo-tile.selected:not(.disabled-algo) .algo-tile-cue {
+  display: block;
 }
 
 .algo-tile.selected:not(.disabled-algo) .algo-label {
@@ -397,12 +431,28 @@
   box-shadow: inset 3px 0 0 rgba(100, 116, 139, 0.55);
 }
 
+/* RIGHT OF THE BOTTOM ROW: ALGORITHM CONFIGURATION — documentation and parameter
+   fields share one scrolling column, so a catalog selection updates what the user is
+   configuring without a page jump. The board paints the frame: this column adds no
+   border, tint, or shadow of its own. */
+
+.algorithm-config-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
 /* PARAMETERS — continue the configuration flow directly under the documentation;
    the unified card paints the frame. */
 
 .algorithm-params {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 10px;
   padding: 0 16px 16px;
   min-width: 0;
@@ -461,14 +511,19 @@
   color: var(--text-muted);
 }
 
-/* BELOW THE ROW — one continuous Algorithm configuration section: header,
-   description, documentation, then the parameter fields without a seam. */
+/* TOP OF THE CONFIGURATION COLUMN — one continuous Algorithm configuration section:
+   header, description, and documentation. It pins to the top of the column so the
+   method stays identified while a long parameter form scrolls beneath it. */
 
 .algorithm-details {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px 16px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--studio-card-bg);
   color: var(--text-main);
 }
 
@@ -500,20 +555,75 @@
   margin: 0;
 }
 
+/* The native disclosure triangle is hidden, so the summary states its own affordance:
+   a chevron that turns with the state plus a Shown/Hidden word. Only one state word is
+   in view at a time, driven by [open] on the <details> itself. */
 .documentation-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
   list-style: none;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: var(--radius-sm, 4px);
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--primary-color);
+}
+
+.documentation-summary:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+}
+
+.documentation-panel[open] > .documentation-summary {
+  border-bottom: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.14));
+  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
 }
 
 .documentation-summary::-webkit-details-marker {
   display: none;
 }
 
+/* Same chevron geometry as the catalog groups: right when collapsed, down when open. */
+.documentation-chevron {
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.documentation-panel[open] > .documentation-summary .documentation-chevron {
+  transform: rotate(45deg);
+}
+
+.documentation-state {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.documentation-state-shown {
+  display: none;
+}
+
+.documentation-panel[open] > .documentation-summary .documentation-state-shown {
+  display: inline;
+}
+
+.documentation-panel[open] > .documentation-summary .documentation-state-hidden {
+  display: none;
+}
+
 .documentation-content {
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--primary-color) 26%, white);
   font-size: 0.82rem;
   line-height: 1.45;
   color: rgba(20, 22, 31, 0.72);
@@ -1131,9 +1241,19 @@
   }
 
   .algorithm-catalog {
-    border-left: 0;
-    max-height: 28rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+    max-height: 24rem;
     overflow: auto;
+  }
+
+  /* Stacked: the window scrolls the configuration column, so nothing pins inside it. */
+  .algorithm-config-column {
+    overflow: visible;
+  }
+
+  .algorithm-details {
+    position: static;
   }
 }
 
@@ -1146,7 +1266,8 @@
 @media (prefers-reduced-motion: reduce) {
   .algo-tile,
   .pill-toggle,
-  .algorithm-match-cat-meta::after {
+  .algorithm-match-cat-meta::after,
+  .documentation-chevron {
     transition: none;
   }
 }
