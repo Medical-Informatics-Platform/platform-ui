@@ -33,6 +33,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
+            excludedDatasets: signal([]),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
@@ -151,7 +152,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const raw = workflowSection('Raw Data Summary');
         const tabLabels = Array.from(raw.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
-        expect(tabLabels).toEqual(['Charts', 'Histogram']);
+        expect(tabLabels).toEqual(['Table', 'Charts', 'Histogram']);
         expect(raw.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Edit filters');
 
         const back = workflowSection('Raw Data Summary').querySelector('.station-preview-toggle') as HTMLButtonElement;
@@ -254,13 +255,15 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     /**
-     * Known gap, not a regression: "Preview data" is a jump link (goToSection('processed')),
-     * so the processed workspace stays empty until Apply runs a describe. Finding F1 of
-     * data-handling-flow-plan.md; goes green with Phase 3's transient pending preview.
+     * "Preview data" runs a transient describe of the pending preprocessing config
+     * (finding F1 / Phase 3 of data-handling-flow-plan.md): the processed workspace
+     * fills without Apply, and nothing is persisted.
      */
-    xit('opens processed tables from Preview data without clicking Apply', () => {
-        mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) => {
-            mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(config as never);
+    it('opens processed tables from Preview data without clicking Apply', () => {
+        spyOn(Element.prototype, 'scrollIntoView');
+        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            void Promise.resolve().then(() => callback(0));
+            return 0;
         });
         configureRawSummary();
         component.goToSection('setup');
@@ -272,6 +275,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(apply.disabled).toBeFalse();
         expect(preprocessing.textContent).not.toContain('No preprocessing has been applied yet');
 
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
         const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
         preview.click();
         fixture.detectChanges();
@@ -280,10 +284,97 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.sectionOpen().setup).toBeFalse();
         expect(component.processedSummary.isLoading).toBeFalse();
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
+        // Transient: previewing wrote nothing into the applied request.
+        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
 
         const processed = workflowSection('Processed Data Summary');
         expect(processed.textContent).not.toContain('No preprocessing has been applied yet');
         expect(processed.querySelector('[aria-label="Processed data summary variables"]')).toBeTruthy();
+    });
+
+    /**
+     * The preview has to survive the fold. The processed summary used to live *inside* the
+     * station editor's `.workflow-section-body`, which is `display: none` the moment
+     * "Preview data" closes the editor, so the click looked like it only collapsed the card.
+     * Both stations must therefore mount the summary as a sibling of the editor body.
+     */
+    it('renders both previews outside the folded station editor', () => {
+        configureRawSummary();
+
+        component.goToSection('filters');
+        fixture.detectChanges();
+        (workflowSection('Filtering').querySelector('.station-action-preview') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        const raw = workflowSection('Raw Data Summary');
+        expect(raw.closest('.workflow-section-body')).toBeNull();
+        expect(getComputedStyle(raw.querySelector('.workflow-section-body') as HTMLElement).display).not.toBe('none');
+
+        component.goToSection('setup');
+        fixture.detectChanges();
+        (workflowSection('Preprocessing').querySelector('.station-action-preview') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        const processed = workflowSection('Processed Data Summary');
+        const editorBody = workflowSection('Preprocessing')
+            .querySelector('.pipeline-node-body > .workflow-section-body') as HTMLElement;
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(editorBody).toBeTruthy();
+        expect(editorBody.contains(processed)).toBeFalse();
+        expect(processed.closest('.workflow-section-body')).toBeNull();
+        expect(getComputedStyle(processed.querySelector('.workflow-section-body') as HTMLElement).display).not.toBe('none');
+    });
+
+    /**
+     * Close dismisses the preview without reopening the editor and without touching the
+     * request; the collapsed rail is the way back in, alongside the preview's own back button.
+     */
+    it('closes the processed preview back to the collapsed rail without writing', () => {
+        configureRawSummary();
+        component.goToSection('setup');
+        fixture.detectChanges();
+
+        const preprocessing = workflowSection('Preprocessing');
+        (preprocessing.querySelector('.station-action-preview') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        const processed = workflowSection('Processed Data Summary');
+        const back = processed.querySelector('.station-preview-toggle') as HTMLButtonElement;
+        expect(back.textContent?.trim()).toBe('Edit preprocessing');
+        const close = processed.querySelector('.station-preview-close') as HTMLButtonElement;
+        expect(close.textContent?.trim()).toBe('Close');
+
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        close.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().processed).toBeFalse();
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(preprocessing.querySelector('.pipeline-subnode-item')).toBeTruthy();
+        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+    });
+
+    it('closes the raw preview back to the Filtering node without writing', () => {
+        configureRawSummary();
+        component.goToSection('filters');
+        fixture.detectChanges();
+
+        (workflowSection('Filtering').querySelector('.station-action-preview') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        const raw = workflowSection('Raw Data Summary');
+        const close = raw.querySelector('.station-preview-close') as HTMLButtonElement;
+        expect(close.textContent?.trim()).toBe('Close');
+
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        close.click();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().raw).toBeFalse();
+        expect(component.sectionOpen().filters).toBeFalse();
+        expect(workflowSection('Filtering').querySelector('[title="Edit filters"]')?.textContent)
+            .toContain('Edit filters');
+        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
     });
 
     it('replaces Transformation Statistics tab with Preview data', () => {
@@ -404,13 +495,15 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.rawSummary.nominalVariables.find(v => v.code === 'age')).toBeFalsy();
     });
 
-    it('renders the source snapshot ahead of the five workflow sections without a model tab', () => {
+    it('renders the source snapshot ahead of the pipeline stages without a model tab', () => {
         fixture.detectChanges();
 
         // The sub-tab buttons moved to the studio stepper; the panel now
-        // exposes only the workflow sections, located by data-guide anchors.
-        // Step 0 leads the flow: the read-only snapshot and its preview come
-        // before the three configurable stages.
+        // exposes only the pipeline nodes, located by data-guide anchors.
+        // Step 0 leads the flow and owns its preview: the source summary is
+        // nested inside the source node. The raw and processed summaries are
+        // nested in their owning nodes, so they only appear once those steps
+        // are added (e.g. after opening Filtering or Preprocessing).
         const guides = (Array.from(
             fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node')
         ) as HTMLElement[]).map((section) => section.getAttribute('data-guide'));
@@ -418,9 +511,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'analysis-source-data',
             'analysis-source-summary',
             'analysis-filtering',
-            'analysis-raw-summary',
             'analysis-preprocessing',
-            'analysis-processed-summary',
             'analysis-transformation',
         ]);
 
@@ -802,6 +893,135 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
     });
 
+    it('previews the processed data with pending, unapplied preprocessing changes', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        mockExpService.loadDescriptiveOverview.calls.reset();
+
+        // Pending (not yet applied) missing-value strategy.
+        component.onMissingActionChange(age, 'mean');
+        expect(component.preprocessingStatus).toBe('pending');
+        expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+
+        // Opening the processed preview uses the pending rules, not the applied config.
+        component.goToSection('processed');
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().processed).toBeTrue();
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
+            ['age'],
+            { missing_values_handler: { strategies: { age: 'mean' } } }
+        );
+    });
+
+    it('refreshes the open processed preview when pending preprocessing changes', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        component.onMissingActionChange(age, 'mean');
+        component.goToSection('processed');
+        fixture.detectChanges();
+
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
+            ['age'],
+            { missing_values_handler: { strategies: { age: 'mean' } } }
+        );
+
+        mockExpService.loadDescriptiveOverview.calls.reset();
+        component.onMissingActionChange(age, 'median');
+        fixture.detectChanges();
+
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
+            ['age'],
+            { missing_values_handler: { strategies: { age: 'median' } } }
+        );
+    });
+
+    it('deduplicates in-flight processed preview requests and keeps the newest response', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        mockExpService.loadDescriptiveOverview.calls.reset();
+
+        component.onMissingActionChange(age, 'mean');
+
+        const first = new Subject<any>();
+        mockExpService.loadDescriptiveOverview.and.returnValue(first.asObservable());
+        (component as any).fetchProcessedPreview();
+
+        // Same pending config: the request is already in flight, so it must not fan out.
+        (component as any).fetchProcessedPreview();
+        expect(mockExpService.loadDescriptiveOverview.calls.count()).toBe(1);
+
+        component.onMissingActionChange(age, 'median');
+        const second = new Subject<any>();
+        mockExpService.loadDescriptiveOverview.and.returnValue(second.asObservable());
+        (component as any).fetchProcessedPreview();
+        expect(mockExpService.loadDescriptiveOverview.calls.count()).toBe(2);
+
+        second.next({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 82 } },
+                ],
+            },
+        });
+        first.next({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        });
+        fixture.detectChanges();
+
+        expect(component.processedSummary.featurewiseRows[0].data.mean).toBe(82);
+
+        first.complete();
+        second.complete();
+    });
+
+    it('supersedes an in-flight source preview when its selection changes', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        const stale = new Subject<any>();
+        mockExpService.loadDescriptiveOverview.and.returnValue(stale.asObservable());
+        component.fetchSourceSummary();
+
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        const current = new Subject<any>();
+        mockExpService.loadDescriptiveOverview.and.returnValue(current.asObservable());
+        component.fetchSourceSummary();
+
+        current.next({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 82 } },
+                ],
+            },
+        });
+        stale.next({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        });
+        fixture.detectChanges();
+
+        expect(component.sourceSummary.featurewiseRows.length).toBe(1);
+        expect(component.sourceSummary.featurewiseRows[0].data.mean).toBe(82);
+        expect(component.sourceSummary.isLoading).toBeFalse();
+
+        stale.complete();
+        current.complete();
+    });
+
     it('selects the first processed statistic after preprocessing is applied', () => {
         const variable = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([variable]);
@@ -963,6 +1183,9 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             },
         }));
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
         fixture.detectChanges();
 
         const workspace = fixture.nativeElement.querySelector('.statistics-workspace') as HTMLElement;
@@ -1003,6 +1226,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('marks only numeric summary tables for the compact no-scroll layout', () => {
         const { age } = configureRawSummary();
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
+        fixture.detectChanges();
 
         const rawSection = workflowSection('Raw Data Summary');
         const rawWrapper = rawSection.querySelector('.statistics-table-wrapper') as HTMLElement;
@@ -1036,6 +1263,9 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             },
         }));
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
         fixture.detectChanges();
 
         const search = fixture.nativeElement.querySelector('input[aria-label="Search raw data summary variables"]') as HTMLInputElement;
@@ -1062,6 +1292,9 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             },
         }));
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
         fixture.detectChanges();
 
         const buttons = Array.from(fixture.nativeElement.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
@@ -1075,6 +1308,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('keeps the raw variable browser visible when the right panel switches to charts', () => {
         configureRawSummary([{ title: { text: 'Age chart' }, series: [] }]);
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
+        fixture.detectChanges();
 
         component.setSummaryTab('raw', 'Charts');
         fixture.detectChanges();
@@ -1089,6 +1326,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('preserves the selected raw variable across Statistics and Charts tabs', () => {
         configureRawSummary();
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
+        fixture.detectChanges();
 
         const buttons = Array.from(fixture.nativeElement.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
         buttons.find((button) => button.textContent?.includes('Sex'))?.click();
@@ -1107,6 +1348,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('shows a chart empty state for a selected variable without chart options', () => {
         configureRawSummary([]);
+        // The raw summary now lives inside the Filtering node, so it only
+        // renders once that step is added.
+        component.addStep('filters');
+        fixture.detectChanges();
 
         component.setSummaryTab('raw', 'Charts');
         fixture.detectChanges();
@@ -1576,6 +1821,58 @@ describe('StatisticAnalysisPanelComponent', () => {
         );
     });
 
+    it('requests processed histogram with pending preprocessing when edits are unapplied', () => {
+        const aspiration = {
+            code: 'aspiration',
+            label: 'Aspiration',
+            type: 'nominal',
+        };
+        const applied = {
+            missing_values_handler: {
+                strategies: { aspiration: 'mean' },
+            },
+        };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(applied);
+        (mockExpService.selectedVariables as any).set([aspiration]);
+        fixture.detectChanges();
+
+        component.onMissingActionChange(aspiration, 'drop');
+        mockExpService.getAlgorithmResults.and.returnValue(of({
+            result: {
+                histogram: [{
+                    var: 'aspiration',
+                    bins: ['0', '1'],
+                    counts: [18000, 3766],
+                }],
+            },
+        }));
+        component.processedSummary = (component as any).buildSummaryFromResponse({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'aspiration',
+                        data: { num_dtps: 21766, num_na: 0, num_total: 21766 },
+                    },
+                ],
+            },
+        }, 'processed');
+        component.processedSummary.selectedStatisticKey = 'aspiration';
+        fixture.detectChanges();
+
+        mockExpService.getAlgorithmResults.calls.reset();
+        component.setSummaryTab('processed', 'Histogram');
+        fixture.detectChanges();
+
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
+            'histogram',
+            ['aspiration'],
+            null,
+            { missing_values_handler: { strategies: { aspiration: 'drop' } } },
+            true
+        );
+    });
+
     it('requests histogram with applied preprocessing when describe has no counts', () => {
         const aspiration = {
             code: 'aspiration',
@@ -2014,5 +2311,317 @@ describe('StatisticAnalysisPanelComponent', () => {
                 .toBe((1234.5).toLocaleString(undefined, { maximumFractionDigits: 2 }));
             expect(component.displayNumber('1234.50')).not.toBe('1234.50');
         });
+
+    describe('summary tabs', () => {
+        it('switches tabs directly without toggle-off gymnastics', () => {
+            configureRawSummary();
+
+            component.setSummaryTab('raw', 'Charts');
+            expect(component.rawSummary.activeTab).toBe('Charts');
+
+            // Re-clicking the same tab keeps it active; it does not fall back to Statistics.
+            component.setSummaryTab('raw', 'Charts');
+            expect(component.rawSummary.activeTab).toBe('Charts');
+
+            component.setSummaryTab('raw', 'Statistics');
+            expect(component.rawSummary.activeTab).toBe('Statistics');
+        });
+
+        it('renders an explicit Table tab in the raw summary workspace', () => {
+            configureRawSummary();
+            // The raw summary now lives inside the Filtering node, so it only
+            // renders once that step is added.
+            component.addStep('filters');
+            fixture.detectChanges();
+            const rawSection = workflowSection('Raw Data Summary');
+            const tabs = Array.from(rawSection.querySelectorAll('.summary-tabs button')) as HTMLButtonElement[];
+            expect(tabs.map((b) => b.textContent?.trim())).toEqual(['Table', 'Charts', 'Histogram']);
+            // Default tab is Statistics (Table).
+            expect(tabs[0].classList.contains('active')).toBeTrue();
+        });
+
+        /**
+         * The switch only swaps the results pane, so the pane owns it. Rendered above the
+         * card it sat over the variable rail and read as a toolbar for the whole surface.
+         * The column wrapper is also what keeps it out of the pane's scroll area.
+         */
+        it('renders the overlay switch inside the results pane it controls', () => {
+            configureRawSummary();
+            component.addStep('filters');
+            fixture.detectChanges();
+
+            const rawSection = workflowSection('Raw Data Summary');
+            const column = rawSection.querySelector('.summary-detail-column') as HTMLElement;
+            const tabs = column.querySelector('.summary-tabs') as HTMLElement;
+            const panel = column.querySelector('.statistics-panel') as HTMLElement;
+
+            expect(tabs).toBeTruthy();
+            expect(panel).toBeTruthy();
+            expect(tabs.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            // The rail lists variables, which the switch does not affect.
+            expect(rawSection.querySelector('.statistics-browser .summary-tabs')).toBeNull();
+        });
+
+        /**
+         * A numerical histogram is a live federated run, not part of the summary payload.
+         * The wait has to say so, otherwise a couple of shimmer lines in a pane that
+         * reserves a full chart height reads as a surface that stopped responding.
+         */
+        it('names the federated run while a numerical histogram loads', () => {
+            configureRawSummary();
+            component.addStep('filters');
+            fixture.detectChanges();
+
+            // Held open: this is the window the user actually stares at.
+            const pending = new Subject<any>();
+            mockExpService.getAlgorithmResults.and.returnValue(pending.asObservable());
+            component.setSummaryTab('raw', 'Histogram');
+            fixture.detectChanges();
+
+            const rawSection = workflowSection('Raw Data Summary');
+            expect(mockExpService.getAlgorithmResults).toHaveBeenCalled();
+            expect(rawSection.textContent).toContain('Calculated on');
+            expect(rawSection.textContent).toContain('dataset node');
+            expect(rawSection.querySelector('.studio-skeleton-chart')).toBeTruthy();
+            expect(rawSection.querySelector('app-histogram')).toBeNull();
+
+            pending.complete();
+        });
+    });
+
+    describe('raw summary fetch', () => {
+        /**
+         * Raw is described with a null preprocessing config, so an Apply cannot move its
+         * numbers. It used to share the selection key with the processed summary and paid
+         * a second full federated describe on every apply.
+         */
+        it('does not refetch the raw summary when only the applied preprocessing changes', () => {
+            configureRawSummary();
+            const before = component.rawSummary;
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            (mockExpService.appliedPreprocessingConfig as any).set({ missing_values_handler: { age: 'mean' } });
+            fixture.detectChanges();
+
+            expect(component.rawSummary).toBe(before);
+            const rawRuns = mockExpService.loadDescriptiveOverview.calls.allArgs().filter((args) => args[1] === null);
+            expect(rawRuns.length).toBe(0);
+        });
+
+        /**
+         * Adding variables in quick succession starts overlapping describes. Without a
+         * sequence guard the slowest response wins, so the card can show a stale cohort.
+         */
+        it('drops a raw describe response that a newer run already superseded', () => {
+            configureRawSummary();
+            component.addStep('filters');
+            fixture.detectChanges();
+
+            const describePayload = (mean: number) => ({
+                result: {
+                    featurewise: [
+                        { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean } },
+                    ],
+                },
+            });
+
+            const stale = new Subject<any>();
+            mockExpService.loadDescriptiveOverview.and.returnValue(stale.asObservable());
+            component.fetchDescriptiveStatistics();
+
+            const current = new Subject<any>();
+            mockExpService.loadDescriptiveOverview.and.returnValue(current.asObservable());
+            component.fetchDescriptiveStatistics();
+
+            current.next(describePayload(71));
+            stale.next(describePayload(99));
+            fixture.detectChanges();
+
+            const table = workflowSection('Raw Data Summary').querySelector('.statistics-table');
+            expect(table?.textContent).toContain('71');
+            expect(table?.textContent).not.toContain('99');
+
+            stale.complete();
+            current.complete();
+        });
+    });
+
+    describe('unapplied-changes guard at the pipeline terminal', () => {
+        it('advances straight to algorithm selection when nothing is pending', () => {
+            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            configureRawSummary();
+
+            component.finishDataHandling();
+
+            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(navigate).toHaveBeenCalledWith('algorithm-section');
+        });
+
+        it('asks what to do with unapplied changes instead of advancing', () => {
+            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const { age } = configureRawSummary();
+            component.onMissingActionChange(age, 'mean');
+            expect(component.pendingChangeCount).toBeGreaterThan(0);
+
+            component.finishDataHandling();
+            fixture.detectChanges();
+
+            expect(navigate).not.toHaveBeenCalled();
+            expect(component.showUnappliedChangesWarning()).toBeTrue();
+            const card = fixture.nativeElement.querySelector('.unapplied-warning-card');
+            expect(card?.textContent).toContain('You have unapplied changes');
+        });
+
+        it('stays in the pipeline when the warning is dismissed', () => {
+            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const { age } = configureRawSummary();
+            component.onMissingActionChange(age, 'mean');
+            component.finishDataHandling();
+            fixture.detectChanges();
+            expect(component.showUnappliedChangesWarning()).toBeTrue();
+
+            (fixture.nativeElement.querySelector('.unapplied-warning-btn.ghost') as HTMLButtonElement).click();
+            fixture.detectChanges();
+
+            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(navigate).not.toHaveBeenCalled();
+            expect(component.pendingChangeCount).toBeGreaterThan(0);
+        });
+
+        it('discards pending changes and continues', () => {
+            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const { age } = configureRawSummary();
+            component.onMissingActionChange(age, 'mean');
+            expect(component.pendingChangeCount).toBeGreaterThan(0);
+
+            component.discardAndContinue();
+            fixture.detectChanges();
+
+            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(component.pendingChangeCount).toBe(0);
+            expect(component.pendingPreprocessingRules['age']?.action).toBe('drop');
+            expect(navigate).toHaveBeenCalledWith('algorithm-section');
+        });
+
+        it('applies pending changes and continues once the describe lands', (done) => {
+            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const { age } = configureRawSummary();
+            const response$ = new Subject<unknown>();
+            spyOn(Element.prototype, 'scrollIntoView');
+            spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+                void Promise.resolve().then(() => callback(0));
+                return 0;
+            });
+            mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+
+            component.onMissingActionChange(age, 'mean');
+            component.applyAndContinue();
+
+            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(navigate).not.toHaveBeenCalled();
+
+            setTimeout(() => {
+                response$.next({
+                    result: {
+                        featurewise: [
+                            { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                        ],
+                    },
+                });
+                response$.complete();
+                fixture.detectChanges();
+
+                expect(component.pendingChangeCount).toBe(0);
+                expect(navigate).toHaveBeenCalledWith('algorithm-section');
+                done();
+            }, 0);
+        });
+    });
+
+    describe('batch preprocessing actions', () => {
+        it('applies a batch mean strategy to every numerical variable only', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            const glucose = { code: 'glucose', label: 'Glucose', type: 'real' };
+            const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+            (mockExpService.selectedVariables as any).set([age, glucose, sex]);
+            fixture.detectChanges();
+
+            component.applyBatchMissingStrategy('mean');
+
+            expect(component.pendingPreprocessingRules['age']?.action).toBe('mean');
+            expect(component.pendingPreprocessingRules['glucose']?.action).toBe('mean');
+            // sex keeps the implicit NA-removal default; the batch only touched numerical.
+            expect(component.pendingPreprocessingRules['sex']?.action).toBe('drop');
+            expect(component.pendingChangeCount).toBeGreaterThan(0);
+        });
+
+        it('resets every variable to drop via batch action', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+            (mockExpService.selectedVariables as any).set([age, sex]);
+            fixture.detectChanges();
+
+            // Move age off its default so the reset is observable.
+            component.onMissingActionChange(age, 'mean');
+            expect(component.pendingPreprocessingRules['age']?.action).toBe('mean');
+
+            component.applyBatchMissingStrategy('drop');
+
+            expect(component.pendingPreprocessingRules['age']?.action).toBe('drop');
+            expect(component.pendingPreprocessingRules['sex']?.action).toBe('drop');
+            // Both back at the implicit default: nothing pending.
+            expect(component.pendingChangeCount).toBe(0);
+        });
+
+        it('enables the outlier winsorizer for all eligible variables via batch action', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+            (mockExpService.selectedVariables as any).set([age, sex]);
+            fixture.detectChanges();
+
+            component.toggleAllOutliers(true);
+
+            expect(component.pendingOutlierRules['age']?.enabled).toBeTrue();
+            expect(component.pendingOutlierRules['sex']).toBeUndefined();
+        });
+    });
+
+    describe('cohort retention strip', () => {
+        it('shows the retention strip only when both raw and processed summaries are loaded', (done) => {
+            const { age } = configureRawSummary();
+            // Before any preprocessing is applied, the processed summary is empty.
+            expect(fixture.nativeElement.querySelector('.cohort-retention-strip')).toBeNull();
+
+            const response$ = new Subject<unknown>();
+            spyOn(Element.prototype, 'scrollIntoView');
+            spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+                void Promise.resolve().then(() => callback(0));
+                return 0;
+            });
+            mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+
+            component.onMissingActionChange(age, 'mean');
+            component.applyPreprocessing();
+
+            setTimeout(() => {
+                response$.next({
+                    result: {
+                        featurewise: [
+                            { dataset: 'all datasets', variable: 'age', data: { num_dtps: 8, num_na: 0, num_total: 8, mean: 71 } },
+                        ],
+                    },
+                });
+                response$.complete();
+                fixture.detectChanges();
+
+                const strip = fixture.nativeElement.querySelector('.cohort-retention-strip');
+                expect(strip).not.toBeNull();
+                expect(strip.textContent).toContain('8 / 10');
+                expect(strip.textContent).toContain('2 rows removed by preprocessing');
+                done();
+            }, 0);
+        });
+    });
+
     });
 });

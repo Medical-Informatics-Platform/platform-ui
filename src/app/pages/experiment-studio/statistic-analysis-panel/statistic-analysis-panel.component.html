@@ -18,33 +18,44 @@
            empty-state line. Anchors come from summaryGuideAnchor, so only the surfaces the
            tour and QA actually target wear them. -->
       <ng-template #summaryWorkspace let-kind="kind" let-summary="summary" let-exitLabel="exitLabel" let-emptyHint="emptyHint">
+          @if (kind !== 'source') {
           <div class="station-preview-bar">
-            <div class="summary-tabs modal-tabs" role="group" [attr.aria-label]="summaryKindLabel(kind) + ' summary overlays'" [attr.data-guide]="summaryGuideAnchor(kind, 'charts')">
-              <button
-                type="button"
-                [class.active]="summary.activeTab === 'Charts'"
-                [attr.aria-pressed]="summary.activeTab === 'Charts'"
-                (click)="setSummaryTab(kind, 'Charts')">
-                Charts
-              </button>
-              <button
-                type="button"
-                [class.active]="summary.activeTab === 'Histogram'"
-                [attr.aria-pressed]="summary.activeTab === 'Histogram'"
-                (click)="setSummaryTab(kind, 'Histogram')">
-                Histogram
-              </button>
-            </div>
             <button
               type="button"
               class="station-preview-toggle"
-              (click)="kind === 'source' ? toggleSourcePreview() : toggleSummaryWorkspace(kind)">
+              (click)="toggleSummaryWorkspace(kind)">
               <i class="fa fa-arrow-left" aria-hidden="true"></i>
               <span>{{ exitLabel }}</span>
             </button>
+            <button
+              type="button"
+              class="station-preview-toggle station-preview-close"
+              title="Close the preview"
+              (click)="closeSummaryWorkspace(kind)">
+              <i class="fas fa-times" aria-hidden="true"></i>
+              <span>Close</span>
+            </button>
           </div>
+          }
+
+          @if (kind === 'processed' && cohortRetention; as retention) {
+          <div class="cohort-retention-strip" role="status">
+            <i class="fas fa-users" aria-hidden="true"></i>
+            <span>
+              Cohort retention: {{ retention.processed.toLocaleString() }} / {{ retention.raw.toLocaleString() }} records
+              @if (retention.dropped > 0) {
+              ({{ retention.dropped.toLocaleString() }} rows removed by preprocessing)
+              }
+              · {{ retention.percentage.toFixed(1) }}% retained
+            </span>
+          </div>
+          }
 
           @if (summary.isLoading) {
+          <div class="federated-info-note chart-note">
+            <i class="fa fa-info-circle"></i>
+            <span><strong>{{ summaryScopeRunLabel() }}.</strong> The summary is calculated on every node and waits for the slowest one.</span>
+          </div>
           <div class="studio-skeleton-card" role="status" [attr.aria-label]="summaryKindLabel(kind) + ' summary loading'">
             <span class="studio-skeleton-line medium"></span>
             <span class="studio-skeleton-line short"></span>
@@ -115,119 +126,161 @@
                 }
               </aside>
 
-              <div class="statistics-panel" [attr.data-guide]="summaryGuideAnchor(kind, 'details')">
-                @if (selectedStatisticBlock(kind); as selectedBlock) {
-                @if (summary.activeTab === 'Statistics') {
-                <div class="statistics-panel-header">
-                  <div>
-                    <span class="statistics-panel-kicker">{{ statisticBlockTypeLabel(kind, selectedBlock) }} variable</span>
-                    <h4>{{ selectedBlock.name }}</h4>
-                  </div>
-                  <div class="summary-panel-actions">
-                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                      <i class="fa fa-file-pdf-o"></i>
-                      PDF
-                    </button>
-                    <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV(kind)" title="Export CSV">
-                      <i class="fa fa-file-text-o"></i>
-                      CSV
-                    </button>
-                  </div>
+              <div class="summary-detail-column">
+                <div class="summary-tabs modal-tabs" role="group" [attr.aria-label]="summaryKindLabel(kind) + ' summary overlays'" [attr.data-guide]="summaryGuideAnchor(kind, 'charts')">
+                  <button
+                    type="button"
+                    [class.active]="summary.activeTab === 'Statistics'"
+                    [attr.aria-pressed]="summary.activeTab === 'Statistics'"
+                    (click)="setSummaryTab(kind, 'Statistics')">
+                    Table
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="summary.activeTab === 'Charts'"
+                    [attr.aria-pressed]="summary.activeTab === 'Charts'"
+                    (click)="setSummaryTab(kind, 'Charts')">
+                    Charts
+                  </button>
+                  <button
+                    type="button"
+                    [class.active]="summary.activeTab === 'Histogram'"
+                    [attr.aria-pressed]="summary.activeTab === 'Histogram'"
+                    (click)="setSummaryTab(kind, 'Histogram')">
+                    Histogram
+                  </button>
                 </div>
 
-                <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType(kind, selectedBlock) === 'numeric'">
-                  <table class="data-table pivot-table statistics-table">
-                    <thead>
-                      <tr>
-                        <th>Metric</th>
-                        @for (ds of selectedBlock.columns; track ds) {
-                        <th [class.statistics-col-rollup]="isRollupColumn(ds)">{{ datasetLabel(ds) }}</th>
+                <div class="statistics-panel" [attr.data-guide]="summaryGuideAnchor(kind, 'details')">
+                  @if (selectedStatisticBlock(kind); as selectedBlock) {
+                  @if (summary.activeTab === 'Statistics') {
+                  <div class="statistics-panel-header">
+                    <div>
+                      <span class="statistics-panel-kicker">{{ statisticBlockTypeLabel(kind, selectedBlock) }} variable</span>
+                      <h4>{{ selectedBlock.name }}</h4>
+                    </div>
+                    <div class="summary-panel-actions">
+                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
+                        <i class="fa fa-file-pdf-o"></i>
+                        PDF
+                      </button>
+                      <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV(kind)" title="Export CSV">
+                        <i class="fa fa-file-text-o"></i>
+                        CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType(kind, selectedBlock) === 'numeric'">
+                    <table class="data-table pivot-table statistics-table">
+                      <thead>
+                        <tr>
+                          <th>Metric</th>
+                          @for (ds of selectedBlock.columns; track ds) {
+                          <th [class.statistics-col-rollup]="isRollupColumn(ds)">{{ datasetLabel(ds) }}</th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (r of selectedBlock.rows; track r.metric; let ri = $index) {
+                        @if (metricGroupLabel(selectedBlock.rows, ri); as groupLabel) {
+                        <tr class="statistics-metric-group">
+                          <td [attr.colspan]="selectedBlock.columns.length + 1">{{ groupLabel }}</td>
+                        </tr>
                         }
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (r of selectedBlock.rows; track r.metric; let ri = $index) {
-                      @if (metricGroupLabel(selectedBlock.rows, ri); as groupLabel) {
-                      <tr class="statistics-metric-group">
-                        <td [attr.colspan]="selectedBlock.columns.length + 1">{{ groupLabel }}</td>
-                      </tr>
-                      }
-                      <tr>
-                        <td class="metric-cell">{{ r.metric }}</td>
-                        @for (ds of selectedBlock.columns; track ds) {
-                        <td [class.statistics-col-rollup]="isRollupColumn(ds)">{{ displayNumber(r.values[ds]) }}@if (missingShareNote(selectedBlock, r, ds); as share) {<span class="statistics-cell-note">{{ share }}</span>}
-                        </td>
+                        <tr>
+                          <td class="metric-cell">{{ r.metric }}</td>
+                          @for (ds of selectedBlock.columns; track ds) {
+                          <td [class.statistics-col-rollup]="isRollupColumn(ds)">{{ displayNumber(r.values[ds]) }}@if (missingShareNote(selectedBlock, r, ds); as share) {<span class="statistics-cell-note">{{ share }}</span>}
+                          </td>
+                          }
+                        </tr>
                         }
-                      </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-                }
-
-                @if (summary.activeTab === 'Charts') {
-                <div class="chart-panel-header">
-                  <div>
-                    <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
-                    <h4>{{ selectedBlock.name }}</h4>
+                      </tbody>
+                    </table>
                   </div>
-                  <div class="summary-panel-actions">
-                    <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                      <i class="fa fa-file-pdf-o"></i>
-                      PDF
-                    </button>
+                  }
+
+                  @if (summary.activeTab === 'Charts') {
+                  <div class="chart-panel-header">
+                    <div>
+                      <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
+                      <h4>{{ selectedBlock.name }}</h4>
+                    </div>
+                    <div class="summary-panel-actions">
+                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
+                        <i class="fa fa-file-pdf-o"></i>
+                        PDF
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                @if (selectedSummaryChartOptions(kind, selectedBlock).length > 0) {
-                @if (selectedSummaryChartType(kind, selectedBlock) === 'numeric') {
-                <div class="federated-info-note chart-note">
-                  <i class="fa fa-info-circle"></i>
-                  <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled metrics (Q1, median, Q3) is not possible in federated analytics.</span>
-                </div>
-                }
-
-                <div class="chart-container chart-container--workspace fade">
-                  <app-chart-renderer [charts]="selectedSummaryChartOptions(kind, selectedBlock)"></app-chart-renderer>
-                </div>
-                } @else {
-                <div class="empty-state-block compact-empty chart-empty-panel">
-                  <i class="fa fa-bar-chart"></i>
-                  <p>No chart available for {{ selectedBlock.name }}.</p>
-                  <span>Select another variable or review its statistics.</span>
-                </div>
-                }
-                }
-
-                @if (summary.activeTab === 'Histogram') {
-                <div class="chart-panel-header">
-                  <div>
-                    <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
-                    <h4>{{ selectedBlock.name }}</h4>
+                  @if (selectedSummaryChartOptions(kind, selectedBlock).length > 0) {
+                  @if (selectedSummaryChartType(kind, selectedBlock) === 'numeric') {
+                  <div class="federated-info-note chart-note">
+                    <i class="fa fa-info-circle"></i>
+                    <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled metrics (Q1, median, Q3) is not possible in federated analytics.</span>
                   </div>
-                </div>
+                  }
 
-                @if (summaryHistogramLoading(kind, selectedBlock)) {
-                <div class="studio-skeleton-card" role="status" aria-label="Histogram loading">
-                  <span class="studio-skeleton-line medium"></span>
-                  <span class="studio-skeleton-line short"></span>
+                  <div class="chart-container chart-container--workspace fade">
+                    <app-chart-renderer [charts]="selectedSummaryChartOptions(kind, selectedBlock)"></app-chart-renderer>
+                  </div>
+                  } @else {
+                  <div class="empty-state-block compact-empty chart-empty-panel">
+                    <i class="fa fa-bar-chart"></i>
+                    <p>No chart available for {{ selectedBlock.name }}.</p>
+                    <span>Select another variable or review its statistics.</span>
+                  </div>
+                  }
+                  }
+
+                  @if (summary.activeTab === 'Histogram') {
+                  <div class="chart-panel-header">
+                    <div>
+                      <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
+                      <h4>{{ selectedBlock.name }}</h4>
+                    </div>
+                  </div>
+
+                  @if (summaryHistogramLoading(kind, selectedBlock)) {
+                  <!-- A numerical histogram is not in the summary payload, so this is a live
+                       federated run that waits on the slowest node. Two shimmer lines inside a
+                       pane that reserves 420px for a chart read as a stalled surface, so the
+                       wait says what it is doing and borrows the Chart skeleton from
+                       Datasets & Variables. -->
+                  <div class="federated-info-note chart-note">
+                    <i class="fa fa-info-circle"></i>
+                    <span><strong>{{ summaryHistogramRunLabel(selectedBlock) }}.</strong> Numerical histograms are not part of the summary payload, so the first run for each variable is computed live and waits for the slowest node.</span>
+                  </div>
+                  <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" [attr.aria-label]="summaryKindLabel(kind) + ' histogram loading'">
+                    <span class="studio-skeleton-line medium"></span>
+                    <div class="studio-skeleton-chart" aria-hidden="true">
+                      <span class="studio-skeleton-bar" style="height: 42%"></span>
+                      <span class="studio-skeleton-bar" style="height: 68%"></span>
+                      <span class="studio-skeleton-bar" style="height: 56%"></span>
+                      <span class="studio-skeleton-bar" style="height: 84%"></span>
+                      <span class="studio-skeleton-bar" style="height: 48%"></span>
+                      <span class="studio-skeleton-bar" style="height: 64%"></span>
+                    </div>
+                  </div>
+                  } @else if (summaryHistogramError(kind, selectedBlock)) {
+                  <div class="row-error">{{ summaryHistogramError(kind, selectedBlock) }}</div>
+                  } @else if (selectedSummaryHistogramData(kind, selectedBlock)) {
+                  <div class="chart-container chart-container--workspace fade">
+                    <app-histogram [data]="selectedSummaryHistogramData(kind, selectedBlock)" [config]="{ color: '#2b33e9' }"></app-histogram>
+                  </div>
+                  } @else {
+                  <div class="empty-state-block compact-empty chart-empty-panel">
+                    <i class="fa fa-bar-chart"></i>
+                    <p>No histogram available for {{ selectedBlock.name }}.</p>
+                    <span>Select another variable or review its statistics.</span>
+                  </div>
+                  }
+                  }
+                  }
                 </div>
-                } @else if (summaryHistogramError(kind, selectedBlock)) {
-                <div class="row-error">{{ summaryHistogramError(kind, selectedBlock) }}</div>
-                } @else if (selectedSummaryHistogramData(kind, selectedBlock)) {
-                <div class="chart-container chart-container--workspace fade">
-                  <app-histogram [data]="selectedSummaryHistogramData(kind, selectedBlock)" [config]="{ color: '#2b33e9' }"></app-histogram>
-                </div>
-                } @else {
-                <div class="empty-state-block compact-empty chart-empty-panel">
-                  <i class="fa fa-bar-chart"></i>
-                  <p>No histogram available for {{ selectedBlock.name }}.</p>
-                  <span>Select another variable or review its statistics.</span>
-                </div>
-                }
-                }
-                }
-            </div>
+              </div>
             </section>
             } @else {
             <div class="empty-state-block compact-empty">
@@ -258,7 +311,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>0. Source Data</h3>
+              <h3>Raw data</h3>
               <span class="pipeline-node-subtitle">The selected variables as stored, before any rule is applied</span>
             </div>
           </div>
@@ -271,7 +324,7 @@
               (click)="toggleSourcePreview()">
               @if (sectionOpen().source) {
               <i class="fas fa-chevron-up" aria-hidden="true"></i>
-              <span>Hide preview</span>
+              <span>Close</span>
               } @else {
               <i class="fas fa-eye" aria-hidden="true"></i>
               <span>Preview source data</span>
@@ -279,18 +332,19 @@
             </button>
           </div>
         </header>
-      </section>
-
-      <!-- STEP 0 PREVIEW: the shared summary workspace, fed by an unfiltered describe -->
-      <section #sourceSection class="workflow-section" data-guide="analysis-source-summary">
-        <div class="workflow-section-body" [class.open]="sectionOpen().source">
-          <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
-               and hand the tour or a shared toggle the wrong surface. -->
-          @if (sectionOpen().source) {
-          <ng-template
-            [ngTemplateOutlet]="summaryWorkspace"
-            [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, exitLabel: 'Hide preview', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
-          }
+        <div class="pipeline-node-body">
+          <!-- STEP 0 PREVIEW: the shared summary workspace, fed by an unfiltered describe -->
+          <div #sourceSection class="workflow-section" data-guide="analysis-source-summary">
+            <div class="workflow-section-body" [class.open]="sectionOpen().source">
+              <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
+                   and hand the tour or a shared toggle the wrong surface. -->
+              @if (sectionOpen().source) {
+              <ng-template
+                [ngTemplateOutlet]="summaryWorkspace"
+                [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, exitLabel: 'Hide preview', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
+              }
+            </div>
+          </div>
         </div>
       </section>
 
@@ -340,6 +394,16 @@
             <span class="pipeline-status-badge applied">
               {{ filteringStatusLabel }}
             </span>
+            @if (!sectionOpen().filters && !sectionOpen().raw) {
+            <button
+              type="button"
+              class="station-preview-toggle"
+              title="Edit filters"
+              (click)="goToSection('filters')">
+              <i class="fas fa-pencil-alt" aria-hidden="true"></i>
+              <span>Edit filters</span>
+            </button>
+            }
             <button
               type="button"
               class="btn-remove-step-node"
@@ -376,18 +440,17 @@
               (apply)="commitOrCloseFilterStation(filterModal)"
             ></app-station-action-bar>
           </app-station-card>
+          </div>
+          <div #rawSection class="workflow-section" data-guide="analysis-raw-summary">
+            <div class="workflow-section-body" [class.open]="sectionOpen().raw">
+              <ng-template
+                [ngTemplateOutlet]="summaryWorkspace"
+                [ngTemplateOutletContext]="{ kind: 'raw', summary: rawSummary, exitLabel: 'Edit filters', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
+            </div>
+          </div>
         </div>
-      </div>
       }
     </section>
-
-      <section #rawSection class="workflow-section" data-guide="analysis-raw-summary">
-        <div class="workflow-section-body" [class.open]="sectionOpen().raw">
-          <ng-template
-            [ngTemplateOutlet]="summaryWorkspace"
-            [ngTemplateOutletContext]="{ kind: 'raw', summary: rawSummary, exitLabel: 'Edit filters', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
-        </div>
-      </section>
 
       <!-- CONNECTOR 1 -> 2 -->
       <div class="pipeline-connector" aria-hidden="true">
@@ -443,7 +506,7 @@
 
         <!-- Collapsed overview: the rail of every sub-step the pipeline will run, followed
              by the dashed rows that create the ones it does not hold yet. -->
-        @if (!sectionOpen().setup) {
+        @if (!sectionOpen().setup && !sectionOpen().processed) {
         <div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
           @for (node of appliedPreprocessingSubNodes; track node.id) {
           <div class="pipeline-subnode-item" role="listitem">
@@ -524,6 +587,23 @@
                   <div class="statistics-browser-header">
                     <span>Variables</span>
                     <small>{{ filteredPrepVariables('missing').length }} shown</small>
+                    <div class="batch-menu">
+                      <button
+                        type="button"
+                        class="studio-export-btn batch-menu-trigger"
+                        [attr.aria-expanded]="batchMenuOpen() === 'missing'"
+                        (click)="toggleBatchMenu('missing')">
+                        <i class="fas fa-bolt" aria-hidden="true"></i>
+                        Batch
+                      </button>
+                      @if (batchMenuOpen() === 'missing') {
+                      <div class="batch-menu-list" role="menu">
+                        <button type="button" role="menuitem" (click)="applyBatchMissingStrategy('mean')">Set all numerical to Mean imputation</button>
+                        <button type="button" role="menuitem" (click)="applyBatchMissingStrategy('median')">Set all numerical to Median imputation</button>
+                        <button type="button" role="menuitem" (click)="applyBatchMissingStrategy('drop')">Reset all to Remove rows (Drop NaN)</button>
+                      </div>
+                      }
+                    </div>
                   </div>
                   <div class="search-inline chart-search">
                     <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="prepSearch.missing" />
@@ -745,6 +825,22 @@
                   <div class="statistics-browser-header">
                     <span>Variables</span>
                     <small>{{ filteredPrepVariables('outlier').length }} shown</small>
+                    <div class="batch-menu">
+                      <button
+                        type="button"
+                        class="studio-export-btn batch-menu-trigger"
+                        [attr.aria-expanded]="batchMenuOpen() === 'outlier'"
+                        (click)="toggleBatchMenu('outlier')">
+                        <i class="fas fa-bolt" aria-hidden="true"></i>
+                        Batch
+                      </button>
+                      @if (batchMenuOpen() === 'outlier') {
+                      <div class="batch-menu-list" role="menu">
+                        <button type="button" role="menuitem" (click)="toggleAllOutliers(true)">Enable for all numerical</button>
+                        <button type="button" role="menuitem" (click)="toggleAllOutliers(false)">Disable for all</button>
+                      </div>
+                      }
+                    </div>
                   </div>
                   <div class="search-inline chart-search">
                     <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="prepSearch.outlier" />
@@ -1113,22 +1209,21 @@
             [resetDisabled]="pendingChangeCount === 0 || isApplyingPreprocessing"
             [applyDisabled]="isApplyingPreprocessing"
             (reset)="resetChanges()"
-            (preview)="goToSection('processed')"
+            (preview)="previewProcessedData()"
             (apply)="commitOrClosePreprocessing()"
           ></app-station-action-bar>
           </div>
+          </div>
+          <div #processedSection class="workflow-section" data-guide="analysis-processed-summary">
+            <div class="workflow-section-body" [class.open]="sectionOpen().processed">
+              <ng-template
+                [ngTemplateOutlet]="summaryWorkspace"
+                [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, exitLabel: 'Edit preprocessing', emptyHint: 'Select variables and datasets to load the processed data summary.' }"></ng-template>
+            </div>
+          </div>
         </div>
-      </div>
         }
     </section>
-
-      <section #processedSection class="workflow-section" data-guide="analysis-processed-summary">
-        <div class="workflow-section-body" [class.open]="sectionOpen().processed">
-          <ng-template
-            [ngTemplateOutlet]="summaryWorkspace"
-            [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, exitLabel: 'Edit preprocessing', emptyHint: 'Apply preprocessing to recalculate the processed data summary.' }"></ng-template>
-        </div>
-      </section>
 
       <!-- CONNECTOR 2 -> 3 -->
       <div class="pipeline-connector" aria-hidden="true">
@@ -1384,6 +1479,27 @@
 
       <!-- PIPELINE TERMINAL -->
       <div class="pipeline-terminal-card">
+        @if (showUnappliedChangesWarning()) {
+        <div class="unapplied-warning-card" role="alert">
+          <div class="unapplied-warning-icon"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></div>
+          <div class="unapplied-warning-text">
+            <h4>You have unapplied changes</h4>
+            <p>Apply them or discard them before moving to Algorithm Selection.</p>
+          </div>
+          <div class="unapplied-warning-actions">
+            <button type="button" class="btn-finish-pipeline" (click)="applyAndContinue()">
+              <span>Apply &amp; Continue</span>
+              <i class="fas fa-check" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn-finish-pipeline unapplied-warning-btn secondary" (click)="discardAndContinue()">
+              <span>Discard Changes &amp; Continue</span>
+            </button>
+            <button type="button" class="btn-finish-pipeline unapplied-warning-btn ghost" (click)="showUnappliedChangesWarning.set(false)">
+              <span>Stay in Pipeline</span>
+            </button>
+          </div>
+        </div>
+        }
         <div class="pipeline-terminal-content">
           <div class="pipeline-terminal-icon"><i class="fas fa-circle-check" aria-hidden="true"></i></div>
           <div class="pipeline-terminal-info">

@@ -275,9 +275,6 @@ button:disabled {
     padding: 12px;
   }
 
-  .summary-tabs {
-    margin: -12px -12px 12px;
-  }
 
   .search-inline {
     max-width: none;

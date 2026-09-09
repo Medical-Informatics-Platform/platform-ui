@@ -28,13 +28,6 @@
   margin-bottom: 0;
 }
 
-/* The switch hugs its own segments; the toggle on the right stays right-aligned. */
-.station-preview-bar .summary-tabs {
-  flex: 0 0 auto;
-  margin: 0;
-  justify-content: flex-start;
-}
-
 .station-preview-toggle {
   appearance: none;
   display: inline-flex;
@@ -52,6 +45,12 @@
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* The preview bar carries a back button and a Close; only the first one owns the
+   auto margin, so the pair stays together at the trailing edge of the bar. */
+.station-preview-toggle.station-preview-close {
+  margin-left: 0;
 }
 
 .station-preview-toggle i {
@@ -74,8 +73,108 @@
   outline-offset: 2px;
 }
 
+/* Cohort-retention strip above the processed summary workspace. */
+.cohort-retention-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background: color-mix(in srgb, var(--primary-color) 5%, white);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+}
+
+.cohort-retention-strip i {
+  color: var(--primary-color);
+  font-size: 0.9rem;
+}
+
+/* Batch-action menu in the preprocessing variable-browser header. */
+.batch-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+/* The Batch trigger is the app's studio pill (styles.css) with a rounder frame; the open
+   state comes from [aria-expanded], which .studio-export-btn already paints. */
+.batch-menu-trigger {
+  border-radius: 999px;
+}
+
+.batch-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  padding: 6px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(43, 51, 233, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.batch-menu-list button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  white-space: normal;
+}
+
+.batch-menu-list button:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+}
+
+.batch-menu-list button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* The overlay switch changes only the results pane, so it lives inside that pane
+   instead of above the card, where it read as a toolbar for the variable rail.
+   The column keeps it outside the pane's scroller, so it holds in place while a
+   long metrics table scrolls under it, and it owns the switch's spacing: padding
+   on .summary-tabs would override the .modal-tabs padding and stretch the pill's
+   own background and border past the labels. */
+.summary-detail-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding-top: 14px;
+}
+
+.summary-detail-column .statistics-panel {
+  flex: 1 1 auto;
+}
+
+/* Centered because it is the pane's own view control: the pane is much wider than
+   the pill, and hugging one gutter left it stranded above the heading. Centering
+   the pill itself, not a row, keeps its capsule sized to the labels. */
 .summary-tabs {
-  margin: -14px 0 14px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+@media (max-width: 768px) {
+  .summary-detail-column {
+    padding-top: 12px;
+  }
 }
 
 .empty-state,

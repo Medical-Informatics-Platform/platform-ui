@@ -12,12 +12,14 @@ import {
   ViewChild,
   ViewChildren,
   output,
-  input
+  input,
+  OnDestroy
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
+import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
@@ -136,6 +138,8 @@ interface SummaryView {
   histogramDataByVariable: Record<string, HistogramPreviewData>;
   histogramLoadingByVariable: Record<string, boolean>;
   histogramErrorByVariable: Record<string, string>;
+  histogramSubscriptionsByVariable: Record<string, Subscription>;
+  histogramRequestIdByVariable: Record<string, number>;
   activeBoxPlotIndex: number;
   activeNominalIndex: number;
   selectedStatisticKey: string | null;
@@ -214,7 +218,7 @@ export interface DescriptiveProgressState {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StatisticAnalysisPanelComponent {
+export class StatisticAnalysisPanelComponent implements OnDestroy {
   readonly processedDataInput = input<PivotBlock[]>([], { alias: 'processedData' });
   processedData: PivotBlock[] = [];
   readonly variables = input<unknown[]>([]);
@@ -236,6 +240,7 @@ export class StatisticAnalysisPanelComponent {
   transformationRuleModals?: QueryList<FilterConfigModalComponent>;
 
   expStudioService = inject(ExperimentStudioService);
+  private readonly destroyed = new Subject<void>();
   private studioNavigation = inject(ExperimentStudioNavigationService);
   private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
@@ -311,6 +316,7 @@ export class StatisticAnalysisPanelComponent {
     setup: false,
     transformation: false,
   });
+  readonly showUnappliedChangesWarning = signal(false);
 
   isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
     if (this.addedSteps()[step]) return true;
@@ -347,6 +353,9 @@ export class StatisticAnalysisPanelComponent {
       this.persistAppliedDescriptivePreprocessing(null);
       this.preprocessingStatus = 'none';
       this.userPreprocessingApplied = false;
+      this.processedDescribeSeq++;
+      this.clearProcessedPreviewSubscription();
+      this.clearHistogramSubscriptions(this.processedSummary);
       this.processedSummary = this.createEmptySummary(false);
       this.processedSummaryKey = '';
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
@@ -407,6 +416,28 @@ export class StatisticAnalysisPanelComponent {
   }
 
   finishDataHandling(): void {
+    if (this.pendingChangeCount > 0 || this.transformationHasPendingChange) {
+      this.showUnappliedChangesWarning.set(true);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  applyAndContinue(): void {
+    this.showUnappliedChangesWarning.set(false);
+    if (this.pendingChangeCount > 0) {
+      this.continueAfterApply = true;
+      this.applyPreprocessing();
+      return;
+    }
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  discardAndContinue(): void {
+    this.showUnappliedChangesWarning.set(false);
+    this.resetChanges();
+    this.discardPendingTransformation();
     this.studioNavigation.navigateToSection('algorithm-section');
   }
 
@@ -653,9 +684,18 @@ export class StatisticAnalysisPanelComponent {
   };
 
   private selectionKey = '';
+  private rawSummaryKey = '';
+  /** Supersedes an in-flight raw describe so a late response cannot win. */
+  private rawDescribeSeq = 0;
   private processedSummaryKey = '';
   private sourceSummaryKey = '';
+  private processedPreviewSubscription: Subscription | null = null;
+  private sourcePreviewSubscription: Subscription | null = null;
+  /** Supersedes in-flight processed/source describes so a late response cannot win. */
+  private processedDescribeSeq = 0;
+  private sourceDescribeSeq = 0;
   private scrollRequestId = 0;
+  private continueAfterApply = false;
   private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
   private readonly guideState = inject(ExperimentStudioGuideStateService);
 
@@ -699,16 +739,25 @@ export class StatisticAnalysisPanelComponent {
       const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
       const nextSelectionKey = this.buildSelectionKey(variables, filters, filterLogic, appliedPreprocessing);
 
-      if (nextSelectionKey !== this.selectionKey) {
-        this.selectionKey = nextSelectionKey;
-        this.reconcilePreprocessingForSelection();
-      }
+      if (nextSelectionKey === this.selectionKey) return;
+      this.selectionKey = nextSelectionKey;
+      this.reconcilePreprocessingForSelection();
 
       if (!variables.length && !filters.length) {
+        this.rawDescribeSeq++;
+        this.processedDescribeSeq++;
+        this.sourceDescribeSeq++;
+        this.clearProcessedPreviewSubscription();
+        this.clearSourcePreviewSubscription();
+        this.clearHistogramSubscriptions(this.rawSummary);
+        this.clearHistogramSubscriptions(this.sourceSummary);
+        this.clearHistogramSubscriptions(this.processedSummary);
         this.rawSummary = this.createEmptySummary(false);
         this.processedSummary = this.createEmptySummary(false);
         this.sourceSummary = this.createEmptySummary(false);
+        this.rawSummaryKey = '';
         this.sourceSummaryKey = '';
+        this.processedSummaryKey = '';
         this.processedData = [];
         this.isLoading = false;
         this.expStudioService.clearDataExclusionWarnings();
@@ -716,8 +765,15 @@ export class StatisticAnalysisPanelComponent {
         return;
       }
 
-      this.fetchDescriptiveStatistics();
-      this.fetchProcessedSummaryForAppliedPreprocessing();
+      // Raw is "the variables as stored": it is requested with a null preprocessing
+      // config, so applying preprocessing cannot change its numbers and must not
+      // spend a second full federated describe on it.
+      const nextRawKey = this.buildSelectionKey(variables, filters, filterLogic);
+      if (nextRawKey !== this.rawSummaryKey) {
+        this.rawSummaryKey = nextRawKey;
+        this.fetchDescriptiveStatistics();
+      }
+      this.fetchProcessedPreview();
       // untracked: the snapshot refreshes with the selection, but sectionOpen must
       // not become a dependency of this effect or every section switch refetches raw.
       if (untracked(this.sectionOpen).source) this.ensureSourceSummary();
@@ -735,6 +791,16 @@ export class StatisticAnalysisPanelComponent {
         }
       });
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroyed.next();
+    this.destroyed.complete();
+    this.clearProcessedPreviewSubscription();
+    this.clearSourcePreviewSubscription();
+    this.clearHistogramSubscriptions(this.rawSummary);
+    this.clearHistogramSubscriptions(this.sourceSummary);
+    this.clearHistogramSubscriptions(this.processedSummary);
   }
 
   get pendingChangeCount(): number {
@@ -1074,7 +1140,7 @@ export class StatisticAnalysisPanelComponent {
 
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
     const summary = this.getSummary(kind);
-    summary.activeTab = summary.activeTab === tab && tab !== 'Statistics' ? 'Statistics' : tab;
+    summary.activeTab = tab;
     if (tab === 'Histogram') {
       const block = this.selectedStatisticBlock(kind);
       if (block) this.ensureHistogramForBlock(kind, block);
@@ -1163,6 +1229,23 @@ export class StatisticAnalysisPanelComponent {
     return !!this.getSummary(kind).histogramLoadingByVariable[code];
   }
 
+  /** What a histogram run covers, spelled out for the loading state. The pooled
+     "all datasets" rollup is a result column, not a node, so it is not counted. */
+  summaryHistogramRunLabel(block: PivotBlock): string {
+    return this.federatedRunLabel(block.columns.filter((column) => !this.isRollupColumn(column)).length);
+  }
+
+  /** Fan-out wording for a run that has not returned yet, read from the live scope. */
+  summaryScopeRunLabel(): string {
+    const excluded = this.expStudioService.excludedDatasets();
+    const nodes = this.expStudioService.selectedDatasets().filter((ds) => !excluded.includes(ds)).length;
+    return this.federatedRunLabel(nodes);
+  }
+
+  private federatedRunLabel(nodes: number): string {
+    return `Calculated on ${nodes} dataset ${nodes === 1 ? 'node' : 'nodes'}`;
+  }
+
   summaryHistogramError(kind: SummaryKind, block: PivotBlock): string {
     const code = this.variableCodeForBlock(block);
     if (!code) return '';
@@ -1197,6 +1280,12 @@ export class StatisticAnalysisPanelComponent {
     });
     if (section === 'transformation') {
       this.transformationActiveTab = 'Create';
+    }
+    if (section === 'processed') {
+      // Pipeline consistency: the processed preview always mirrors the current
+      // pipeline state (cohort filter + configured preprocessing, pending edits
+      // included), not just the last persisted snapshot.
+      this.fetchProcessedPreview();
     }
     this.cdr.markForCheck();
     this.requestSectionScroll(section);
@@ -1240,7 +1329,7 @@ export class StatisticAnalysisPanelComponent {
 
   /** The snapshot follows the selection, so reopening it after a change refetches. */
   ensureSourceSummary(): void {
-    if (this.sourceSummary.isLoading || this.sourceSummaryKey === this.sourceScopeKey) return;
+    if (this.sourceSummaryKey === this.sourceScopeKey && !this.sourceSummary.isLoading) return;
     this.fetchSourceSummary();
   }
 
@@ -1261,23 +1350,33 @@ export class StatisticAnalysisPanelComponent {
     }
 
     const requestedKey = this.sourceScopeKey;
+    const requestSeq = ++this.sourceDescribeSeq;
+    this.clearHistogramSubscriptions(this.sourceSummary);
     this.sourceSummary = { ...this.sourceSummary, isLoading: true };
     this.cdr.markForCheck();
 
     // No filter payload, no preprocessing steps: the data exactly as selected.
-    this.expStudioService.loadDescriptiveOverview(variableCodes, null, null, false).subscribe({
-      next: (response) => {
-        this.sourceSummary = this.buildSummaryFromResponse(response, 'source');
-        this.sourceSummaryKey = requestedKey;
-        this.refreshActiveHistogramPreview('source');
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        console.error(err);
-        this.sourceSummary = { ...this.sourceSummary, isLoading: false };
-        this.cdr.markForCheck();
-      },
-    });
+    this.clearSourcePreviewSubscription();
+    this.sourcePreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, null, null, false)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.sourceDescribeSeq) return;
+          this.clearSourcePreviewSubscription();
+          this.sourceSummary = this.buildSummaryFromResponse(response, 'source');
+          this.sourceSummaryKey = requestedKey;
+          this.refreshActiveHistogramPreview('source');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.sourceDescribeSeq) return;
+          this.clearSourcePreviewSubscription();
+          console.error(err);
+          this.sourceSummary = { ...this.sourceSummary, isLoading: false };
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   /** Heading and aria text, so one summary template reads correctly for all three kinds. */
@@ -1296,10 +1395,25 @@ export class StatisticAnalysisPanelComponent {
       return;
     }
     this.updatePreprocessingStatus();
-    if (!this.sectionOpen().processed) {
-      this.fetchProcessedSummaryForAppliedPreprocessing();
-    }
     this.goToSection(this.sectionOpen().processed ? 'setup' : 'processed');
+  }
+
+  /**
+   * Dismiss a preview without reopening the editor: the station goes back to its collapsed
+   * shape (rail / dormant card) and the viewport stays on the node. Nothing is reverted and
+   * nothing is written — pending rules stay on the component, so "Edit preprocessing" or
+   * "Edit filters" resumes exactly where the preview left off. The step-0 snapshot has no
+   * Close control; its own header toggle already folds it away.
+   */
+  closeSummaryWorkspace(kind: SummaryKind): void {
+    if (kind === 'source') return;
+    if (kind === 'processed') {
+      this.foldPreprocessingStation();
+      return;
+    }
+    this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('filters');
   }
 
   collapseAllWorkflowSections(): void {
@@ -1850,6 +1964,29 @@ export class StatisticAnalysisPanelComponent {
     this.emitProgressState();
   }
 
+  batchMenuOpen = signal<'missing' | 'outlier' | null>(null);
+
+  toggleBatchMenu(kind: 'missing' | 'outlier'): void {
+    this.batchMenuOpen.update((open) => (open === kind ? null : kind));
+    this.cdr.markForCheck();
+  }
+
+  applyBatchMissingStrategy(strategy: 'drop' | 'mean' | 'median'): void {
+    const variables =
+      strategy === 'drop'
+        ? this.preprocessingVariables
+        : this.preprocessingVariables.filter((variable) => this.isNumericVariable(variable));
+    variables.forEach((variable) => this.onMissingActionChange(variable, strategy));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
+  toggleAllOutliers(enabled: boolean): void {
+    this.outlierPreprocessingVariables.forEach((variable) => this.onOutlierEnabledChange(variable, enabled));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
   outlierRuleError(variable: VariableRow): string {
     const rule = this.outlierRuleFor(variable);
     return this.outlierValidationErrors[variable.code] || validateOutlierRule(rule) || '';
@@ -1899,19 +2036,14 @@ export class StatisticAnalysisPanelComponent {
   previewOutlierReport(): void {
     this.ensureDefaultRulesForCurrentSelection();
     this.ensureOutlierDefaultsForCurrentSelection();
-    const validationErrors = {
-      ...this.validatePendingMissingRules(),
-      ...this.validatePendingOutlierRules(),
-    };
-    if (Object.keys(validationErrors).length > 0) {
-      this.preprocessingValidationErrors = validationErrors;
-      const outlierCodes = this.currentOutlierPreprocessingCodeSet();
-      this.outlierValidationErrors = Object.fromEntries(
-        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
-      );
+    if (
+      this.reportPendingValidationErrors({
+        ...this.validatePendingMissingRules(),
+        ...this.validatePendingOutlierRules(),
+      })
+    ) {
       this.outlierPreviewRows = [];
       this.outlierPreviewError = 'Fix the outlier preprocessing rules before previewing.';
-      this.cdr.markForCheck();
       return;
     }
 
@@ -1985,21 +2117,88 @@ export class StatisticAnalysisPanelComponent {
     this.requestSectionScroll('setup');
   }
 
+  /**
+   * The Preprocessing station's "Preview data" action: describe the processed cohort
+   * under the current (pending) config without writing it into the request. It fills
+   * the shared processed SummaryView, so the preview shows data instead of an empty
+   * card; Apply remains the only path that persists the config.
+   */
+  previewProcessedData(): void {
+    this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
+    this.ensureLongitudinalDefaults();
+    if (this.reportPendingValidationErrors(this.validatePendingRules())) return;
+    // Navigating to the processed section performs the transient describe;
+    // it must not run twice for one click.
+    this.goToSection('processed');
+  }
+
+  /**
+   * Transient processed describe for the pending config. It shares the processed
+   * summary's cache key with the applied fetch, so an Apply (or an applied refresh)
+   * with identical inputs reuses the data instead of refetching.
+   */
+  private fetchProcessedPreview(): void {
+    if (Object.keys(this.validatePendingRules()).length > 0) return;
+    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const hasScope =
+      !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
+    if (!hasScope || !variableCodes.length) {
+      this.clearProcessedPreviewSubscription();
+      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummaryKey = '';
+      this.cdr.markForCheck();
+      return;
+    }
+    const preprocessing =
+      this.buildPreprocessingConfig(this.pendingPreprocessingRules, this.currentPreprocessingCodeSet());
+    const nextKey = this.buildProcessedSummaryKey(variableCodes, preprocessing ?? {});
+    // The key is claimed before the request goes out, so an in-flight or already
+    // settled fetch for the same config answers this call; re-requesting it would
+    // both spend a second federated describe and supersede the pending response.
+    if (nextKey === this.processedSummaryKey) return;
+    const previous = this.processedSummary;
+    const requestSeq = ++this.processedDescribeSeq;
+    this.clearHistogramSubscriptions(this.processedSummary);
+    this.clearProcessedPreviewSubscription();
+    this.processedSummaryKey = nextKey;
+    this.processedSummary = {
+      ...this.createEmptySummary(true),
+      activeTab: previous.activeTab,
+      selectedStatisticKey: previous.selectedStatisticKey,
+    };
+    this.cdr.markForCheck();
+    this.processedPreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, preprocessing)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+          this.refreshActiveHistogramPreview('processed');
+          this.emitProgressState();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          console.error(err);
+          // Drop the claimed key so reopening the preview retries instead of
+          // trusting a summary that never arrived.
+          this.processedSummaryKey = '';
+          this.processedSummary = this.createEmptySummary(false);
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
   applyPreprocessing(): void {
     this.ensureDefaultRulesForCurrentSelection();
     this.ensureOutlierDefaultsForCurrentSelection();
     this.ensureLongitudinalDefaults();
     if (this.pendingChangeCount === 0) return;
-    const validationErrors = this.validatePendingRules();
-    if (Object.keys(validationErrors).length > 0) {
-      this.preprocessingValidationErrors = validationErrors;
-      const outlierCodes = this.currentOutlierPreprocessingCodeSet();
-      this.outlierValidationErrors = Object.fromEntries(
-        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
-      );
-      this.cdr.markForCheck();
-      return;
-    }
+    if (this.reportPendingValidationErrors(this.validatePendingRules())) return;
     this.clearOutlierPreview();
 
     const currentCodes = this.currentPreprocessingCodeSet();
@@ -2028,55 +2227,76 @@ export class StatisticAnalysisPanelComponent {
     }
 
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const requestSeq = ++this.processedDescribeSeq;
     this.isApplyingPreprocessing = true;
+    this.clearHistogramSubscriptions(this.processedSummary);
+    this.clearProcessedPreviewSubscription();
     this.processedSummary = this.createEmptySummary(true);
+    // Claim the summary key up front so the navigate-to-preview fetch is
+    // deduped against the apply request below (identical payload).
+    this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
     this.summaryExpanded.update((expanded) => ({ ...expanded, setup: true }));
     this.goToSection('processed');
     this.preprocessingValidationErrors = {};
     this.outlierValidationErrors = {};
     this.cdr.markForCheck();
 
-    this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
-      next: (response) => {
-        this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
-        this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
-        this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
-          this.appliedPreprocessingRules,
-          this.pendingPreprocessingRules
-        );
-        this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
-          this.appliedOutlierRules,
-          this.pendingOutlierRules
-        );
-        this.appliedLongitudinalEnabled = this.isLongitudinalModel;
-        this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
-        this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
-        this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
-        this.persistAppliedDescriptivePreprocessing(preprocessing);
-        this.userPreprocessingApplied = true;
-        this.preprocessingStatus = 'applied';
-        this.isApplyingPreprocessing = false;
-        this.successMessage = '';
-        this.refreshActiveHistogramPreview('processed');
-        this.emitProgressState();
-        // Apply saves and closes: fold this station, and do not open the next one.
-        // The summary just computed stays reachable through Preview data; moving on
-        // belongs to "Continue to Algorithm Selection".
-        this.foldPreprocessingStation();
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        console.error(err);
-        this.isApplyingPreprocessing = false;
-        this.processedSummary = this.createEmptySummary(false);
-        this.sectionOpen.update((open) => ({ ...open, processed: true }));
-        this.cdr.markForCheck();
+    this.processedPreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, preprocessing)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+          this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
+          this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
+            this.appliedPreprocessingRules,
+            this.pendingPreprocessingRules
+          );
+          this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+            this.appliedOutlierRules,
+            this.pendingOutlierRules
+          );
+          this.appliedLongitudinalEnabled = this.isLongitudinalModel;
+          this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
+          this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
+          this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+          this.persistAppliedDescriptivePreprocessing(preprocessing);
+          this.userPreprocessingApplied = true;
+          this.preprocessingStatus = 'applied';
+          this.isApplyingPreprocessing = false;
+          this.successMessage = '';
+          this.refreshActiveHistogramPreview('processed');
+          this.emitProgressState();
+          // Apply saves and closes: fold this station, and do not open the next one.
+          // The summary just computed stays reachable through Preview data; moving on
+          // belongs to "Continue to Algorithm Selection".
+          this.foldPreprocessingStation();
+          if (this.continueAfterApply) {
+            this.continueAfterApply = false;
+              this.studioNavigation.navigateToSection('algorithm-section');
+          }
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          console.error(err);
+          this.isApplyingPreprocessing = false;
+          // Nothing was applied, so the key claimed for this request is a lie;
+          // clear it so the next preview or apply refetches.
+          this.processedSummaryKey = '';
+          this.processedSummary = this.createEmptySummary(false);
+          this.sectionOpen.update((open) => ({ ...open, processed: true }));
+          this.cdr.markForCheck();
       },
     });
   }
 
   fetchDescriptiveStatistics(): void {
     if (!this.expStudioService.selectedDataModel() || this.expStudioService.selectedDatasets().length === 0) {
+      this.rawDescribeSeq++;
       this.expStudioService.clearDataExclusionWarnings();
       this.rawSummary = this.createEmptySummary(false);
       this.processedData = [];
@@ -2092,6 +2312,7 @@ export class StatisticAnalysisPanelComponent {
 
     const items = this.preprocessingVariables;
     if (!items.length) {
+      this.rawDescribeSeq++;
       this.expStudioService.clearDataExclusionWarnings();
       this.rawSummary = this.createEmptySummary(false);
       this.processedData = [];
@@ -2101,8 +2322,11 @@ export class StatisticAnalysisPanelComponent {
     }
 
     const variableCodes = items.map((item) => item.code);
+    const requestSeq = ++this.rawDescribeSeq;
     this.expStudioService.loadDescriptiveOverview(variableCodes, null).subscribe({
       next: (response) => {
+        // Selection changed while this was in flight; the newer run owns the summary.
+        if (requestSeq !== this.rawDescribeSeq) return;
         this.expStudioService.setDataExclusionWarnings([], []);
         this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
         this.processedData = this.rawSummary.data;
@@ -2111,6 +2335,7 @@ export class StatisticAnalysisPanelComponent {
         this.cdr.markForCheck();
       },
       error: (err) => {
+        if (requestSeq !== this.rawDescribeSeq) return;
         console.error(err);
         this.expStudioService.clearDataExclusionWarnings();
         this.rawSummary = { ...this.rawSummary, isLoading: false };
@@ -2217,6 +2442,8 @@ export class StatisticAnalysisPanelComponent {
       histogramDataByVariable: {},
       histogramLoadingByVariable: {},
       histogramErrorByVariable: {},
+      histogramSubscriptionsByVariable: {},
+      histogramRequestIdByVariable: {},
       activeBoxPlotIndex: 0,
       activeNominalIndex: 0,
       selectedStatisticKey: null,
@@ -2284,6 +2511,8 @@ export class StatisticAnalysisPanelComponent {
       histogramDataByVariable: {},
       histogramLoadingByVariable: {},
       histogramErrorByVariable: {},
+      histogramSubscriptionsByVariable: {},
+      histogramRequestIdByVariable: {},
       ...distributionState,
     };
     return summary;
@@ -2313,6 +2542,7 @@ export class StatisticAnalysisPanelComponent {
     if (!code) return;
 
     const summary = this.getSummary(kind);
+    if (summary.histogramSubscriptionsByVariable[code]) return;
     if (summary.histogramLoadingByVariable[code]) return;
     if (summary.histogramDataByVariable[code]) return;
 
@@ -2340,19 +2570,25 @@ export class StatisticAnalysisPanelComponent {
     };
     this.cdr.markForCheck();
 
-    // Raw summary describe loads without preprocessing; keep histogram aligned.
-    const preprocessingOverride = kind === 'processed'
-      ? this.expStudioService.getAppliedDescriptivePreprocessing()
-      : null;
+    // Raw and source histogram previews are unprocessed; processed histograms follow
+    // the same config as their tables, including pending edits.
+    const preprocessingOverride = this.preprocessingConfigForSummaryKind(kind);
 
     // Step 0 previews the unfiltered cohort, so its histogram must drop the
     // filter too - otherwise the tab would show the filtered cohort under a
     // "no filters applied" heading.
+    const requestSeq = (summary.histogramRequestIdByVariable[code] ?? 0) + 1;
+    summary.histogramRequestIdByVariable = {
+      ...summary.histogramRequestIdByVariable,
+      [code]: requestSeq,
+    };
     this.expStudioService
       .getAlgorithmResults(AlgorithmNames.HISTOGRAM, [code], null, preprocessingOverride, kind !== 'source')
+      .pipe(takeUntil(this.destroyed))
       .subscribe({
         next: (response) => {
           const nextSummary = this.getSummary(kind);
+          if (nextSummary.histogramRequestIdByVariable[code] !== requestSeq) return;
           const parsed = this.parseHistogramResponse(response, code, block, kind);
           if (parsed.data) {
             nextSummary.histogramDataByVariable = {
@@ -2373,10 +2609,15 @@ export class StatisticAnalysisPanelComponent {
             ...nextSummary.histogramLoadingByVariable,
             [code]: false,
           };
+          nextSummary.histogramSubscriptionsByVariable = {
+            ...nextSummary.histogramSubscriptionsByVariable,
+            [code]: Subscription.EMPTY,
+          };
           this.cdr.markForCheck();
         },
         error: () => {
           const nextSummary = this.getSummary(kind);
+          if (nextSummary.histogramRequestIdByVariable[code] !== requestSeq) return;
           nextSummary.histogramLoadingByVariable = {
             ...nextSummary.histogramLoadingByVariable,
             [code]: false,
@@ -2385,9 +2626,56 @@ export class StatisticAnalysisPanelComponent {
             ...nextSummary.histogramErrorByVariable,
             [code]: 'Failed to load histogram preview.',
           };
+          nextSummary.histogramSubscriptionsByVariable = {
+            ...nextSummary.histogramSubscriptionsByVariable,
+            [code]: Subscription.EMPTY,
+          };
           this.cdr.markForCheck();
         },
       });
+  }
+
+  private preprocessingConfigForSummaryKind(kind: SummaryKind): PreprocessingConfig | null {
+    if (kind !== 'processed') return null;
+    const currentCodes = this.currentPreprocessingCodeSet();
+    const pendingConfig = this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes);
+    if (pendingConfig) return pendingConfig;
+    if (this.hasPendingPreprocessingEdits(currentCodes)) return null;
+    return this.expStudioService.getAppliedDescriptivePreprocessing();
+  }
+
+  private hasPendingPreprocessingEdits(currentCodes: Set<string>): boolean {
+    if (this.pendingChangeCount > 0) return true;
+    if (this.isLongitudinalModel) {
+      return this.appliedLongitudinalEnabled !== this.isLongitudinalModel
+        || this.appliedLongitudinalVisit1 !== this.longitudinalVisit1
+        || this.appliedLongitudinalVisit2 !== this.longitudinalVisit2
+        || JSON.stringify(this.appliedLongitudinalStrategies) !== JSON.stringify(this.pendingLongitudinalStrategies);
+    }
+    return Object.keys(this.pendingPreprocessingRules).some((code) => {
+      if (!currentCodes.has(code)) return false;
+      const pending = this.pendingPreprocessingRules[code];
+      const applied = this.appliedPreprocessingRules[code];
+      return JSON.stringify(pending) !== JSON.stringify(applied);
+    }) || Object.keys(this.pendingOutlierRules).some((code) => {
+      if (!currentCodes.has(code)) return false;
+      return JSON.stringify(this.pendingOutlierRules[code]) !== JSON.stringify(this.appliedOutlierRules[code]);
+    });
+  }
+
+  private clearProcessedPreviewSubscription(): void {
+    this.processedPreviewSubscription?.unsubscribe();
+    this.processedPreviewSubscription = null;
+  }
+
+  private clearSourcePreviewSubscription(): void {
+    this.sourcePreviewSubscription?.unsubscribe();
+    this.sourcePreviewSubscription = null;
+  }
+
+  private clearHistogramSubscriptions(summary: SummaryView): void {
+    Object.values(summary.histogramSubscriptionsByVariable).forEach((subscription) => subscription.unsubscribe());
+    summary.histogramSubscriptionsByVariable = {};
   }
 
   private buildHistogramFromDescribeCounts(
@@ -2786,7 +3074,20 @@ export class StatisticAnalysisPanelComponent {
     this.transformationStatistics = placeholderBlocks;
     this.cdr.markForCheck();
 
-    const preprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
+    // Pipeline consistency: the preview runs the cohort filter, the preprocessing
+    // configured so far (applied rules plus pending edits), then the
+    // transformation under test.
+    if (Object.keys(this.validatePendingRules()).length > 0) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    const preprocessing: PreprocessingConfig = {
+      ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
+      categorical_column_creator: this.transformationConfigPayload(),
+    };
     this.expStudioService
       .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
       .subscribe({
@@ -2892,6 +3193,26 @@ export class StatisticAnalysisPanelComponent {
     };
   }
 
+  /**
+   * Records what blocks a run (splitting off the codes the outlier step owns) and says
+   * whether the caller has to stop. Clears both maps when the rules are valid, so a
+   * fixed rule never leaves stale red text behind.
+   */
+  private reportPendingValidationErrors(validationErrors: Record<string, string>): boolean {
+    if (Object.keys(validationErrors).length === 0) {
+      this.preprocessingValidationErrors = {};
+      this.outlierValidationErrors = {};
+      return false;
+    }
+    this.preprocessingValidationErrors = validationErrors;
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    this.outlierValidationErrors = Object.fromEntries(
+      Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
+    );
+    this.cdr.markForCheck();
+    return true;
+  }
+
   private validatePendingMissingRules(): Record<string, string> {
     const errors: Record<string, string> = {};
     const currentCodes = this.currentPreprocessingCodeSet();
@@ -2954,6 +3275,7 @@ export class StatisticAnalysisPanelComponent {
     else this.preprocessingStatus = 'none';
     this.successMessage = '';
     this.clearOutlierPreview();
+    if (this.sectionOpen().processed) this.fetchProcessedPreview();
   }
 
   private clearOutlierPreview(): void {
@@ -2990,52 +3312,12 @@ export class StatisticAnalysisPanelComponent {
     this.sectionOpen.update((open) => ({ ...open, processed: false }));
     this.successMessage = '';
     this.ensureLongitudinalDefaults();
+    if (!this.isApplyingPreprocessing) {
+      this.clearProcessedPreviewSubscription();
+    }
     this.updatePreprocessingStatus();
     this.syncAppliedPreprocessingForCurrentSelection();
-    if (this.preprocessingStatus === 'applied') {
-      this.fetchProcessedSummaryForAppliedPreprocessing();
-    } else {
-      this.processedSummary = this.createEmptySummary(false);
-      this.processedSummaryKey = '';
-    }
-  }
-
-  private fetchProcessedSummaryForAppliedPreprocessing(): void {
-    if (this.preprocessingStatus !== 'applied') return;
-
-    const preprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
-    if (!preprocessing) return;
-
-    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
-    if (!variableCodes.length) return;
-
-    const nextKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
-    if (nextKey === this.processedSummaryKey) return;
-
-    this.processedSummaryKey = nextKey;
-    const previousProcessedSummary = this.processedSummary;
-    this.processedSummary = {
-      ...this.createEmptySummary(true),
-      activeTab: previousProcessedSummary.activeTab,
-      selectedStatisticKey: previousProcessedSummary.selectedStatisticKey,
-    };
-    this.cdr.markForCheck();
-
-    this.expStudioService.loadDescriptiveOverview(variableCodes, preprocessing).subscribe({
-      next: (response) => {
-        this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
-        this.preprocessingStatus = 'applied';
-        this.refreshActiveHistogramPreview('processed');
-        this.emitProgressState();
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        console.error(err);
-        this.processedSummary = this.createEmptySummary(false);
-        this.processedSummaryKey = '';
-        this.cdr.markForCheck();
-      },
-    });
+    this.fetchProcessedPreview();
   }
 
   private hydrateAppliedPreprocessing(
@@ -3349,7 +3631,9 @@ export class StatisticAnalysisPanelComponent {
     variables: VariableRow[],
     filters: VariableRow[],
     filterLogic: unknown,
-    appliedPreprocessing: unknown
+    // Raw's own dependency set omits applied preprocessing on purpose: the raw describe
+    // is requested with a null config, so applying preprocessing cannot change its numbers.
+    appliedPreprocessing?: unknown
   ): string {
     return JSON.stringify({
       variables: variables.map((variable) => variable.code).sort(),
@@ -3357,6 +3641,38 @@ export class StatisticAnalysisPanelComponent {
       filterLogic,
       appliedPreprocessing,
     });
+  }
+
+  private discardPendingTransformation(): void {
+    const persisted = this.expStudioService.appliedPreprocessingConfig();
+    if (persisted?.['categorical_column_creator']) {
+      this.hydrateAppliedTransformation(persisted);
+    } else {
+      this.transformationDrafts = [emptyTransformationDraft()];
+      this.transformationStatistics = [];
+      this.transformationStatisticsError = '';
+      this.transformationApplyError = '';
+    }
+    this.onTransformationChange();
+  }
+
+  private getSummaryTotalRows(summary: SummaryView): number | null {
+    const all = (summary.featurewiseRows ?? []).find((item: any) => item.dataset === 'all datasets');
+    if (!all) return null;
+    const total = Number(all.data?.num_total);
+    return Number.isFinite(total) ? total : null;
+  }
+
+  get cohortRetention(): { raw: number; processed: number; dropped: number; percentage: number } | null {
+    const raw = this.getSummaryTotalRows(this.rawSummary);
+    const processed = this.getSummaryTotalRows(this.processedSummary);
+    if (raw === null || processed === null) return null;
+    return {
+      raw,
+      processed,
+      dropped: Math.max(0, raw - processed),
+      percentage: raw > 0 ? (processed / raw) * 100 : 0,
+    };
   }
 
   private isNumericVariable(variable: VariableRow): boolean {

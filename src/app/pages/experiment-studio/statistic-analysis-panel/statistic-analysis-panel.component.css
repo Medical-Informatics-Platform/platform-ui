@@ -625,6 +625,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 18px 24px;
   background: #ffffff;
   border: 1px solid var(--border-color, rgba(43, 51, 233, 0.15));
@@ -683,6 +684,72 @@
   white-space: nowrap;
 }
 
+/* Unapplied-changes guard */
+.unapplied-warning-card {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, #f59e0b 8%, white);
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+  border-radius: var(--radius-md, 8px);
+}
+
+.unapplied-warning-icon {
+  color: #78350f;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.unapplied-warning-text h4 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 2px;
+}
+
+.unapplied-warning-text p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.unapplied-warning-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Secondary and ghost siblings of the primary pill: same shape, no fill. The frame is
+   an inset shadow so the box stays exactly as tall as .btn-finish-pipeline (border: none). */
+.unapplied-warning-btn.secondary {
+  background: var(--card-bg);
+  color: var(--primary-color);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent);
+}
+
+.unapplied-warning-btn.ghost {
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.unapplied-warning-btn.secondary:hover,
+.unapplied-warning-btn.ghost:hover {
+  transform: none;
+}
+
+.unapplied-warning-btn.secondary:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+}
+
+.unapplied-warning-btn.ghost:hover {
+  background: transparent;
+  color: var(--text-main);
+}
+
 .btn-finish-pipeline:hover {
   background: var(--primary-dark, #1b21a3);
   transform: translateY(-1px);
@@ -727,4 +794,12 @@
    it sat flush on the node border and the two 1px lines vibrated as one. */
 .pipeline-node .workflow-section-body {
   padding-inline: 16px;
+}
+
+/* Summary workspaces nested inside a pipeline node inherit the node's frame;
+   strip the inner card chrome so only one border is visible. */
+.pipeline-node .workflow-section .statistics-workspace {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }

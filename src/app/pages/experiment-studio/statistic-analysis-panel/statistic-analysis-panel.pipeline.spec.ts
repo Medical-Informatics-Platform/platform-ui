@@ -446,7 +446,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         const snapshot = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-source-summary"]');
         // Same surface as the Raw preview: overlay tabs, variable browser, statistics table.
-        expect(snapshot?.querySelectorAll('.summary-tabs button').length).toBe(2);
+        expect(snapshot?.querySelectorAll('.summary-tabs button').length).toBe(3);
         expect(snapshot?.querySelector('.statistics-browser')).toBeTruthy();
         expect(snapshot?.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
         expect(snapshot?.querySelector('.statistics-table')?.textContent).toContain('Dataset A');
