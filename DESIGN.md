@@ -89,11 +89,12 @@ Experiment Studio is a dense product workspace, not a marketing site. No landing
 - Dragging a row onto a folder is a third way in, beside the row menu and the chip strip; the menu stays the keyboard path, so the drag may stay an affordance. The canvas rings its member stack and a chip rings itself, both with an outline or shadow ring rather than a border: a real border reflows the strip, and a box past the canvas edge clips in a scrolling pane.
 - A drop adds; it never toggles. Re-dropping a member is a misaim, not a request to remove it, so the canvas says "Already in …" in its header pill instead of quietly lowering the count, and the row it just added breathes primary once.
 
-### Compare sections
+### Compare columns
 
-- Compare is sections over rows, never a grid of cards: one block per analysis set in folder order, then one block per algorithm label for the runs nobody grouped. A run is one row — number, name, algorithm, status pill, date — and it opens its configuration and result in place, pushing the rows below it down.
-- Numbering runs once across the whole comparison, so "run 7" is one row whichever heading it sits under; the heading carries the count and goes muted when folded, because a folded heading is all that is left of it.
-- The 2-or-3-across layout selector is gone. At full width those cards held about a third text, and fourteen runs made a three-screen scroll; a section heading plus one row per run is the same information read in one pass.
+- Compare is columns side by side, one per run, read left to right in the order the grouping defines: folder-set runs first, then one group per algorithm label for the runs nobody grouped. A column is a header — number, name, algorithm, status pill, date, plus a set-name pill when a folder set claimed the run — then the collapsed configuration, then the result rendered in place.
+- Columns are `minmax(360px, 1fr)`: two or three fill the width evenly, past that the strip scrolls sideways instead of squeezing every result into a sliver. Headers are `position: sticky` inside the strip, so names stay visible while a tall result scrolls; a wide table scrolls sideways inside its column and nothing scales down.
+- Numbering runs once across the whole comparison, so "run 7" is one column whichever group it landed in; the set's name rides the header as a tag instead of a section heading.
+- ≤900px the strip stacks one column per run — side-by-side is unusable at that width.
 
 ## Adjacent-panel test
 

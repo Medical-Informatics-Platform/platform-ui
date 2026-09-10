@@ -6,6 +6,7 @@ import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { FakeExperimentFoldersService } from '../experiment-folders.testing';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsCompareComponent } from './experiments-compare.component';
 
@@ -21,25 +22,25 @@ const experiment = (id: string, algorithmName = 'mock_anova'): Experiment => ({
 });
 
 /**
- * The compare page is read as a list of blocks. Two things decide what those blocks are: the sets
- * the origin folder defines, and the algorithm of everything nobody grouped. Both are read here —
- * sets are written on the folder canvas.
+ * The compare page is read as columns side by side. Two things decide the order those columns
+ * lay out in: the sets the origin folder defines, and the algorithm of everything nobody
+ * grouped. Both are read here — sets are written on the folder canvas.
  */
 describe('ExperimentsCompareComponent', () => {
   let fixture: ComponentFixture<ExperimentsCompareComponent>;
   let component: ExperimentsCompareComponent;
-  let foldersService: ExperimentFoldersService;
+  let foldersService: FakeExperimentFoldersService;
 
   const root = () => fixture.nativeElement as HTMLElement;
   const headline = () => root().querySelector('.compare-header p')!.textContent!.trim();
-  const sectionsOf = () => Array.from(root().querySelectorAll<HTMLElement>('.compare-section'));
-  const sectionTitles = () =>
-    sectionsOf().map((section) => section.querySelector('.section-title')!.textContent!.trim());
-  const runRows = () => Array.from(root().querySelectorAll<HTMLElement>('.run-row'));
-  const numbers = () => runRows().map((row) => row.querySelector('.run-index')!.textContent!.trim());
-  const names = () => runRows().map((row) => row.querySelector('.run-name')!.textContent!.trim());
+  const columnsOf = () => Array.from(root().querySelectorAll<HTMLElement>('.compare-column'));
+  const columnNames = () => columnsOf().map((column) => column.querySelector('.column-name')!.textContent!.trim());
+  const numbers = () => columnsOf().map((column) => column.querySelector('.run-index')!.textContent!.trim());
+  const algos = () => columnsOf().map((column) => column.querySelector('.run-algo')!.textContent!.trim());
+  const setTags = () => columnsOf().map((column) => column.querySelector('.column-set-tag')?.textContent!.trim() ?? null);
 
-  const makeFolder = (name: string) => foldersService.createFolder(name)!;
+  /** A folder the compare can read: the workspace writes nothing, so specs seed rather than click. */
+  const makeFolder = (name: string, memberIds: string[] = []) => foldersService.seedFolder(name, memberIds);
   const show = (ids: string[], originFolderId: string | null = null) =>
     showRuns(ids.map((id) => experiment(id)), originFolderId);
 
@@ -50,9 +51,7 @@ describe('ExperimentsCompareComponent', () => {
   };
 
   beforeEach(async () => {
-    localStorage.clear();
-    foldersService = new ExperimentFoldersService();
-    foldersService.useUserScope(null);
+    foldersService = new FakeExperimentFoldersService();
 
     await TestBed.configureTestingModule({
       imports: [ExperimentsCompareComponent],
@@ -108,8 +107,8 @@ describe('ExperimentsCompareComponent', () => {
     });
   });
 
-  describe('sections', () => {
-    it('gives every ungrouped run the section of its algorithm', () => {
+  describe('columns', () => {
+    it('gives every ungrouped run a column, grouped and ordered by its algorithm', () => {
       showRuns([
         experiment('a', 'ttest'),
         experiment('b', 'chisq'),
@@ -117,115 +116,85 @@ describe('ExperimentsCompareComponent', () => {
         experiment('d', 'describe'),
       ]);
 
-      // A code with no label still gets a heading — an ungrouped run needs a home, not a special case.
-      expect(sectionTitles()).toEqual(['T-test', 'chisq', 'describe']);
-      expect(names()).toEqual(['Run a', 'Run c', 'Run b', 'Run d']);
+      // A code with no label still shows its own name — an ungrouped run needs a home, not a special case.
+      expect(columnNames()).toEqual(['Run a', 'Run c', 'Run b', 'Run d']);
+      expect(algos()).toEqual(['T-test', 'T-test', 'chisq', 'describe']);
+      expect(setTags()).toEqual([null, null, null, null]);
     });
 
     it('puts the folder sets first and the leftovers after them', () => {
-      const folder = makeFolder('Stroke');
-      foldersService.addExperiment(folder.id, 'a');
-      foldersService.addExperiment(folder.id, 'b');
-      foldersService.addExperiment(folder.id, 'c');
-      foldersService.createSet(folder.id, 'Age tests', 'a');
-      foldersService.moveToSet(folder.id, 'b', foldersService.folders()[0].sets[0].id);
+      const folder = makeFolder('Stroke', ['a', 'b', 'c']);
+      foldersService.seedSet(folder.id, 'Age tests', ['a', 'b']);
 
       show(['a', 'b', 'c'], folder.id);
 
-      expect(sectionTitles()).toEqual(['Age tests', 'mock_anova']);
-      expect(names()).toEqual(['Run a', 'Run b', 'Run c']);
-      expect(sectionsOf()[0].querySelector('.section-tag')).toBeTruthy();
-      expect(sectionsOf()[1].querySelector('.section-tag')).toBeNull();
+      expect(columnNames()).toEqual(['Run a', 'Run b', 'Run c']);
+      expect(setTags()).toEqual(['Age tests', 'Age tests', null]);
     });
 
     it('numbers runs once across the whole comparison', () => {
-      const folder = makeFolder('Stroke');
-      foldersService.addExperiment(folder.id, 'a');
-      foldersService.addExperiment(folder.id, 'b');
-      const set = foldersService.createSet(folder.id, 'Age tests', 'b')!;
+      const folder = makeFolder('Stroke', ['a', 'b']);
+      foldersService.seedSet(folder.id, 'Age tests', ['b']);
 
       showRuns([experiment('a', 'ttest'), experiment('b', 'ttest')], folder.id);
       fixture.detectChanges();
 
-      expect(sectionTitles()).toEqual(['Age tests', 'T-test']);
+      expect(columnNames()).toEqual(['Run b', 'Run a']);
       expect(numbers()).toEqual(['1', '2']);
-      expect(set.name).toBe('Age tests');
+      expect(setTags()).toEqual(['Age tests', null]);
     });
 
-    it('withholds a heading for a set whose runs are not being compared', () => {
-      const folder = makeFolder('Stroke');
-      foldersService.addExperiment(folder.id, 'a');
-      foldersService.createSet(folder.id, 'Age tests', 'a');
+    it('withholds a column for a set whose runs are not being compared', () => {
+      const folder = makeFolder('Stroke', ['a']);
+      foldersService.seedSet(folder.id, 'Age tests', ['a']);
 
       show(['b'], folder.id);
 
-      expect(sectionTitles()).toEqual(['mock_anova']);
+      expect(columnNames()).toEqual(['Run b']);
+      expect(setTags()).toEqual([null]);
     });
 
-    it('collapses a section down to its heading and opens it again', () => {
+    it('keeps the configuration closed per column and opens only the one it toggled', () => {
       show(['a', 'b']);
 
-      const toggle = sectionsOf()[0].querySelector<HTMLButtonElement>('.section-toggle-btn')!;
-      toggle.click();
+      expect(columnsOf()[0].querySelector('.config-body')).toBeNull();
+
+      columnsOf()[0].querySelector<HTMLButtonElement>('.config-toggle')!.click();
       fixture.detectChanges();
 
-      expect(sectionsOf().length).toBe(1);
-      expect(sectionsOf()[0].querySelector('.run-row')).toBeNull();
-      expect(sectionTitles()).toEqual(['mock_anova']);
-      expect(sectionsOf()[0].querySelector('.count-badge')!.textContent!.trim()).toBe('2');
-
-      toggle.click();
-      fixture.detectChanges();
-      expect(runRows().length).toBe(2);
+      expect(columnsOf()[0].querySelector('.config-body')).toBeTruthy();
+      expect(columnsOf()[1].querySelector('.config-body')).toBeNull();
     });
 
-    it('opens one run in place and leaves the others as one line each', () => {
-      show(['a', 'b', 'c']);
-
-      runRows()[1].querySelector<HTMLButtonElement>('.run-summary')!.click();
-      fixture.detectChanges();
-
-      expect(runRows().length).toBe(3);
-      expect(runRows()[1].querySelector('.run-body')).toBeTruthy();
-      expect(runRows()[0].querySelector('.run-body')).toBeNull();
-      expect(runRows()[1].querySelector('.run-summary')!.getAttribute('aria-expanded')).toBe('true');
-    });
-
-    it('keeps the configuration closed inside an open run', () => {
+    it('renders each column its own result state', () => {
       show(['a', 'b']);
 
-      runRows()[0].querySelector<HTMLButtonElement>('.run-summary')!.click();
-      fixture.detectChanges();
-      expect(runRows()[0].querySelector('.config-body')).toBeNull();
-
-      runRows()[0].querySelector<HTMLButtonElement>('.config-toggle')!.click();
-      fixture.detectChanges();
-      expect(runRows()[0].querySelector('.config-body')).toBeTruthy();
+      // The stubbed result never answers, so every column sits in its own loading state.
+      for (const column of columnsOf()) {
+        expect(column.querySelector('.compare-results .muted-text')!.textContent).toContain('Loading');
+      }
     });
 
     it('groups by algorithm alone when runs arrive with no folder at all', () => {
-      const folder = makeFolder('Stroke');
-      foldersService.addExperiment(folder.id, 'a');
-      foldersService.createSet(folder.id, 'Age tests', 'a');
+      const folder = makeFolder('Stroke', ['a']);
+      foldersService.seedSet(folder.id, 'Age tests', ['a']);
 
       showRuns([experiment('a', 'ttest'), experiment('b', 'chisq')]);
 
-      expect(sectionTitles()).toEqual(['T-test', 'chisq']);
-      expect(runRows().length).toBe(2);
+      expect(columnNames()).toEqual(['Run a', 'Run b']);
+      expect(setTags()).toEqual([null, null]);
+      expect(columnsOf().length).toBe(2);
     });
 
     it('reads the partition without editing it', () => {
-      const folder = makeFolder('Stroke');
-      foldersService.addExperiment(folder.id, 'a');
-      foldersService.addExperiment(folder.id, 'b');
+      const folder = makeFolder('Stroke', ['a', 'b']);
+      foldersService.seedSet(folder.id, 'Age tests', ['a']);
       const before = JSON.stringify(foldersService.folderById(folder.id));
 
       show(['a', 'b'], folder.id);
-      runRows()[0].querySelector<HTMLButtonElement>('.run-summary')!.click();
+      columnsOf()[0].querySelector<HTMLButtonElement>('.config-toggle')!.click();
       fixture.detectChanges();
-      runRows()[0].querySelector<HTMLButtonElement>('.config-toggle')!.click();
-      fixture.detectChanges();
-      sectionsOf()[0].querySelector<HTMLButtonElement>('.section-toggle-btn')!.click();
+      columnsOf()[1].querySelector<HTMLButtonElement>('.config-toggle')!.click();
       fixture.detectChanges();
 
       expect(JSON.stringify(foldersService.folderById(folder.id))).toBe(before);

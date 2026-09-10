@@ -9,6 +9,7 @@ import { AlgorithmResultComponent } from '../../experiment-studio/algorithm-pane
 import { getOutputSchema, prettifyLabel } from '../../../core/algorithm-mappers';
 import { enrichPcaResult, withLabels } from '../../../core/result-label.utils';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
+import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
 import { Router } from '@angular/router';
 import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
@@ -21,7 +22,7 @@ import { preprocessingStepsToRecord } from '../experiments-dashboard.mapper';
   selector: 'app-experiment-details',
   templateUrl: './experiment-detail.component.html',
   styleUrl: './experiment-detail.component.css',
-  imports: [CommonModule, AlgorithmResultComponent, SpinnerComponent],
+  imports: [CommonModule, AlgorithmResultComponent, SpinnerComponent, ExperimentStatusComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExperimentDetailsComponent {
@@ -42,6 +43,7 @@ export class ExperimentDetailsComponent {
 
   @ViewChild('resultsCard') resultsCardRef?: ElementRef<HTMLElement>;
 
+  private resultRequestId = 0;
   private resultSignal = signal<any | null>(null);
   private fullExperimentSignal = signal<BackendExperimentWithResult | null>(null);
   private loading = signal(false);
@@ -192,14 +194,17 @@ export class ExperimentDetailsComponent {
     this.loading.set(true);
     this.error.set(null);
 
+    const requestId = ++this.resultRequestId;
     this.dashboardService.getExperimentResult(uuid).subscribe({
       next: (res) => {
+        if (requestId !== this.resultRequestId) return;
         this.fullExperimentSignal.set(res ?? null);
         const normalized = res?.result ?? res;
         this.resultSignal.set(normalized);
         this.loading.set(false);
       },
       error: (err) => {
+        if (requestId !== this.resultRequestId) return;
         console.error('Error loading experiment result', err);
         this.error.set('Failed to load results for this experiment.');
         this.loading.set(false);

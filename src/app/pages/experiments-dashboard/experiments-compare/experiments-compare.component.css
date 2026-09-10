@@ -1,9 +1,19 @@
+/* The strip scrolls tall results inside itself so the sticky column headers stay visible —
+   which needs the component to actually hold the pane's height (see .compare-workspace). */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .compare-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
+  padding: 0 12px;
   animation: fadeIn 0.5s ease-out;
 }
 
@@ -59,151 +69,65 @@
   background: rgba(148, 163, 184, 0.1);
 }
 
-/* SECTIONS */
-/* The page is a list of blocks, not a grid of cards: a heading carries the name of the set or the
-   algorithm, and the runs under it are rows. Numbering continues across the whole comparison, so a
-   row keeps its name when a set moves it. */
-.compare-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 26px;
+/* COLUMNS */
+/* The comparison shows two runs side by side; a third and any beyond that wrap underneath.
+   The strip is the scroller — vertical too — so sticky column headers pin to its top while
+   tall results move. */
+.compare-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-items: start;
+  align-content: start;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 12px 12px;
 }
 
-.compare-section {
+.compare-column {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: #ffffff;
+  animation: fadeIn 0.4s ease-out;
 }
 
-.section-header {
+/* Sticky inside the strip: the run's name stays at the top while its result scrolls, so two
+   columns two screens apart are still identifiable. No overflow:hidden on the column — a
+   clipping ancestor would trap the sticky header inside its own card. */
+.column-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 2px 6px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
   border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 13px 13px 0 0;
 }
 
-.section-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.column-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
-.section-title {
+.column-name {
   min-width: 0;
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 0.88rem;
+  font-weight: 700;
   color: #0f172a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Folded away, the heading is all that is left, so it goes quiet instead of shouting. */
-.compare-section--collapsed .section-title {
-  color: #64748b;
-}
-
-/* The page's one count recipe, so a section's count reads as the same mark as the canvas' set
-   count and the compare button's. A heading count is not a quieter species of the same fact. */
-.count-badge {
-  background: var(--primary-color);
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 800;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-/* The one mark that a heading is the user's own grouping and not an algorithm name. */
-.section-tag {
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--primary-color);
-  flex-shrink: 0;
-}
-
-.section-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #0f172a;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.section-toggle-btn i {
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.section-toggle-btn:hover {
-  transform: translateY(-1px);
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-/* ROWS */
-.section-runs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.run-row {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  overflow: hidden;
-  animation: fadeIn 0.4s ease-out;
-}
-
-/* An open row is the one being read, so it sits on flat white with a primary edge. */
-.run-row--open {
-  background: #ffffff;
-  border-color: rgba(43, 51, 233, 0.28);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
-}
-
-.run-summary {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: transparent;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.run-summary:hover .run-name {
-  color: var(--primary-color);
 }
 
 .run-index {
@@ -216,23 +140,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.run-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #0f172a;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: color 0.2s ease;
-}
-
 .run-meta {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .run-algo {
@@ -250,44 +163,32 @@
   font-variant-numeric: tabular-nums;
 }
 
-.run-caret {
+/* The one mark that a run belongs to the user's own set, wearing the count badge's pill so it
+   reads as the same species of mark. The set's name replaces the old section heading. */
+.column-set-tag {
   flex-shrink: 0;
-  font-size: 0.78rem;
-  color: #94a3b8;
+  max-width: 40%;
+  padding: 2px 8px;
+  border: 1px solid rgba(43, 51, 233, 0.18);
+  border-radius: 999px;
+  background: rgba(43, 51, 233, 0.08);
+  color: var(--primary-color);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* What the row opens into: configuration, then result, pushed down in place. */
-.run-body {
-  padding: 12px 12px 14px;
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+/* Wide result tables scroll sideways inside the column; nothing scales down to fit. */
+.column-body {
   display: flex;
   flex-direction: column;
-}
-
-
-.status-chip {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  flex-shrink: 0;
-  border: 1px solid transparent;
-}
-
-.status-chip.completed {
-  background: #ecfdf5;
-  color: #059669;
-  border-color: rgba(16, 185, 129, 0.2);
-}
-
-.status-chip.error {
-  background: #fff1f2;
-  color: #e11d48;
-  border-color: rgba(225, 29, 72, 0.2);
+  padding: 10px 12px 12px;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 /* Results */
@@ -305,7 +206,7 @@
 }
 
 .compare-config {
-  margin: 10px 0 8px;
+  margin: 0 0 8px;
   border-radius: 12px;
   background: #ffffff;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -393,19 +294,20 @@
   max-width: 100%;
 }
 
-/* Mobile: always 1 col */
-/* One row per run, so the only thing that has to give on a narrow screen is the date — the
-   algorithm still matters inside a set, where the heading does not name it. */
-@media (max-width: 960px) {
-  .run-date {
-    display: none;
+/* Narrow screens: side-by-side is unusable, so one column per run, stacked, with the page
+   scrolling normally again. */
+@media (max-width: 900px) {
+  :host {
+    height: auto;
   }
 
-  .run-summary {
-    padding: 10px;
+  .compare-columns {
+    grid-template-columns: minmax(0, 1fr);
+    flex: none;
+    overflow: visible;
   }
 
-  .run-body {
-    padding: 10px;
+  .column-header {
+    position: static;
   }
 }

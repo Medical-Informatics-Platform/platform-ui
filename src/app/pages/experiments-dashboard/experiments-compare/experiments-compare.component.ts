@@ -11,6 +11,7 @@ import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
 import { enrichPcaResult, withLabels } from '../../../core/result-label.utils';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
 
 interface CompareResultState {
   loading: boolean;
@@ -23,26 +24,16 @@ interface CompareItem {
   state: CompareResultState;
 }
 
-/** One run inside a section. The row carries the number, so a heading cannot restart the count. */
-interface CompareSectionRun {
+/** One column: a run, its comparison-wide number, and the set tag when a folder set claimed it. */
+interface CompareColumn {
   item: CompareItem;
   number: number;
-}
-
-/**
- * A block of the page: one user set, or one algorithm for the runs nobody grouped. A section is
- * a heading over compact rows — never a card holding cards.
- */
-interface CompareSection {
-  id: string;
-  label: string;
-  isUserSet: boolean;
-  runs: CompareSectionRun[];
+  setTag: string | null;
 }
 
 @Component({
   selector: 'app-experiments-compare',
-  imports: [CommonModule, AlgorithmResultComponent],
+  imports: [CommonModule, AlgorithmResultComponent, ExperimentStatusComponent],
   templateUrl: './experiments-compare.component.html',
   styleUrl: './experiments-compare.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -77,12 +68,6 @@ export class ExperimentsCompareComponent implements OnDestroy {
   // Results map: expId -> state
   private resultMap = signal<Record<string, CompareResultState>>({});
 
-  // Section collapse: sectionId -> collapsed? (sections open by default, runs closed)
-  private sectionExpandedMap = signal<Record<string, boolean>>({});
-
-  // Inline accordion: expId -> open?
-  private runExpandedMap = signal<Record<string, boolean>>({});
-
   // Config collapse per exp
   private configExpandedMap = signal<Record<string, boolean>>({});
 
@@ -100,21 +85,21 @@ export class ExperimentsCompareComponent implements OnDestroy {
   });
 
   /**
-   * The page's shape. User sets come first, in folder order — the order the canvas numbered them
-   * in — and everything nobody grouped follows as one section per algorithm label, in the order
-   * the runs appear. Describe and histogram are ordinary algorithm sections: an ungrouped run
-   * needs a heading, not a special case. Numbering runs across the whole comparison, so "run 7"
-   * names one run no matter which heading it sits under.
+   * The comparison's order, flattened to one column per run: user sets come first, in folder order
+   * — the order the canvas numbered them in — and everything nobody grouped follows as one group
+   * per algorithm label, in the order the runs appear. Describe and histogram are ordinary
+   * algorithm groups: an ungrouped run needs a home, not a special case. Numbering runs across the
+   * whole comparison, so "run 7" names one column whichever group it landed in.
    */
-  readonly sections = computed<CompareSection[]>(() => {
-    const groups: { id: string; label: string; isUserSet: boolean; items: CompareItem[] }[] = [];
+  readonly columns = computed<CompareColumn[]>(() => {
+    const groups: { setTag: string | null; items: CompareItem[] }[] = [];
     const claimed = new Set<string>();
 
     for (const set of this.originFolder()?.sets ?? []) {
       const members = this.experimentsWithState().filter((item) => set.experimentIds.includes(item.exp.id));
-      if (!members.length) continue; // An empty set has nothing to show; its heading can wait.
+      if (!members.length) continue; // An empty set has nothing to show; its tag can wait.
       members.forEach((member) => claimed.add(member.exp.id));
-      groups.push({ id: `set:${set.id}`, label: set.name, isUserSet: true, items: members });
+      groups.push({ setTag: set.name, items: members });
     }
 
     const byAlgorithm = new Map<string, CompareItem[]>();
@@ -125,17 +110,12 @@ export class ExperimentsCompareComponent implements OnDestroy {
       if (bucket) bucket.push(item);
       else byAlgorithm.set(key, [item]);
     }
-    for (const [algorithm, members] of byAlgorithm) {
-      groups.push({ id: `algorithm:${algorithm}`, label: this.algorithmLabel(algorithm), isUserSet: false, items: members });
-    }
+    for (const items of byAlgorithm.values()) groups.push({ setTag: null, items });
 
     let number = 0;
-    return groups.map((group) => ({
-      id: group.id,
-      label: group.label,
-      isUserSet: group.isUserSet,
-      runs: group.items.map((item) => ({ item, number: (number += 1) })),
-    }));
+    return groups.flatMap((group) =>
+      group.items.map((item) => ({ item, number: (number += 1), setTag: group.setTag })),
+    );
   });
 
   constructor() {
@@ -182,30 +162,6 @@ export class ExperimentsCompareComponent implements OnDestroy {
     this.enumMapsByDomain.update((current) => ({ ...current, [domain]: maps }));
   }
 
-
-  /** The heading stays and the rows fold away: on a long comparison the headings are the map. */
-  isSectionExpanded(sectionId: string): boolean {
-    return this.sectionExpandedMap()[sectionId] ?? true; // default expanded
-  }
-
-  toggleSection(sectionId: string) {
-    this.sectionExpandedMap.update((map) => ({
-      ...map,
-      [sectionId]: !(map[sectionId] ?? true),
-    }));
-  }
-
-  /** A run opens in place, pushing the rows below it down. No modal, no drawer. */
-  isRunExpanded(expId: string): boolean {
-    return this.runExpandedMap()[expId] ?? false; // default collapsed
-  }
-
-  toggleRun(expId: string) {
-    this.runExpandedMap.update((map) => ({
-      ...map,
-      [expId]: !(map[expId] ?? false),
-    }));
-  }
 
   isConfigExpanded(expId: string): boolean {
     return this.configExpandedMap()[expId] ?? false; // default collapsed
@@ -267,7 +223,7 @@ export class ExperimentsCompareComponent implements OnDestroy {
     return withLabels(codes, this.getLabelMapForDomain(domain));
   }
 
-  /** The algorithm's human label, so a section heading reads like the list row above it. */
+  /** The algorithm's human label, so a column's algorithm line reads like the list row above it. */
   algorithmLabel(code: string | null | undefined): string {
     if (!code) return 'Unknown algorithm';
     return this.expStudio.backendAlgorithms()[code]?.label || code;
