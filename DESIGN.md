@@ -79,6 +79,22 @@ Chrome is Angular Material plus these tokens. Component CSS for feature layout; 
 
 Experiment Studio is a dense product workspace, not a marketing site. No landing heroes, no new type pairing, no GSAP/Lenis/custom cursors. Cards only when grouping is real. Use `--studio-card-*` for studio panels.
 
+### Folder chips and the folder canvas
+
+- The chip strip is the `.experiments-tabs` / `.tab-btn` segmented recipe re-used, not a new chip: the tray carries the surface and the ring, the chips sit transparent inside it, hover is `rgba(148, 163, 184, 0.1)`, selected is the same white pill in `--primary-color` with `--shadow-sm`. The ghost "+ New" chip is the resting chip with a plus.
+- Selection on a chip is primary-blue because that is the idiom already within 40px of it (the active tab, the selected experiment row). `--accent-color` marks nothing selected on this page; an orange third reading of "chosen" fails the adjacent-panel test.
+- Chips carry no layered edge. A 2px layer is noise at chip height, so the one memorable element sits on the folder canvas instead: its header card wears a single slab behind it, the set read as a stack of runs. The canvas' two other gestures are numbered member rows and an "N algorithms · M domains" line.
+- `fa-object-group` is an analysis set. `fa-layer-group` already means domain/data-model in the same pane and is the compare placeholder, so it stays away from folders.
+- `.count-badge` is the one count recipe — compare button, chips, row menu, canvas header — with tabular numbers.
+- Dragging a row onto a folder is a third way in, beside the row menu and the chip strip; the menu stays the keyboard path, so the drag may stay an affordance. The canvas rings its member stack and a chip rings itself, both with an outline or shadow ring rather than a border: a real border reflows the strip, and a box past the canvas edge clips in a scrolling pane.
+- A drop adds; it never toggles. Re-dropping a member is a misaim, not a request to remove it, so the canvas says "Already in …" in its header pill instead of quietly lowering the count, and the row it just added breathes primary once.
+
+### Compare sections
+
+- Compare is sections over rows, never a grid of cards: one block per analysis set in folder order, then one block per algorithm label for the runs nobody grouped. A run is one row — number, name, algorithm, status pill, date — and it opens its configuration and result in place, pushing the rows below it down.
+- Numbering runs once across the whole comparison, so "run 7" is one row whichever heading it sits under; the heading carries the count and goes muted when folded, because a folded heading is all that is left of it.
+- The 2-or-3-across layout selector is gone. At full width those cards held about a third text, and fourteen runs made a three-screen scroll; a section heading plus one row per run is the same information read in one pass.
+
 ## Adjacent-panel test
 
 Before shipping a visual change, compare to an unchanged sibling (variables / algorithm / stats). A user should reasonably believe the same team designed both. If not, fix the three largest mismatches (type, spacing, color, radius, shadow, buttons, inputs, states) and look again.

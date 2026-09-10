@@ -9,8 +9,8 @@ Tests: Root component and route behavior are covered indirectly by page/service 
 Notes: Uses standalone Angular and zoneless change detection.
 
 ## `src/app/guards`
-Purpose: Route access control and onboarding gates.
-Key files: `auth.guard.ts`, `terms.guard.ts`, `studio-guide-onboarding.guard.ts`.
+Purpose: Route access control for authentication and terms/NDA.
+Key files: `auth.guard.ts`, `terms.guard.ts`.
 Used by: `app.routes.ts`.
 Rules: Preserve auth and NDA boundaries; do not duplicate guard decisions in unrelated UI code.
 Tests: Add focused guard tests when route access behavior changes.
@@ -18,15 +18,15 @@ Notes: `/terms` intentionally skips `TermsGuard`; `/notebook` also uses `TermsGu
 
 ## `src/app/services`
 Purpose: Cross-feature state, backend calls, auth/session, exports, runtime env, rules, and errors.
-Key files: `auth.service.ts`, `experiment-studio.service.ts`, `experiments-dashboard.service.ts`, `algorithm-rules.service.ts`, `runtime-env.service.ts`.
+Key files: `auth.service.ts`, `experiment-studio.service.ts`, `experiments-dashboard.service.ts`, `experiment-folders.service.ts`, `algorithm-rules.service.ts`, `runtime-env.service.ts`.
 Used by: Pages, guards, shared components, and visualization/export flows.
 Rules: Keep orchestration and API access here; prefer existing services before adding new shared state.
 Tests: Service specs live beside services as `*.spec.ts`.
-Notes: `ExperimentStudioService` is high-risk because it coordinates selection state, transient calls, run/edit flows, and sessionStorage persistence.
+Notes: `ExperimentStudioService` is high-risk because it coordinates selection state, transient calls, run/edit flows, and sessionStorage persistence. `ExperimentFoldersService` owns analysis sets and nothing else: today it persists folders in a per-user localStorage cache holding member ids only, with each folder's members partitioned across its `sets` (`ExperimentSet = { id, name, experimentIds[] }`), and Ungrouped meaning simply "a member no set has taken". The partition is strict — `moveToSet` takes a run from whichever set had it — because a run in two sections has no honest count; `pruneExperiment` drops the id from members *and* sets, and deleting a set returns its runs instead of deleting them. The service is the only place that touches persistence so the planned backend folder API can replace the localStorage cache without changing dashboard or canvas components. Until that API exists, persistence must tolerate unreadable/hand-edited payloads and duplicate ids defensively; there is no v1→v2 migration yet.
 
 ## `src/app/models`
 Purpose: Backend DTOs, frontend models, and shared interfaces.
-Key files: `backend-experiment.model.ts`, `backend-algorithms.model.ts`, `algorithm-definition.model.ts`, `data-model.interface.ts`, `filters.model.ts`.
+Key files: `backend-experiment.model.ts`, `backend-algorithms.model.ts`, `algorithm-definition.model.ts`, `data-model.interface.ts`, `filters.model.ts`, `experiment-folder.model.ts`.
 Used by: Services, mappers, page components, and visualization logic.
 Rules: Keep API shape changes explicit and compatibility-aware.
 Tests: Model changes are usually validated through service/mapper/component tests.
@@ -34,7 +34,7 @@ Notes: Prefer extending existing interfaces over ad hoc `any` where practical.
 
 ## `src/app/core`
 Purpose: Algorithm/result mapping, constants, and utility logic.
-Key files: `algorithm-mappers.ts`, `algorithm-result-enum-mapper.ts`, `algorithm-parameter.utils.ts`, `filter-display.utils.ts`, `constants/algorithm.constants.ts`, `outlier-rules.ts`, `share.utils.ts`, `route-path.utils.ts`.
+Key files: `algorithm-mappers.ts`, `algorithm-result-enum-mapper.ts`, `algorithm-parameter.utils.ts`, `filter-display.utils.ts`, `constants/algorithm.constants.ts`, `outlier-rules.ts`, `share.utils.ts`, `route-path.utils.ts`, `experiment-drag.utils.ts`.
 Used by: Experiment Studio, result rendering, services, and tests.
 Rules: Treat algorithm key aliases and result schema mappings as compatibility-sensitive.
 Tests: `algorithm-mappers.spec.ts`, `algorithm-result-enum-mapper.spec.ts`.
@@ -57,12 +57,12 @@ Tests: Registry and renderer specs live in this subtree.
 Notes: Registry keys and legacy aliases are compatibility-sensitive; check stored experiment data before removing an alias.
 
 ## `src/app/pages/experiments-dashboard`
-Purpose: Experiment listing, filtering, detail, compare, sharing, rename, and deletion UI.
-Key files: `experiments-dashboard.component.*`, `experiments-dashboard.mapper.ts`, `experiment-list/*`, `experiment-detail/*`, `experiments-compare/*`, `experiment-search/*`.
-Used by: `/experiments-dashboard` route.
-Rules: Keep backend-to-frontend mapping in the mapper; preserve rollback behavior for optimistic deletion.
-Tests: Add component/mapper tests when list, filter, compare, or detail rendering changes.
-Notes: Sharing and deletion are human-review areas.
+Purpose: Experiment listing, filtering, detail, compare, sharing, rename, deletion UI, plus user-curated folders ("analysis sets").
+Key files: `experiments-dashboard.component.*`, `experiments-dashboard.mapper.ts`, `experiment-list/*`, `experiment-detail/*`, `experiments-compare/*`, `experiment-folder/*`, `experiment-search/*`.
+Used by: `/experiments-dashboard` route; folders persist through `ExperimentFoldersService` (one versioned `localStorage` key, scoped by user email).
+Rules: Keep backend-to-frontend mapping in the mapper; preserve rollback behavior for optimistic deletion. Folders hold member ids only, and membership is pruned on a delete event or a 404 — never against the visible page, which is server-paginated. Compare handoff resolves members through `hydrateExperiments` so off-page runs are fetched before `compareIds` is set, and `experimentsForCompare` follows `compareIds` so the workspace shows the canvas' 1-2-3 order. The workspace records its origin in `compareOriginFolderId` to offer a way back to the canvas; turning compare on from the list clears the canvas and the origin. Members join from the row menu, by dropping a row onto the open canvas, or by dropping it on a chip; the payload is `EXPERIMENT_DRAG_MIME` from `core/experiment-drag.utils.ts`, targets gate on `dataTransfer.types` (the payload stays unreadable until the drop lands), and a drop adds rather than toggling. Drag is an affordance only — the row menu remains the keyboard path. Sets are a grouping *over* `folder.experimentIds`, never a second copy of membership: the canvas lists members grouped by set (folder order, Ungrouped last) with one number line across the canvas, and each row's `fa-object-group` menu is the only place a run changes set. The compare workspace reads that partition and never writes to it — it renders one section per set in folder order, then one section per algorithm label for everything ungrouped, each run a compact row that expands its result in place; with no origin folder (a hand-built selection) it groups by algorithm alone.
+Tests: Add component/mapper tests when list, filter, compare, or detail rendering changes; folder specs cover the service, the chip strip, the canvas, the drag-to-add path, and the off-page handoff, and set specs cover move semantics, prune-on-delete/404, canvas grouping, and compare sections.
+Notes: Sharing and deletion are human-review areas. Folders are frontend cache only — no backend contract, no sharing, no deep links.
 
 ## `src/app/pages/terms-page`
 Purpose: Terms/NDA gate.
