@@ -282,6 +282,8 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
 
         if (mode === 'edit' && experimentId) {
           this.loadExperimentForEdit(experimentId);
+        } else if (mode === 'duplicate' && experimentId) {
+          this.loadExperimentForDuplicate(experimentId);
         } else {
           this.initCreateMode();
         }
@@ -427,6 +429,21 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to load experiment for edit:', err);
+        this.initCreateMode();
+      },
+    });
+  }
+
+  private loadExperimentForDuplicate(uuid: string): void {
+    this.dashboardService.getExperiment(uuid).subscribe({
+      next: (backendExp) => {
+        this.expStudioService.hydrateFromBackendExperiment(backendExp);
+        // Keep the configuration, drop the persisted identity and run it as a new experiment.
+        this.expStudioService.clearCurrentExperimentUUID();
+        this.expStudioService.setEditingExistingExperiment(false);
+      },
+      error: (err) => {
+        console.error('Failed to load experiment for duplication:', err);
         this.initCreateMode();
       },
     });

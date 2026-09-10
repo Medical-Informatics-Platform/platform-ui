@@ -220,6 +220,9 @@ export interface DescriptiveProgressState {
     './statistic-analysis-panel.preprocessing.css',
     './statistic-analysis-panel.results.css',
   ],
+  host: {
+    '(document:click)': 'closeBatchMenuOnOutsideClick($event)',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatisticAnalysisPanelComponent implements OnDestroy {
@@ -385,6 +388,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.requestSectionScroll('filters');
   }
 
+  /** Apply saved the rules; fold the editor. Preview data is what opens the tables. */
+  private foldFilterStation(): void {
+    this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('filters');
+  }
+
   /**
    * Cohort Filtering's "Preview data": describe the cohort under the rules the editor
    * holds — unapplied, including "no rules yet" — and hand the result to the Raw
@@ -402,13 +412,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   /**
-   * Apply wrote the pending rules, so the Raw surface follows the store again. A
-   * preview fetched with those exact rules already holds the right numbers; the
-   * selection effect refetches only when the stored cohort really differs.
+   * Apply wrote the pending rules. Drop any preview pin so later Preview data follows
+   * the store; do not open the Raw tables — that is Preview data's job.
    */
   onCohortFiltersApplied(): void {
     this.rawPreviewFilter = undefined;
-    this.goToSection('raw');
+    this.foldFilterStation();
   }
 
   /** Clear drops the stored cohort, which retires the preview pinned to it. */
@@ -1439,6 +1448,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return SUMMARY_GUIDE_ANCHORS[kind][anchor];
   }
 
+  /** Close on a data preview returns to the station editor (filters or preprocessing). */
   toggleSummaryWorkspace(kind: SummaryKind): void {
     if (kind === 'raw') {
       this.goToSection(this.sectionOpen().raw ? 'filters' : 'raw');
@@ -1446,25 +1456,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     this.updatePreprocessingStatus();
     this.goToSection(this.sectionOpen().processed ? 'setup' : 'processed');
-  }
-
-  /**
-   * Dismiss a preview without reopening the editor: the station goes back to its collapsed
-   * shape (rail / dormant card) and the viewport stays on the node. Nothing is reverted and
-   * nothing is written — pending rules stay on the component, so "Edit preprocessing" or
-   * "Edit filters" resumes exactly where the preview left off. The step-0 snapshot has no
-   * Close control; its own header toggle already folds it away.
-   */
-  closeSummaryWorkspace(kind: SummaryKind): void {
-    if (kind === 'source') return;
-    if (kind === 'processed') {
-      this.foldPreprocessingStation();
-      return;
-    }
-    this.rawPreviewFilter = undefined;
-    this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
-    this.cdr.markForCheck();
-    this.requestSectionScroll('filters');
   }
 
   collapseAllWorkflowSections(): void {
@@ -2138,6 +2129,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   toggleBatchMenu(kind: 'missing' | 'outlier'): void {
     this.batchMenuOpen.update((open) => (open === kind ? null : kind));
+    this.cdr.markForCheck();
+  }
+
+  closeBatchMenuOnOutsideClick(event: MouseEvent): void {
+    if (this.batchMenuOpen() === null) {
+      return;
+    }
+    const target = event.target;
+    if (target instanceof Element && target.closest('.batch-menu')) {
+      return;
+    }
+    this.batchMenuOpen.set(null);
     this.cdr.markForCheck();
   }
 

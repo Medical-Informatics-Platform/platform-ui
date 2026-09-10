@@ -17,27 +17,7 @@
            data plus the two things that differ per surface: the exit button's copy and the
            empty-state line. Anchors come from summaryGuideAnchor, so only the surfaces the
            tour and QA actually target wear them. -->
-      <ng-template #summaryWorkspace let-kind="kind" let-summary="summary" let-exitLabel="exitLabel" let-emptyHint="emptyHint">
-          @if (kind !== 'source') {
-          <div class="station-preview-bar">
-            <button
-              type="button"
-              class="station-preview-toggle"
-              (click)="toggleSummaryWorkspace(kind)">
-              <i class="fa fa-arrow-left" aria-hidden="true"></i>
-              <span>{{ exitLabel }}</span>
-            </button>
-            <button
-              type="button"
-              class="station-preview-toggle station-preview-close"
-              title="Close the preview"
-              (click)="closeSummaryWorkspace(kind)">
-              <i class="fas fa-times" aria-hidden="true"></i>
-              <span>Close</span>
-            </button>
-          </div>
-          }
-
+      <ng-template #summaryWorkspace let-kind="kind" let-summary="summary" let-emptyHint="emptyHint">
           @if (kind === 'processed' && cohortRetention; as retention) {
           <div class="cohort-retention-strip" role="status">
             <i class="fas fa-users" aria-hidden="true"></i>
@@ -48,6 +28,19 @@
               }
               · {{ retention.percentage.toFixed(1) }}% retained
             </span>
+          </div>
+          }
+
+          @if (kind !== 'source') {
+          <div class="station-preview-bar">
+            <button
+              type="button"
+              class="station-preview-toggle station-preview-close"
+              title="Close the preview"
+              (click)="toggleSummaryWorkspace(kind)">
+              <i class="fas fa-times" aria-hidden="true"></i>
+              <span>Close</span>
+            </button>
           </div>
           }
 
@@ -161,11 +154,11 @@
                     </div>
                     <div class="summary-panel-actions">
                       <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                        <i class="fa fa-file-pdf-o"></i>
+                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
                         PDF
                       </button>
                       <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV(kind)" title="Export CSV">
-                        <i class="fa fa-file-text-o"></i>
+                        <i class="fas fa-file-csv" aria-hidden="true"></i>
                         CSV
                       </button>
                     </div>
@@ -209,7 +202,7 @@
                     </div>
                     <div class="summary-panel-actions">
                       <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                        <i class="fa fa-file-pdf-o"></i>
+                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
                         PDF
                       </button>
                     </div>
@@ -240,6 +233,12 @@
                     <div>
                       <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
                       <h4>{{ selectedBlock.name }}</h4>
+                    </div>
+                    <div class="summary-panel-actions">
+                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
+                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                        PDF
+                      </button>
                     </div>
                   </div>
 
@@ -323,7 +322,7 @@
               [attr.aria-expanded]="sectionOpen().source"
               (click)="toggleSourcePreview()">
               @if (sectionOpen().source) {
-              <i class="fas fa-chevron-up" aria-hidden="true"></i>
+              <i class="fas fa-times" aria-hidden="true"></i>
               <span>Close</span>
               } @else {
               <i class="fas fa-eye" aria-hidden="true"></i>
@@ -341,7 +340,7 @@
               @if (sectionOpen().source) {
               <ng-template
                 [ngTemplateOutlet]="summaryWorkspace"
-                [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, exitLabel: 'Hide preview', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
+                [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
               }
             </div>
           </div>
@@ -418,10 +417,7 @@
         <div class="pipeline-node-body">
           <div class="workflow-section-body" [class.open]="sectionOpen().filters">
             <app-station-card>
-            <!-- Apply saves and stays inside this station: the editor folds into the Raw
-                 Summary that the new conditions produced, and Edit filters there opens it
-                 again. Nothing here moves on to the next station — that is what
-                 "Continue to Algorithm Selection" is for. -->
+            <!-- Apply saves and folds the editor. Preview data opens the Raw tables. -->
             <app-filter-config-modal
               #filterModal
               [filterLogic]="expStudioService.filterLogic()"
@@ -445,7 +441,7 @@
             <div class="workflow-section-body" [class.open]="sectionOpen().raw">
               <ng-template
                 [ngTemplateOutlet]="summaryWorkspace"
-                [ngTemplateOutletContext]="{ kind: 'raw', summary: rawSummary, exitLabel: 'Edit filters', emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
+                [ngTemplateOutletContext]="{ kind: 'raw', summary: rawSummary, emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
             </div>
           </div>
         </div>
@@ -1209,7 +1205,7 @@
             <div class="workflow-section-body" [class.open]="sectionOpen().processed">
               <ng-template
                 [ngTemplateOutlet]="summaryWorkspace"
-                [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, exitLabel: 'Edit preprocessing', emptyHint: 'Select variables and datasets to load the processed data summary.' }"></ng-template>
+                [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, emptyHint: 'Select variables and datasets to load the processed data summary.' }"></ng-template>
             </div>
           </div>
         </div>
@@ -1306,17 +1302,18 @@
         <div class="pipeline-node-body">
           <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
             <div class="preprocessing-shell">
+            @if (transformationActiveTab !== 'Create') {
             <div class="station-preview-bar">
-              @if (transformationActiveTab !== 'Create') {
               <button
                 type="button"
-                class="station-preview-toggle"
+                class="station-preview-toggle station-preview-close"
+                title="Close the preview"
                 (click)="setTransformationActiveTab('Create')">
-                <i class="fa fa-arrow-left" aria-hidden="true"></i>
-                <span>Edit transformation</span>
+                <i class="fas fa-times" aria-hidden="true"></i>
+                <span>Close</span>
               </button>
-              }
             </div>
+            }
             @if (transformationActiveTab === 'Create') {
             <div class="transformation-cards">
               @for (draft of transformationDrafts; track draft.id; let i = $index; let isFirst = $first) {

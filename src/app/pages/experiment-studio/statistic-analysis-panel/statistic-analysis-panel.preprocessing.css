@@ -47,10 +47,8 @@
   transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 
-/* The preview bar carries a back button and a Close; only the first one owns the
-   auto margin, so the pair stays together at the trailing edge of the bar. */
 .station-preview-toggle.station-preview-close {
-  margin-left: 0;
+  margin-left: auto;
 }
 
 .station-preview-toggle i {
@@ -73,12 +71,12 @@
   outline-offset: 2px;
 }
 
-/* Cohort-retention strip above the processed summary workspace. */
+/* Cohort-retention strip above Close and the processed summary workspace. */
 .cohort-retention-strip {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   padding: 8px 14px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -119,6 +117,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  pointer-events: none;
 }
 
 .batch-menu-list button {
@@ -133,6 +132,7 @@
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
   white-space: normal;
 }
 

@@ -2090,6 +2090,10 @@ export class ExperimentStudioService {
     this.editingExistingExperimentSignal.set(isEditing);
   }
 
+  clearCurrentExperimentUUID(): void {
+    this.currentExperimentUUIDSignal.set(null);
+  }
+
   hasPersistedStudioWork(): boolean {
     return (
       this.selectedVariables().length > 0

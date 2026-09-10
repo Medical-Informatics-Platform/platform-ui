@@ -168,11 +168,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         const raw = workflowSection('Raw Data Summary');
         const tabLabels = Array.from(raw.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
         expect(tabLabels).toEqual(['Table', 'Charts', 'Histogram']);
-        expect(raw.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Edit filters');
+        expect(raw.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Close');
 
-        const back = workflowSection('Raw Data Summary').querySelector('.station-preview-toggle') as HTMLButtonElement;
-        expect(back.textContent?.trim()).toBe('Edit filters');
-        back.click();
+        const close = workflowSection('Raw Data Summary').querySelector('.station-preview-toggle') as HTMLButtonElement;
+        expect(close.textContent?.trim()).toBe('Close');
+        close.click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().filters).toBeTrue();
@@ -215,14 +215,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(mockExpService.setFilterLogic).toHaveBeenCalled();
-        // Saved, and still in the filtering station: it folds into its own Raw Summary,
-        // whose Edit filters toggle is the way back.
         expect(component.sectionOpen().filters).toBeFalse();
-        expect(component.sectionOpen().raw).toBeTrue();
+        expect(component.sectionOpen().raw).toBeFalse();
         expect(component.sectionOpen().setup).toBeFalse();
         expect(component.sectionOpen().transformation).toBeFalse();
-        expect(workflowSection('Raw Data Summary').querySelector('.station-preview-toggle')?.textContent)
-            .toContain('Edit filters');
+        expect(component.isStepAdded('filters')).toBeTrue();
     });
 
     it('closes the preprocessing editor from Close without writing anything', () => {
@@ -243,6 +240,20 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
         // Nothing was reverted: the collapsed rail of applied steps is the way back in.
         expect(preprocessing.querySelector('.pipeline-subnode-item')).toBeTruthy();
+    });
+
+    it('closes the preprocessing Batch menu when the click is outside it', () => {
+        configureRawSummary();
+        const preprocessing = openStation('setup');
+        const trigger = preprocessing.querySelector('.batch-menu-trigger') as HTMLButtonElement;
+        trigger.click();
+        fixture.detectChanges();
+        expect(preprocessing.querySelector('.batch-menu-list')).toBeTruthy();
+
+        fixture.nativeElement.click();
+        fixture.detectChanges();
+        expect(preprocessing.querySelector('.batch-menu-list')).toBeNull();
+        expect(component.batchMenuOpen()).toBeNull();
     });
 
     it('places Preview data above the Preprocessing cards, exclusive of processed summary', () => {
@@ -266,7 +277,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const processed = workflowSection('Processed Data Summary');
         const tabLabels = Array.from(processed.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
         expect(tabLabels).not.toContain('Statistics');
-        expect(processed.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Edit preprocessing');
+        expect(processed.querySelector('.station-preview-toggle')?.textContent?.trim()).toBe('Close');
     });
 
     /**
@@ -341,10 +352,9 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     /**
-     * Close dismisses the preview without reopening the editor and without touching the
-     * request; the collapsed rail is the way back in, alongside the preview's own back button.
+     * Close on a data preview reopens the station editor without writing the request.
      */
-    it('closes the processed preview back to the collapsed rail without writing', () => {
+    it('closes the processed preview back to the preprocessing editor without writing', () => {
         configureRawSummary();
         component.goToSection('setup');
         fixture.detectChanges();
@@ -354,22 +364,20 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const processed = workflowSection('Processed Data Summary');
-        const back = processed.querySelector('.station-preview-toggle') as HTMLButtonElement;
-        expect(back.textContent?.trim()).toBe('Edit preprocessing');
         const close = processed.querySelector('.station-preview-close') as HTMLButtonElement;
         expect(close.textContent?.trim()).toBe('Close');
+        expect(processed.querySelectorAll('.station-preview-toggle').length).toBe(1);
 
         const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
         close.click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().processed).toBeFalse();
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(preprocessing.querySelector('.pipeline-subnode-item')).toBeTruthy();
+        expect(component.sectionOpen().setup).toBeTrue();
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
     });
 
-    it('closes the raw preview back to the Filtering node without writing', () => {
+    it('closes the raw preview back to the Filtering editor without writing', () => {
         configureRawSummary();
         component.goToSection('filters');
         fixture.detectChanges();
@@ -380,15 +388,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         const raw = workflowSection('Raw Data Summary');
         const close = raw.querySelector('.station-preview-close') as HTMLButtonElement;
         expect(close.textContent?.trim()).toBe('Close');
+        expect(raw.querySelectorAll('.station-preview-toggle').length).toBe(1);
 
         const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
         close.click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().raw).toBeFalse();
-        expect(component.sectionOpen().filters).toBeFalse();
-        expect(workflowSection('Filtering').querySelector('[title="Edit filters"]')?.textContent)
-            .toContain('Edit filters');
+        expect(component.sectionOpen().filters).toBeTrue();
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
     });
 
@@ -406,8 +413,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(component.transformationActiveTab).toBe('Statistics');
-        const back = transformation.querySelector('.station-preview-toggle') as HTMLButtonElement;
-        expect(back.textContent?.trim()).toBe('Edit transformation');
+        const close = transformation.querySelector('.station-preview-toggle') as HTMLButtonElement;
+        expect(close.textContent?.trim()).toBe('Close');
         expect(transformation.querySelector('.transformation-create')).toBeNull();
         expect(transformation.querySelector('.transformation-statistics')).toBeTruthy();
     });

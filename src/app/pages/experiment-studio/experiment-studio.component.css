@@ -396,6 +396,10 @@
   border-radius: var(--radius-lg);
   background: #ffffff;
   position: relative;
+  /* Clip to the rounded frame. overflow:visible lets station cards paint outside
+     the panel when the page scrolls under the stepper, so they look stacked on a
+     second sheet. clip does not create a nested scroller. */
+  overflow: clip;
 }
 
 .studio-section--algorithm {

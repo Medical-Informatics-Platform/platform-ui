@@ -1069,14 +1069,41 @@ select:required:valid {
   font-weight: 700;
 }
 
+/* Export actions read as one segmented control in the same family as the
+   .summary-tabs pill tray above the pane: one tray, no per-button chrome. */
 .summary-panel-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
   padding: 3px;
-  border: 1px solid rgba(43, 51, 233, 0.1);
-  border-radius: 8px;
-  background: rgba(43, 51, 233, 0.035);
+  border: 1px solid var(--studio-card-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 5%, white);
+}
+
+.summary-panel-actions .studio-export-btn {
+  min-height: 28px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.78rem;
+  letter-spacing: var(--letter-spacing-config);
+}
+
+.summary-panel-actions .studio-export-btn:hover:not(:disabled) {
+  background: var(--card-bg);
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-panel-actions .studio-export-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.summary-panel-actions .studio-export-btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* The share a variable is judged on, right-aligned in the rail. Severity is
