@@ -441,6 +441,20 @@ button:disabled {
   text-wrap: pretty;
 }
 
+/* The list the disabled Preview/Apply pair rests on: same warning card as the
+   duplicate-name note, just stacked when several cards need work at once. */
+.transformation-issue-list {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.transformation-issue-list li {
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
 .transformation-rules {
   display: grid;
   gap: 12px;

@@ -577,7 +577,7 @@ describe('ExperimentStudioGuideComponent', () => {
     const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
 
     expect(preprocessingStep?.allowTargetInteraction).toBeFalse();
-    expect(preprocessingStep?.body).toContain('Default NA removal is already in effect');
+    expect(preprocessingStep?.body).toContain('Rows with missing values are dropped by default');
   });
 
   it('keeps the raw and processed summary guide steps interactive across the full section', () => {

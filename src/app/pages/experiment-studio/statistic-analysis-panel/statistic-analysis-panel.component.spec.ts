@@ -29,6 +29,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'setFilters',
             'setFilterLogic',
             'setTransformationPreprocessing',
+            'filterVariableCodes',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -47,6 +48,20 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
+        // Mirrors the real collector: a group walks its rules, a condition is its field.
+        mockExpService.filterVariableCodes.and.callFake((logic: any) => {
+            const codes = new Set<string>();
+            const walk = (node: any) => {
+                if (!node) return;
+                if (Array.isArray(node.rules)) {
+                    node.rules.forEach(walk);
+                } else if (node.field || node.id) {
+                    codes.add(String(node.field ?? node.id));
+                }
+            };
+            walk(logic);
+            return [...codes];
+        });
         mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({
@@ -1782,7 +1797,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         }));
     });
 
-    it('requests raw histogram without preprocessing to match raw describe', () => {
+    it('requests raw histogram with the default NaN drop only', () => {
         const dose = { code: 'dose', label: 'Dose', type: 'real' };
         mockExpService.loadDescriptiveOverview.and.returnValue(of({
             result: {
@@ -1815,9 +1830,11 @@ describe('StatisticAnalysisPanelComponent', () => {
             'histogram',
             ['dose'],
             null,
-            // includeFilters: the raw summary is the filtered cohort.
-            null,
-            true
+            // histogram_sql needs a handler, so the raw preview adds the default
+            // drop for the plotted variable and no preprocessing of its own.
+            { missing_values_handler: { strategies: { dose: 'drop' } } },
+            // No pending cohort preview is pinned, so the stored filter applies.
+            undefined
         );
     });
 
@@ -1869,46 +1886,51 @@ describe('StatisticAnalysisPanelComponent', () => {
             ['aspiration'],
             null,
             { missing_values_handler: { strategies: { aspiration: 'drop' } } },
-            true
+            undefined
         );
     });
 
-    it('requests histogram with applied preprocessing when describe has no counts', () => {
-        const aspiration = {
-            code: 'aspiration',
-            label: 'Aspiration',
-            type: 'nominal',
-        };
-        const preprocessing = {
-            missing_values_handler: {
-                strategies: { aspiration: 'drop' },
+    it('plots the processed histogram from the pending rules, never the stored config', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const stored = {
+            missing_values_handler: { strategies: { age: 'drop' } },
+            // A derived column is the output of this variable's pipeline, never an
+            // input of its histogram.
+            categorical_column_creator: {
+                code: 'group_a',
+                strategy: 'filter_rules',
+                rules: { a: categoryFilter() },
             },
         };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.appliedPreprocessingConfig as any).set(stored);
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(stored);
+        (mockExpService.selectedVariables as any).set([age]);
         mockExpService.getAlgorithmResults.and.returnValue(of({
             result: {
                 histogram: [{
-                    var: 'aspiration',
-                    bins: ['0', '1'],
-                    counts: [18000, 3766],
+                    var: 'age',
+                    bins: [0, 5, 10, 15],
+                    counts: [10, 40, 50],
                 }],
             },
         }));
-        (mockExpService.selectedVariables as any).set([aspiration]);
         fixture.detectChanges();
         component.preprocessingStatus = 'applied';
+
+        // The pending edit the stored config does not carry yet.
+        component.onMissingActionChange(age, 'mean');
         component.processedSummary = (component as any).buildSummaryFromResponse({
             result: {
                 featurewise: [
                     {
                         dataset: 'all datasets',
-                        variable: 'aspiration',
-                        data: { num_dtps: 21766, num_na: 0, num_total: 21766 },
+                        variable: 'age',
+                        data: { num_dtps: 10, num_na: 1, num_total: 11, mean: 12.5 },
                     },
                 ],
             },
         }, 'processed');
-        component.processedSummary.selectedStatisticKey = 'aspiration';
+        component.processedSummary.selectedStatisticKey = 'age';
         fixture.detectChanges();
 
         mockExpService.getAlgorithmResults.calls.reset();
@@ -1917,16 +1939,13 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
             'histogram',
-            ['aspiration'],
+            ['age'],
             null,
-            preprocessing,
-            true
+            { missing_values_handler: { strategies: { age: 'mean' } } },
+            undefined
         );
-        const block = component.selectedStatisticBlock('processed');
-        expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(jasmine.objectContaining({
-            bins: ['0', '1'],
-            counts: [18000, 3766],
-        }));
+        const preprocessing = JSON.stringify(mockExpService.getAlgorithmResults.calls.mostRecent().args[3]);
+        expect(preprocessing).not.toContain('categorical_column_creator');
     });
 
     it('loads the processed summary when saved preprocessing is hydrated', () => {
@@ -2277,6 +2296,43 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
     });
 
+    describe('step documentation', () => {
+        it('renders prose with one list for every bullet marker', () => {
+            mockExpService.backendAlgorithms.set({
+                describe: {
+                    preprocessing: [
+                        {
+                            name: 'missing_values_handler',
+                            documentation: [
+                                'Handles missing values using a selected strategy for each variable.',
+                                'Strategies:',
+                                '- Drop removes rows with missing values for the variable.',
+                                '\u2022 Mean fills missing numerical values with the local mean.',
+                                'Fold: the multiple of the IQR used by the winsorizer.',
+                            ].join('\n'),
+                        },
+                    ],
+                },
+            } as any);
+
+            const html = (
+                component.formatPreprocessingDocumentationHtml('missing_values_handler') as any
+            ).changingThisBreaksApplicationSecurity as string;
+
+            expect(html).toContain(
+                '<p class="preprocessing-doc-paragraph preprocessing-doc-intro">Handles missing values using a selected strategy for each variable.</p>'
+            );
+            expect(html).toContain('<p class="preprocessing-doc-section-title">Strategies:</p>');
+            // '-' and '\u2022' are the same list, and a 'Term: description' item keeps its colon
+            // because it is read as one line of prose rather than a table row.
+            expect(html.match(/<li>/g)).toHaveSize(3);
+            expect(html).toContain('<span class="preprocessing-doc-term">Fold:</span>');
+            expect(html).toContain(
+                '<span class="preprocessing-doc-desc">Mean fills missing numerical values with the local mean.</span>'
+            );
+        });
+    });
+
     describe('summary number formatting', () => {
         it('keeps pivot values canonical for CSV and groups only at display time', () => {
             const age = { code: 'age', label: 'Age', type: 'real' };
@@ -2623,5 +2679,224 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
     });
 
+    });
+
+    describe('Data Handling preview contracts', () => {
+        /** Stand-in for a category-rule QueryBuilder, as the template hands them over. */
+        function ruleModal(filter: any, error: string | null = null) {
+            return { exportFilterLogic: () => filter, filterError: () => error };
+        }
+
+        /** Stand-in for the cohort builder: exports what the editor holds, unapplied. */
+        function cohortModal(filter: any, error: string | null = null) {
+            return { exportFilterLogic: () => filter, filterError: () => error };
+        }
+
+        function stationButton(stage: string, selector: string): HTMLButtonElement {
+            return workflowSection(stage).querySelector(selector) as HTMLButtonElement;
+        }
+
+        it('plots the step 0 histogram with the default drop and no cohort filter', () => {
+            const dose = { code: 'dose', label: 'Dose', type: 'real' };
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                result: {
+                    featurewise: [
+                        { dataset: 'all datasets', variable: 'dose', data: { num_dtps: 100, num_na: 5, num_total: 105, mean: 12.5 } },
+                    ],
+                },
+            }));
+            mockExpService.getAlgorithmResults.and.returnValue(of({
+                result: { histogram: [{ var: 'dose', bins: [0, 5, 10, 15], counts: [10, 40, 50] }] },
+            }));
+            (mockExpService.filterLogic as any).set({
+                condition: 'AND',
+                rules: [{ field: 'site', operator: 'equal', value: 'A' }],
+            });
+            (mockExpService.selectedVariables as any).set([dose]);
+            fixture.detectChanges();
+
+            component.toggleSourcePreview();
+            fixture.detectChanges();
+            mockExpService.getAlgorithmResults.calls.reset();
+            component.setSummaryTab('source', 'Histogram');
+            fixture.detectChanges();
+
+            expect(mockExpService.getAlgorithmResults).toHaveBeenCalledWith(
+                'histogram',
+                ['dose'],
+                null,
+                // Step 0 stays free of preprocessing: only the drop the histogram needs.
+                { missing_values_handler: { strategies: { dose: 'drop' } } },
+                // A null override is the snapshot: the selection, not the filtered cohort.
+                null
+            );
+        });
+
+        it('previews the cohort with the pending rules and never applies them', () => {
+            configureRawSummary();
+            component.goToSection('filters');
+            fixture.detectChanges();
+            const pending = categoryFilter();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewFilterData(cohortModal(pending) as any);
+            fixture.detectChanges();
+
+            expect(component.sectionOpen().raw).toBeTrue();
+            expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
+                ['age', 'sex'],
+                null,
+                null,
+                pending
+            );
+            // Apply (`saveFilters`) stays the only path that writes the cohort.
+            expect(mockExpService.setFilterLogic).not.toHaveBeenCalled();
+            expect(mockExpService.filterLogic()).toBeNull();
+
+            // The pending filter is part of the cache key, so the same rules are free.
+            mockExpService.loadDescriptiveOverview.calls.reset();
+            component.previewFilterData(cohortModal(pending) as any);
+            fixture.detectChanges();
+            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+        });
+
+        it('keeps the Filtering editor open when the pending rules are invalid', () => {
+            configureRawSummary();
+            component.goToSection('filters');
+            fixture.detectChanges();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewFilterData(cohortModal(null, 'A filter value is required') as any);
+            fixture.detectChanges();
+
+            expect(component.sectionOpen().filters).toBeTrue();
+            expect(component.sectionOpen().raw).toBeFalse();
+            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+        });
+
+        it('keeps the pending cohort preview when the stored filter changes underneath it', () => {
+            configureRawSummary();
+            const pending = categoryFilter();
+            component.previewFilterData(cohortModal(pending) as any);
+            fixture.detectChanges();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            // The stored cohort moves underneath the preview. Falling back to it would swap
+            // the cohort the user asked to see for an older one, so the pinned rules keep the
+            // surface — and the numbers it already holds need no second describe.
+            const stored = { condition: 'AND', rules: [{ field: 'sex', operator: 'equal', value: 'female' }] } as any;
+            (mockExpService.filterLogic as any).set(stored);
+            fixture.detectChanges();
+
+            const cohorts = mockExpService.loadDescriptiveOverview.calls.allArgs().map((args) => args[3]);
+            expect(cohorts).not.toContain(stored);
+        });
+
+        it('lists every unfinished card and keeps both actions on Create', () => {
+            const filter = categoryFilter();
+            openStation('transformation');
+            component.addTransformationDraft();
+            component.addTransformationDraft();
+            component.addTransformationDraft();
+            const [duplicated, alsoDuplicated, unfiltered, nameless] = component.transformationDrafts;
+            duplicated.code = 'group';
+            duplicated.rules = [{ value: 'a', filter }];
+            alsoDuplicated.code = 'group';
+            alsoDuplicated.rules = [{ value: 'b', filter }];
+            unfiltered.code = 'other';
+            unfiltered.rules = [{ value: 'c', filter: null }];
+            nameless.defaultEnumeration = 'unknown';
+            component.transformationRuleModals = {
+                toArray: () => [ruleModal(filter), ruleModal(filter), ruleModal(null)],
+            } as any;
+            fixture.detectChanges();
+
+            const messages = component.transformationBlockingIssues().map((issue) => issue.message);
+            expect(messages.filter((message) => message.includes('unique name')).length).toBe(2);
+            expect(messages).toContain('"c" in "other" needs a category filter.');
+            expect(messages).toContain('A derived column needs a name before it can be previewed or applied.');
+
+            const transformation = workflowSection('Transformation');
+            expect(transformation.querySelector('.transformation-issue-list')?.textContent)
+                .toContain('needs a category filter');
+            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeTrue();
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeTrue();
+
+            mockExpService.loadDescriptiveOverview.calls.reset();
+            component.previewTransformationData();
+            fixture.detectChanges();
+
+            expect(component.transformationActiveTab).toBe('Create');
+            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+            // A folded card would hide its own fix, so the blocked ones open up.
+            expect(component.transformationDrafts.every((draft) => draft.open)).toBeTrue();
+            expect(transformation.querySelectorAll('.transformation-create .row-error').length)
+                .toBeGreaterThanOrEqual(messages.length);
+
+            component.applyTransformation();
+            fixture.detectChanges();
+
+            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(component.transformationActiveTab).toBe('Create');
+        });
+
+        it('blocks Preview while a category builder is invalid', () => {
+            openStation('transformation');
+            const draft = component.transformationDrafts[0];
+            draft.code = 'group_a';
+            draft.rules = [{ value: 'a', filter: null }];
+            component.transformationRuleModals = {
+                toArray: () => [ruleModal(null, 'A filter value is required')],
+            } as any;
+            fixture.detectChanges();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewTransformationData();
+            fixture.detectChanges();
+
+            expect(component.transformationActiveTab).toBe('Create');
+            const messages = component.transformationBlockingIssues();
+            expect(messages.map((issue) => issue.message)).toEqual([
+                // The broken builder is what left the category without a filter, so
+                // the card reports both faces of the same unfinished rule.
+                'A filter value is required',
+                '"a" in "group_a" needs a category filter.',
+            ]);
+            expect(messages.every((issue) => issue.draftId === draft.id)).toBeTrue();
+            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+        });
+
+        it('loads category counts once every started card is complete', () => {
+            const filter = categoryFilter();
+            openStation('transformation');
+            const draft = component.transformationDrafts[0];
+            draft.code = 'group_a';
+            draft.rules = [{ value: 'a', filter }];
+            component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                result: {
+                    featurewise: [
+                        { dataset: 'all datasets', variable: 'group_a', data: { counts: { a: 7 } } },
+                    ],
+                },
+            }));
+            fixture.detectChanges();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewTransformationData();
+            fixture.detectChanges();
+
+            expect(component.transformationActiveTab).toBe('Statistics');
+            expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
+                ['group_a'],
+                jasmine.objectContaining({
+                    categorical_column_creator: jasmine.objectContaining({ code: 'group_a' }),
+                }),
+                ['age']
+            );
+            expect(component.transformationStatistics).toEqual([
+                { code: 'group_a', rows: [{ value: 'a', count: 7 }] },
+            ]);
+        });
     });
 });

@@ -924,6 +924,15 @@ export class ExperimentStudioService {
     return undefined;
   }
 
+  /**
+   * Cohort filters for one request. `undefined` keeps the stored rules, `null`
+   * means "run with no rules" (the step-0 source snapshot), and a filter object
+   * replaces the store without touching it — the Cohort Filtering preview.
+   */
+  private resolveFilterPayload(filterOverride?: BackendFilter | null): BackendFilter | null {
+    return filterOverride === undefined ? this._filterLogic() : filterOverride;
+  }
+
   buildRequestBody(
     algorithmName: string | null = null,
     yVariables: string[] | null = null,
@@ -932,7 +941,7 @@ export class ExperimentStudioService {
     customName: string | null = null,
     bins: number | null = null,
     preprocessingOverride?: PreprocessingConfig | null,
-    includeFilters = true
+    filterOverride?: BackendFilter | null
   ): any {
     let algoConfig: AlgorithmConfig | undefined;
 
@@ -969,9 +978,9 @@ export class ExperimentStudioService {
     config = this.normalizeParameterConfig(algoConfig, config);
 
 
-    // filters logic - `includeFilters: false` is the step-0 source snapshot,
+    // filters logic - a `null` filterOverride is the step-0 source snapshot,
     // which previews the selection with no cohort filter attached.
-    const filterLogic = includeFilters ? this._filterLogic() : null;
+    const filterLogic = this.resolveFilterPayload(filterOverride);
     const hasFilters =
       !!(
         filterLogic &&
@@ -1584,7 +1593,7 @@ export class ExperimentStudioService {
     nodeCodes: string[] | null = null,
     bins: number | null = null,
     preprocessingOverride?: PreprocessingConfig | null,
-    includeFilters = true
+    filterOverride?: BackendFilter | null
   ): Observable<any> {
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const requestBody = this.buildRequestBody(
@@ -1595,7 +1604,7 @@ export class ExperimentStudioService {
         null,
         bins,
         preprocessingOverride,
-        includeFilters
+        filterOverride
       );
       return this.submitTransientRequest(requestBody).pipe(
         map(resp => this.normalizeResponse(algorithmName, resp))
@@ -1611,11 +1620,11 @@ export class ExperimentStudioService {
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null,
     sourceVariableCodes: string[] | null = null,
-    includeFilters = true
+    filterOverride?: BackendFilter | null
   ): ExperimentCreateRequest {
-    // `includeFilters: false` is the step-0 source snapshot: the same describe
+    // A `null` filterOverride is the step-0 source snapshot: the same describe
     // run with no cohort filter attached, i.e. the data exactly as selected.
-    const filters = includeFilters ? this.filterLogic() : null;
+    const filters = this.resolveFilterPayload(filterOverride);
     const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
     const yPayload = variableCodes.length ? variableCodes : null;
     // Derived columns (e.g. categorical_column_creator output) belong in algorithm.y
@@ -1690,13 +1699,13 @@ export class ExperimentStudioService {
     variableCodes: string[],
     preprocessing: PreprocessingConfig | null = null,
     sourceVariableCodes: string[] | null = null,
-    includeFilters = true
+    filterOverride?: BackendFilter | null
   ): Observable<any> {
     const requestBody = this.buildDescriptiveRequestBody(
       variableCodes,
       preprocessing,
       sourceVariableCodes,
-      includeFilters
+      filterOverride
     );
 
     return this.submitTransientRequest(requestBody).pipe(

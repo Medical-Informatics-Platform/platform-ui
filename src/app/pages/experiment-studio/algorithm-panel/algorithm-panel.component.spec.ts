@@ -201,27 +201,6 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
-  it('states whether the documentation is shown or hidden', async () => {
-    fixture.componentInstance.setStudioSubstep('parameters');
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const details = (fixture.nativeElement as HTMLElement).querySelector('.documentation-panel') as HTMLDetailsElement;
-    expect(details).toBeTruthy();
-
-    const visibleState = () => Array.from(details.querySelectorAll<HTMLElement>('.documentation-state'))
-      .filter((state) => getComputedStyle(state).display !== 'none')
-      .map((state) => state.textContent?.trim());
-
-    expect(details.open).toBeTrue();
-    expect(visibleState()).toEqual(['Shown']);
-
-    details.open = false;
-    fixture.detectChanges();
-
-    expect(visibleState()).toEqual(['Hidden']);
-  });
-
   it('shows disabled algorithm availability reasons on the card and in the tooltip', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,

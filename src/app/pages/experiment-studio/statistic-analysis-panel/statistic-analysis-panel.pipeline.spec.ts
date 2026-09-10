@@ -52,6 +52,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'setFilters',
             'setFilterLogic',
             'setTransformationPreprocessing',
+            'filterVariableCodes',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -67,6 +68,20 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
+        // Mirrors the real collector: a group walks its rules, a condition is its field.
+        mockExpService.filterVariableCodes.and.callFake((logic: any) => {
+            const codes = new Set<string>();
+            const walk = (node: any) => {
+                if (!node) return;
+                if (Array.isArray(node.rules)) {
+                    node.rules.forEach(walk);
+                } else if (node.field || node.id) {
+                    codes.add(String(node.field ?? node.id));
+                }
+            };
+            walk(logic);
+            return [...codes];
+        });
         mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) =>
             seedAppliedConfig(config as Record<string, unknown> | null));
         mockExpService.setTransformationPreprocessing.and.callFake((config: unknown) => {
@@ -254,9 +269,10 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         const blankCards = () => component.transformationDrafts.filter((draft) => !draft.code.trim() && !draft.rules.length).length;
         expect(blankCards()).toBe(1);
 
-        // The stage always keeps one editor, so a second rail click reuses the blank card.
+        // The stage keeps the hydrated applied card and one blank editor, so a second
+        // rail click reuses the blank card instead of stacking another one.
         component.addTransformationSubNode();
-        expect(component.transformationDrafts.length).toBe(1);
+        expect(component.transformationDrafts.length).toBe(2);
         expect(blankCards()).toBe(1);
         expect(mockExpService.setTransformationPreprocessing).not.toHaveBeenCalled();
     });
@@ -415,7 +431,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         component.toggleSourcePreview();
 
         // Filters are dropped from the request: the snapshot is the data as selected.
-        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age'], null, null, false);
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age'], null, null, null);
 
         // Close and reopen: the snapshot still matches the selection, so it is free.
         mockExpService.loadDescriptiveOverview.calls.reset();
@@ -427,7 +443,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.loadDescriptiveOverview.calls.reset();
         (mockExpService.selectedVariables as any).set([age, { code: 'mmse', label: 'MMSE', type: 'real' }]);
         fixture.detectChanges();
-        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'mmse'], null, null, false);
+        expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'mmse'], null, null, null);
     });
 
     it('renders the step 0 snapshot in the shared summary workspace', () => {

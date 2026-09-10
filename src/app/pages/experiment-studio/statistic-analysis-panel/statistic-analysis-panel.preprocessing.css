@@ -330,58 +330,62 @@
   background: var(--card-bg);
 }
 
+/* Documentation: the algorithm configuration panel's disclosure, copied. A plain
+   label with a CSS chevron that turns, and the text carried by a left rule instead of
+   a card. The prefix stays because these styles are component-scoped, so this file
+   cannot reach the algorithm panel's classes. */
 .preprocessing-documentation-panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  /* The workspace card body is flush, so this row keeps an 8px inset — which the
+     summary's own negative margin cancels back to a full-bleed hover area. */
   margin: 0 0 14px;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-}
-
-.preprocessing-documentation-panel summary {
-  list-style: none;
-}
-
-.preprocessing-documentation-panel summary::-webkit-details-marker {
-  display: none;
+  padding: 0 8px;
 }
 
 .preprocessing-documentation-summary {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  list-style: none;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.78rem;
+  font-weight: 600;
   user-select: none;
 }
 
-.preprocessing-documentation-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 6px 12px 6px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
-  transition: background 0.2s ease;
+.preprocessing-documentation-summary:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
 }
 
-.preprocessing-documentation-summary:hover .preprocessing-documentation-trigger,
-.preprocessing-documentation-summary:focus-visible .preprocessing-documentation-trigger {
-  background: rgba(43, 51, 233, 0.06);
-  outline: none;
+.preprocessing-documentation-summary::-webkit-details-marker {
+  display: none;
 }
 
-.preprocessing-documentation-trigger > i:first-child {
-  font-size: 0.8rem;
-  color: var(--primary-color);
-  opacity: 0.9;
+.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary {
+  border-bottom: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.14));
+  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
+}
+
+.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary .preprocessing-documentation-label {
+  color: var(--primary-dark);
+}
+
+/* Same chevron geometry as the catalog groups: right when collapsed, down when open. */
+.preprocessing-documentation-chevron {
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: #64748b;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary .preprocessing-documentation-chevron {
+  transform: rotate(45deg);
 }
 
 .preprocessing-documentation-label {
@@ -389,59 +393,28 @@
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--chart-label-color);
+  color: #334155;
   white-space: nowrap;
-}
-
-.preprocessing-documentation-chevron {
-  font-size: 0.62rem;
-  color: #64748b;
-  transition: transform 0.24s cubic-bezier(0.34, 1.2, 0.64, 1);
-}
-
-.preprocessing-documentation-panel[open] .preprocessing-documentation-chevron {
-  transform: rotate(180deg);
-  color: var(--primary-color);
-}
-
-.preprocessing-documentation-panel[open] .preprocessing-documentation-trigger {
-  background: rgba(43, 51, 233, 0.06);
-}
-
-.preprocessing-documentation-panel[open] .preprocessing-documentation-label {
-  color: var(--primary-dark);
 }
 
 .preprocessing-documentation-content {
   width: 100%;
   box-sizing: border-box;
-  padding: 14px 16px 16px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--studio-card-header-bg);
-  box-shadow: none;
-  font-family: inherit;
-  font-size: 0.875rem;
-  line-height: 1.65;
-  color: var(--chart-label-color);
-  letter-spacing: 0.004em;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-variant-numeric: proportional-nums;
+  margin-top: 0.5rem;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--primary-color) 26%, white);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(20, 22, 31, 0.72);
+  overflow-wrap: anywhere;
 }
 
 .preprocessing-documentation-content .preprocessing-doc-intro,
 .preprocessing-documentation-content .preprocessing-doc-paragraph {
-  margin: 0 0 14px;
-  font-size: 0.875rem;
-  line-height: 1.65;
-  color: var(--chart-label-color);
-}
-
-.preprocessing-documentation-content .preprocessing-doc-intro {
-  font-size: 0.9rem;
-  line-height: 1.7;
-  color: #1e293b;
+  margin: 0 0 10px;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .preprocessing-documentation-content .preprocessing-doc-paragraph:last-child,
@@ -450,12 +423,11 @@
 }
 
 .preprocessing-documentation-content .preprocessing-doc-section-title {
-  margin: 18px 0 8px;
-  font-size: 0.8125rem;
+  margin: 12px 0 6px;
+  font-size: inherit;
   font-weight: 600;
-  line-height: 1.5;
-  color: #1e293b;
-  letter-spacing: 0.015em;
+  line-height: inherit;
+  color: var(--text-main);
 }
 
 .preprocessing-documentation-content .preprocessing-doc-section-title:first-child {
@@ -464,11 +436,10 @@
 
 .preprocessing-documentation-content .preprocessing-doc-list {
   display: grid;
-  gap: 0;
-  margin: 0 0 20px;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+  gap: 3px;
+  margin: 0 0 10px;
+  padding-left: 1.15em;
+  list-style: disc;
 }
 
 .preprocessing-documentation-content .preprocessing-doc-list:last-child {
@@ -476,37 +447,21 @@
 }
 
 .preprocessing-documentation-content .preprocessing-doc-list li {
-  display: grid;
-  grid-template-columns: minmax(6.5rem, 8.5rem) minmax(0, 1fr);
-  column-gap: 16px;
-  row-gap: 4px;
-  align-items: start;
-  padding: 11px 0;
-  border: 0;
-  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
-  border-radius: 0;
-  background: transparent;
-}
-
-.preprocessing-documentation-content .preprocessing-doc-list li:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.preprocessing-documentation-content .preprocessing-doc-list li:not(:has(.preprocessing-doc-term)) {
-  grid-template-columns: minmax(0, 1fr);
+  display: list-item;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .preprocessing-documentation-content .preprocessing-doc-term {
-  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--primary-color);
+  color: var(--text-main);
 }
 
 .preprocessing-documentation-content .preprocessing-doc-desc {
-  font-size: 0.8125rem;
-  line-height: 1.6;
-  color: var(--text-muted);
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 .longitudinal-controls {

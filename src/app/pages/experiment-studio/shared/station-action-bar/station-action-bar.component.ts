@@ -28,6 +28,11 @@ export class StationActionBarComponent {
   readonly applyVariant = input<'primary' | 'quiet'>('primary');
   readonly resetDisabled = input(false);
   readonly applyDisabled = input(false);
+  /**
+   * Blocks the read too, for the stage whose Preview would describe a cohort the
+   * editor cannot name yet. The reason belongs in that station's own warning list.
+   */
+  readonly previewDisabled = input(false);
   /** Footer variant: drops the own border/radius so it merges with the station card's bottom border. */
   readonly flush = input(false, { transform: booleanAttribute });
   readonly reset = output<void>();

@@ -52,7 +52,7 @@
 
 .algorithm-roles-board__title {
   margin: 0 0 2px;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: 0.01em;
@@ -101,7 +101,7 @@
 
 .algorithm-workspace {
   display: grid;
-  grid-template-columns: minmax(300px, 36%) minmax(0, 64%); /* 36% catalog · 64% configuration */
+  grid-template-columns: minmax(300px, 20%) minmax(0, 80%); /* 20% catalog · 80% configuration */
   min-width: 0;
   min-height: 24rem;
   height: clamp(24rem, 48vh, 40rem);
@@ -110,20 +110,23 @@
 
 /* TOP BAND: Experiment pool across the full card width — the variable list on the left,
    the stacked outcome and predictor rails beside it on the right — so the band only has
-   to be tall enough for the scrolling list. */
-
+   to be tall enough for the scrolling list. It is one shrinking grid track rather than a
+   stretched flex cross-size: that is what lets the band stop at its max-height and hand
+   the overflow to the list's own scroll, instead of clipping the hint out of the card. */
 .algorithm-pool {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
-  height: clamp(18rem, 34vh, 24rem);
+  height: auto;
+  max-height: 22rem;
   overflow: hidden;
   border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
 }
 
 .algorithm-pool > app-algorithm-role-assignment {
-  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -134,7 +137,7 @@
 /* The catalog title mirrors the pool's pane head so the two panes read as peers. */
 .catalog-title {
   margin: 0;
-  font-size: 0.625rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -156,7 +159,7 @@
 
 .algorithm-match-title {
   margin: 0;
-  font-size: 0.625rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -176,9 +179,22 @@
 /* Search */
 
 .catalog-search {
-  position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 8px;
+}
+
+/* The clear button overlays the field, so the field — not the row — is its containing
+   block; the filter chip sits beside the field instead of under it. */
+.catalog-search-field {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  /* Below this the chip drops to its own line rather than crushing the field: the
+     row wraps on this minimum plus the chip, so the field never shrinks under a
+     readable width when the catalog is narrow. */
+  min-width: 8rem;
 }
 
 .catalog-search-input {
@@ -231,15 +247,7 @@
   color: var(--text-main);
 }
 
-/* Filter bar: one status chip (All / Runnable) with the live runnable count */
-
-.catalog-filterbar {
-  display: flex;
-  padding: 10px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.08));
-  background: var(--bg-neutral, #f8fafc);
-}
+/* One status chip (All / Runnable) sits on the search row — see .pill-toggle below. */
 
 /* Method list. Category kicker: chevron first, then the group name (per the mock). */
 
@@ -335,7 +343,6 @@
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
   color: var(--text-main);
   font: inherit;
   font-size: 0.8rem;
@@ -541,7 +548,7 @@
 }
 
 .algorithm-details__title {
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: 0.01em;
@@ -556,8 +563,7 @@
 }
 
 /* The native disclosure triangle is hidden, so the summary states its own affordance:
-   a chevron that turns with the state plus a Shown/Hidden word. Only one state word is
-   in view at a time, driven by [open] on the <details> itself. */
+   a chevron that turns with the state, driven by [open] on the <details> itself. */
 .documentation-summary {
   display: flex;
   align-items: center;
@@ -598,26 +604,6 @@
 
 .documentation-panel[open] > .documentation-summary .documentation-chevron {
   transform: rotate(45deg);
-}
-
-.documentation-state {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.documentation-state-shown {
-  display: none;
-}
-
-.documentation-panel[open] > .documentation-summary .documentation-state-shown {
-  display: inline;
-}
-
-.documentation-panel[open] > .documentation-summary .documentation-state-hidden {
-  display: none;
 }
 
 .documentation-content {
@@ -745,11 +731,14 @@
 .config-field {
   display: flex;
   flex-direction: column;
-  padding: 12px 14px;
-  border-radius: var(--radius-md, 8px);
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  padding: 4px 0;
+}
+
+/* Fields are divided by a hairline rather than framed: the parameters read as one
+   form, and the card already paints the only container. */
+.config-field + .config-field {
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  padding-top: 10px;
 }
 
 /* Label + "Required" */
@@ -775,13 +764,9 @@
 
 .config-field-hint {
   margin: 0 0 8px;
-  padding: 8px 10px;
-  border-radius: var(--radius-md, 8px);
   font-size: 0.78rem;
   line-height: 1.4;
   color: var(--text-muted);
-  background: rgba(248, 250, 252, 0.95);
-  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 /* Required tag */
@@ -956,10 +941,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(255, 255, 255, 0.82);
+  padding: 4px 0;
 }
 
 .outlier-editor-header {
@@ -1153,19 +1135,21 @@
   min-width: 0;
 }
 
-/* Filter status chip: green outline when showing all, filled when runnable-only. */
+/* Filter status chip: outlined in the board's own indigo when showing all, filled
+   with it when runnable-only. Green here would be the loudest thing on the board. */
 
 .pill-toggle {
   appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  flex: 0 0 auto;
   min-height: 28px;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid rgba(43, 51, 233, 0.25);
   background: var(--studio-card-bg);
-  color: #047857;
+  color: var(--primary-color);
   font-family: inherit;
   font-size: 0.76rem;
   font-weight: 600;
@@ -1176,13 +1160,13 @@
 
 .pill-toggle:hover,
 .pill-toggle:focus-visible {
-  border-color: #6ee7b7;
-  background: #ecfdf5;
+  border-color: color-mix(in srgb, var(--primary-color) 45%, white);
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
 }
 
 .pill-toggle.on {
-  background: #047857;
-  border-color: #047857;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
   color: #ffffff;
 }
 
@@ -1191,7 +1175,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--success, #10b981);
+  background: var(--primary-light);
 }
 
 .pill-toggle.on .pill-dot {
@@ -1205,8 +1189,8 @@
 .catalog-chip-count {
   padding: 0 7px;
   border-radius: 999px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #047857;
+  background: rgba(43, 51, 233, 0.1);
+  color: var(--primary-color);
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1.6;
@@ -1235,8 +1219,11 @@
     min-height: 0;
   }
 
+  /* Stacked: head, rails, list and hint sit in one column, so the band hugs that
+     taller content and the window scrolls rather than the band scrolling inside it. */
   .algorithm-pool {
-    height: 24rem;
+    height: auto;
+    max-height: none;
     border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
   }
 

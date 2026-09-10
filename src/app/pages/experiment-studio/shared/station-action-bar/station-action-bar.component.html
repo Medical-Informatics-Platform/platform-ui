@@ -17,7 +17,12 @@
     <button type="button" class="station-action-reset" [disabled]="resetDisabled()" (click)="reset.emit()">{{ resetLabel() }}</button>
     }
     @if (previewLabel()) {
-    <button type="button" class="station-action-preview" (click)="preview.emit()">{{ previewLabel() }}</button>
+    <button
+      type="button"
+      class="station-action-preview"
+      [disabled]="previewDisabled()"
+      (click)="preview.emit()"
+    >{{ previewLabel() }}</button>
     }
     <button
       type="button"

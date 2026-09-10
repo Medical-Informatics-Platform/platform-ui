@@ -25,27 +25,26 @@
       <h2 class="catalog-title" id="catalog-title">Algorithm catalog</h2>
 
       <div class="catalog-search">
-        <label class="sr-only" for="algo-search">Search algorithms</label>
-        <input
-          id="algo-search"
-          class="catalog-search-input"
-          type="search"
-          placeholder="Search algorithms…"
-          autocomplete="off"
-          [value]="algoSearchQuery()"
-          (input)="onSearchInput($event)"
-        />
-        @if (searchActive()) {
-        <button
-          type="button"
-          class="catalog-search-clear"
-          (click)="clearSearch()"
-          aria-label="Clear algorithm search"
-        >&times;</button>
-        }
-      </div>
-
-      <div class="catalog-filterbar">
+        <div class="catalog-search-field">
+          <label class="sr-only" for="algo-search">Search algorithms</label>
+          <input
+            id="algo-search"
+            class="catalog-search-input"
+            type="search"
+            placeholder="Search algorithms…"
+            autocomplete="off"
+            [value]="algoSearchQuery()"
+            (input)="onSearchInput($event)"
+          />
+          @if (searchActive()) {
+          <button
+            type="button"
+            class="catalog-search-clear"
+            (click)="clearSearch()"
+            aria-label="Clear algorithm search"
+          >&times;</button>
+          }
+        </div>
         <button
           type="button"
           class="pill-toggle catalog-chip"
@@ -133,8 +132,6 @@
           <summary class="documentation-summary">
             <span class="documentation-chevron" aria-hidden="true"></span>
             <span class="documentation-label">Documentation</span>
-            <span class="documentation-state documentation-state-shown">Shown</span>
-            <span class="documentation-state documentation-state-hidden">Hidden</span>
           </summary>
           <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
         </details>

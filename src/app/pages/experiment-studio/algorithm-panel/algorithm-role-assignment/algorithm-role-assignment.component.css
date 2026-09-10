@@ -42,7 +42,7 @@
 
 .pane-title {
   margin: 0;
-  font-size: 0.625rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -57,13 +57,13 @@
 }
 
 /* RIGHT COLUMN: the outcome rail sits above the predictor rail, each getting the whole
-   column width for its chips. The predictor rail takes the leftover column height, so
-   the drop target stays generous and the column does not trail off into whitespace. */
+   column width for its chips. Both rows are content-sized: an empty rail keeps its
+   invite line and nothing more, so the column never fills with tinted empty space. */
 .rails {
   grid-area: rails;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: 8px;
 }
 
@@ -242,12 +242,12 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  /* The band hugs this list, so the list owns the scroll once it grows long. The cap
+     keeps the band's own content inside the card's max-height (22rem minus the head,
+     the filter field, and the hint line). */
+  max-height: 12rem;
   overflow-y: auto;
   min-height: 0;
-  background: var(--studio-card-bg);
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
 }
 
 .row {
@@ -255,7 +255,7 @@
   grid-template-columns: 1fr auto;
   gap: 0.75rem;
   align-items: center;
-  padding: 8px 10px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
 }
 
@@ -397,5 +397,10 @@
   .rails {
     grid-template-rows: auto auto;
     margin-bottom: 12px;
+  }
+
+  /* One column now: the list gets back the room the rails took beside it. */
+  .roster {
+    max-height: 16rem;
   }
 }

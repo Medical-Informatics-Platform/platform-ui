@@ -425,7 +425,7 @@
             <app-filter-config-modal
               #filterModal
               [filterLogic]="expStudioService.filterLogic()"
-              (filtersApplied)="goToSection('raw')"
+              (filtersApplied)="onCohortFiltersApplied()"
             ></app-filter-config-modal>
             <app-station-action-bar
               stationFooter
@@ -435,8 +435,8 @@
               [applyLabel]="filterModal.activeRulesCount() > 0 ? 'Apply' : 'Close'"
               [applyIcon]="filterModal.activeRulesCount() > 0 ? 'fas fa-check' : 'fas fa-times'"
               [applyVariant]="filterModal.activeRulesCount() > 0 ? 'primary' : 'quiet'"
-              (reset)="filterModal.clearFilters()"
-              (preview)="goToSection('raw')"
+              (reset)="clearFilterRules(filterModal)"
+              (preview)="previewFilterData(filterModal)"
               (apply)="commitOrCloseFilterStation(filterModal)"
             ></app-station-action-bar>
           </app-station-card>
@@ -571,11 +571,8 @@
               @if (preprocessingStepDocumentation('missing_values_handler')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-trigger">
-                    <i class="fas fa-circle-info" aria-hidden="true"></i>
-                    <span class="preprocessing-documentation-label">Documentation</span>
-                    <i class="fas fa-chevron-down preprocessing-documentation-chevron" aria-hidden="true"></i>
-                  </span>
+                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
+                  <span class="preprocessing-documentation-label">Documentation</span>
                 </summary>
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('missing_values_handler')"></div>
               </details>
@@ -809,11 +806,8 @@
               @if (preprocessingStepDocumentation('outlier_winsorizer')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-trigger">
-                    <i class="fas fa-circle-info" aria-hidden="true"></i>
-                    <span class="preprocessing-documentation-label">Documentation</span>
-                    <i class="fas fa-chevron-down preprocessing-documentation-chevron" aria-hidden="true"></i>
-                  </span>
+                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
+                  <span class="preprocessing-documentation-label">Documentation</span>
                 </summary>
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('outlier_winsorizer')"></div>
               </details>
@@ -1062,11 +1056,8 @@
               @if (preprocessingStepDocumentation('longitudinal_transformer')) {
               <details class="preprocessing-documentation-panel">
                 <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-trigger">
-                    <i class="fas fa-circle-info" aria-hidden="true"></i>
-                    <span class="preprocessing-documentation-label">Documentation</span>
-                    <i class="fas fa-chevron-down preprocessing-documentation-chevron" aria-hidden="true"></i>
-                  </span>
+                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
+                  <span class="preprocessing-documentation-label">Documentation</span>
                 </summary>
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('longitudinal_transformer')"></div>
               </details>
@@ -1397,6 +1388,10 @@
                     </div>
                     }
                   </div>
+
+                  @for (issue of transformationDraftIssues(draft); track issue) {
+                  <div class="row-error">{{ issue }}</div>
+                  }
                 </div>
               </app-station-card>
               }
@@ -1408,6 +1403,18 @@
             @if (transformationApplyError) {
             <div class="glass-feedback glass-feedback-warning">
               {{ transformationApplyError }}
+            </div>
+            }
+            @if (transformationBlockingIssues().length) {
+            <!-- Preview and Apply are disabled while anything here is open, so the stage
+                 names what it is waiting for instead of leaving dead buttons behind. -->
+            <div class="glass-feedback glass-feedback-warning" role="alert">
+              <span>Fix before Preview or Apply:</span>
+              <ul class="transformation-issue-list">
+                @for (issue of transformationBlockingIssues(); track $index) {
+                <li>{{ issue.message }}</li>
+                }
+              </ul>
             </div>
             }
             } @else {
@@ -1461,6 +1468,8 @@
               applyLabel="Apply"
               applyIcon="fas fa-check"
               [resetDisabled]="transformationStatusLabel === 'Not defined'"
+              [previewDisabled]="transformationHasBlockingIssues"
+              [applyDisabled]="transformationHasBlockingIssues"
               (reset)="resetTransformation()"
               (preview)="previewTransformationData()"
               (apply)="applyTransformation()"

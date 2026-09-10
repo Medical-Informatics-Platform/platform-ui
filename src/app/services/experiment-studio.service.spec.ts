@@ -468,12 +468,85 @@ describe('ExperimentStudioService', () => {
 
     // Step 0 describes the data as selected: no filter payload, and the filter
     // field is no longer dragged into the input pool.
-    service.loadDescriptiveOverview(['age'], null, null, false).subscribe();
+    service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
     const sourceReq = httpMock.expectOne('/services/experiments/transient');
     expect(sourceReq.request.body.analysis.inputdata.filters).toBeNull();
     expect(sourceReq.request.body.analysis.inputdata.variables).not.toContain('site');
     expect(sourceReq.request.body.analysis.preprocessing).toBeNull();
     sourceReq.flush({ result: { featurewise: [] } });
+  });
+
+  it('describes a filter override without touching the stored cohort', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const stored = { condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any;
+    const pending = { condition: 'AND', rules: [{ field: 'score', operator: 'greater', value: 65 }] } as any;
+    service.setFilterLogic(stored);
+
+    // The Cohort Filtering preview sends what the editor holds, unapplied.
+    service.loadDescriptiveOverview(['age'], null, null, pending).subscribe();
+    const pendingReq = httpMock.expectOne('/services/experiments/transient');
+    expect(pendingReq.request.body.analysis.inputdata.filters).toEqual(pending);
+    expect(pendingReq.request.body.analysis.inputdata.variables).toContain('score');
+    expect(pendingReq.request.body.analysis.inputdata.variables).not.toContain('site');
+    pendingReq.flush({ result: { featurewise: [] } });
+
+    // An explicit null is "no rules", not "fall back to the store".
+    service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
+    const clearedReq = httpMock.expectOne('/services/experiments/transient');
+    expect(clearedReq.request.body.analysis.inputdata.filters).toBeNull();
+    expect(clearedReq.request.body.analysis.inputdata.variables).not.toContain('site');
+    clearedReq.flush({ result: { featurewise: [] } });
+
+    // Leaving the override alone keeps the stored cohort.
+    service.loadDescriptiveOverview(['age']).subscribe();
+    const storedReq = httpMock.expectOne('/services/experiments/transient');
+    expect(storedReq.request.body.analysis.inputdata.filters).toEqual(stored);
+    storedReq.flush({ result: { featurewise: [] } });
+
+    // Previewing never writes the cohort.
+    expect(service.filterLogic()).toEqual(stored);
+  });
+
+  it('plots a histogram preview on the overridden cohort', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
+    const pending = { condition: 'AND', rules: [{ field: 'score', operator: 'greater', value: 65 }] } as any;
+    const defaultDrop = { missing_values_handler: { strategies: { var1: 'drop' } } };
+
+    const body = service.buildRequestBody(
+      'histogram',
+      ['var1'],
+      null,
+      null,
+      null,
+      null,
+      defaultDrop,
+      pending
+    );
+
+    expect(body.analysis.inputdata.filters).toEqual(pending);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(defaultDrop));
+  });
+
+  it('forwards the cohort override from getAlgorithmResults to the transient request', () => {
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
+    const pending = { condition: 'AND', rules: [{ field: 'score', operator: 'greater', value: 65 }] } as any;
+
+    service.getAlgorithmResults(
+      'histogram',
+      ['var1'],
+      null,
+      { missing_values_handler: { strategies: { var1: 'drop' } } },
+      pending
+    ).subscribe();
+
+    const req = httpMock.expectOne('/services/experiments/transient');
+    expect(req.request.body.analysis.inputdata.filters).toEqual(pending);
+    req.flush({ result: { histogram: [] } });
   });
 
   it('sends processed descriptive overview requests with explicit preprocessing', () => {

@@ -1226,25 +1226,10 @@ select:required:valid {
   margin: 0;
 }
 
-/* Documentation is a collapsible drawer across the top of the workspace, not a
-   floating pill: it owns its own inset now that the body has none. */
-.preprocessing-shell .preprocessing-documentation-panel {
-  margin: 0;
-  border-bottom: 1px solid var(--studio-card-header-border);
-  background: color-mix(in srgb, var(--primary-color) 2%, white);
-}
-
-.preprocessing-shell .preprocessing-documentation-summary {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 5px 16px;
-}
-
-.preprocessing-shell .preprocessing-documentation-content {
-  padding: 0 16px 14px;
-  border-radius: 0;
-  background: transparent;
-}
+/* The preprocessing documentation rows wear the algorithm configuration panel's
+   disclosure, and they own their inset: the workspace card body has no padding of its
+   own (see .station-card:has(.preprocessing-workspace)), so the component styles carry
+   the 8px rather than a global override competing with them at equal specificity. */
 
 /* Station status chip — shared by station-card headers, preprocessing detail headers and variable rows. */
 .preprocessing-state-mini,
@@ -1381,31 +1366,6 @@ select:required:valid {
   user-select: none;
 }
 
-.documentation-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 6px 12px 6px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
-  transition: background 0.2s ease;
-}
-
-.documentation-summary:hover .documentation-trigger,
-.documentation-summary:focus-visible .documentation-trigger {
-  background: rgba(43, 51, 233, 0.06);
-  outline: none;
-}
-
-.documentation-trigger > i:first-child {
-  font-size: 0.8rem;
-  color: var(--primary-color, #2b33e9);
-  opacity: 0.9;
-}
-
 .documentation-label {
   font-family: inherit;
   font-size: 0.78rem;
@@ -1424,10 +1384,6 @@ select:required:valid {
 .documentation-panel[open] .documentation-chevron {
   transform: rotate(180deg);
   color: var(--primary-color);
-}
-
-.documentation-panel[open] .documentation-trigger {
-  background: rgba(43, 51, 233, 0.06);
 }
 
 .documentation-panel[open] .documentation-label {

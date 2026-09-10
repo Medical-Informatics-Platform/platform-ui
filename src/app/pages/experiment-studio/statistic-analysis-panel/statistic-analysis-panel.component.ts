@@ -80,6 +80,10 @@ type SummaryAnchorKey = 'charts' | 'details' | 'export';
  * panel, and step 0 is a read-only duplicate of the Raw surface, so it wears none — the
  * same anchor on a hidden node would hand the tour or a QA selector the wrong surface.
  */
+/** Backend step docs arrive as prose whose bullets are '-', '*' or '\u2022'; all of them
+   become real list items, so the block reads like the algorithm documentation. */
+const DOCUMENTATION_BULLET = /^[-*\u2022\u00b7]\s+/;
+
 const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string | null>> = {
   source: { charts: null, details: null, export: null },
   raw: { charts: 'analysis-charts', details: 'analysis-raw-details', export: 'analysis-export' },
@@ -342,6 +346,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   removeStep(step: 'filters' | 'setup' | 'transformation'): void {
     this.addedSteps.update((s) => ({ ...s, [step]: false }));
     if (step === 'filters') {
+      this.rawPreviewFilter = undefined;
       this.expStudioService.setFilterLogic(null);
       this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
     } else if (step === 'setup') {
@@ -378,6 +383,38 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     this.removeStep('filters');
     this.requestSectionScroll('filters');
+  }
+
+  /**
+   * Cohort Filtering's "Preview data": describe the cohort under the rules the editor
+   * holds — unapplied, including "no rules yet" — and hand the result to the Raw
+   * summary. Nothing is written; Apply (`saveFilters`) stays the only path to the
+   * request, and an invalid builder keeps the user on the editor with its own error.
+   */
+  previewFilterData(modal: FilterConfigModalComponent): void {
+    const pendingFilters = modal.exportFilterLogic() as BackendFilter | null;
+    if (modal.filterError()) {
+      this.cdr.markForCheck();
+      return;
+    }
+    this.rawPreviewFilter = pendingFilters ?? null;
+    this.goToSection('raw');
+  }
+
+  /**
+   * Apply wrote the pending rules, so the Raw surface follows the store again. A
+   * preview fetched with those exact rules already holds the right numbers; the
+   * selection effect refetches only when the stored cohort really differs.
+   */
+  onCohortFiltersApplied(): void {
+    this.rawPreviewFilter = undefined;
+    this.goToSection('raw');
+  }
+
+  /** Clear drops the stored cohort, which retires the preview pinned to it. */
+  clearFilterRules(modal: FilterConfigModalComponent): void {
+    this.rawPreviewFilter = undefined;
+    modal.clearFilters();
   }
 
   get activeStagesCount(): number {
@@ -647,6 +684,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   transformationStatisticsError = '';
   /** Blocks Apply when two cards share a derived column name. */
   transformationApplyError = '';
+  /** Category-builder errors, kept per card from the last commit attempt. */
+  transformationRuleFilterErrors: Record<number, string> = {};
   private transformationStatsRequestId = 0;
 
   readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
@@ -685,6 +724,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   private selectionKey = '';
   private rawSummaryKey = '';
+  /**
+   * The cohort rules the Raw surface was last fetched with when they are unsaved
+   * editor state. `undefined` means the surface follows the stored `filterLogic()`,
+   * so the selection effect may refresh it; a value — including `null` for "no rules
+   * at all" — pins the Raw summary to what the modal holds, so Preview shows the
+   * cohort the user is composing rather than the older stored one.
+   */
+  private rawPreviewFilter: BackendFilter | null | undefined = undefined;
   /** Supersedes an in-flight raw describe so a late response cannot win. */
   private rawDescribeSeq = 0;
   private processedSummaryKey = '';
@@ -767,12 +814,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
       // Raw is "the variables as stored": it is requested with a null preprocessing
       // config, so applying preprocessing cannot change its numbers and must not
-      // spend a second full federated describe on it.
-      const nextRawKey = this.buildSelectionKey(variables, filters, filterLogic);
-      if (nextRawKey !== this.rawSummaryKey) {
-        this.rawSummaryKey = nextRawKey;
-        this.fetchDescriptiveStatistics();
-      }
+      // spend a second full federated describe on it. A Cohort Filtering preview owns
+      // the surface instead, and ensureRawSummary re-runs the describe with those
+      // unsaved rules rather than falling back to the stored cohort read above.
+      this.ensureRawSummary();
       this.fetchProcessedPreview();
       // untracked: the snapshot refreshes with the selection, but sectionOpen must
       // not become a dependency of this effect or every section switch refetches raw.
@@ -1281,6 +1326,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (section === 'transformation') {
       this.transformationActiveTab = 'Create';
     }
+    if (section === 'raw') {
+      // The Raw summary must show the cohort it claims to: the stored rules, or the
+      // unsaved ones a Cohort Filtering preview pinned to it.
+      this.ensureRawSummary();
+    }
     if (section === 'processed') {
       // Pipeline consistency: the processed preview always mirrors the current
       // pipeline state (cohort filter + configured preprocessing, pending edits
@@ -1358,7 +1408,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     // No filter payload, no preprocessing steps: the data exactly as selected.
     this.clearSourcePreviewSubscription();
     this.sourcePreviewSubscription = this.expStudioService
-      .loadDescriptiveOverview(variableCodes, null, null, false)
+      .loadDescriptiveOverview(variableCodes, null, null, null)
       .pipe(takeUntil(this.destroyed))
       .subscribe({
         next: (response) => {
@@ -1411,6 +1461,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.foldPreprocessingStation();
       return;
     }
+    this.rawPreviewFilter = undefined;
     this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
     this.cdr.markForCheck();
     this.requestSectionScroll('filters');
@@ -1453,7 +1504,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    */
   commitTransformationRuleFilters(): boolean {
     const modals = this.transformationRuleModals?.toArray() ?? [];
+    const builderErrors: Record<number, string> = {};
     let modalIndex = 0;
+    let committed = true;
     for (const draft of this.transformationDrafts) {
       for (const rule of draft.rules) {
         const modal = modals[modalIndex++];
@@ -1462,20 +1515,129 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         }
         const logic = modal.exportFilterLogic();
         if (modal.filterError()) {
-          return false;
+          // Keep walking the remaining cards: one broken builder must not hide what
+          // the others hold, and the fix list has to name every offender at once.
+          committed = false;
+          builderErrors[draft.id] = modal.filterError() as string;
+          continue;
         }
         rule.filter = logic;
       }
+    }
+    this.transformationRuleFilterErrors = builderErrors;
+    if (!committed) {
+      this.cdr.markForCheck();
+      return false;
     }
     this.onTransformationChange();
     return true;
   }
 
   previewTransformationData(): void {
-    if (!this.commitTransformationRuleFilters()) {
-      return;
-    }
+    // The commit is what surfaces a broken category builder; the issue list is what
+    // keeps Preview from describing a cohort the drafts cannot name yet.
+    this.commitTransformationRuleFilters();
+    if (this.holdTransformationOnCreate()) return;
     this.setTransformationActiveTab('Statistics');
+  }
+
+  /**
+   * Keep the stage on Create while anything blocks Preview/Apply, and fold no card
+   * away while its own fix is pending. Returns true when the caller must read or
+   * write nothing else — no describe, no persisted config, no stage collapse.
+   */
+  private holdTransformationOnCreate(): boolean {
+    if (!this.transformationHasBlockingIssues) {
+      this.cdr.markForCheck();
+      return false;
+    }
+    this.transformationActiveTab = 'Create';
+    this.expandInvalidTransformationDrafts();
+    this.cdr.markForCheck();
+    return true;
+  }
+
+  /** A card folded to its header would hide the very error that blocks the stage. */
+  private expandInvalidTransformationDrafts(): void {
+    const blocked = new Set(this.transformationBlockingIssues().map((issue) => issue.draftId));
+    if (!blocked.size) return;
+    this.transformationDrafts.forEach((draft) => {
+      if (blocked.has(draft.id)) draft.open = true;
+    });
+  }
+
+  /**
+   * What blocks Preview/Apply, one entry per problem, so the stage can name the fix
+   * instead of leaving a dead button behind. A card counts once the user started
+   * work on it; an untouched card keeps Apply available as the no-op it is. Every
+   * started card must be a complete, uniquely named column: a name, at least one
+   * category, a filter on each category, and a filter that points at a real
+   * data-model variable.
+   */
+  transformationBlockingIssues(): Array<{ draftId?: number; message: string }> {
+    const issues: Array<{ draftId?: number; message: string }> = [];
+    this.transformationDrafts.forEach((draft) => {
+      const builderError = this.transformationRuleFilterErrors[draft.id];
+      if (builderError) {
+        issues.push({ draftId: draft.id, message: builderError });
+      }
+      if (!this.draftHasWork(draft)) return;
+
+      const code = draft.code.trim();
+      if (!code) {
+        issues.push({
+          draftId: draft.id,
+          message: 'A derived column needs a name before it can be previewed or applied.',
+        });
+        return;
+      }
+      if (this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code)) {
+        issues.push({
+          draftId: draft.id,
+          message: `"${code}" is used by more than one card; each derived column needs a unique name.`,
+        });
+      }
+
+      const named = draft.rules.filter((rule) => rule.value.trim().length > 0);
+      if (!named.length) {
+        issues.push({
+          draftId: draft.id,
+          message: `"${code}" needs at least one category with a filter.`,
+        });
+        return;
+      }
+      const unfiltered = named.filter((rule) => !rule.filter);
+      if (unfiltered.length) {
+        const categories = unfiltered.map((rule) => `"${rule.value.trim()}"`).join(', ');
+        issues.push({
+          draftId: draft.id,
+          message: `${categories} in "${code}" needs a category filter.`,
+        });
+        return;
+      }
+      const referencesModel = named.some(
+        (rule) => this.expStudioService.filterVariableCodes(rule.filter).length > 0
+      );
+      if (!referencesModel) {
+        issues.push({
+          draftId: draft.id,
+          message: `The category filters of "${code}" must reference at least one selected variable.`,
+        });
+      }
+    });
+    return issues;
+  }
+
+  /** The same messages, narrowed to one card and repeated where the fix belongs. */
+  transformationDraftIssues(draft: TransformationColumnDraft): string[] {
+    return this.transformationBlockingIssues()
+      .filter((issue) => issue.draftId === draft.id)
+      .map((issue) => issue.message);
+  }
+
+  /** Preview and Apply share one gate: unfinished work, never an empty stage. */
+  get transformationHasBlockingIssues(): boolean {
+    return this.transformationBlockingIssues().length > 0;
   }
 
   /** Clear the transformation station: pending edits and the committed config alike. */
@@ -1484,6 +1646,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
     this.transformationApplyError = '';
+    this.transformationRuleFilterErrors = {};
     this.onTransformationChange();
   }
 
@@ -1505,6 +1668,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (this.transformationHasDuplicateCodes) {
       this.transformationApplyError = 'Each derived column needs a unique name.';
       this.cdr.markForCheck();
+      return;
+    }
+    if (this.holdTransformationOnCreate()) {
       return;
     }
     if (!this.transformationConfigs().length) {
@@ -1550,9 +1716,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Append another empty "Create new categorical column" card. */
   addTransformationDraft(): void {
+    // Opening another editor is a read: an empty card has no config to persist, so
+    // leave the stored transformation untouched until the user types/commits.
     this.transformationDrafts.push(emptyTransformationDraft());
     this.transformationApplyError = '';
-    this.onTransformationChange();
+    this.cdr.markForCheck();
   }
 
   /**
@@ -1608,7 +1776,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const lines = trimmed.includes('\n')
       ? trimmed.split(/\r?\n/)
-      : trimmed.split(/\s+-\s+(?=[A-Za-z])/);
+      : trimmed.split(/\s+(?:[-*\u2022\u00b7])\s+(?=[A-Za-z])/);
 
     const parts: string[] = [];
     let listItems: string[] = [];
@@ -1643,22 +1811,24 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         continue;
       }
 
-      let itemText = line.startsWith('- ') ? line.slice(2).trim() : line;
+      const isBullet = DOCUMENTATION_BULLET.test(line);
+      let itemText = isBullet ? line.replace(DOCUMENTATION_BULLET, '').trim() : line;
       const colonIndex = itemText.indexOf(':');
       const looksLikeListItem =
-        line.startsWith('- ') ||
+        isBullet ||
         (colonIndex > 0 && colonIndex < 40 && itemText.slice(colonIndex + 1).trim().length > 0);
 
       if (looksLikeListItem && colonIndex > 0) {
         const term = escapeHtml(itemText.slice(0, colonIndex).trim());
         const description = escapeHtml(itemText.slice(colonIndex + 1).trim());
+        // The term keeps its colon: the item is read as one line of prose, not a table.
         listItems.push(
-          `<li><span class="preprocessing-doc-term">${term}</span><span class="preprocessing-doc-desc">${description}</span></li>`
+          `<li><span class="preprocessing-doc-term">${term}:</span> <span class="preprocessing-doc-desc">${description}</span></li>`
         );
         continue;
       }
 
-      if (line.startsWith('- ')) {
+      if (isBullet) {
         listItems.push(`<li><span class="preprocessing-doc-desc">${escapeHtml(itemText)}</span></li>`);
         continue;
       }
@@ -2294,9 +2464,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     });
   }
 
-  fetchDescriptiveStatistics(): void {
+  /**
+   * The Raw summary describe. `filterOverride` runs it against unsaved Cohort
+   * Filtering rules; the cache key always carries the filter that was actually sent,
+   * so a pending preview and the stored cohort never claim each other's numbers.
+   */
+  fetchDescriptiveStatistics(filterOverride?: BackendFilter | null): void {
     if (!this.expStudioService.selectedDataModel() || this.expStudioService.selectedDatasets().length === 0) {
       this.rawDescribeSeq++;
+      this.rawSummaryKey = '';
       this.expStudioService.clearDataExclusionWarnings();
       this.rawSummary = this.createEmptySummary(false);
       this.processedData = [];
@@ -2312,6 +2488,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const items = this.preprocessingVariables;
     if (!items.length) {
+      this.rawSummaryKey = '';
       this.rawDescribeSeq++;
       this.expStudioService.clearDataExclusionWarnings();
       this.rawSummary = this.createEmptySummary(false);
@@ -2323,26 +2500,54 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const variableCodes = items.map((item) => item.code);
     const requestSeq = ++this.rawDescribeSeq;
-    this.expStudioService.loadDescriptiveOverview(variableCodes, null).subscribe({
-      next: (response) => {
-        // Selection changed while this was in flight; the newer run owns the summary.
-        if (requestSeq !== this.rawDescribeSeq) return;
-        this.expStudioService.setDataExclusionWarnings([], []);
-        this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
-        this.processedData = this.rawSummary.data;
-        this.isLoading = false;
-        this.refreshActiveHistogramPreview('raw');
-        this.cdr.markForCheck();
-      },
-      error: (err) => {
-        if (requestSeq !== this.rawDescribeSeq) return;
-        console.error(err);
-        this.expStudioService.clearDataExclusionWarnings();
-        this.rawSummary = { ...this.rawSummary, isLoading: false };
-        this.isLoading = false;
-        this.cdr.markForCheck();
-      },
-    });
+    this.rawSummaryKey = this.rawSummaryKeyFor(filterOverride);
+    this.expStudioService
+      .loadDescriptiveOverview(variableCodes, null, null, filterOverride)
+      .subscribe({
+        next: (response) => {
+          // Selection changed while this was in flight; the newer run owns the summary.
+          if (requestSeq !== this.rawDescribeSeq) return;
+          this.expStudioService.setDataExclusionWarnings([], []);
+          this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
+          this.processedData = this.rawSummary.data;
+          this.isLoading = false;
+          this.refreshActiveHistogramPreview('raw');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.rawDescribeSeq) return;
+          console.error(err);
+          this.expStudioService.clearDataExclusionWarnings();
+          this.rawSummary = { ...this.rawSummary, isLoading: false };
+          this.isLoading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /**
+   * Cache key of the Raw summary for one cohort. The stored `filterLogic()` is the
+   * default; a pending preview keys on the rules it is showing instead, so the two
+   * states cannot reuse each other's response.
+   */
+  private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
+    const effectiveFilter = filterOverride === undefined
+      ? this.expStudioService.filterLogic()
+      : filterOverride;
+    return this.buildSelectionKey(
+      this.expStudioService.selectedVariables(),
+      this.expStudioService.selectedFilters(),
+      effectiveFilter,
+    );
+  }
+
+  /**
+   * Show the Raw summary for the cohort it is supposed to describe, spending at most
+   * one describe: an identical cohort (same rules, same selection) is already cached.
+   */
+  private ensureRawSummary(): void {
+    if (this.rawSummaryKey === this.rawSummaryKeyFor(this.rawPreviewFilter)) return;
+    this.fetchDescriptiveStatistics(this.rawPreviewFilter);
   }
 
   variableLabel(variable: VariableRow): string {
@@ -2570,9 +2775,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     };
     this.cdr.markForCheck();
 
-    // Raw and source histogram previews are unprocessed; processed histograms follow
-    // the same config as their tables, including pending edits.
-    const preprocessingOverride = this.preprocessingConfigForSummaryKind(kind);
+    // `histogram_sql` cannot run without a missing-value strategy, so even the
+    // unprocessed surfaces send the default drop for the plotted variable and nothing
+    // else. The processed surface sends its pending rules — never the derived columns,
+    // which are this variable's output, not its input.
+    const preprocessingOverride = this.histogramPreprocessingFor(kind, code);
 
     // Step 0 previews the unfiltered cohort, so its histogram must drop the
     // filter too - otherwise the tab would show the filtered cohort under a
@@ -2582,8 +2789,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       ...summary.histogramRequestIdByVariable,
       [code]: requestSeq,
     };
+    // Step 0 describes the unfiltered source; a Cohort Filtering preview pins the raw
+    // histograms to the same unsaved cohort its table came from; the processed surface
+    // keeps the applied cohort (undefined = the stored rules).
+    const filterOverride = kind === 'source' ? null : kind === 'raw' ? this.rawPreviewFilter : undefined;
     this.expStudioService
-      .getAlgorithmResults(AlgorithmNames.HISTOGRAM, [code], null, preprocessingOverride, kind !== 'source')
+      .getAlgorithmResults(
+        AlgorithmNames.HISTOGRAM,
+        [code],
+        null,
+        preprocessingOverride,
+        filterOverride,
+      )
       .pipe(takeUntil(this.destroyed))
       .subscribe({
         next: (response) => {
@@ -2635,32 +2852,37 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       });
   }
 
-  private preprocessingConfigForSummaryKind(kind: SummaryKind): PreprocessingConfig | null {
-    if (kind !== 'processed') return null;
-    const currentCodes = this.currentPreprocessingCodeSet();
-    const pendingConfig = this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes);
-    if (pendingConfig) return pendingConfig;
-    if (this.hasPendingPreprocessingEdits(currentCodes)) return null;
-    return this.expStudioService.getAppliedDescriptivePreprocessing();
+  /**
+   * What one numerical histogram is plotted under. Raw and step 0 only ever add the
+   * default drop-NaN for the plotted variable: neither surface may show preprocessing
+   * or transformations it does not describe. The processed surface follows the pending
+   * editor state, and a variable those rules leave alone still gets the default drop,
+   * because a histogram without a handler is a failed request, not an unhandled cohort.
+   */
+  private histogramPreprocessingFor(kind: SummaryKind, code: string): PreprocessingConfig {
+    if (kind === 'processed') {
+      const pending = this.buildPreprocessingConfig(
+        this.pendingPreprocessingRules,
+        this.currentPreprocessingCodeSet(),
+      );
+      return this.withDefaultDropFor(pending, code);
+    }
+    return this.withDefaultDropFor(null, code);
   }
 
-  private hasPendingPreprocessingEdits(currentCodes: Set<string>): boolean {
-    if (this.pendingChangeCount > 0) return true;
-    if (this.isLongitudinalModel) {
-      return this.appliedLongitudinalEnabled !== this.isLongitudinalModel
-        || this.appliedLongitudinalVisit1 !== this.longitudinalVisit1
-        || this.appliedLongitudinalVisit2 !== this.longitudinalVisit2
-        || JSON.stringify(this.appliedLongitudinalStrategies) !== JSON.stringify(this.pendingLongitudinalStrategies);
-    }
-    return Object.keys(this.pendingPreprocessingRules).some((code) => {
-      if (!currentCodes.has(code)) return false;
-      const pending = this.pendingPreprocessingRules[code];
-      const applied = this.appliedPreprocessingRules[code];
-      return JSON.stringify(pending) !== JSON.stringify(applied);
-    }) || Object.keys(this.pendingOutlierRules).some((code) => {
-      if (!currentCodes.has(code)) return false;
-      return JSON.stringify(this.pendingOutlierRules[code]) !== JSON.stringify(this.appliedOutlierRules[code]);
-    });
+  /** Add `drop` for `code` unless the config already carries a strategy for it. */
+  private withDefaultDropFor(
+    preprocessing: PreprocessingConfig | null,
+    code: string
+  ): PreprocessingConfig {
+    const config: PreprocessingConfig = { ...(preprocessing ?? {}) };
+    const handler = { ...((config['missing_values_handler'] as Record<string, unknown>) ?? {}) };
+    const strategies = { ...((handler['strategies'] as Record<string, unknown>) ?? {}) };
+    if (strategies[code]) return config;
+    strategies[code] = 'drop';
+    handler['strategies'] = strategies;
+    config['missing_values_handler'] = handler;
+    return config;
   }
 
   private clearProcessedPreviewSubscription(): void {
@@ -3080,6 +3302,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (Object.keys(this.validatePendingRules()).length > 0) {
       this.transformationStatistics = placeholderBlocks;
       this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    if (this.transformationHasBlockingIssues) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError = this.transformationBlockingIssues()[0].message;
       this.isTransformationStatsLoading = false;
       this.cdr.markForCheck();
       return;
