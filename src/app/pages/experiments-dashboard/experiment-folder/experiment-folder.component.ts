@@ -15,6 +15,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { CdkMenu, CdkMenuItem } from '@angular/cdk/menu';
+import { Observable } from 'rxjs';
+import { InflightWrites } from '../../../core/inflight-writes';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentSet } from '../../../models/experiment-folder.model';
@@ -23,6 +25,7 @@ import { isNotFoundError } from '../../../core/http-error.utils';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
 
 /** One row of the canvas: a member id plus whatever we know about it yet. */
 interface FolderMemberRow {
@@ -68,7 +71,7 @@ const DROP_NOTICE_MS = 2200;
   templateUrl: './experiment-folder.component.html',
   styleUrl: './experiment-folder.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, CdkMenu, CdkMenuItem],
+  imports: [CommonModule, CdkMenu, CdkMenuItem, ExperimentStatusComponent],
 })
 export class ExperimentFolderComponent implements OnDestroy {
   /** The folder is read through the service, so a member added or pruned elsewhere shows up
@@ -106,6 +109,16 @@ export class ExperimentFolderComponent implements OnDestroy {
   readonly nameDraft = signal('');
   readonly nameError = signal<string | null>(null);
   readonly isConfirmingDelete = signal(false);
+
+  /**
+   * What the server refused. The canvas keeps no local copy of a folder, so a write that never
+   * landed has nowhere else to be admitted — silently leaving the rows as they were would read as
+   * the click having done nothing at all.
+   */
+  readonly actionError = signal<string | null>(null);
+  /** Writes on their way to the server; `busy` is what the template disarms buttons with. */
+  private readonly writes = new InflightWrites((message) => this.actionError.set(message));
+  readonly busy = this.writes.busy;
 
   /** A run is hovering over the canvas with the folder as its plausible destination. */
   readonly isReceiving = signal(false);
@@ -288,13 +301,31 @@ export class ExperimentFolderComponent implements OnDestroy {
     event.preventDefault();
 
     // A drop adds; it never undoes. Re-dropping a member is a misaim, not a request to remove it.
-    const isDuplicate = this.foldersService.isMember(folder.id, experimentId);
-    if (!isDuplicate) this.foldersService.addExperiment(folder.id, experimentId);
-    this.showDropNotice({
-      text: isDuplicate ? `Already in ${folder.name}` : `Added to ${folder.name}`,
-      kind: isDuplicate ? 'duplicate' : 'added',
-      landedId: isDuplicate ? null : experimentId,
-    });
+    // The mirror answers the duplicate straight away — the server stays the authority either way.
+    if (this.foldersService.isMember(folder.id, experimentId)) {
+      this.showDropNotice({ text: `Already in ${folder.name}`, kind: 'duplicate', landedId: null });
+      return;
+    }
+
+    // The notice waits for the answer, so a row that never appeared never arrives wearing "Added".
+    this.runWrite(
+      `add:${folder.id}:${experimentId}`,
+      this.foldersService.addExperiment(folder.id, experimentId),
+      (updated) => this.showDropNotice({ text: `Added to ${updated.name}`, kind: 'added', landedId: experimentId }),
+      'Could not add that run to the folder.',
+    );
+  }
+
+  /**
+   * The bookend every folder write needs, in `core/inflight-writes`: one request per action in
+   * flight, a canvas that says it is waiting, and a visible line when the server refuses. A success
+   * retires the previous refusal before the caller reports what the write did.
+   */
+  private runWrite<T>(dedupeKey: string, request: Observable<T>, onDone: ((value: T) => void) | null, failure: string): void {
+    this.writes.run(dedupeKey, request, (value) => {
+      this.actionError.set(null);
+      onDone?.(value);
+    }, failure);
   }
 
   ngOnDestroy(): void {
@@ -313,7 +344,12 @@ export class ExperimentFolderComponent implements OnDestroy {
 
     const folder = this.folder();
     if (!folder) return;
-    this.foldersService.removeExperiment(folder.id, row.id);
+    this.runWrite(
+      `remove:${folder.id}:${row.id}`,
+      this.foldersService.removeExperiment(folder.id, row.id),
+      null,
+      'Could not remove that run from the folder.',
+    );
   }
 
   onCompare(): void {
@@ -337,13 +373,22 @@ export class ExperimentFolderComponent implements OnDestroy {
     const folder = this.folder();
     if (!folder) return;
 
-    const renamed = this.foldersService.renameFolder(folder.id, this.nameDraft());
-    if (!renamed) {
-      this.nameError.set(this.nameDraft().trim() ? 'A folder with that name already exists.' : 'Give the folder a name.');
-      return;
-    }
-    this.isEditingName.set(false);
-    this.nameError.set(null);
+    const draft = this.nameDraft();
+    this.runWrite(
+      `rename:${folder.id}`,
+      this.foldersService.renameFolder(folder.id, draft),
+      (renamed) => {
+        // False is the name rule speaking, and it belongs under the input it was typed into;
+        // anything else the server said is the general line above.
+        if (!renamed) {
+          this.nameError.set(draft.trim() ? 'A folder with that name already exists.' : 'Give the folder a name.');
+          return;
+        }
+        this.isEditingName.set(false);
+        this.nameError.set(null);
+      },
+      'Could not rename the folder. Nothing was changed.',
+    );
   }
 
   askDelete(): void {
@@ -357,9 +402,18 @@ export class ExperimentFolderComponent implements OnDestroy {
   confirmDelete(): void {
     const folder = this.folder();
     if (!folder) return;
-    this.foldersService.deleteFolder(folder.id);
-    this.isConfirmingDelete.set(false);
-    this.back.emit();
+
+    // The way out only opens once the server has the folder gone; leaving the canvas over a
+    // folder that is still in the strip would leave the two disagreeing.
+    this.runWrite(
+      `delete:${folder.id}`,
+      this.foldersService.deleteFolder(folder.id),
+      () => {
+        this.isConfirmingDelete.set(false);
+        this.back.emit();
+      },
+      'Could not delete the folder. It is still there.',
+    );
   }
 
   // ---- sets: the headings over the member list ----
@@ -397,13 +451,21 @@ export class ExperimentFolderComponent implements OnDestroy {
     const setId = this.renamingSetId();
     if (!folder || !setId) return;
 
-    if (!this.foldersService.renameSet(folder.id, setId, this.setRenameDraft())) {
-      this.setRenameError.set(
-        this.setRenameDraft().trim() ? 'A set with that name already exists.' : 'Give the set a name.',
-      );
-      return;
-    }
-    this.cancelSetRename();
+    const draft = this.setRenameDraft();
+    this.runWrite(
+      `rename-set:${folder.id}:${setId}`,
+      this.foldersService.renameSet(folder.id, setId, draft),
+      (renamed) => {
+        if (!renamed) {
+          this.setRenameError.set(
+            draft.trim() ? 'A set with that name already exists.' : 'Give the set a name.',
+          );
+          return;
+        }
+        this.cancelSetRename();
+      },
+      'Could not rename the set. Nothing was changed.',
+    );
   }
 
   askSetDelete(group: MemberGroup): void {
@@ -420,8 +482,12 @@ export class ExperimentFolderComponent implements OnDestroy {
     const setId = this.confirmingSetDeleteId();
     if (!folder || !setId) return;
 
-    this.foldersService.deleteSet(folder.id, setId);
-    this.confirmingSetDeleteId.set(null);
+    this.runWrite(
+      `delete-set:${folder.id}:${setId}`,
+      this.foldersService.deleteSet(folder.id, setId),
+      () => this.confirmingSetDeleteId.set(null),
+      'Could not delete the set. It is still there.',
+    );
   }
 
   // ---- per-row move-to-set menu: same recipe as the list row's add-to-folder menu ----
@@ -481,14 +547,24 @@ export class ExperimentFolderComponent implements OnDestroy {
   onSetMenuPick(set: ExperimentSet, row: FolderMemberRow): void {
     const folder = this.folder();
     if (!folder) return;
-    this.foldersService.moveToSet(folder.id, row.id, set.id);
+    this.runWrite(
+      `move:${folder.id}:${row.id}:${set.id}`,
+      this.foldersService.moveToSet(folder.id, row.id, set.id),
+      () => this.setMenuError.set(null),
+      'Could not move that run. The sets are unchanged.',
+    );
   }
 
   onSetMenuUnset(row: FolderMemberRow): void {
     const folder = this.folder();
     if (!folder) return;
-    this.foldersService.removeFromSets(folder.id, row.id);
     this.closeSetMenu();
+    this.runWrite(
+      `unset:${folder.id}:${row.id}`,
+      this.foldersService.removeFromSets(folder.id, row.id),
+      null,
+      'Could not move that run back to Ungrouped.',
+    );
   }
 
   openSetMenuNew(): void {
@@ -502,13 +578,21 @@ export class ExperimentFolderComponent implements OnDestroy {
     const folder = this.folder();
     if (!folder) return;
 
-    const created = this.foldersService.createSet(folder.id, this.setMenuDraft(), row.id);
-    if (!created) {
-      this.setMenuError.set(this.setMenuDraft().trim() ? 'That name is taken.' : 'Give the set a name.');
-      return;
-    }
-    this.setMenuNewOpen.set(false);
-    this.setMenuError.set(null);
+    const draft = this.setMenuDraft();
+    this.runWrite(
+      `create-set:${folder.id}:${draft}`,
+      this.foldersService.createSet(folder.id, draft, row.id),
+      (updated) => {
+        // null is the duplicate (or the blank) the inline line already explains.
+        if (!updated) {
+          this.setMenuError.set(draft.trim() ? 'That name is taken.' : 'Give the set a name.');
+          return;
+        }
+        this.setMenuNewOpen.set(false);
+        this.setMenuError.set(null);
+      },
+      'Could not create the set.',
+    );
   }
 
   private showDropNotice(notice: DropNotice): void {

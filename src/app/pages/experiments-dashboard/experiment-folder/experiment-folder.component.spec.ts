@@ -7,6 +7,7 @@ import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { FakeExperimentFoldersService } from '../experiment-folders.testing';
 import { ExperimentFolderComponent } from './experiment-folder.component';
 
 const experiment = (id: string, overrides: Partial<Experiment> = {}): Experiment => ({
@@ -24,7 +25,7 @@ const experiment = (id: string, overrides: Partial<Experiment> = {}): Experiment
 describe('ExperimentFolderComponent', () => {
   let fixture: ComponentFixture<ExperimentFolderComponent>;
   let component: ExperimentFolderComponent;
-  let foldersService: ExperimentFoldersService;
+  let foldersService: FakeExperimentFoldersService;
   let loaded: ReturnType<typeof signal<Experiment[]>>;
   let fetchSpy: jasmine.Spy;
   let pending: Subject<Experiment>;
@@ -61,17 +62,15 @@ describe('ExperimentFolderComponent', () => {
     Array.from(root().querySelectorAll<HTMLButtonElement>('.folder-actions .folder-form-action'))
       .find((button) => button.textContent!.trim().includes(label))!;
 
+  /** Seeds the folder the canvas is pointed at — the click paths have their own specs below. */
   const openFolder = (memberIds: string[], name = 'Q3 meta') => {
-    const folder = foldersService.createFolder(name, memberIds[0])!;
-    memberIds.slice(1).forEach((id) => foldersService.addExperiment(folder.id, id));
+    const folder = foldersService.seedFolder(name, memberIds);
     fixture.componentRef.setInput('folderId', folder.id);
     return folder;
   };
 
   beforeEach(async () => {
-    localStorage.clear();
-    foldersService = new ExperimentFoldersService();
-    foldersService.useUserScope(null);
+    foldersService = new FakeExperimentFoldersService();
     loaded = signal<Experiment[]>([]);
     pending = new Subject<Experiment>();
     fetchSpy = jasmine.createSpy('fetchExperimentById').and.returnValue(pending);
@@ -90,9 +89,7 @@ describe('ExperimentFolderComponent', () => {
     component = fixture.componentInstance;
   });
 
-  afterEach(() => {
-    localStorage.clear();
-  });
+
 
   it('lists the members it can resolve from the loaded page', () => {
     loaded.set([experiment('a'), experiment('b')]);
@@ -148,7 +145,7 @@ describe('ExperimentFolderComponent', () => {
   it('takes a run the backend dropped out of its set as well', () => {
     loaded.set([experiment('a')]);
     const folder = openFolder(['a', 'off-page']);
-    const set = foldersService.createSet(folder.id, 'T-tests', 'off-page')!;
+    const set = foldersService.seedSet(folder.id, 'T-tests', ['off-page'])!;
     fixture.detectChanges();
 
     pending.error(new Error('404'));
@@ -254,6 +251,81 @@ describe('ExperimentFolderComponent', () => {
     expect(root().querySelector('.folder-rename-input')).toBeNull();
   });
 
+  it('asks the server to delete the folder and only leaves the canvas once it has agreed', () => {
+    loaded.set([experiment('a')]);
+    const folder = openFolder(['a']);
+    fixture.detectChanges();
+
+    const back: number[] = [];
+    component.back.subscribe(() => back.push(1));
+
+    headerAction('Delete').click();
+    fixture.detectChanges();
+    (root().querySelector('.folder-delete-confirm .folder-form-action.danger') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(foldersService.folderById(folder.id)).toBeNull();
+    expect(component.isConfirmingDelete()).toBeFalse();
+    expect(back).toEqual([1]);
+  });
+
+  it('holds the canvas, and the confirmation, when the delete never reached the server', () => {
+    spyOn(console, 'error');
+    loaded.set([experiment('a')]);
+    const folder = openFolder(['a']);
+    foldersService.failWith('deleteFolder');
+    fixture.detectChanges();
+
+    const back: number[] = [];
+    component.back.subscribe(() => back.push(1));
+
+    headerAction('Delete').click();
+    fixture.detectChanges();
+    (root().querySelector('.folder-delete-confirm .folder-form-action.danger') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(foldersService.folderById(folder.id)).toBeTruthy();
+    expect(back).toEqual([]);
+    expect(root().querySelector('.folder-delete-confirm')).toBeTruthy();
+    expect(root().querySelector('.folder-form-error')!.textContent).toContain('Could not delete the folder');
+  });
+
+  it('tells a server that did not answer apart from a name that is taken', () => {
+    spyOn(console, 'error');
+    loaded.set([experiment('a')]);
+    openFolder(['a']);
+    fixture.detectChanges();
+
+    headerAction('Rename').click();
+    fixture.detectChanges();
+
+    const input = root().querySelector('.folder-rename-input') as HTMLInputElement;
+    input.value = 'ANOVA sensitivity';
+    input.dispatchEvent(new Event('input'));
+    foldersService.failWith('renameFolder');
+    (root().querySelector('.folder-form-action') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(foldersService.folders()[0].name).toBe('Q3 meta');
+    expect(root().querySelector('.folder-rename-input')).toBeTruthy();
+    expect(root().querySelector('.folder-form-error')!.textContent).toContain('Could not rename the folder');
+  });
+
+  it('keeps the row and says so when removing the run did not reach the server', () => {
+    spyOn(console, 'error');
+    loaded.set([experiment('a'), experiment('b')]);
+    const folder = openFolder(['a', 'b']);
+    foldersService.failWith('removeExperiment');
+    fixture.detectChanges();
+
+    removeButton(0).click();
+    fixture.detectChanges();
+
+    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a', 'b']);
+    expect(rowsOf().length).toBe(2);
+    expect(root().querySelector('.folder-form-error')!.textContent).toContain('Could not remove that run');
+  });
+
   it('dismisses a ghost row instead of no-opping against a pruned member', () => {
     loaded.set([experiment('a')]);
     openFolder(['a', 'off-page']);
@@ -318,6 +390,21 @@ describe('ExperimentFolderComponent', () => {
     expect(root().querySelector('.member-row--landed')).toBeNull();
   });
 
+  it('withholds the "added" report from a drop the server refused', () => {
+    spyOn(console, 'error');
+    loaded.set([experiment('a'), experiment('c')]);
+    const folder = openFolder(['a']);
+    foldersService.failWith('addExperiment');
+    fixture.detectChanges();
+
+    dropWith(canvas(), runDrag('c'));
+    fixture.detectChanges();
+
+    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a']);
+    expect(notice()).toBeNull();
+    expect(root().querySelector('.folder-form-error')!.textContent).toContain('Could not add that run');
+  });
+
   it('leaves a drag alone that carries something other than a run', () => {
     openFolder(['a']);
     fixture.detectChanges();
@@ -374,7 +461,7 @@ describe('ExperimentFolderComponent', () => {
     it('partitions the members under their set headings, Ungrouped last', () => {
       loaded.set([experiment('a'), experiment('b'), experiment('c')]);
       const folder = openFolder(['a', 'b', 'c']);
-      foldersService.createSet(folder.id, 'T-tests', 'b');
+      foldersService.seedSet(folder.id, 'T-tests', ['b']);
       fixture.detectChanges();
 
       expect(groupNames()).toEqual(['T-tests', 'Ungrouped']);
@@ -396,7 +483,7 @@ describe('ExperimentFolderComponent', () => {
     it('collapses a set heading without losing its count', () => {
       loaded.set([experiment('a'), experiment('b'), experiment('c')]);
       const folder = openFolder(['a', 'b', 'c']);
-      foldersService.createSet(folder.id, 'T-tests', 'b');
+      foldersService.seedSet(folder.id, 'T-tests', ['b']);
       fixture.detectChanges();
 
       groupHeaders()[0].querySelector<HTMLButtonElement>('.member-group-toggle')!.click();
@@ -423,7 +510,7 @@ describe('ExperimentFolderComponent', () => {
     it('moves a run into a set from its row, out of the set that had it', () => {
       loaded.set([experiment('a'), experiment('b')]);
       const folder = openFolder(['a', 'b']);
-      const ttests = foldersService.createSet(folder.id, 'T-tests', 'a')!;
+      const ttests = foldersService.seedSet(folder.id, 'T-tests', ['a'])!;
       fixture.detectChanges();
 
       setTrigger(1).click();
@@ -444,7 +531,7 @@ describe('ExperimentFolderComponent', () => {
     it('leaves a set for Ungrouped without leaving the folder', () => {
       loaded.set([experiment('a'), experiment('b')]);
       const folder = openFolder(['a', 'b']);
-      foldersService.createSet(folder.id, 'T-tests', 'a')!;
+      foldersService.seedSet(folder.id, 'T-tests', ['a']);
       fixture.detectChanges();
 
       setTrigger(0).click();
@@ -485,7 +572,7 @@ describe('ExperimentFolderComponent', () => {
     it('refuses a set name a sibling already took', () => {
       loaded.set([experiment('a')]);
       const folder = openFolder(['a']);
-      foldersService.createSet(folder.id, 'T-tests');
+      foldersService.seedSet(folder.id, 'T-tests');
       fixture.detectChanges();
 
       setTrigger(0).click();
@@ -503,10 +590,33 @@ describe('ExperimentFolderComponent', () => {
       expect(foldersService.folderById(folder.id)!.sets.length).toBe(1);
     });
 
+    it('says so when a new set never made it to the server', () => {
+      spyOn(console, 'error');
+      loaded.set([experiment('a')]);
+      const folder = openFolder(['a']);
+      foldersService.failWith('createSet');
+      fixture.detectChanges();
+
+      setTrigger(0).click();
+      fixture.detectChanges();
+      (root().querySelector('.set-menu__item--new') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const input = root().querySelector('.set-menu__input') as HTMLInputElement;
+      input.value = 'Chi-squared';
+      input.dispatchEvent(new Event('input'));
+      (root().querySelector('.set-menu__form-action') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      expect(foldersService.folderById(folder.id)!.sets).toEqual([]);
+      expect(root().querySelector('.set-menu__input')).toBeTruthy();
+      expect(root().querySelector('.folder-form-error')!.textContent).toContain('Could not create the set');
+    });
+
     it('renames a set from its heading', () => {
       loaded.set([experiment('a')]);
       const folder = openFolder(['a']);
-      foldersService.createSet(folder.id, 'T-tests', 'a');
+      foldersService.seedSet(folder.id, 'T-tests', ['a']);
       fixture.detectChanges();
 
       groupHeaders()[0].querySelector<HTMLButtonElement>('.member-group-actions .icon-btn')!.click();
@@ -525,8 +635,8 @@ describe('ExperimentFolderComponent', () => {
     it('keeps a set name that clashes with a sibling, and says so', () => {
       loaded.set([experiment('a')]);
       const folder = openFolder(['a']);
-      foldersService.createSet(folder.id, 'T-tests', 'a');
-      foldersService.createSet(folder.id, 'Chi-squared');
+      foldersService.seedSet(folder.id, 'T-tests', ['a']);
+      foldersService.seedSet(folder.id, 'Chi-squared');
       fixture.detectChanges();
 
       groupHeaders()[0].querySelector<HTMLButtonElement>('.member-group-actions .icon-btn')!.click();
@@ -545,7 +655,7 @@ describe('ExperimentFolderComponent', () => {
     it('deletes a set and hands its runs back to Ungrouped', () => {
       loaded.set([experiment('a'), experiment('b')]);
       const folder = openFolder(['a', 'b']);
-      foldersService.createSet(folder.id, 'T-tests', 'a');
+      foldersService.seedSet(folder.id, 'T-tests', ['a']);
       fixture.detectChanges();
 
       groupHeaders()[0].querySelector<HTMLButtonElement>('.member-group-actions .icon-btn.danger')!.click();
@@ -563,7 +673,7 @@ describe('ExperimentFolderComponent', () => {
     it('aborts a set delete before it happens', () => {
       loaded.set([experiment('a')]);
       const folder = openFolder(['a']);
-      foldersService.createSet(folder.id, 'T-tests', 'a');
+      foldersService.seedSet(folder.id, 'T-tests', ['a']);
       fixture.detectChanges();
 
       groupHeaders()[0].querySelector<HTMLButtonElement>('.member-group-actions .icon-btn.danger')!.click();

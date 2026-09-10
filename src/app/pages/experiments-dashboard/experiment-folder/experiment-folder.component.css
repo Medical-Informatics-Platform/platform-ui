@@ -384,31 +384,6 @@
   font-weight: 600;
 }
 
-.status-pill {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  flex-shrink: 0;
-  border: 1px solid transparent;
-}
-
-.status-pill.completed {
-  background: #ecfdf5;
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.15);
-}
-
-.status-pill.error {
-  background: #fff1f2;
-  color: #e11d48;
-  border-color: rgba(225, 29, 72, 0.2);
-}
-
 .row-meta-line {
   margin-top: 4px;
   display: flex;

@@ -17,7 +17,7 @@
       <div class="folder-rename-form">
         <input class="folder-rename-input" [value]="nameDraft()" (input)="nameDraft.set($any($event.target).value)"
           (keydown.enter)="saveRename()" (keydown.escape)="cancelRename()" aria-label="Folder name" />
-        <button type="button" class="folder-form-action" (click)="saveRename()">Save</button>
+        <button type="button" class="folder-form-action" [disabled]="busy()" (click)="saveRename()">Save</button>
         <button type="button" class="folder-form-action cancel" (click)="cancelRename()">Cancel</button>
       </div>
       }
@@ -28,6 +28,10 @@
 
       @if (nameError(); as nameError) {
       <p class="folder-form-error">{{ nameError }}</p>
+      }
+
+      @if (actionError(); as actionError) {
+      <p class="folder-form-error" role="alert">{{ actionError }}</p>
       }
 
       @if (dropNotice(); as notice) {
@@ -60,7 +64,7 @@
       } @else {
       <div class="folder-delete-confirm">
         <span>Delete folder? Runs stay in your history.</span>
-        <button type="button" class="folder-form-action danger" (click)="confirmDelete()">Delete</button>
+        <button type="button" class="folder-form-action danger" [disabled]="busy()" (click)="confirmDelete()">Delete</button>
         <button type="button" class="folder-form-action cancel" (click)="cancelDelete()">Cancel</button>
       </div>
       }
@@ -96,7 +100,7 @@
           <input class="member-group-rename-input" [value]="setRenameDraft()"
             (input)="setRenameDraft.set($any($event.target).value)" (keydown.enter)="saveSetRename()"
             (keydown.escape)="cancelSetRename()" aria-label="Set name" />
-          <button type="button" class="folder-form-action" (click)="saveSetRename()">Save</button>
+          <button type="button" class="folder-form-action" [disabled]="busy()" (click)="saveSetRename()">Save</button>
           <button type="button" class="folder-form-action cancel" (click)="cancelSetRename()">Cancel</button>
         </div>
         } @else {
@@ -116,7 +120,7 @@
           } @else {
           <div class="member-group-confirm">
             <span>Delete set? Its runs stay in the folder.</span>
-            <button type="button" class="folder-form-action danger" (click)="confirmSetDelete()">Delete</button>
+            <button type="button" class="folder-form-action danger" [disabled]="busy()" (click)="confirmSetDelete()">Delete</button>
             <button type="button" class="folder-form-action cancel" (click)="cancelSetDelete()">Cancel</button>
           </div>
           }
@@ -143,10 +147,7 @@
               <span class="member-name" [title]="row.experiment.name">
                 {{ row.experiment.name || "Untitled Investigation" }}
               </span>
-              <span class="status-pill" [class.completed]="row.experiment.status === 'success'"
-                [class.error]="row.experiment.status === 'error'">
-                {{ row.experiment.status }}
-              </span>
+              <app-experiment-status [status]="row.experiment.status" [compact]="true" />
               } @else if (isUnavailable(row.id)) {
               <span class="member-name member-name--gone">No longer available</span>
               } @else if (memberError(row.id); as loadError) {
@@ -226,7 +227,8 @@
             <div class="set-menu__form">
               <input class="set-menu__input" [value]="setMenuDraft()" placeholder="Set name" aria-label="New set name"
                 (input)="setMenuDraft.set($any($event.target).value)" (keydown.enter)="commitSetMenuNew(row)" />
-              <button type="button" class="set-menu__form-action" (click)="commitSetMenuNew(row)">Add</button>
+              <button type="button" class="set-menu__form-action" [disabled]="busy()"
+                (click)="commitSetMenuNew(row)">Add</button>
             </div>
             @if (setMenuError(); as setMenuError) {
             <p class="set-menu__error">{{ setMenuError }}</p>

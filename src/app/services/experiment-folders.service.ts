@@ -1,21 +1,32 @@
-import { Injectable, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject, signal } from '@angular/core';
+import { Observable, catchError, map, of, throwError } from 'rxjs';
 
 import { ExperimentFolder, ExperimentSet } from '../models/experiment-folder.model';
+import { BackendExperimentFoldersResponse } from '../models/backend-experiment-folder.model';
+import { User } from '../models/user.interface';
 
-const STORAGE_BASE_KEY = 'mip.experiments.folders.v1';
-const ANON_SCOPE = 'anon';
+/** The one backend surface for folders and the sets inside them; see `backend-experiment-folder.model.ts`. */
+const FOLDERS_URL = '/services/experiment-folders';
 const MAX_NAME_LENGTH = 60;
+
+/** Every mutation answers with the folder itself (ExperimentFolderAPI returns a bare DTO). */
 
 /**
  * Experiment folders ("analysis sets"): a named group of runs the user wants side by side.
  *
- * Persistence is a frontend cache for now. All folder mutations stay behind this service
- * so the upcoming backend folder API can replace localStorage without changing the
- * dashboard/canvas components. Folders hold member ids only, never experiment copies, so
- * the only drift risk is an id that no longer resolves. Membership is pruned after a
- * confirmed delete or a real 404, never against the visible page: the dashboard list is
- * server-paginated, so a page is never the full truth and pruning against it would
- * silently empty folders whose members sit on another page.
+ * PostgreSQL is the store and `/services/experiment-folders` is the only way in or out. The signal
+ * below is a mirror of the server's rows, not a second source of truth: every mutation sends its
+ * request, and only the folder the server returns is written back into the signal. Nothing is kept
+ * in the browser, so a folder made here is a folder the next tab, device, or reload finds.
+ *
+ * Ownership is not a query parameter — the session picks the rows — so the username here is only a
+ * cache key: it tells the service when the mirror has to be thrown away and read again.
+ *
+ * Folders hold member ids only, never experiment copies, so the only drift risk is an id that no
+ * longer resolves. Membership is pruned after a confirmed delete or a real 404, never against the
+ * visible page: the dashboard list is server-paginated, so a page is never the full truth and
+ * pruning against it would silently empty folders whose members sit on another page.
  *
  * Inside a folder, sets are named subsets of the members — the grouping the compare workspace
  * renders as sections. They partition the members: a run sits in at most one set, and anything
@@ -24,110 +35,120 @@ const MAX_NAME_LENGTH = 60;
 @Injectable({ providedIn: 'root' })
 export class ExperimentFoldersService {
   readonly folders = signal<ExperimentFolder[]>([]);
+  /** True while the folder rows for the active user are on their way in. */
+  readonly loading = signal(false);
+  /** Why the mirror above is not the truth; the folder strip says so instead of showing nothing. */
+  readonly loadError = signal<string | null>(null);
 
-  /** Key suffix follows the signed-in user; null until the scope is resolved. */
-  private scope: string | null = null;
+  private readonly http = inject(HttpClient);
+
+  /** Whose rows `folders` mirrors; null means nobody is signed in and there is nothing to mirror. */
+  private activeUsername: string | null = null;
+  /** Rises with every load, so a response that arrives after a newer one is dropped, not applied. */
+  private loadToken = 0;
 
   /**
-   * Points storage at the current user. Called from the dashboard once the session (and
-   * therefore the email) is known; folders made before that live under the anon key and are
-   * adopted once, so a first folder made while signing in does not vanish on reload.
+   * Points the mirror at the signed-in user. Called from the dashboard once the session resolves.
+   *
+   * A signed-out user gets an empty mirror and no request; a new username clears the mirror and
+   * reads the server again; the same username coming back through change detection does neither.
    */
-  useUserScope(email: string | null): void {
-    const next = this.normalizeScope(email);
-    if (next === this.scope) return;
+  setActiveUser(user: User | null): void {
+    const username = user?.username?.trim() || null;
+    if (username === this.activeUsername) return;
 
-    const adopt = (this.scope === null || this.scope === ANON_SCOPE) && next !== ANON_SCOPE && this.folders().length > 0;
-    this.scope = next;
-
-    if (!adopt) {
-      this.folders.set(this.foldersFrom(this.readKey(this.storageKey(next))));
+    this.activeUsername = username;
+    const token = ++this.loadToken;
+    this.folders.set([]);
+    this.loadError.set(null);
+    if (!username) {
+      this.loading.set(false);
       return;
     }
-    this.persist();
-    this.removeKey(this.storageKey(ANON_SCOPE));
+
+    this.loading.set(true);
+    this.http.get<BackendExperimentFoldersResponse>(FOLDERS_URL).subscribe({
+      next: (response) => {
+        if (token !== this.loadToken) return;
+        this.loading.set(false);
+        this.folders.set(this.foldersFrom(response));
+      },
+      error: (err) => {
+        if (token !== this.loadToken) return;
+        console.error('[ExperimentFoldersService] Could not load folders', err);
+        this.loading.set(false);
+        this.loadError.set('Could not load your folders. Check the connection and reload the page.');
+      },
+    });
   }
 
-  /** Blank and duplicate names are rejected; a duplicate returns null so callers can say so. */
-  createFolder(name: string, experimentId?: string): ExperimentFolder | null {
+  /** Blank names are rejected here; a name another folder of this user's already took comes back as 409, which becomes null. */
+  createFolder(name: string, experimentId?: string): Observable<ExperimentFolder | null> {
     const cleanName = this.sanitizeName(name);
-    if (!cleanName) return null;
-    if (this.folders().some((folder) => this.nameKey(folder.name) === this.nameKey(cleanName))) return null;
+    if (!cleanName) return of(null);
 
-    const folder: ExperimentFolder = {
-      id: this.makeId('folder'),
+    return this.post(FOLDERS_URL, {
       name: cleanName,
-      experimentIds: experimentId ? [experimentId] : [],
-      sets: [],
-    };
-
-    this.folders.update((current) => [...current, folder]);
-    this.persist();
-    return folder;
+      ...(experimentId ? { experimentUuid: experimentId } : {}),
+    }).pipe(
+      catchError((error) => this.nameTaken<ExperimentFolder | null>(error, null)),
+    );
   }
 
-  renameFolder(folderId: string, name: string): boolean {
+  /** True on success, false when the name is taken or blank; anything else the server said is rethrown. */
+  renameFolder(folderId: string, name: string): Observable<boolean> {
     const cleanName = this.sanitizeName(name);
-    if (!cleanName) return false;
-    const clash = this.folders().some(
-      (folder) => folder.id !== folderId && this.nameKey(folder.name) === this.nameKey(cleanName),
-    );
-    if (clash) return false;
+    if (!cleanName) return of(false);
+    if (!folderId) return this.invalid('renameFolder needs a folder id');
 
-    const existing = this.folders().find((folder) => folder.id === folderId);
-    if (!existing) return false;
-
-    this.folders.update((current) =>
-      current.map((folder) => (folder.id === folderId ? { ...folder, name: cleanName } : folder)),
-    );
-    this.persist();
-    return true;
+    return this.http
+      .patch<ExperimentFolder>(this.folderUrl(folderId), { name: cleanName })
+      .pipe(
+        map((response) => this.confirmRename(response)),
+        catchError((error) => this.nameTaken<boolean>(error, false)),
+      );
   }
 
-  deleteFolder(folderId: string): void {
-    if (!this.folders().some((folder) => folder.id === folderId)) return;
-    this.folders.update((current) => current.filter((folder) => folder.id !== folderId));
-    this.persist();
-  }
+  /** The server answers with no body, so the mirror is what drops the folder. */
+  deleteFolder(folderId: string): Observable<void> {
+    if (!folderId) return this.invalid('deleteFolder needs a folder id');
 
-  /** The row menu and the canvas both add and drop members, so one entry point. */
-  toggleExperiment(folderId: string, experimentId: string): void {
-    if (this.isMember(folderId, experimentId)) {
-      this.removeExperiment(folderId, experimentId);
-      return;
-    }
-    this.addExperiment(folderId, experimentId);
-  }
-
-  addExperiment(folderId: string, experimentId: string): void {
-    if (!experimentId || this.isMember(folderId, experimentId)) return;
-    this.folders.update((current) =>
-      current.map((folder) =>
-        folder.id === folderId
-          ? { ...folder, experimentIds: [...folder.experimentIds, experimentId] }
-          : folder,
-      ),
+    return this.http.delete<void>(this.folderUrl(folderId)).pipe(
+      map(() => {
+        this.folders.update((current) => current.filter((folder) => folder.id !== folderId));
+      }),
     );
-    this.persist();
+  }
+
+  /** The row menu ticks a folder on or off, so one entry point decides which way this call goes. */
+  toggleExperiment(folderId: string, experimentId: string): Observable<ExperimentFolder> {
+    return this.isMember(folderId, experimentId)
+      ? this.removeExperiment(folderId, experimentId)
+      : this.addExperiment(folderId, experimentId);
+  }
+
+  addExperiment(folderId: string, experimentId: string): Observable<ExperimentFolder> {
+    if (!folderId || !experimentId) return this.invalid('addExperiment needs a folder and a run');
+
+    return this.post(this.folderUrl(folderId, 'members'), { experimentUuid: experimentId });
   }
 
   /** Leaving the folder ends the membership outright: a set cannot keep a run the folder lost. */
-  removeExperiment(folderId: string, experimentId: string): void {
-    this.folders.update((current) =>
-      current.map((folder) =>
-        folder.id === folderId
-          ? {
-              ...folder,
-              experimentIds: folder.experimentIds.filter((id) => id !== experimentId),
-              sets: this.dropFromSets(folder.sets, experimentId),
-            }
-          : folder,
-      ),
-    );
-    this.persist();
+  removeExperiment(folderId: string, experimentId: string): Observable<ExperimentFolder> {
+    if (!folderId || !experimentId) return this.invalid('removeExperiment needs a folder and a run');
+
+    return this.http
+      .delete<ExperimentFolder>(this.folderUrl(folderId, 'members', experimentId))
+      .pipe(map((response) => this.applyFolder(response)));
   }
 
-  /** Prune a deleted or 404'd experiment from every folder, sets included. The one pruning path. */
+  /**
+   * Prune a deleted or 404'd experiment out of the mirror, sets included. Local on purpose: the
+   * caller has already been told by the experiment API that the run is gone, and
+   * `ON DELETE CASCADE` dropped the membership rows in the same transaction, so there is nothing
+   * left to ask the server. It is never a write — pruning on an unconfirmed delete would let a
+   * failed request cost the user a folder.
+   */
   pruneExperiment(experimentId: string): void {
     if (!experimentId) return;
     if (!this.folders().some((folder) => this.folderHolds(folder, experimentId))) return;
@@ -139,7 +160,6 @@ export class ExperimentFoldersService {
         sets: this.dropFromSets(folder.sets, experimentId),
       })),
     );
-    this.persist();
   }
 
   folderById(folderId: string | null): ExperimentFolder | null {
@@ -154,109 +174,52 @@ export class ExperimentFoldersService {
   // ---- sets: named subsets of a folder, one level deep by design ----
 
   /** Same name rules as folders, in a namespace of their own: a set may share its folder's name. */
-  createSet(folderId: string, name: string, experimentId?: string): ExperimentSet | null {
-    const folder = this.folderById(folderId);
-    if (!folder) return null;
-
+  createSet(folderId: string, name: string, experimentId?: string): Observable<ExperimentFolder | null> {
     const cleanName = this.sanitizeName(name);
-    if (!cleanName) return null;
-    if (folder.sets.some((set) => this.nameKey(set.name) === this.nameKey(cleanName))) return null;
+    if (!folderId || !cleanName) return of(null);
 
-    const created: ExperimentSet = { id: this.makeId('set'), name: cleanName, experimentIds: [] };
-    this.folders.update((current) =>
-      current.map((candidate) =>
-        candidate.id === folderId
-          ? {
-              ...candidate,
-              sets: [...candidate.sets, created],
-              experimentIds:
-                experimentId && !candidate.experimentIds.includes(experimentId)
-                  ? [...candidate.experimentIds, experimentId]
-                  : candidate.experimentIds,
-            }
-          : candidate,
-      ),
+    return this.post(this.folderUrl(folderId, 'sets'), {
+      name: cleanName,
+      ...(experimentId ? { experimentUuid: experimentId } : {}),
+    }).pipe(
+      catchError((error) => this.nameTaken<ExperimentFolder | null>(error, null)),
     );
-    if (experimentId) this.moveToSet(folderId, experimentId, created.id);
-    // Unconditional: the update above is a real mutation even when the move below it no-ops.
-    this.persist();
-
-    return created;
   }
 
-  renameSet(folderId: string, setId: string, name: string): boolean {
-    const folder = this.folderById(folderId);
-    if (!folder) return false;
-
+  renameSet(folderId: string, setId: string, name: string): Observable<boolean> {
     const cleanName = this.sanitizeName(name);
-    if (!cleanName) return false;
-    const clash = folder.sets.some((set) => set.id !== setId && this.nameKey(set.name) === this.nameKey(cleanName));
-    if (clash) return false;
-    if (!folder.sets.some((set) => set.id === setId)) return false;
+    if (!cleanName) return of(false);
+    if (!folderId || !setId) return this.invalid('renameSet needs a folder and a set');
 
-    this.folders.update((current) =>
-      current.map((candidate) =>
-        candidate.id === folderId
-          ? { ...candidate, sets: candidate.sets.map((set) => (set.id === setId ? { ...set, name: cleanName } : set)) }
-          : candidate,
-      ),
-    );
-    this.persist();
-    return true;
+    return this.http
+      .patch<ExperimentFolder>(this.folderUrl(folderId, 'sets', setId), { name: cleanName })
+      .pipe(
+        map((response) => this.confirmRename(response)),
+        catchError((error) => this.nameTaken<boolean>(error, false)),
+      );
   }
 
   /** Deleting a set retires the name, never the runs: its members fall back to Ungrouped. */
-  deleteSet(folderId: string, setId: string): void {
-    const folder = this.folderById(folderId);
-    if (!folder || !folder.sets.some((set) => set.id === setId)) return;
+  deleteSet(folderId: string, setId: string): Observable<ExperimentFolder> {
+    if (!folderId || !setId) return this.invalid('deleteSet needs a folder and a set');
 
-    this.folders.update((current) =>
-      current.map((candidate) =>
-        candidate.id === folderId ? { ...candidate, sets: candidate.sets.filter((set) => set.id !== setId) } : candidate,
-      ),
-    );
-    this.persist();
+    return this.http
+      .delete<ExperimentFolder>(this.folderUrl(folderId, 'sets', setId))
+      .pipe(map((response) => this.applyFolder(response)));
   }
 
-  /** The strict partition: moving in files the run nowhere else, so the old set gives it up. */
-  moveToSet(folderId: string, experimentId: string, setId: string): void {
-    if (!experimentId || !setId) return;
-    const folder = this.folderById(folderId);
-    if (!folder || !folder.sets.some((set) => set.id === setId)) return;
-    if (this.setOf(folderId, experimentId) === setId) return;
+  /** The strict partition: the server repoints the membership row, so the set that had it gives it up. */
+  moveToSet(folderId: string, experimentId: string, setId: string): Observable<ExperimentFolder> {
+    if (!folderId || !experimentId || !setId) return this.invalid('moveToSet needs a folder, a run and a set');
 
-    this.folders.update((current) =>
-      current.map((candidate) =>
-        candidate.id === folderId
-          ? {
-              ...candidate,
-              // A set only ever holds members, so moving in also joins the folder.
-              experimentIds: candidate.experimentIds.includes(experimentId)
-                ? candidate.experimentIds
-                : [...candidate.experimentIds, experimentId],
-              sets: candidate.sets.map((set) =>
-                set.id === setId
-                  ? { ...set, experimentIds: [...set.experimentIds, experimentId] }
-                  : { ...set, experimentIds: set.experimentIds.filter((id) => id !== experimentId) },
-              ),
-            }
-          : candidate,
-      ),
-    );
-    this.persist();
+    return this.assignSet(folderId, experimentId, setId);
   }
 
   /** The way out of a set that is not "leave the folder": back to the Ungrouped group. */
-  removeFromSets(folderId: string, experimentId: string): void {
-    const folder = this.folderById(folderId);
-    if (!folder || !folder.sets.some((set) => set.experimentIds.includes(experimentId))) return;
+  removeFromSets(folderId: string, experimentId: string): Observable<ExperimentFolder> {
+    if (!folderId || !experimentId) return this.invalid('removeFromSets needs a folder and a run');
 
-    this.folders.update((current) =>
-      current.map((candidate) =>
-        candidate.id === folderId ? { ...candidate, sets: this.dropFromSets(candidate.sets, experimentId) } : candidate,
-      ),
-    );
-    this.persist();
+    return this.assignSet(folderId, experimentId, null);
   }
 
   /** Which set holds this run; null when it sits in the folder ungrouped. */
@@ -264,26 +227,61 @@ export class ExperimentFoldersService {
     return this.folderById(folderId)?.sets.find((set) => set.experimentIds.includes(experimentId))?.id ?? null;
   }
 
-  private normalizeScope(email: string | null): string {
-    const clean = email?.trim().toLowerCase();
-    return clean ? clean : ANON_SCOPE;
+  /** Joining a set and leaving one are the same write: the member row's set id, set or cleared. */
+  private assignSet(folderId: string, experimentId: string, setId: string | null): Observable<ExperimentFolder> {
+    return this.http
+      .patch<ExperimentFolder>(this.folderUrl(folderId, 'members', experimentId, 'set'), { setId })
+      .pipe(map((response) => this.applyFolder(response)));
   }
 
-  private storageKey(scope: string): string {
-    return scope === ANON_SCOPE ? STORAGE_BASE_KEY : `${STORAGE_BASE_KEY}:${scope}`;
+  /** A rename answers with the renamed folder — the mirror takes it, and the caller gets a true. */
+  private confirmRename(payload: ExperimentFolder | null | undefined): boolean {
+    this.applyFolder(payload);
+    return true;
+  }
+
+  private post(url: string, body: unknown): Observable<ExperimentFolder> {
+    return this.http.post<ExperimentFolder>(url, body).pipe(map((response) => this.applyFolder(response)));
+  }
+
+  /**
+   * The server's copy wins, so the mirror is replaced rather than edited. A folder the mirror has
+   * never seen — one created in this tab a moment ago — takes its place at the end of the list,
+   * which is also where the server's own ordering puts it.
+   */
+  private applyFolder(payload: ExperimentFolder | null | undefined): ExperimentFolder {
+    const folder = this.folderFrom(payload);
+    if (!folder) {
+      throw new Error('[ExperimentFoldersService] The server answered a folder write without a folder');
+    }
+
+    this.folders.update((current) =>
+      current.some((candidate) => candidate.id === folder.id)
+        ? current.map((candidate) => (candidate.id === folder.id ? folder : candidate))
+        : [...current, folder],
+    );
+    return folder;
+  }
+
+  private folderUrl(folderId: string, ...rest: string[]): string {
+    return [FOLDERS_URL, folderId, ...rest].join('/');
+  }
+
+  /** A 409 is the server saying "a sibling already has that name", which the inline message speaks. */
+  private nameTaken<T>(error: unknown, taken: T): Observable<T> {
+    if ((error as { status?: number } | null)?.status === 409) return of(taken);
+    return throwError(() => error);
+  }
+
+  /** A call the UI should never have made: failing loudly beats the silent no-op it used to be. */
+  private invalid(message: string): Observable<never> {
+    const error = new Error(`[ExperimentFoldersService] ${message}`);
+    console.error(error.message);
+    return throwError(() => error);
   }
 
   private sanitizeName(name: string): string {
     return name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH);
-  }
-
-  /** Comparison key only — the chip keeps the casing the user typed. */
-  private nameKey(name: string): string {
-    return this.sanitizeName(name).toLowerCase();
-  }
-
-  private makeId(prefix: 'folder' | 'set'): string {
-    return `${prefix}-${crypto.randomUUID()}`;
   }
 
   private folderHolds(folder: ExperimentFolder, experimentId: string): boolean {
@@ -294,46 +292,28 @@ export class ExperimentFoldersService {
     return sets.map((set) => ({ ...set, experimentIds: set.experimentIds.filter((id) => id !== experimentId) }));
   }
 
-  private persist(): void {
-    try {
-      localStorage.setItem(this.storageKey(this.scope ?? ANON_SCOPE), JSON.stringify(this.folders()));
-    } catch {
-      // Quota or private mode: folders stay usable in memory for this session.
-    }
-  }
-
-  private readKey(key: string): unknown {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) as unknown : null;
-    } catch {
-      this.removeKey(key);
-      return null;
-    }
-  }
-
-  private removeKey(key: string): void {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Private mode: nothing to clean up either way.
-    }
-  }
-
   /**
-   * Storage is the user's own, so the only realistic damage is a payload left by an older
-   * build or a half-written write: keep what has an id and a name, default the rest.
+   * The mirror is written from what the server sent, so a payload that lost a field degrades to
+   * "no members" or "no sets" instead of throwing inside a response handler. A row with neither an
+   * id nor a name is not a folder and is dropped.
    */
-  private foldersFrom(value: unknown): ExperimentFolder[] {
+  private foldersFrom(response: BackendExperimentFoldersResponse | null): ExperimentFolder[] {
+    const value = response?.folders;
     if (!Array.isArray(value)) return [];
 
-    return value
-      .filter((folder): folder is ExperimentFolder => !!folder && typeof folder.id === 'string' && typeof folder.name === 'string')
-      .map((folder) => ({
-        ...folder,
-        experimentIds: this.stringsFrom(folder.experimentIds),
-        sets: this.setsFrom(folder.sets),
-      }));
+    return value.map((folder) => this.folderFrom(folder)).filter((folder): folder is ExperimentFolder => !!folder);
+  }
+
+  private folderFrom(value: unknown): ExperimentFolder | null {
+    const candidate = value as Partial<ExperimentFolder> | null;
+    if (!candidate || typeof candidate.id !== 'string' || typeof candidate.name !== 'string') return null;
+
+    return {
+      id: candidate.id,
+      name: candidate.name,
+      experimentIds: this.stringsFrom(candidate.experimentIds),
+      sets: this.setsFrom(candidate.sets),
+    };
   }
 
   private setsFrom(value: unknown): ExperimentSet[] {
@@ -341,7 +321,7 @@ export class ExperimentFoldersService {
 
     return value
       .filter((set): set is ExperimentSet => !!set && typeof set.id === 'string' && typeof set.name === 'string')
-      .map((set) => ({ ...set, experimentIds: this.stringsFrom(set.experimentIds) }));
+      .map((set) => ({ id: set.id, name: set.name, experimentIds: this.stringsFrom(set.experimentIds) }));
   }
 
   private stringsFrom(value: unknown): string[] {

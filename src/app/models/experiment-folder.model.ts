@@ -12,9 +12,12 @@ export interface ExperimentSet {
 }
 
 /**
- * A user-curated set of experiments ("analysis set"). Frontend-only: folders live in
- * localStorage via ExperimentFoldersService and hold nothing but member ids, so they
- * never need a backend contract and never go stale by carrying a copy of an experiment.
+ * A user-curated set of experiments ("analysis set").
+ *
+ * The rows live in PostgreSQL behind `/services/experiment-folders`; this is the shape the client
+ * keeps them in. Both the folder and its sets hold member ids only, never experiment copies, so the
+ * only drift risk is an id the experiment API no longer resolves. Ids are plain UUIDs the backend
+ * minted — nothing here is generated in the browser.
  */
 export interface ExperimentFolder {
   id: string;
