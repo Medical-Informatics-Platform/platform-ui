@@ -187,16 +187,12 @@ export class HeaderComponent {
     if (!isPlainLeftClick(event)) return;
     event?.preventDefault();
     if (this.isStudioRoute()) {
-      this.goToDashboard();
+      // The studio host owns its own exit path: it may need to block navigation while an
+      // experiment is running and it already resets studio state before routing away.
+      this.studioNav.backToDashboard();
       return;
     }
-    this.router.navigate(['/experiments-dashboard']);
-  }
-
-  goToDashboard(event?: Event): void {
-    if (!isPlainLeftClick(event)) return;
-    event?.preventDefault();
-    this.studioNav.backToDashboard();
+    void this.router.navigate(['/experiments-dashboard']);
   }
 
   private isNotebookRoute(): boolean {

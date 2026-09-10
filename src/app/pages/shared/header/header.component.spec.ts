@@ -315,6 +315,10 @@ describe('HeaderComponent', () => {
 
     expect(studioNav.backToDashboard).toHaveBeenCalled();
     expect(click.defaultPrevented).toBe(true);
+    await fixture.whenStable();
+    // The host is the one that owns the exit path; the header must not race it with a
+    // second navigation or bypass the studio's running guard.
+    expect(router.url).toBe('/experiment-studio');
   });
 
   it('leaves modifier and middle clicks to the browser', async () => {
