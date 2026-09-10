@@ -3,7 +3,8 @@ import { Experiment } from '../models/experiments-dashboard.model';
 import { HttpClient } from '@angular/common/http';
 import { BackendExperiment, BackendExperimentWithResult } from '../models/backend-experiment.model';
 import { mapBackendToFrontend } from '../pages/experiments-dashboard/experiments-dashboard.mapper';
-import { Subscription, map, tap } from 'rxjs';
+import { Observable, Subscription, catchError, forkJoin, map, of, tap, throwError } from 'rxjs';
+import { isNotFoundError } from '../core/http-error.utils';
 import { ErrorService } from './error.service';
 
 @Injectable({
@@ -93,6 +94,44 @@ export class ExperimentsDashboardService {
     });
   }
 
+  /**
+   * Resolves `ids` to experiments in folder order, fetching the members that sit on another
+   * page. The compare workspace reads the loaded page only, so without this an off-page
+   * member of a folder would drop out of the comparison silently. A member the backend no
+   * longer returns is skipped here; the folder canvas reports and prunes it.
+   */
+  hydrateExperiments(ids: string[]): Observable<Experiment[]> {
+    const known = new Map(this.experiments().map((exp) => [exp.id, exp] as const));
+    const missing = ids.filter((id) => !known.has(id));
+
+    const resolved = (fetched: Experiment[]): Experiment[] => {
+      fetched.forEach((exp) => this.upsertExperiment(exp));
+      const byId = new Map(known);
+      fetched.forEach((exp) => byId.set(exp.id, exp));
+      return ids
+        .map((id) => byId.get(id))
+        .filter((exp): exp is Experiment => !!exp);
+    };
+
+    if (!missing.length) return of(resolved([]));
+
+    return forkJoin(
+      missing.map((id) =>
+        this.fetchExperimentById(id).pipe(
+          // Skip a real 404; propagate everything else so the handoff reports a real
+          // failure instead of silently dropping a temporarily unreachable member.
+          catchError((error) =>
+            isNotFoundError(error) ? of<Experiment | null>(null) : throwError(() => error),
+          ),
+        ),
+      ),
+    ).pipe(
+      map((fetched) =>
+        resolved(fetched.filter((exp): exp is Experiment => !!exp)),
+      ),
+    );
+  }
+
   // For compare / results view
   getExperimentResult(uuid: string) {
     return this.http.get<BackendExperimentWithResult>(`${this.apiUrl}/${uuid}`);
@@ -130,7 +169,7 @@ export class ExperimentsDashboardService {
       );
   }
 
-  deleteExperiment(experimentId: string): void {
+  deleteExperiment(experimentId: string, onDeleted?: (experimentId: string) => void): void {
     if (!experimentId) return;
 
     const previousExperiments = this.experiments();
@@ -144,8 +183,7 @@ export class ExperimentsDashboardService {
 
     // Backend call with rollback on failure
     this.http.delete<void>(`${this.apiUrl}/${experimentId}`).subscribe({
-      next: () => {
-      },
+      next: () => onDeleted?.(experimentId),
       error: (err) => {
         console.error('Error deleting experiment', err);
         this.experiments.set(previousExperiments);

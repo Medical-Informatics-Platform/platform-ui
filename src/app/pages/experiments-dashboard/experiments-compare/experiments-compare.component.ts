@@ -1,6 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, input, signal, inject, OnDestroy } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, inject, OnDestroy } from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
@@ -10,6 +9,8 @@ import { getOutputSchema } from '../../../core/algorithm-mappers';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
 import { enrichPcaResult, withLabels } from '../../../core/result-label.utils';
+import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 
 interface CompareResultState {
   loading: boolean;
@@ -22,14 +23,26 @@ interface CompareItem {
   state: CompareResultState;
 }
 
-interface CompareRow {
-  index: number;
-  items: CompareItem[];
+/** One run inside a section. The row carries the number, so a heading cannot restart the count. */
+interface CompareSectionRun {
+  item: CompareItem;
+  number: number;
+}
+
+/**
+ * A block of the page: one user set, or one algorithm for the runs nobody grouped. A section is
+ * a heading over compact rows — never a card holding cards.
+ */
+interface CompareSection {
+  id: string;
+  label: string;
+  isUserSet: boolean;
+  runs: CompareSectionRun[];
 }
 
 @Component({
   selector: 'app-experiments-compare',
-  imports: [CommonModule, FormsModule, AlgorithmResultComponent],
+  imports: [CommonModule, AlgorithmResultComponent],
   templateUrl: './experiments-compare.component.html',
   styleUrl: './experiments-compare.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,19 +50,38 @@ interface CompareRow {
 export class ExperimentsCompareComponent implements OnDestroy {
   private dashboardService = inject(ExperimentsDashboardService);
   private labelService = inject(ExperimentLabelService);
+  private foldersService = inject(ExperimentFoldersService);
+  private expStudio = inject(ExperimentStudioService);
   private destroy$ = new Subject<void>();
 
   experiments = input<Experiment[]>([]);
 
-  // Layout (2 or 3)
-  readonly layoutCols = signal<2 | 3>(2);
-  selectedLayout: 2 | 3 = 2;
+  /**
+   * The folder this compare was opened from, or null for a hand-picked selection. The id is enough:
+   * sets are read from the same signal-backed service the canvas edits, so a set created after the
+   * handoff still sections the workspace, and this view never has to write to it.
+   */
+  readonly originFolderId = input<string | null>(null);
+  readonly backToFolder = output<void>();
+
+  readonly originFolder = computed(() => this.foldersService.folderById(this.originFolderId()));
+  readonly originFolderName = computed(() => this.originFolder()?.name ?? null);
+
+  /** Says what the workspace is holding, so the header stops asking for a selection it already has. */
+  readonly compareHeadline = computed(() => {
+    const count = this.experiments().length;
+    const runs = count === 1 ? 'run' : 'runs';
+    return `Comparing ${this.originFolderName() ?? 'your selection'} · ${count} ${runs}`;
+  });
 
   // Results map: expId -> state
   private resultMap = signal<Record<string, CompareResultState>>({});
 
-  // Row expand: rowIndex -> expanded?
-  private rowExpandedMap = signal<Record<number, boolean>>({});
+  // Section collapse: sectionId -> collapsed? (sections open by default, runs closed)
+  private sectionExpandedMap = signal<Record<string, boolean>>({});
+
+  // Inline accordion: expId -> open?
+  private runExpandedMap = signal<Record<string, boolean>>({});
 
   // Config collapse per exp
   private configExpandedMap = signal<Record<string, boolean>>({});
@@ -67,18 +99,43 @@ export class ExperimentsCompareComponent implements OnDestroy {
     }));
   });
 
-  readonly experimentRows = computed<CompareRow[]>(() => {
-    const cols = this.layoutCols();
-    const items = this.experimentsWithState();
-    const rows: CompareRow[] = [];
+  /**
+   * The page's shape. User sets come first, in folder order — the order the canvas numbered them
+   * in — and everything nobody grouped follows as one section per algorithm label, in the order
+   * the runs appear. Describe and histogram are ordinary algorithm sections: an ungrouped run
+   * needs a heading, not a special case. Numbering runs across the whole comparison, so "run 7"
+   * names one run no matter which heading it sits under.
+   */
+  readonly sections = computed<CompareSection[]>(() => {
+    const groups: { id: string; label: string; isUserSet: boolean; items: CompareItem[] }[] = [];
+    const claimed = new Set<string>();
 
-    for (let i = 0; i < items.length; i += cols) {
-      rows.push({
-        index: rows.length,
-        items: items.slice(i, i + cols),
-      });
+    for (const set of this.originFolder()?.sets ?? []) {
+      const members = this.experimentsWithState().filter((item) => set.experimentIds.includes(item.exp.id));
+      if (!members.length) continue; // An empty set has nothing to show; its heading can wait.
+      members.forEach((member) => claimed.add(member.exp.id));
+      groups.push({ id: `set:${set.id}`, label: set.name, isUserSet: true, items: members });
     }
-    return rows;
+
+    const byAlgorithm = new Map<string, CompareItem[]>();
+    for (const item of this.experimentsWithState()) {
+      if (claimed.has(item.exp.id)) continue;
+      const key = item.exp.algorithmName ?? 'unknown';
+      const bucket = byAlgorithm.get(key);
+      if (bucket) bucket.push(item);
+      else byAlgorithm.set(key, [item]);
+    }
+    for (const [algorithm, members] of byAlgorithm) {
+      groups.push({ id: `algorithm:${algorithm}`, label: this.algorithmLabel(algorithm), isUserSet: false, items: members });
+    }
+
+    let number = 0;
+    return groups.map((group) => ({
+      id: group.id,
+      label: group.label,
+      isUserSet: group.isUserSet,
+      runs: group.items.map((item) => ({ item, number: (number += 1) })),
+    }));
   });
 
   constructor() {
@@ -126,20 +183,27 @@ export class ExperimentsCompareComponent implements OnDestroy {
   }
 
 
-  onLayoutChange(value: number) {
-    const cols: 2 | 3 = value === 3 ? 3 : 2;
-    this.selectedLayout = cols;
-    this.layoutCols.set(cols);
+  /** The heading stays and the rows fold away: on a long comparison the headings are the map. */
+  isSectionExpanded(sectionId: string): boolean {
+    return this.sectionExpandedMap()[sectionId] ?? true; // default expanded
   }
 
-  isRowExpanded(index: number): boolean {
-    return this.rowExpandedMap()[index] ?? true; // default expanded
-  }
-
-  toggleRow(index: number) {
-    this.rowExpandedMap.update((map) => ({
+  toggleSection(sectionId: string) {
+    this.sectionExpandedMap.update((map) => ({
       ...map,
-      [index]: !(map[index] ?? true),
+      [sectionId]: !(map[sectionId] ?? true),
+    }));
+  }
+
+  /** A run opens in place, pushing the rows below it down. No modal, no drawer. */
+  isRunExpanded(expId: string): boolean {
+    return this.runExpandedMap()[expId] ?? false; // default collapsed
+  }
+
+  toggleRun(expId: string) {
+    this.runExpandedMap.update((map) => ({
+      ...map,
+      [expId]: !(map[expId] ?? false),
     }));
   }
 
@@ -201,6 +265,12 @@ export class ExperimentsCompareComponent implements OnDestroy {
 
   private withLabels(codes: string[] | undefined | null, domain?: string | null) {
     return withLabels(codes, this.getLabelMapForDomain(domain));
+  }
+
+  /** The algorithm's human label, so a section heading reads like the list row above it. */
+  algorithmLabel(code: string | null | undefined): string {
+    if (!code) return 'Unknown algorithm';
+    return this.expStudio.backendAlgorithms()[code]?.label || code;
   }
 
   getVariablesWithLabels(exp: Experiment) {

@@ -450,6 +450,8 @@
   letter-spacing: 0.02em;
 }
 
+/* The one count recipe on this page: the compare button, the folder chips, the folder menu
+   and the canvas header all wear this. Tabular so a count does not jitter as it changes. */
 .count-badge {
   background: var(--primary-color);
   color: white;
@@ -462,6 +464,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .compare-mode-btn:hover {

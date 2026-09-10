@@ -16,6 +16,47 @@
     </div>
   </div>
 
+  <!-- Folder chips: a cross-cutting selection over the list, so they sit under the tabs and
+       never above search. Same segmented recipe as the tabs above them. -->
+  <div class="folder-strip">
+    <span class="folder-strip-label">Folders</span>
+
+    <div class="folder-chips">
+      @for (folder of foldersService.folders(); track folder.id) {
+      <button type="button" class="folder-chip" [class.selected]="folder.id === selectedFolderId()"
+        [class.folder-chip--receiving]="receivingFolderId() === folder.id"
+        [attr.aria-pressed]="folder.id === selectedFolderId()" [title]="folder.name + ' · drop a run here to add it'"
+        (click)="selectFolder(folder.id)" (dragover)="onFolderChipDragOver(folder.id, $event)"
+        (dragleave)="onFolderChipDragLeave(folder.id, $event)" (drop)="onFolderChipDrop(folder, $event)">
+        <i class="fas fa-object-group" aria-hidden="true"></i>
+        <span class="folder-chip__name">{{ folder.name }}</span>
+        <span class="count-badge">{{ folder.experimentIds.length }}</span>
+      </button>
+      }
+
+      @if (isCreatingFolder()) {
+      <span class="folder-chip-form">
+        <input class="folder-chip-input" [value]="newFolderDraft()" placeholder="Folder name" aria-label="New folder name"
+          (input)="newFolderDraft.set($any($event.target).value)" (keydown.enter)="commitNewFolder()"
+          (keydown.escape)="cancelNewFolder()" />
+        <button type="button" class="folder-chip-form-action" (click)="commitNewFolder()">Add</button>
+        <button type="button" class="folder-chip-form-action cancel" (click)="cancelNewFolder()">Cancel</button>
+      </span>
+      } @else {
+      <button type="button" class="folder-chip folder-chip--new" title="New folder" (click)="startNewFolder()">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+        New
+      </button>
+      }
+    </div>
+
+    @if (folderFormError(); as folderFormError) {
+    <p class="folder-strip-error">{{ folderFormError }}</p>
+    } @else if (!foldersService.folders().length) {
+    <p class="folder-strip-hint">Group related runs here, then compare them side by side.</p>
+    }
+  </div>
+
   @if (!pagedExperiments().length) {
   <div class="empty-state">
     <div class="empty-icon-wrapper">
@@ -49,10 +90,12 @@
 
   <ul class="experiments-list">
     @for (exp of pagedExperiments(); track exp.id) {
-    <li class="experiment-row" [class.selected]="
+    <li class="experiment-row" draggable="true" [class.selected]="
         (!compareMode() && exp.id === selectedExperimentId()) ||
         (compareMode() && isInCompare(exp.id))
-      " [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)">
+      " [class.experiment-row--dragging]="draggingExperimentId() === exp.id"
+      [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)"
+      (dragstart)="onExperimentDragStart(exp, $event)" (dragend)="onExperimentDragEnd()">
       <!-- LEFT: main info -->
       <div class="row-main">
         <div class="row-title-line">
@@ -91,6 +134,15 @@
 
       <!-- RIGHT: actions -->
       <div class="row-actions">
+        <!-- 0. Add to folder: the membership menu for this run -->
+        <span class="folder-menu-anchor">
+          <button class="icon-btn" [class.active]="folderMenuExpId() === exp.id" title="Add to folder"
+            aria-haspopup="menu" [attr.aria-expanded]="folderMenuExpId() === exp.id"
+            (click)="toggleFolderMenu(exp.id); $event.stopPropagation()">
+            <i class="fas fa-object-group" aria-hidden="true"></i>
+          </button>
+        </span>
+
         <!-- 1. Copy Link (Always visible) -->
         <button class="icon-btn" title="Copy link" (click)="onCopyLinkClicked(exp, $event)">
           <i class="fas fa-link"></i>
@@ -120,6 +172,46 @@
         </button>
         }
       </div>
+
+      <!-- The panel belongs to the row, not to the trigger: the side pane clips horizontal
+           overflow, and a trigger-anchored menu runs off its left edge. -->
+          @if (folderMenuExpId() === exp.id) {
+      <div class="folder-menu" cdkMenu (keydown.escape)="closeFolderMenu()"
+        (click)="$event.stopPropagation()">
+        @for (folder of foldersService.folders(); track folder.id) {
+        <button type="button" class="folder-menu__item" cdkMenuItem
+          (cdkMenuItemTriggered)="onFolderMenuPick(folder, exp.id)" role="menuitemcheckbox"
+          [attr.aria-checked]="isFolderMember(folder.id, exp.id)">
+          <i class="fas fa-check folder-menu__check" [class.folder-menu__check--off]="!isFolderMember(folder.id, exp.id)"
+            aria-hidden="true"></i>
+          <span class="folder-menu__name">{{ folder.name }}</span>
+          <span class="count-badge">{{ folder.experimentIds.length }}</span>
+        </button>
+        }
+
+        @if (folderMenuNewOpen()) {
+        <div class="folder-menu__form">
+          <input class="folder-menu__input" [value]="folderMenuDraft()" placeholder="Folder name"
+            aria-label="New folder name" (input)="folderMenuDraft.set($any($event.target).value)"
+            (keydown.enter)="commitFolderMenuNew(exp.id)" />
+          <button type="button" class="folder-menu__form-action" (click)="commitFolderMenuNew(exp.id)">Add</button>
+        </div>
+        @if (folderMenuError(); as folderMenuError) {
+        <p class="folder-menu__error">{{ folderMenuError }}</p>
+        }
+        } @else {
+        <button type="button" class="folder-menu__item folder-menu__item--new" cdkMenuItem
+          (cdkMenuItemTriggered)="openFolderMenuNew()">
+          <i class="fas fa-plus folder-menu__check" aria-hidden="true"></i>
+          <span class="folder-menu__name">New folder…</span>
+        </button>
+        }
+
+        @if (!foldersService.folders().length && !folderMenuNewOpen()) {
+        <p class="folder-menu__hint">No folders yet. Create one to start a set.</p>
+        }
+      </div>
+      }
     </li>
     }
   </ul>

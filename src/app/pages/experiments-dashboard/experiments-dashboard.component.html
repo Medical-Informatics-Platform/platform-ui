@@ -70,15 +70,19 @@
         </div>
         <div class="pane-content">
           <app-experiments-list [selectedExperimentId]="selectedExperiment()?.id ?? null"
-            [currentUserEmail]="currentUserEmail()" [compareIds]="compareIds()" [compareMode]="compareMode()"
-            [initialOnlyMine]="!hasDeepLink()" (experimentSelected)="onExperimentSelected($event)"
+            [selectedFolderId]="selectedFolderId()" [currentUserEmail]="currentUserEmail()"
+            [compareIds]="compareIds()" [compareMode]="compareMode()" [initialOnlyMine]="!hasDeepLink()"
+            (experimentSelected)="onExperimentSelected($event)" (folderSelected)="onFolderSelected($event)"
             (editRequested)="onEditExperiment($event)" (deleteRequested)="onDeleteFromList($event)" />
         </div>
       </aside>
 
       <!-- CENTER: MAIN WORKSPACE -->
       <main class="main-pane">
-        @if (!compareMode()) {
+        @if (selectedFolderId(); as folderId) {
+        <app-experiment-folder [folderId]="folderId" (back)="onFolderSelected(null)"
+          (openExperiment)="onExperimentSelected($event)" (compareRequested)="onFolderCompare($event)" />
+        } @else if (!compareMode()) {
         <app-experiment-details [selectedExperiment]="selectedExperiment()" [currentUserEmail]="currentUserEmail()"
           (run)="onRunExperiment($event)" (deleteExperiment)="onDeleteRequested()"
           (nameUpdated)="onNameUpdated($event)" />
@@ -92,7 +96,8 @@
             <p>Select at least two experiments from the left panel to compare their results side by side.</p>
         </div>
         } @else {
-        <app-experiments-compare [experiments]="experimentsForCompare()" />
+        <app-experiments-compare [experiments]="experimentsForCompare()" [originFolderId]="compareOriginFolderId()"
+          (backToFolder)="onBackToOriginFolder()" />
         }
     </div>
     }

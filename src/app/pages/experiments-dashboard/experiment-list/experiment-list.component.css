@@ -156,6 +156,20 @@
   border-color: rgba(14, 165, 233, 0.8);
 }
 
+/* The row in flight gives up its lift and half its weight: the hover state is a promise of
+   arrival, and a dragged row has already left. Two classes keep the lift's :hover rule from
+   outranking this one. */
+.experiment-row.experiment-row--dragging,
+.experiment-row.experiment-row--dragging:hover {
+  transform: none;
+  opacity: 0.55;
+  background: var(--glass-bg);
+  border-color: var(--primary-color);
+  border-style: dashed;
+  box-shadow: var(--glass-shadow);
+  z-index: 1;
+}
+
 /* CONTENT (left side) */
 .row-main {
   flex: 1;
@@ -474,4 +488,310 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* ============ FOLDER CHIP STRIP ============
+   Folders are a cross-cutting selection over a server-paginated list, so the strip sits
+   under the tabs and carries nothing but the set name and its size. */
+.folder-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* Same eyebrow as the pane headers, so the strip reads as a label, not a third tab. */
+.folder-strip-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+/* .experiments-tabs verbatim: the tray owns the surface and the ring, the chips never do. */
+.folder-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--glass-bg);
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+}
+
+/* .tab-btn verbatim — resting, hover and selected are the My/Shared segmented recipe, so
+   choosing a folder and choosing a scope make the same statement. No chip component. */
+.folder-chip {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.folder-chip i {
+  font-size: 0.95rem;
+}
+
+.folder-chip:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: #334155;
+}
+
+/* Selected is the established primary-blue treatment: white pill, primary ink, shadow-sm —
+   what .tab-btn.active already says. No accent spine: two primary-blue selection idioms sit
+   within 40px (the active tab, the selected experiment row), and an orange third reading of
+   "chosen" fails the adjacent-panel test. */
+.folder-chip.selected {
+  background: white;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+/* A chip is also a drop target, so a run can be filed without opening the canvas first. The
+   ring is a shadow: the chip is borderless inside its tray and a real border would reflow the
+   strip while the drag is still in flight. */
+.folder-chip--receiving {
+  background: white;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm), 0 0 0 2px var(--primary-color);
+}
+
+.folder-chip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+/* Count badge: the compare button's recipe, so a count looks the same everywhere. */
+.count-badge {
+  background: var(--primary-color);
+  color: white;
+  font-size: 0.6rem;
+  font-weight: 800;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* .folder-chip--new carries no rules of its own: the ghost "+ New" chip is the resting
+   chip, and the plus icon plus the label is what makes it an action. */
+.folder-chip-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folder-chip-input {
+  width: 140px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.folder-chip-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px rgba(43, 51, 233, 0.3);
+}
+
+.folder-chip-form-action,
+.folder-menu__form-action {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: white;
+  color: #475569;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.folder-chip-form-action:hover,
+.folder-menu__form-action:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.folder-chip-form-action.cancel:hover {
+  border-color: rgba(148, 163, 184, 0.8);
+  color: var(--text-muted);
+}
+
+.folder-strip-error,
+.folder-menu__error {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #991b1b;
+}
+
+.folder-strip-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ============ ADD-TO-FOLDER MENU ============
+   House menu surface (card bg + chrome border + shadow-lg). The panel hangs off the row rather
+   than the trigger: .side-pane clips horizontally, and a 230px menu right-aligned to a trigger
+   in the middle of a 320px pane loses its left edge — and its check column — to that clip. */
+.folder-menu-anchor {
+  display: inline-flex;
+}
+
+.icon-btn.active {
+  background: #f1f5ff;
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.folder-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 12px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  min-width: min(230px, calc(100% - 24px));
+  max-width: calc(100% - 24px);
+  padding: 6px 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-main);
+}
+
+.folder-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-menu__item:hover {
+  background: #f1f5ff;
+}
+
+.folder-menu__check {
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--primary-color);
+}
+
+.folder-menu__check--off {
+  color: transparent;
+}
+
+.folder-menu__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-menu__item--new {
+  border-top: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.folder-menu__form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.folder-menu__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.folder-menu__input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px rgba(43, 51, 233, 0.3);
+}
+
+.folder-menu__error {
+  padding: 0 12px 4px;
+}
+
+.folder-menu__hint {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* Overflow: past one row the tray scrolls sideways instead of stacking another row, on the
+   same discreet scrollbar the list uses, and the chips shrink the way rows shrink here. */
+@media (max-width: 1100px) {
+  .folder-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .folder-chips::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .folder-chips::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .folder-chips::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.55);
+    border-radius: 999px;
+  }
+
+  .folder-chip {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
+
+  .folder-chip__name {
+    max-width: 120px;
+  }
 }
