@@ -8,6 +8,7 @@ import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { FakeExperimentFoldersService } from '../experiment-folders.testing';
 import { ExperimentsListComponent } from './experiment-list.component';
 
 const experiment = (id: string): Experiment => ({
@@ -21,10 +22,10 @@ const experiment = (id: string): Experiment => ({
   isShared: false,
 });
 
-describe('ExperimentsListComponent folders', () => {
+describe('ExperimentsListComponent list pane', () => {
   let fixture: ComponentFixture<ExperimentsListComponent>;
   let component: ExperimentsListComponent;
-  let foldersService: ExperimentFoldersService;
+  let foldersService: FakeExperimentFoldersService;
   let loaded: ReturnType<typeof signal<Experiment[]>>;
 
   const root = () => fixture.nativeElement as HTMLElement;
@@ -46,9 +47,7 @@ describe('ExperimentsListComponent folders', () => {
   };
 
   beforeEach(async () => {
-    localStorage.clear();
-    foldersService = new ExperimentFoldersService();
-    foldersService.useUserScope(null);
+    foldersService = new FakeExperimentFoldersService();
     loaded = signal<Experiment[]>([experiment('a'), experiment('b')]);
 
     await TestBed.configureTestingModule({
@@ -61,6 +60,8 @@ describe('ExperimentsListComponent folders', () => {
           useValue: {
             experiments: loaded,
             totalPages: signal(1),
+            totalExperiments: signal(2),
+            isLoading: signal(false),
             getUserExperiments: jasmine.createSpy('getUserExperiments'),
             toggleExperimentShare: jasmine.createSpy('toggleExperimentShare').and.returnValue(of({ shared: true })),
           },
@@ -79,12 +80,11 @@ describe('ExperimentsListComponent folders', () => {
 
   afterEach(() => {
     component.ngOnDestroy();
-    localStorage.clear();
   });
 
   it('shows one chip per folder with its member count and the selected state', () => {
-    foldersService.createFolder('ANOVA', 'a');
-    foldersService.createFolder('PCA');
+    foldersService.seedFolder('ANOVA', ['a']);
+    foldersService.seedFolder('PCA');
     fixture.componentRef.setInput('selectedFolderId', foldersService.folders()[0].id);
     fixture.detectChanges();
 
@@ -97,7 +97,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('sits under the tabs, never above search: folders cut across the list, they do not scope it', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const order = Array.from(
@@ -109,7 +109,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('wears the tab recipe on the chip, including the ghost "+ New" chip', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const newChip = root().querySelector('.folder-chip--new')!;
@@ -123,7 +123,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('tells the dashboard which folder is open and clears it when the chip is pressed again', () => {
-    const folder = foldersService.createFolder('ANOVA')!;
+    const folder = foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const emitted: Array<string | null> = [];
@@ -159,7 +159,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('rejects a duplicate name instead of creating a second folder', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     (root().querySelector('.folder-chip--new') as HTMLButtonElement).click();
@@ -176,7 +176,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('adds and drops the run of an opened row menu', () => {
-    const folder = foldersService.createFolder('ANOVA')!;
+    const folder = foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const trigger = root().querySelectorAll<HTMLButtonElement>('.folder-menu-anchor > .icon-btn')[0];
@@ -203,7 +203,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('treats a folder pick as a folder choice, not as a row selection', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     const selectExperiment = spyOn(fixture.componentInstance, 'selectExperiment');
     fixture.detectChanges();
 
@@ -217,7 +217,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('keeps the menu open for its own clicks and closes on a click outside it', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     rowTrigger().click();
@@ -236,7 +236,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('offers every row to a folder as a drag carrying its run id', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const row = rows()[0];
@@ -255,7 +255,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('files a run dropped on a folder chip, without opening the canvas first', () => {
-    const folder = foldersService.createFolder('ANOVA', 'a')!;
+    const folder = foldersService.seedFolder('ANOVA', ['a']);
     fixture.detectChanges();
 
     const chip = chips()[0];
@@ -275,7 +275,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('adds on a drop instead of toggling a member the run already is', () => {
-    const folder = foldersService.createFolder('ANOVA', 'a')!;
+    const folder = foldersService.seedFolder('ANOVA', ['a']);
     fixture.detectChanges();
 
     const dataTransfer = dataTransferWith(EXPERIMENT_DRAG_MIME, 'a');
@@ -286,7 +286,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('holds the chip ring while the pointer crosses the chip itself', () => {
-    foldersService.createFolder('ANOVA');
+    foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const chip = chips()[0];
@@ -304,7 +304,7 @@ describe('ExperimentsListComponent folders', () => {
   });
 
   it('ignores a drag that carries something other than a run', () => {
-    const folder = foldersService.createFolder('ANOVA')!;
+    const folder = foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const chip = chips()[0];
@@ -317,6 +317,46 @@ describe('ExperimentsListComponent folders', () => {
     dispatchDrag('drop', chip, dataTransfer);
     fixture.detectChanges();
     expect(foldersService.folderById(folder.id)!.experimentIds).toEqual([]);
+  });
+
+  it('reports a drop the server refused instead of letting the chip look like it took the run', () => {
+    spyOn(console, 'error');
+    const folder = foldersService.seedFolder('ANOVA', ['a']);
+    foldersService.failWith('addExperiment');
+    fixture.detectChanges();
+
+    dispatchDrag('drop', chips()[0], dataTransferWith(EXPERIMENT_DRAG_MIME, 'b'));
+    fixture.detectChanges();
+
+    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a']);
+    expect(root().querySelector('.folder-strip-error')!.textContent).toContain('Could not add a run');
+  });
+
+  it('keeps the name form open when the create never reached the server', () => {
+    spyOn(console, 'error');
+    foldersService.failWith('createFolder');
+    fixture.detectChanges();
+
+    (root().querySelector('.folder-chip--new') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const input = root().querySelector('.folder-chip-input') as HTMLInputElement;
+    input.value = 'Sensitivity';
+    input.dispatchEvent(new Event('input'));
+    (root().querySelector('.folder-chip-form-action') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(foldersService.folders()).toEqual([]);
+    expect(root().querySelector('.folder-chip-input')).toBeTruthy();
+    expect(root().querySelector('.folder-strip-error')!.textContent).toContain('Could not create the folder');
+  });
+
+  it('says the folders could not be read at all, rather than showing an empty strip as the truth', () => {
+    foldersService.loadError.set('Could not load your folders. Check the connection and reload the page.');
+    fixture.detectChanges();
+
+    expect(root().querySelector('.folder-strip-error')!.textContent).toContain('Could not load your folders');
+    expect(root().querySelector('.folder-strip-hint')).toBeNull();
   });
 
   it('creates a folder straight from the row menu and files the run in it', () => {
@@ -337,5 +377,78 @@ describe('ExperimentsListComponent folders', () => {
 
     expect(foldersService.folders().length).toBe(1);
     expect(foldersService.folders()[0].experimentIds).toEqual(['a']);
+  });
+  describe('the tabs row', () => {
+    const trigger = () => root().querySelector<HTMLButtonElement>('.sort-overflow__trigger')!;
+
+    // A sort pick writes the query, and Karma keeps one page across specs: start clean, leave clean.
+    beforeEach(() => {
+      history.replaceState(null, '', '/experiments-dashboard');
+      component.sort.set('created-desc');
+    });
+    afterEach(() => history.replaceState(null, '', '/experiments-dashboard'));
+
+    const orders = () => Array.from(root().querySelectorAll<HTMLElement>('.sort-overflow .row-overflow__item'));
+    const details = () => root().querySelector<HTMLDetailsElement>('.sort-overflow')!;
+    const checkOf = (item: HTMLElement) =>
+      item.querySelector<HTMLElement>('.sort-overflow__check')!.classList.contains('sort-overflow__check--off');
+
+    it('keeps the tabs and the controls on one row, with the six orders behind the sort icon', () => {
+      fixture.detectChanges();
+
+      // A select here measured 112px and pushed Filters onto a second line of its own.
+      expect(root().querySelector('select.sort-select')).toBeNull();
+
+      const rowEl = root().querySelector<HTMLElement>('.experiments-tabs-row')!;
+      const tallest = Math.max(
+        ...Array.from(rowEl.children).map((el) => (el as HTMLElement).getBoundingClientRect().height),
+      );
+      if (window.innerWidth > 640) {
+        // Below that the two-row layout is the design, not an accident, and it re-wraps on purpose.
+        // A wrapped row would stand as tall as both of its lines together.
+        expect(rowEl.getBoundingClientRect().height).toBeLessThanOrEqual(tallest + 4);
+      }
+
+      expect(trigger().title).toBe('Sort: Newest');
+      expect(details().open).toBeFalse();
+
+      trigger().click();
+      fixture.detectChanges();
+
+      expect(orders().map((b) => b.textContent!.trim())).toEqual([
+        'Newest',
+        'Oldest',
+        'Name A–Z',
+        'Name Z–A',
+        'Status',
+        'Algorithm',
+      ]);
+      expect(checkOf(orders()[0])).toBeFalse();
+      expect(checkOf(orders()[1])).toBeTrue();
+      expect(details().open).toBeTrue();
+    });
+
+    it('folds back into the icon once an order is taken, and says which one is on', () => {
+      fixture.detectChanges();
+      trigger().click();
+      fixture.detectChanges();
+
+      orders()[2].click();
+      fixture.detectChanges();
+
+      expect(component.sort()).toBe('name-asc');
+      expect(details().open).toBeFalse();
+      expect(trigger().title).toBe('Sort: Name A–Z');
+    });
+  });
+
+  describe('the page count', () => {
+    it('is paged once, with the range stated under the tabs instead', () => {
+      fixture.detectChanges();
+
+      expect(root().querySelectorAll('.list-pagination').length).toBe(1);
+      expect(root().querySelector('.list-pagination small')).toBeNull();
+      expect(root().querySelector('.list-summary')!.textContent).toContain('Showing 1–2 of 2');
+    });
   });
 });

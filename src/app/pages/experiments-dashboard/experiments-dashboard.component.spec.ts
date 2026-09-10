@@ -9,6 +9,7 @@ import { AuthService } from '../../services/auth.service';
 import { ExperimentStudioService } from '../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../services/experiment-folders.service';
+import { FakeExperimentFoldersService } from './experiment-folders.testing';
 import { ExperimentsDashboardComponent } from './experiments-dashboard.component';
 
 const apiUrl = '/services/experiments';
@@ -53,19 +54,14 @@ const backendExperiment = (uuid: string) => ({
 describe('ExperimentsDashboardComponent folders', () => {
   let component: ExperimentsDashboardComponent;
   let dashboardService: ExperimentsDashboardService;
-  let foldersService: ExperimentFoldersService;
+  let foldersService: FakeExperimentFoldersService;
   let httpMock: HttpTestingController;
 
-  const openFolder = (memberIds: string[]) => {
-    const folder = foldersService.createFolder('Q3 meta', memberIds[0])!;
-    memberIds.slice(1).forEach((id) => foldersService.addExperiment(folder.id, id));
-    return folder;
-  };
+  /** Seeded, not clicked: this spec is about which signals a handoff sets, not about the canvas. */
+  const openFolder = (memberIds: string[]) => foldersService.seedFolder('Q3 meta', memberIds);
 
   beforeEach(async () => {
-    localStorage.clear();
-    foldersService = new ExperimentFoldersService();
-    foldersService.useUserScope(null);
+    foldersService = new FakeExperimentFoldersService();
 
     await TestBed.configureTestingModule({
       imports: [ExperimentsDashboardComponent, HttpClientTestingModule],
@@ -75,11 +71,21 @@ describe('ExperimentsDashboardComponent folders', () => {
         { provide: ActivatedRoute, useValue: { queryParamMap: EMPTY } },
         {
           provide: AuthService,
-          useValue: { authState: signal({ status: 'authenticated', user: { email: 'marie.curie@chuv.ch' } }) },
+          useValue: {
+            authState: signal({
+              status: 'authenticated',
+              // Folders are read for the username; sharing still asks for the email.
+              user: { username: 'mcurie', email: 'marie.curie@chuv.ch' },
+            }),
+          },
         },
         {
           provide: ExperimentStudioService,
-          useValue: { pathologyAccessWarning: signal(null), getAllDataModels: () => of([]) },
+          useValue: {
+            pathologyAccessWarning: signal(null),
+            getAllDataModels: () => of([]),
+            backendAlgorithms: signal({ mock_anova: { label: 'Analysis of Variance' } }),
+          },
         },
         { provide: ExperimentFoldersService, useValue: foldersService },
       ],
@@ -92,7 +98,6 @@ describe('ExperimentsDashboardComponent folders', () => {
 
   afterEach(() => {
     httpMock.verify();
-    localStorage.clear();
   });
 
   it('fetches off-page members before handing the folder to compare mode', () => {
@@ -185,15 +190,48 @@ describe('ExperimentsDashboardComponent folders', () => {
     expect(component.compareOriginFolderId()).toBeNull();
   });
 
+  it('restores the compare origin folder from the URL', () => {
+    const folder = foldersService.seedFolder('Q3 meta', ['a', 'b']);
+    const originalUrl = window.location.href;
+
+    try {
+      window.history.replaceState({}, '', `/dashboard?folder=${folder.id}&compare=a,b`);
+
+      component.ngOnInit();
+
+      expect(component.compareMode()).toBeTrue();
+      expect(component.compareIds()).toEqual(['a', 'b']);
+      expect(component.selectedFolderId()).toBeNull();
+      expect(component.compareOriginFolderId()).toBe(folder.id);
+
+      component.onBackToOriginFolder();
+
+      expect(component.selectedFolderId()).toBe(folder.id);
+      expect(component.compareMode()).toBeFalse();
+    } finally {
+      window.history.replaceState({}, '', originalUrl);
+    }
+  });
+
+  it('points the folders at whoever the session turns out to be, once per user', () => {
+    TestBed.flushEffects();
+    TestBed.flushEffects();
+
+    expect(foldersService.sessions).toEqual(['mcurie']);
+  });
+
   it('prunes a deleted run from every folder', () => {
     const first = openFolder(['a', 'off-page']);
-    const second = foldersService.createFolder('PCA', 'a')!;
+    const second = foldersService.seedFolder('PCA', ['a']);
     component.compareIds.set(['a']);
     TestBed.flushEffects();
 
     component.confirmDelete('a');
     httpMock.expectOne(`${apiUrl}/a`).flush({});
 
+    // The cascade behind the experiment delete already dropped the membership rows: pruning the
+    // mirror is a local edit, so the folder API must not see a single request here.
+    httpMock.expectNone('/services/experiment-folders');
     expect(foldersService.folderById(first.id)?.experimentIds).toEqual(['off-page']);
     expect(foldersService.folderById(second.id)?.experimentIds).toEqual([]);
     expect(component.compareIds()).toEqual([]);
@@ -221,5 +259,52 @@ describe('ExperimentsDashboardComponent folders', () => {
     TestBed.flushEffects();
 
     expect(foldersService.folderById(folder.id)?.experimentIds).toEqual(['a', 'off-page']);
+  });
+
+  describe('compare empty state helpers', () => {
+    it('removes an experiment from compareIds and updates URL', () => {
+      component.compareIds.set(['a', 'b']);
+      component.removeFromCompare('a');
+
+      expect(component.compareIds()).toEqual(['b']);
+    });
+
+    it('selects the first two experiments for quick compare', () => {
+      dashboardService.experiments.set([experiment('exp-1'), experiment('exp-2'), experiment('exp-3')]);
+      component.compareIds.set([]);
+
+      expect(component.canQuickCompare()).toBeTrue();
+
+      component.selectFirstTwoForCompare();
+
+      expect(component.compareIds()).toEqual(['exp-1', 'exp-2']);
+      expect(component.canQuickCompare()).toBeFalse();
+    });
+
+    it('does not allow quick compare when already having selections or fewer than 2 runs', () => {
+      dashboardService.experiments.set([experiment('exp-1')]);
+      component.compareIds.set([]);
+      expect(component.canQuickCompare()).toBeFalse();
+
+      dashboardService.experiments.set([experiment('exp-1'), experiment('exp-2')]);
+      component.compareIds.set(['exp-1']);
+      expect(component.canQuickCompare()).toBeFalse();
+    });
+
+    it('resolves compare origin folder name when origin folder exists', () => {
+      const folder = openFolder(['a']);
+      component.compareOriginFolderId.set(folder.id);
+
+      expect(component.compareOriginFolderName()).toBe('Q3 meta');
+
+      component.compareOriginFolderId.set(null);
+      expect(component.compareOriginFolderName()).toBeNull();
+    });
+
+    it('resolves algorithm human label or falls back to raw code', () => {
+      expect(component.getAlgorithmLabel('mock_anova')).toBe('Analysis of Variance');
+      expect(component.getAlgorithmLabel('unknown_algo')).toBe('unknown_algo');
+      expect(component.getAlgorithmLabel(null)).toBe('Unknown algorithm');
+    });
   });
 });

@@ -53,6 +53,66 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     httpMock.verify();
   });
 
+  describe('list requests with filters', () => {
+    it('keeps the client-filter snapshot for repeat views within a visit', () => {
+      service.getUserExperiments(0, 10, true, { status: 'success' });
+      httpMock.expectOne((request) => request.url === apiUrl).flush({
+        experiments: [backendExperiment('a', 'A'), backendExperiment('b', 'B')],
+        totalExperiments: 2,
+        totalPages: 1,
+        currentPage: 0,
+      });
+
+      expect(service.experiments().map((experiment) => experiment.id)).toEqual(['a', 'b']);
+
+      // A second client-only filter is answered from the same full-history snapshot.
+      service.getUserExperiments(0, 10, true, { status: 'error' });
+      httpMock.expectNone((request) => request.url === apiUrl);
+      expect(service.experiments()).toEqual([]);
+      expect(service.totalExperiments()).toBe(0);
+    });
+
+    it('invalidates the client-filter snapshot on demand', () => {
+      service.getUserExperiments(0, 10, true, { status: 'success' });
+      httpMock.expectOne((request) => request.url === apiUrl).flush({
+        experiments: [backendExperiment('a', 'A')],
+        totalExperiments: 1,
+        totalPages: 1,
+        currentPage: 0,
+      });
+      expect(service.experiments().map((experiment) => experiment.id)).toEqual(['a']);
+
+      service.invalidateListCache();
+      service.getUserExperiments(0, 10, true, { status: 'success' });
+      httpMock.expectOne((request) => request.url === apiUrl).flush({
+        experiments: [backendExperiment('b', 'B')],
+        totalExperiments: 1,
+        totalPages: 1,
+        currentPage: 0,
+      });
+
+      expect(service.experiments().map((experiment) => experiment.id)).toEqual(['b']);
+    });
+
+    it('sends algorithm and shared filters to the server as request params', () => {
+      service.getUserExperiments(0, 10, true, { algorithm: 'mock_anova', shared: 'shared' });
+
+      const request = httpMock.expectOne((candidate) => candidate.url === apiUrl);
+      expect(request.request.params.get('algorithm')).toBe('mock_anova');
+      expect(request.request.params.get('shared')).toBe('true');
+      expect(request.request.params.get('mine')).toBe('true');
+
+      request.flush({
+        experiments: [backendExperiment('a', 'A')],
+        totalExperiments: 1,
+        totalPages: 1,
+        currentPage: 0,
+      });
+
+      expect(service.experiments().map((experiment) => experiment.id)).toEqual(['a']);
+    });
+  });
+
   it('resolves members that are already loaded without asking the backend', () => {
     service.experiments.set([frontendExperiment('a'), frontendExperiment('b')]);
     let resolved: Experiment[] | undefined;
