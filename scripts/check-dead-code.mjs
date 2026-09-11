@@ -47,7 +47,7 @@ const css = files.filter((p) => extname(p) === '.css');
 const appMarkup = [...ts, ...html].map(read);
 const globalHay = appMarkup.join('\n');
 
-const word = (name) => new RegExp(`(?<![\\w$])${name.replace(/[$]/g, '\\$')}(?![\\w$])`, 'g');
+const word = (name) => new RegExp(`(?<![\\w$])${name.replace(/[\\$]/g, '\\$&')}(?![\\w$])`, 'g');
 const countIn = (haystack, name) => (haystack.match(word(name)) || []).length;
 
 /* 1 ─ dead exports ─────────────────────────────────────────────────────────── */
