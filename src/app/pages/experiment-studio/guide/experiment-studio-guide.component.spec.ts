@@ -564,20 +564,22 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(editStep?.allowTargetInteraction).toBeFalse();
   });
 
-  it('keeps the Analysis filtering step as a preview-only walkthrough', () => {
+  it('keeps the Analysis filtering step interactive and optional', () => {
     const steps = (component as any).resolveSteps();
     const filteringStep = steps.find((step: any) => step.id === 'analysis-filtering');
 
-    expect(filteringStep?.allowTargetInteraction).toBeFalse();
-    expect(filteringStep?.body).toContain('still shows the raw cohort');
+    expect(filteringStep?.allowTargetInteraction).toBeTrue();
+    expect(filteringStep?.body).toContain('Optional');
+    expect(filteringStep?.body).toContain('Add Filtering');
   });
 
-  it('keeps the Analysis preprocessing step as a preview-only walkthrough', () => {
+  it('keeps the Analysis preprocessing step interactive and optional', () => {
     const steps = (component as any).resolveSteps();
     const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
 
-    expect(preprocessingStep?.allowTargetInteraction).toBeFalse();
-    expect(preprocessingStep?.body).toContain('Rows with missing values are dropped by default');
+    expect(preprocessingStep?.allowTargetInteraction).toBeTrue();
+    expect(preprocessingStep?.body).toContain('Optional');
+    expect(preprocessingStep?.body).toContain('missing values are already dropped');
   });
 
   it('keeps the raw and processed summary guide steps interactive across the full section', () => {
@@ -743,14 +745,17 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(component.blockingMaskRects().length).toBeGreaterThan(0);
   });
 
-  it('keeps the Explore Variable Views step as a preview-only walkthrough', () => {
+  it('keeps the Explore Variable Views step interactive and optional', () => {
     const steps = (component as any).resolveSteps();
     const exploreStep = steps.find((step: any) => step.id === 'variable-selection');
 
     expect(exploreStep?.title).toBe('Explore Variable Views');
     expect(exploreStep?.selector).toBe('[data-guide="variable-selection"]');
-    expect(exploreStep?.allowTargetInteraction).toBeFalse();
-    expect(exploreStep?.body).toContain('Preview the metadata browser');
+    expect(exploreStep?.allowTargetInteraction).toBeTrue();
+    expect(exploreStep?.body).toContain('Map');
+    expect(exploreStep?.body).toContain('List');
+    expect(exploreStep?.body).toContain('Graph');
+    expect(exploreStep?.body).toContain('Next');
     expect(exploreStep?.interactionSelectors).toBeUndefined();
     expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBeFalse();
   });

@@ -51,15 +51,16 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   readonly currentIndex = signal(0);
   readonly highlightRect = signal<GuideRect | null>(null);
   readonly isCollapsed = signal(false);
-  /** Frozen when the guide opens so "Step X of Y" does not jump mid-tour. */
+  /** Recounted from currently navigable steps so skipped optionals do not create gaps. */
   readonly totalSteps = signal(0);
+  readonly currentStepOrdinal = signal(0);
 
   readonly currentStep = computed(() => this.activeSteps()[this.currentIndex()] ?? null);
   readonly previousStep = computed(() => {
     const previousIndex = this.getNavigableStepIndex(this.currentIndex() - 1, -1);
     return previousIndex === null ? null : this.activeSteps()[previousIndex] ?? null;
   });
-  readonly currentStepNumber = computed(() => this.getCurrentStepNumber());
+  readonly currentStepNumber = computed(() => this.currentStepOrdinal());
   readonly progressPercent = computed(() => {
     const total = this.totalSteps();
     return total ? (this.currentStepNumber() / total) * 100 : 0;
@@ -69,9 +70,19 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   readonly isLastStep = computed(() => this.getNavigableStepIndex(this.currentIndex() + 1, 1) === null);
   readonly canGoToNext = computed(() => this.isStepRequirementSatisfied(this.currentStep()));
   readonly stepNeedsAction = computed(() => !!this.currentStep()?.advanceOnTargetClick && !this.canGoToNext());
-  readonly nextButtonLabel = computed(() =>
-    this.stepNeedsAction() ? 'Action required' : (this.isLastStep() ? this.labels.done : this.labels.next)
-  );
+  readonly nextButtonLabel = computed(() => {
+    if (this.stepNeedsAction()) {
+      return 'Action required';
+    }
+    if (this.isLastStep()) {
+      return this.labels.done;
+    }
+    // Only the optional compare workspace is an explicit skip; other optionals still say Next.
+    if (this.currentStep()?.id === 'compare-workspace') {
+      return this.labels.skip;
+    }
+    return this.labels.next;
+  });
   readonly pendingRequirementHint = computed(() => {
     const step = this.currentStep();
     if (!step || this.canGoToNext()) {
@@ -117,6 +128,7 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     this.currentIndex.set(this.getNavigableStepIndex(0, 1) ?? 0);
     this.isCollapsed.set(false);
     this.isOpen.set(true);
+    this.recountProgress();
     this.syncStepLayout();
   }
 
@@ -125,6 +137,7 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     this.activeSteps.set([]);
     this.currentIndex.set(0);
     this.totalSteps.set(0);
+    this.currentStepOrdinal.set(0);
     this.highlightRect.set(null);
     this.isCollapsed.set(false);
     this.clearLayoutTimer();
@@ -154,6 +167,7 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     }
 
     this.currentIndex.set(nextIndex);
+    this.recountProgress();
     this.syncStepLayout();
   }
 
@@ -168,6 +182,7 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     }
 
     this.currentIndex.set(previousIndex);
+    this.recountProgress();
     this.syncStepLayout();
   }
 
@@ -268,6 +283,8 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
       return;
     }
 
+    this.recountProgress();
+
     if (step.id === 'tutorial-experiment' || step.id === 'workbench' || step.id === 'actions' || step.id === 'results') {
       this.ensureCompareModeOff();
     }
@@ -325,13 +342,27 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     return !step?.advanceOnTargetClick;
   }
 
-  private getCurrentStepNumber(): number {
-    if (!this.currentStep()) {
-      return 0;
+  private recountProgress(): void {
+    const steps = this.activeSteps();
+    // Keep Y frozen at the full tour length (set in startGuide). X counts only
+    // steps that are current or still navigable so skipped optionals leave no gaps.
+    let current = 0;
+
+    for (let index = 0; index < steps.length; index += 1) {
+      const step = steps[index];
+      const visible = index === this.currentIndex() || !this.isOptionalStepUnavailable(step);
+      if (!visible) {
+        continue;
+      }
+      if (index <= this.currentIndex()) {
+        current += 1;
+      }
     }
 
-    // Stable progress against the frozen tour length (skipped optionals still advance the index).
-    return this.currentIndex() + 1;
+    if (!this.totalSteps()) {
+      this.totalSteps.set(steps.length);
+    }
+    this.currentStepOrdinal.set(current);
   }
 
   private isOptionalStepUnavailable(step: ExperimentsDashboardGuideStep): boolean {

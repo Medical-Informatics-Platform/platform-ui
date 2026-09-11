@@ -122,7 +122,7 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     id: 'compare-workspace',
     section: 'Results',
     title: 'Comparison Workspace',
-    body: 'With compare on, select a second run from the list (you need at least two). The workspace shows each selected run so you can open configuration and results in place.',
+    body: 'With compare on, select a <strong>second</strong> run from the list (at least two). Or press <strong>Skip</strong> to finish without comparing.',
     selector: '[data-guide="dashboard-compare-workspace"]',
     placement: 'left',
     allowTargetInteraction: true,

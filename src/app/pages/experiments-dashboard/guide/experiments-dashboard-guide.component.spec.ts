@@ -27,10 +27,18 @@ describe('ExperimentsDashboardGuideComponent', () => {
     expect(completeIdx).toBeGreaterThan(compareIdx);
   });
 
-  it('freezes totalSteps when the guide starts', () => {
+  it('freezes totalSteps to the full tour length', () => {
     component.startGuide(true);
     expect(component.totalSteps()).toBe(EXPERIMENTS_DASHBOARD_GUIDE_STEPS.length);
-    expect(component.totalSteps()).toBe(component.activeSteps().length);
+    expect(component.currentStepNumber()).toBe(1);
+  });
+
+  it('uses Skip for optional steps that are not last', () => {
+    component.activeSteps.set([...EXPERIMENTS_DASHBOARD_GUIDE_STEPS]);
+    const compareIdx = EXPERIMENTS_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'compare-workspace');
+    component.currentIndex.set(compareIdx);
+    (component as any).recountProgress();
+    expect(component.nextButtonLabel()).toBe('Skip');
   });
 
   it('prefers workbench over compare-workspace when both targets exist', () => {
