@@ -59,7 +59,6 @@
     "@babel/core": "7.29.7",
     "@hono/node-server": "2.1.1",
     "dompurify": "3.4.15",
-    "esbuild": "0.28.1",
     "express@4.22.2": {
       "body-parser": "1.20.8"
     },
@@ -86,7 +85,6 @@
     "tmp": "0.2.7",
     "undici": "7.29.1",
     "uuid": "11.1.1",
-    "vite": "7.3.6",
     "webpack-dev-server": "5.2.6",
     "ws": "8.21.0",
     "zrender": "6.1.0",
