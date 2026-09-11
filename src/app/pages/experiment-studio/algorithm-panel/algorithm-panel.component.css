@@ -96,15 +96,18 @@
 }
 
 /* BOTTOM ROW: Algorithm catalog (left) · Algorithm configuration (right). The row
-   height is fixed and both panes scroll internally, so picking a method never moves
-   the assignment rails out from under the pointer. */
+   grows with its content (24rem floor) instead of being pinned to a short fixed
+   height, so the parameter selection expands and every parameter field is readable
+   in the normal flow — the window is the scroller rather than a nested inner scroll.
+   The assignment rails sit above the row in flow, so switching methods never moves
+   them out from under the pointer; only space below the row changes. */
 
 .algorithm-workspace {
   display: grid;
   grid-template-columns: minmax(300px, 20%) minmax(0, 80%); /* 20% catalog · 80% configuration */
   min-width: 0;
   min-height: 24rem;
-  height: clamp(24rem, 48vh, 40rem);
+  height: auto;
   overflow: hidden;
 }
 
@@ -439,18 +442,17 @@
 }
 
 /* RIGHT OF THE BOTTOM ROW: ALGORITHM CONFIGURATION — documentation and parameter
-   fields share one scrolling column, so a catalog selection updates what the user is
-   configuring without a page jump. The board paints the frame: this column adds no
-   border, tint, or shadow of its own. */
+   fields share one column that grows with its content, so a parameter-rich method
+   reveals its whole form instead of clipping it under a fixed-height inner scroll.
+   The board paints the frame: this column adds no border, tint, or shadow of its
+   own. */
 
 .algorithm-config-column {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
+  overflow: visible;
 }
 
 /* PARAMETERS — continue the configuration flow directly under the documentation;
@@ -519,17 +521,16 @@
 }
 
 /* TOP OF THE CONFIGURATION COLUMN — one continuous Algorithm configuration section:
-   header, description, and documentation. It pins to the top of the column so the
-   method stays identified while a long parameter form scrolls beneath it. */
+   header, description, and documentation. It no longer pins: the column expands to
+   its content and the window scrolls, so a sticky head would hang over the scrolling
+   page and hide the parameter fields below it instead of helping them. */
 
 .algorithm-details {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 12px 16px 12px;
-  position: sticky;
-  top: 0;
-  z-index: 2;
+  position: static;
   background: var(--studio-card-bg);
   color: var(--text-main);
 }
@@ -1234,14 +1235,6 @@
     overflow: auto;
   }
 
-  /* Stacked: the window scrolls the configuration column, so nothing pins inside it. */
-  .algorithm-config-column {
-    overflow: visible;
-  }
-
-  .algorithm-details {
-    position: static;
-  }
 }
 
 @media (max-width: 640px) {
