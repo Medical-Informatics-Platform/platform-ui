@@ -4,6 +4,7 @@ import { Observable, Subject, catchError, defaultIfEmpty, filter, finalize, fork
 import { SessionStorageService } from './session-storage.service';
 import { D3HierarchyNode, DataModel, Group, Variable } from '../models/data-model.interface';
 import { mapSpecificationsToAlgorithmConfigs } from '../core/algorithm-mappers';
+import { normalizeFilterLogicForBackend } from '../core/filter-logic.utils';
 import { EnumMaps } from '../core/algorithm-result-enum-mapper';
 import {
   AnalysisInputData,
@@ -11,7 +12,7 @@ import {
   AnalysisRequest,
   ExperimentCreateRequest,
 } from '../models/backend-algorithms.model';
-import { BackendFilter } from '../models/filters.model';
+import { BackendFilter, BackendRule } from '../models/filters.model';
 import { ExperimentRunSetup, RunSetupSummaryRow } from '../models/experiment-run-setup.model';
 import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-definition.model';
 import { BackendExperiment } from '../models/backend-experiment.model';
@@ -1719,7 +1720,8 @@ export class ExperimentStudioService {
   }
 
   /** Public helper for Transformation stats: collect CDE codes referenced by a filter tree. */
-  filterVariableCodes(logic: BackendFilter | null): string[] {
+  /** Accepts a rule tree or the bare condition a category rule can hold. */
+  filterVariableCodes(logic: BackendFilter | BackendRule | null): string[] {
     return this.collectFilterVariableCodes(logic);
   }
 
@@ -1854,7 +1856,9 @@ export class ExperimentStudioService {
   }
 
   setFilterLogic(logic: BackendFilter | null) {
-    this._filterLogic.set(logic);
+    // The one write path for cohort filters, so this is where a stored tree that holds a
+    // unary rule without its value key is repaired - once, on the way in.
+    this._filterLogic.set(normalizeFilterLogicForBackend(logic));
   }
 
   private toArray = (v: any): string[] => v == null ? [] : Array.isArray(v) ? v : [v];
@@ -1941,7 +1945,6 @@ export class ExperimentStudioService {
     // Selected datasets
     this.setSelectedDatasets(this.toArray(input.datasets));
 
-    // Filters
     this.setFilterLogic(filters);
 
     this.loadAllDataModels()
@@ -2056,7 +2059,7 @@ export class ExperimentStudioService {
     return { ...node, supportedAlgos: supported };
   }
 
-  private collectFilterVariableCodes(logic: BackendFilter | null): string[] {
+  private collectFilterVariableCodes(logic: BackendFilter | BackendRule | null): string[] {
     if (!logic) return [];
     const codes = new Set<string>();
 

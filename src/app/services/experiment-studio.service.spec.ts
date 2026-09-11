@@ -1271,6 +1271,56 @@ describe('ExperimentStudioService', () => {
     expect(body.analysis.inputdata.variables).toEqual(['mrs', 'age']);
   });
 
+  it('keeps a stored cohort filter tree in the shape the engine accepts', () => {
+    service.hydrateFromBackendExperiment({
+      uuid: 'exp-filter-shape',
+      name: 'Saved cohort',
+      created: '',
+      finished: '',
+      shared: false,
+      viewed: false,
+      status: 'success',
+      analysis: {
+        inputdata: {
+          data_model: 'dm:1',
+          datasets: ['ds1'],
+          filters: {
+            condition: 'AND',
+            rules: [
+              { id: 'sex', field: 'sex', operator: 'in', value: ['1', '2'], type: 'string' },
+              // Stored without its value key; the reference filter client sends null for these.
+              { id: 'age', field: 'age', operator: 'is_not_null', type: 'integer' },
+            ],
+          },
+          variables: ['sex', 'age'],
+        },
+        preprocessing: null,
+        algorithm: { name: 'mock_algo', y: ['age'], x: ['sex'], parameters: {} },
+      },
+    } as any);
+    httpMock.expectOne('/services/data-models').flush([mockDataModel]);
+
+    // Loading never rewrites a rule…
+    expect((service.filterLogic()?.rules as any[])[0])
+      .toEqual(jasmine.objectContaining({ field: 'sex', operator: 'in', value: ['1', '2'] }));
+    // …and a unary rule is repaired so the run is not rejected with an opaque error.
+    expect((service.filterLogic()?.rules as any[])[1])
+      .toEqual(jasmine.objectContaining({ field: 'age', operator: 'is_not_null', value: null }));
+
+    service.setSelectedDataModel(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setVariables([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
+    service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
+    service.setAlgorithmX([{ code: 'sex', label: 'Sex' }]);
+
+    const sentRules = service.buildRequestBody('mock_algo').analysis.inputdata.filters.rules as any[];
+    expect(sentRules[0].value).toEqual(['1', '2']);
+    expect(sentRules[1].value).toBeNull();
+  });
+
   it('hydrates every saved creator step, not just the last one with that name', () => {
     const good = { code: 'mrs_good_outcome', strategy: 'filter_rules', rules: { good: {} } };
     const bad = { code: 'mrs_bad_outcome', strategy: 'filter_rules', rules: { bad: {} } };
