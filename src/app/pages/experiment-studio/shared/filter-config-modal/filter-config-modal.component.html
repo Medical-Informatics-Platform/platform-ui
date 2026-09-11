@@ -1,28 +1,5 @@
-<div [class.modal-wrapper]="!inline()" [class.inline-filter-builder]="inline()">
-  @if (!inline()) {
-  <div class="modal-overlay" (click)="cancel()"></div>
-  }
-
+<div class="inline-filter-builder">
   <div class="filter-modal">
-    @if (!inline()) {
-    <div class="filter-modal-header">
-      <div class="header-left">
-        <i class="fas fa-filter header-icon"></i>
-        <h3>Filters & Formula</h3>
-      </div>
-      <button class="close-top-btn" (click)="cancel()" aria-label="Close modal">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    }
-
-    <div class="filter-helper">
-      <div class="helper-content">
-        <i class="fas fa-info-circle info-icon"></i>
-        <p>Build filter logic from editable condition and group blocks. Connector chips define how neighboring blocks are combined.</p>
-      </div>
-    </div>
-
     <div class="filter-modal-body">
       @if(allFilterVariables().length > 0) {
       <ng-container
@@ -41,32 +18,8 @@
       <div class="where-error" role="alert">{{ filterError() }}</div>
       }
       } @else {
-      <div class="where-error" role="status">No filterable variables are available for this pathology.</div>
+      <div class="where-error" role="status">{{ emptyPoolMessage() }}</div>
       }
-    </div>
-
-    <div class="filter-modal-footer">
-      <div class="footer-left">
-        @if (activeRulesCount() > 0) {
-        <div class="status-badge">
-          <span class="pulse-dot"></span>
-          {{ activeRulesCount() }} Active Rule{{ activeRulesCount() === 1 ? "" : "s" }}
-        </div>
-        } @else {
-        <span class="status-text muted">No filters applied</span>
-        }
-      </div>
-
-      <div class="filter-actions">
-        <button class="btn-secondary" type="button" (click)="clearFilters()">Clear</button>
-        @if (!inline()) {
-        <button class="btn-secondary" type="button" (click)="cancel()">Cancel</button>
-        }
-        <button class="btn-primary-gradient" type="button" [disabled]="activeRulesCount() === 0" (click)="saveFilters()">
-          <i class="fas fa-check icon-left"></i>
-          Apply Filters
-        </button>
-      </div>
     </div>
   </div>
 </div>
@@ -87,9 +40,11 @@
         <span>{{ depth === 0 ? 'Filter group' : 'Nested group' }}</span>
       </div>
       <div class="filter-group-actions">
+        @if (group.rules.length > 0) {
         <button type="button" class="builder-token-btn" (click)="addCondition(group.id, 0)">
           <i class="fas fa-plus"></i> Condition
         </button>
+        }
         <button type="button" class="builder-token-btn" (click)="addGroup(group.id, 0)">
           <i class="fas fa-plus"></i> Group
         </button>
@@ -126,7 +81,7 @@
         }
 
         @if (block.kind === 'condition') {
-        <div class="condition-block">
+        <app-station-list-row removeLabel="Remove condition" (remove)="removeBlock(block.id)">
           <div class="condition-fields">
             <label>
               <span>Variable</span>
@@ -162,10 +117,7 @@
             </label>
             }
           </div>
-          <button type="button" class="remove-block-btn" (click)="removeBlock(block.id)" aria-label="Remove condition">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
+        </app-station-list-row>
         } @else {
         <ng-container
           [ngTemplateOutlet]="groupTemplate"

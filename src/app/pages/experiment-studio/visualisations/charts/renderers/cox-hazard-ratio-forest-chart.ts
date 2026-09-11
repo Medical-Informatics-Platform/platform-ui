@@ -18,7 +18,7 @@ export function formatClinicianPValue(pValue: number): string {
   return pValue.toFixed(3);
 }
 
-export function formatClinicianHazardRatio(value: number): string {
+function formatClinicianHazardRatio(value: number): string {
   if (!Number.isFinite(value)) return 'N/A';
   if (value >= 100) return value.toFixed(1);
   if (value >= 10) return value.toFixed(2);

@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, effect, signal, computed, output, i
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { StationListRowComponent } from '../station-list-row/station-list-row.component';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -26,7 +27,7 @@ interface FilterConditionBlock {
 
 @Component({
   selector: 'app-filter-config-modal',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StationListRowComponent],
   templateUrl: './filter-config-modal.component.html',
   styleUrl: './filter-config-modal.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,9 +36,13 @@ export class FilterConfigModalComponent {
   private expStudio = inject(ExperimentStudioService);
 
   readonly filterLogic = input<any | null>(null);
-  readonly inline = input(false);
-  readonly closeModal = output<void>();
-  readonly filtersApplyStarted = output<void>();
+  /**
+   * Which variables the builder may reference. The cohort-filter station needs the
+   * whole data model because any CDE can define a cohort. The transformation
+   * category-rule builders pass 'selectedVariables' so a rule can only be built from
+   * the variables carried into the Data Handling pipeline.
+   */
+  readonly variableScope = input<'dataModel' | 'selectedVariables'>('dataModel');
   readonly filtersApplied = output<void>();
 
   readonly allFilterVariables = signal<any[]>([]);
@@ -45,10 +50,15 @@ export class FilterConfigModalComponent {
   readonly filterError = signal<string | null>(null);
   readonly previewExpression = computed(() => this.groupPreview(this.rootGroup()));
   readonly activeRulesCount = computed(() => this.countRules(this.rootGroup()));
+  readonly emptyPoolMessage = computed(() => this.variableScope() === 'selectedVariables'
+    ? 'No variables are selected for the Data Handling pipeline yet. Select variables in Data Exploration first.'
+    : 'No filterable variables are available for this pathology.');
 
   constructor() {
     effect(() => {
-      this.allFilterVariables.set(this.flattenDataModelVariables(this.expStudio.selectedDataModel()));
+      this.allFilterVariables.set(this.variableScope() === 'selectedVariables'
+        ? this.normalizeFilterVariables(this.expStudio.selectedVariables())
+        : this.flattenDataModelVariables(this.expStudio.selectedDataModel()));
     });
 
     effect(() => {
@@ -76,12 +86,6 @@ export class FilterConfigModalComponent {
     this.filterError.set(null);
   }
 
-  setGroupCondition(groupId: string, condition: GroupCondition): void {
-    this.updateGroup(groupId, (group) => ({
-      ...group,
-      rules: group.rules.map((block, index) => index === 0 ? { ...block, connector: undefined } : { ...block, connector: condition }),
-    }));
-  }
 
   setBlockConnector(groupId: string, blockId: string, condition: GroupCondition): void {
     this.updateGroup(groupId, (group) => ({
@@ -167,20 +171,27 @@ export class FilterConfigModalComponent {
     return `${label}${type}`;
   }
 
-  blockTrackBy(_index: number, block: FilterBlock): string {
-    return block.id;
-  }
-
-  saveFilters(): void {
-    this.filtersApplyStarted.emit(undefined);
+  /**
+   * Validate the current builder and return backend filter logic without writing
+   * cohort filters on ExperimentStudioService.
+   */
+  exportFilterLogic(): any | null {
     const validationError = this.validateGroup(this.rootGroup());
     if (validationError) {
       this.filterError.set(validationError);
-      return;
+      return null;
     }
 
     const normalized = this.normalizeGroup(this.rootGroup());
-    const toStore = normalized.rules.length > 0 ? this.formatFiltersForBackend(normalized) : null;
+    this.filterError.set(null);
+    return normalized.rules.length > 0 ? this.formatFiltersForBackend(normalized) : null;
+  }
+
+  saveFilters(): void {
+    const toStore = this.exportFilterLogic();
+    if (this.filterError()) {
+      return;
+    }
     const selectedFilters = toStore
       ? this.extractFilterCodes(toStore)
         .map((code) => this.allFilterVariables().find((variable) => variable.code === code))
@@ -190,12 +201,7 @@ export class FilterConfigModalComponent {
     this.expStudio.setFilters(selectedFilters);
     this.expStudio.setFilterLogic(toStore);
     this.filtersApplied.emit(undefined);
-    this.closeModal.emit(undefined);
     this.filterError.set(null);
-  }
-
-  cancel(): void {
-    this.closeModal.emit(undefined);
   }
 
   clearFilters(): void {
@@ -475,8 +481,27 @@ export class FilterConfigModalComponent {
 
   private flattenDataModelVariables(model: DataModel | null): any[] {
     if (!model) return [];
+    const collected: Variable[] = [];
+    const visitGroups = (groups: Group[] = []): void => {
+      groups.forEach((group) => {
+        collected.push(...(group.variables ?? []));
+        visitGroups(group.groups ?? []);
+      });
+    };
+
+    collected.push(...(model.variables ?? []));
+    visitGroups(model.groups ?? []);
+    return this.normalizeFilterVariables(collected);
+  }
+
+  /**
+   * Pool guard shared by both sources: keeps the fields the builder renders and drops
+   * types it cannot express. Selected CDE nodes carry experiment metadata (supported
+   * algorithms, role flags) that must not leak into a filter condition.
+   */
+  private normalizeFilterVariables(variables: Variable[]): any[] {
     const seen = new Map<string, any>();
-    const addVariable = (variable: Variable): void => {
+    variables.forEach((variable) => {
       if (!variable?.code || seen.has(variable.code)) return;
       const type = String(variable.type ?? '').toLowerCase();
       if (!['real', 'integer', 'nominal'].includes(type)) return;
@@ -487,16 +512,7 @@ export class FilterConfigModalComponent {
         type: variable.type,
         enumerations: variable.enumerations,
       });
-    };
-    const visitGroups = (groups: Group[] = []): void => {
-      groups.forEach((group) => {
-        (group.variables ?? []).forEach(addVariable);
-        visitGroups(group.groups ?? []);
-      });
-    };
-
-    (model.variables ?? []).forEach(addVariable);
-    visitGroups(model.groups ?? []);
+    });
     return Array.from(seen.values());
   }
 
