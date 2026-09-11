@@ -1,5 +1,6 @@
 import { BackendFilter, BackendRule } from '../models/filters.model';
 import { EnumMaps, LabelMap } from './algorithm-result-enum-mapper';
+import { filterOperatorSymbolFor, isUnaryFilterOperator } from './filter-logic.utils';
 
 /**
  * Reads a backend filter tree as a user reads it. The tree is the payload Exaflow
@@ -12,16 +13,8 @@ interface FilterDisplaySources {
   enumMaps?: EnumMaps;
 }
 
-const OPERATOR_LABELS: Record<string, string> = {
-  equal: '=',
-  not_equal: '!=',
-  greater: '>',
-  greater_or_equal: '>=',
-  less: '<',
-  less_or_equal: '<=',
-  is_null: 'IS NULL',
-  is_not_null: 'IS NOT NULL',
-};
+/* The operator symbols come from core/filter-logic.utils — the same table the filter builder
+   writes with, so a tree never prints a raw backend token here and a real operator there. */
 
 /** Leaf-rule count of a filter tree; 0 when nothing was filtered. */
 export function countFilterRules(node: BackendFilter | null | undefined): number {
@@ -61,9 +54,9 @@ function formatNode(
 
   const field = String(node.field ?? node.id ?? '');
   const label = sources.labelMap[field] || field || 'Variable';
-  const operator = OPERATOR_LABELS[node.operator] ?? node.operator;
+  const operator = filterOperatorSymbolFor(String(node.operator ?? ''));
 
-  if (node.operator === 'is_null' || node.operator === 'is_not_null') {
+  if (isUnaryFilterOperator(String(node.operator ?? ''))) {
     return `${label} ${operator}`;
   }
   return `${label} ${operator} ${formatValue(field, node.value, sources)}`;

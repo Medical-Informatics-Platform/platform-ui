@@ -3,7 +3,16 @@ import { ChangeDetectionStrategy, Component, effect, signal, computed, output, i
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { StationListRowComponent } from '../station-list-row/station-list-row.component';
+import {
+  filterOperatorBackendFor,
+  filterOperatorSpec,
+  filterOperatorSymbolFor,
+  filterOperatorSymbolsForType,
+  filterOperatorValueKind,
+  isMultiValueFilterOperator,
+  isUnaryFilterOperator,
+} from '../../../../core/filter-logic.utils';
+import { countFilterRules } from '../../../../core/filter-display.utils';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -21,13 +30,32 @@ interface FilterConditionBlock {
   connector?: GroupCondition;
   field: string;
   variableText: string;
+  /** A symbol from FILTER_OPERATORS, or an operator name this builder cannot author. */
   operator: string;
-  value: string;
+  /** Always a list: `in` / `not_in` pick many, everything else uses the first entry. */
+  values: string[];
+  /**
+   * Rule exactly as the backend wrote it, kept for operators this builder cannot author.
+   * Such a condition renders read-only and is re-emitted untouched, so loading a stored
+   * tree can never rewrite a rule the user did not edit.
+   */
+  rawRule?: any;
+}
+
+/** Splits the comma-separated editing form of a membership value into its codes. */
+function splitFilterValues(text: string): string[] {
+  return text.split(',').map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+
+/** Backend value → the builder's list form. `null`/`''` mean "nothing typed yet". */
+function toFilterValues(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') return [];
+  return (Array.isArray(value) ? value : [value]).map(String);
 }
 
 @Component({
   selector: 'app-filter-config-modal',
-  imports: [CommonModule, FormsModule, StationListRowComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './filter-config-modal.component.html',
   styleUrl: './filter-config-modal.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +76,14 @@ export class FilterConfigModalComponent {
   readonly allFilterVariables = signal<any[]>([]);
   readonly rootGroup = signal<FilterGroupBlock>(this.createGroup());
   readonly filterError = signal<string | null>(null);
+  /**
+   * A stored tree arrived whose rules this builder could not read (it counted rules going
+   * in and produced none coming out). Callers must not treat the empty export as the user
+   * having removed those rules.
+   */
+  readonly unloadedInput = computed(
+    () => countFilterRules(this.filterLogic()) > 0 && this.activeRulesCount() === 0
+  );
   readonly previewExpression = computed(() => this.groupPreview(this.rootGroup()));
   readonly activeRulesCount = computed(() => this.countRules(this.rootGroup()));
   readonly emptyPoolMessage = computed(() => this.variableScope() === 'selectedVariables'
@@ -67,11 +103,16 @@ export class FilterConfigModalComponent {
     });
   }
 
+  /** The one condition row the user is editing; `<details>` follows it and opens new rows. */
+  readonly activeBlockId = signal<string | null>(null);
+
   addCondition(groupId: string, index: number): void {
+    const newCondition = this.createCondition();
     this.updateGroup(groupId, (group) => ({
       ...group,
-      rules: this.insertAt(group.rules, index, this.createCondition()),
+      rules: this.insertAt(group.rules, index, newCondition),
     }));
+    this.activeBlockId.set(newCondition.id);
   }
 
   addGroup(groupId: string, index: number): void {
@@ -82,44 +123,103 @@ export class FilterConfigModalComponent {
   }
 
   removeBlock(blockId: string): void {
+    if (this.activeBlockId() === blockId) {
+      this.activeBlockId.set(null);
+    }
     this.rootGroup.update((root) => this.ensureGroupConnectors(this.removeBlockFromGroup(root, blockId)));
     this.filterError.set(null);
   }
 
+  setActiveBlock(blockId: string | null): void {
+    this.activeBlockId.set(blockId);
+  }
 
-  setBlockConnector(groupId: string, blockId: string, condition: GroupCondition): void {
+  /** `<summary>` click handler: the browser toggles `open`, this keeps the signal in step. */
+  toggleActiveBlock(blockId: string): void {
+    this.activeBlockId.update((current) => current === blockId ? null : blockId);
+  }
+
+  groupCondition(group: FilterGroupBlock): GroupCondition {
+    const secondRule = group.rules[1];
+    return secondRule?.connector ?? 'AND';
+  }
+
+  setGroupCondition(groupId: string, condition: GroupCondition): void {
     this.updateGroup(groupId, (group) => ({
       ...group,
-      rules: group.rules.map((block) => block.id === blockId ? { ...block, connector: condition } : block),
+      rules: group.rules.map((block, index) => index === 0 ? block : { ...block, connector: condition }),
     }));
+  }
+
+  variableType(block: FilterConditionBlock): string {
+    const filter = this.selectedFilter(block);
+    return filter?.type ? String(filter.type).toLowerCase() : '';
+  }
+
+  compactValueSummary(block: FilterConditionBlock): string {
+    if (this.isUnaryOperator(block.operator)) return '';
+    const labels = block.values.map((value) => this.valueLabel(block, value));
+    if (labels.length <= 2) return labels.join(', ') || 'None';
+    return `${labels.slice(0, 2).join(', ')} (+${labels.length - 2} more)`;
   }
 
   onConditionVariableTextChange(blockId: string, value: string): void {
     const selected = this.resolveFilterField(value);
     this.updateCondition(blockId, (block) => {
-      const nextOperator = selected && !this.operatorOptionsForVariable(selected).includes(block.operator)
-        ? this.operatorOptionsForVariable(selected)[0]
-        : block.operator;
+      const options = selected ? filterOperatorSymbolsForType(selected.type) : [];
+      const nextOperator = selected && !options.includes(block.operator) ? options[0] : block.operator;
       return {
         ...block,
+        // Re-pointing an imported rule at a variable this builder resolved turns it into an
+        // editable condition; its unreadable operator goes with the old field.
+        rawRule: undefined,
         variableText: value,
         field: selected?.code ?? '',
         operator: nextOperator ?? '=',
-        value: selected ? '' : block.value,
+        values: selected ? [] : block.values,
       };
     });
   }
 
   setConditionOperator(blockId: string, operator: string): void {
-    this.updateCondition(blockId, (block) => ({
-      ...block,
-      operator,
-      value: this.isUnaryOperator(operator) ? '' : block.value,
-    }));
+    // The value keeps its list form across operators: `=` reads values[0], `IN` reads them all.
+    this.updateCondition(blockId, (block) => ({ ...block, operator }));
   }
 
   setConditionValue(blockId: string, value: string): void {
-    this.updateCondition(blockId, (block) => ({ ...block, value }));
+    this.updateCondition(blockId, (block) => ({ ...block, values: [value] }));
+  }
+
+  /** Read-only condition: its operator lives in a filter tree but not in this builder. */
+  isImportedCondition(block: FilterConditionBlock): boolean {
+    return !!block.rawRule;
+  }
+
+  isUnaryOperator(operator: string): boolean {
+    return isUnaryFilterOperator(operator);
+  }
+
+  /** `in` / `not_in`: the value is a set, so any number of categories can be picked. */
+  isMultiValueOperator(operator: string): boolean {
+    return isMultiValueFilterOperator(operator);
+  }
+
+  isCategorySelected(block: FilterConditionBlock, category: string): boolean {
+    return block.values.includes(category);
+  }
+
+  toggleCategory(blockId: string, category: string): void {
+    this.updateCondition(blockId, (block) => ({
+      ...block,
+      values: block.values.includes(category)
+        ? block.values.filter((entry) => entry !== category)
+        : [...block.values, category],
+    }));
+  }
+
+  /** Comma-separated editing surface for a membership rule on a variable without enumerations. */
+  setMultiValueText(blockId: string, text: string): void {
+    this.updateCondition(blockId, (block) => ({ ...block, values: splitFilterValues(text) }));
   }
 
   visibleFilterVariables(query: string): any[] {
@@ -135,26 +235,14 @@ export class FilterConfigModalComponent {
     return this.allFilterVariables().find((filter) => filter.code === block.field) ?? null;
   }
 
+  // An unresolved field is not treated as nominal, so every operator stays available and an
+  // imported rule can always be re-pointed at a variable this builder knows.
   operatorOptions(block: FilterConditionBlock): string[] {
-    return this.operatorOptionsForVariable(this.selectedFilter(block));
+    return filterOperatorSymbolsForType(this.selectedFilter(block)?.type);
   }
 
   operatorDisplayLabel(operator: string): string {
-    switch (operator) {
-      case '=': return 'Equals';
-      case '!=': return 'Does not equal';
-      case '>': return 'Greater than';
-      case '>=': return 'Greater than or equal to';
-      case '<': return 'Less than';
-      case '<=': return 'Less than or equal to';
-      case 'IS NULL': return 'Is null';
-      case 'IS NOT NULL': return 'Is not null';
-      default: return operator;
-    }
-  }
-
-  isUnaryOperator(operator: string): boolean {
-    return operator === 'IS NULL' || operator === 'IS NOT NULL';
+    return filterOperatorSpec(operator)?.label ?? operator;
   }
 
   categoryOptions(block: FilterConditionBlock): Array<{ value: string; label: string }> {
@@ -216,7 +304,7 @@ export class FilterConfigModalComponent {
   }
 
   private createCondition(): FilterConditionBlock {
-    return { kind: 'condition', id: this.nextId(), field: '', variableText: '', operator: '=', value: '' };
+    return { kind: 'condition', id: this.nextId(), field: '', variableText: '', operator: '=', values: [] };
   }
 
   private nextId(): string {
@@ -284,12 +372,6 @@ export class FilterConfigModalComponent {
     };
   }
 
-  private operatorOptionsForVariable(variable: any | null): string[] {
-    return String(variable?.type ?? '').toLowerCase() === 'nominal'
-      ? ['=', '!=', 'IS NULL', 'IS NOT NULL']
-      : ['=', '!=', '>', '>=', '<', '<=', 'IS NULL', 'IS NOT NULL'];
-  }
-
   private resolveFilterField(raw: string): any | null {
     const normalized = raw.toLowerCase();
     return this.allFilterVariables().find((filter) =>
@@ -300,59 +382,69 @@ export class FilterConfigModalComponent {
     ) ?? null;
   }
 
+  /**
+   * Accepts every shape the backend can hand back: a group of rules, and the bare condition
+   * a `categorical_column_creator` category rule stores — one rule becomes a one-condition
+   * group, so a persisted derived column reads back into the builder.
+   */
   private backendToGroup(logic: any): FilterGroupBlock {
-    if (!logic || !Array.isArray(logic.rules)) return this.createGroup();
-    return this.ensureGroupConnectors({
-      kind: 'group',
-      id: this.nextId(),
-      rules: logic.rules.map((rule: any, index: number) => ({
+    if (!logic) return this.createGroup();
+    if (!Array.isArray(logic.rules)) {
+      if (!this.looksLikeCondition(logic)) return this.createGroup();
+      return this.ensureGroupConnectors({
+        kind: 'group',
+        id: this.nextId(),
+        rules: [this.backendToBlock(logic)],
+      });
+    }
+    const condition = this.backendCondition(logic);
+    // Associative flattening: a child group with the same condition as its parent (or holding
+    // a single rule) says nothing the user did not write, so it is folded away.
+    const flatten = (rules: any[]): any[] => rules.flatMap((rule: any) => this.looksLikeGroup(rule)
+      && (this.backendCondition(rule) === condition || rule.rules.length <= 1)
+      ? flatten(rule.rules)
+      : [rule]);
+
+    const rules = flatten(logic.rules)
+      .filter((rule: any) => this.looksLikeCondition(rule) || this.looksLikeGroup(rule))
+      .map((rule: any, index: number) => ({
         ...this.backendToBlock(rule),
-        connector: index === 0 ? undefined : (String(logic.condition ?? 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND'),
-      })),
-    });
+        connector: index === 0 ? undefined : condition,
+      }));
+    return this.ensureGroupConnectors({ kind: 'group', id: this.nextId(), rules });
+  }
+
+  private backendCondition(node: any): GroupCondition {
+    return String(node?.condition ?? 'AND').toUpperCase() === 'OR' ? 'OR' : 'AND';
+  }
+
+  private looksLikeGroup(node: any): boolean {
+    return !!node && typeof node === 'object' && !!node.condition && Array.isArray(node.rules);
   }
 
   private backendToBlock(rule: any): FilterBlock {
-    if (rule?.condition && Array.isArray(rule.rules)) return this.backendToGroup(rule);
+    if (this.looksLikeGroup(rule)) return this.backendToGroup(rule);
     const field = String(rule?.field ?? rule?.id ?? '');
     const variable = this.allFilterVariables().find((entry) => entry.code === field);
+    const backendOperator = String(rule?.operator ?? '=');
     return {
       kind: 'condition',
       id: this.nextId(),
       field,
       variableText: variable ? this.variableDisplayLabel(variable) : field,
-      operator: this.backendOperatorToSymbol(String(rule?.operator ?? '=')),
-      value: rule?.value === undefined || rule?.value === null ? '' : String(rule.value),
+      operator: filterOperatorSymbolFor(backendOperator),
+      values: toFilterValues(rule?.value),
+      // An operator this builder cannot author is kept verbatim and re-emitted untouched.
+      rawRule: filterOperatorSpec(backendOperator) ? undefined : rule,
     };
   }
 
-  private backendOperatorToSymbol(operator: string): string {
-    switch (operator) {
-      case 'equal': return '=';
-      case 'not_equal': return '!=';
-      case 'greater': return '>';
-      case 'greater_or_equal': return '>=';
-      case 'less': return '<';
-      case 'less_or_equal': return '<=';
-      case 'is_null': return 'IS NULL';
-      case 'is_not_null': return 'IS NOT NULL';
-      default: return operator;
-    }
+  private looksLikeCondition(node: any): boolean {
+    return !!node && typeof node === 'object' && !Array.isArray(node)
+      && (node.operator !== undefined || node.field !== undefined || node.id !== undefined);
   }
 
-  private symbolToBackendOperator(operator: string): string {
-    switch (operator) {
-      case '=': return 'equal';
-      case '!=': return 'not_equal';
-      case '>': return 'greater';
-      case '>=': return 'greater_or_equal';
-      case '<': return 'less';
-      case '<=': return 'less_or_equal';
-      case 'IS NULL': return 'is_null';
-      case 'IS NOT NULL': return 'is_not_null';
-      default: return 'equal';
-    }
-  }
+
 
   private validateGroup(group: FilterGroupBlock): string | null {
     for (const block of group.rules) {
@@ -361,10 +453,15 @@ export class FilterConfigModalComponent {
         if (groupError) return groupError;
         continue;
       }
+      if (block.rawRule) continue;
       if (!block.field) return 'Choose a variable for every condition.';
       if (!block.operator) return 'Choose an operator for every condition.';
       if (this.isUnaryOperator(block.operator)) continue;
-      if (block.value === '') return 'Choose or enter a value for every condition.';
+      if (this.isMultiValueOperator(block.operator)) {
+        if (block.values.length === 0) return 'Choose at least one value for every condition.';
+        continue;
+      }
+      if (!block.values[0]) return 'Choose or enter a value for every condition.';
     }
     return null;
   }
@@ -374,18 +471,30 @@ export class FilterConfigModalComponent {
   }
 
   private normalizeCondition(block: FilterConditionBlock): any {
+    if (block.rawRule) {
+      return { ...block.rawRule };
+    }
     const variable = this.selectedFilter(block);
+    const kind = filterOperatorValueKind(block.operator);
     return {
       field: block.field,
-      operator: this.symbolToBackendOperator(block.operator),
-      value: this.isUnaryOperator(block.operator) ? null : this.coerceValue(variable, block.value),
+      // A unary rule sent without its value key is what the engine rejects, so `value` is
+      // always written: null for `is null`, the picked set for `in`, one entry for the rest.
+      operator: filterOperatorBackendFor(block.operator),
+      value: kind === 'none'
+        ? null
+        : kind === 'values'
+          ? block.values.map((entry) => this.coerceValue(variable, entry))
+          : this.coerceValue(variable, block.values[0] ?? ''),
     };
   }
 
   private coerceValue(variable: any | null, value: string): unknown {
-    if (String(variable?.type ?? '').toLowerCase() === 'nominal') return value;
+    const type = String(variable?.type ?? '').toLowerCase();
     const numeric = Number(value);
-    return Number.isFinite(numeric) && value.trim() !== '' ? numeric : value;
+    return (type === 'real' || type === 'integer') && value.trim() !== '' && Number.isFinite(numeric)
+      ? numeric
+      : value;
   }
 
   private formatFiltersForBackend(rawLogic: { condition: string; rules: any[] }): any {
@@ -406,10 +515,13 @@ export class FilterConfigModalComponent {
 
     const fieldKey = rule.field ?? rule.id;
     return {
+      // Spread first: a rule this builder did not author keeps the type/input it arrived with,
+      // instead of being retyped from the data model on every save.
+      ...rule,
       id: fieldKey,
       field: fieldKey,
-      type: this.detectType(fieldKey),
-      input: this.detectInput(fieldKey),
+      type: rule.type ?? this.detectType(fieldKey),
+      input: rule.input ?? this.detectInput(fieldKey),
       operator: rule.operator,
       value: rule.value,
       entity: undefined,
@@ -461,22 +573,14 @@ export class FilterConfigModalComponent {
   private conditionPreview(block: FilterConditionBlock): string {
     const variable = this.selectedFilter(block);
     const label = variable?.label ?? variable?.name ?? block.field ?? 'Variable';
-    if (this.isUnaryOperator(block.operator)) return label + ' ' + block.operator;
-    const value = this.previewValueLabel(variable, block.value);
-    return label + ' ' + block.operator + ' ' + value;
+    if (this.isUnaryOperator(block.operator)) return `${label} ${block.operator}`;
+    const values = block.values.map((value) => this.valueLabel(block, value)).join(', ');
+    return `${label} ${block.operator} ${values || 'no value chosen'}`;
   }
 
-  private previewValueLabel(variable: any | null, value: string): string {
-    if (!value) return 'value';
-    if (String(variable?.type ?? '').toLowerCase() !== 'nominal') return value;
-    return this.categoryOptions({
-      kind: 'condition',
-      id: '',
-      field: String(variable?.code ?? ''),
-      variableText: '',
-      operator: '=',
-      value,
-    }).find((option) => option.value === value)?.label ?? value;
+  /** A stored code as the user reads it; non-enumerated variables have no label to find. */
+  private valueLabel(block: FilterConditionBlock, value: string): string {
+    return this.categoryOptions(block).find((option) => option.value === value)?.label ?? value;
   }
 
   private flattenDataModelVariables(model: DataModel | null): any[] {
