@@ -39,10 +39,11 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { StationListRowComponent } from '../shared/station-list-row/station-list-row.component';
-import { BackendFilter } from '../../../models/filters.model';
+import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { countFilterRules } from '../../../core/filter-display.utils';
+import { normalizeFilterLogicForBackend } from '../../../core/filter-logic.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
@@ -93,9 +94,16 @@ const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
 
+/**
+ * The record-level rule behind one category. exaflow takes either a group of rules or a
+ * single condition, and saved experiments hold both shapes - so the draft keeps whichever
+ * it was given instead of pretending a bare condition cannot exist.
+ */
+type CategoryFilter = BackendFilter | BackendRule;
+
 interface TransformationRule {
   value: string;
-  filter: BackendFilter | null;
+  filter: CategoryFilter | null;
 }
 
 /** One "Create new categorical column" card. The stage holds an ordered list. */
@@ -1510,6 +1518,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           // the others hold, and the fix list has to name every offender at once.
           committed = false;
           builderErrors[draft.id] = modal.filterError() as string;
+          continue;
+        }
+        if (logic === null && modal.unloadedInput() && rule.filter) {
+          // The builder could not read the stored rule, so its empty result is not the user
+          // removing it. Keep the stored rule rather than erasing a configured category.
+          committed = false;
+          builderErrors[draft.id] = `"${rule.value || 'This category'}" holds a saved filter this builder could not read. `
+            + 'Rebuild it before applying, or the rule will not be saved.';
           continue;
         }
         rule.filter = logic;
@@ -3194,7 +3210,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   buildTransformationConfigForDraft(draft: TransformationColumnDraft): Record<string, unknown> | null {
     const code = draft.code.trim();
     if (!code) return null;
-    const rules: Record<string, BackendFilter> = {};
+    const rules: Record<string, CategoryFilter> = {};
     for (const r of draft.rules) {
       const value = r.value.trim();
       if (value && r.filter) rules[value] = r.filter;
@@ -3652,7 +3668,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
   private draftFromCreatorConfig(creator: {
     code?: unknown;
-    rules?: Record<string, BackendFilter>;
+    rules?: Record<string, CategoryFilter>;
     default_enumeration?: unknown;
   }): TransformationColumnDraft {
     const rules = creator.rules ?? {};
@@ -3660,7 +3676,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       id: ++transformationDraftSeq,
       code: creator.code == null ? '' : String(creator.code),
       defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
-      rules: Object.entries(rules).map(([value, filter]) => ({ value, filter: filter ?? null })),
+      // Each stored rule is repaired the same way a cohort tree is: a category rule kept
+      // without its value key would fail the run the same opaque way.
+      rules: Object.entries(rules).map(([value, filter]) => ({
+        value,
+        filter: filter ? normalizeFilterLogicForBackend(filter) : null,
+      })),
       open: true,
     };
   }

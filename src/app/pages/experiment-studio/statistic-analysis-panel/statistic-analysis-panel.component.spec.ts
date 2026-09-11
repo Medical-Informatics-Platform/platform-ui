@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { QueryList } from '@angular/core';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -2052,6 +2053,81 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationStatusLabel).toBe('Applied');
         // A single column re-persisting must keep the legacy one-object shape.
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith(transformation);
+    });
+
+    it('hydrates a category rule stored as a bare condition, and keeps it through Apply', () => {
+        const clinical = { code: 'clinical_sdr', label: 'Clinical syndrome', type: 'nominal', enumerations: [
+            { code: '1', label: 'ACS' },
+            { code: '2', label: 'PACS' },
+            { code: '4', label: 'POCS' },
+        ] };
+        // The shape a saved experiment holds: one rule per category, no wrapping group.
+        const acs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' };
+        const pcs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'equal', value: '4', type: 'string' };
+        const transformation = {
+            code: 'stroke_territory_cohort',
+            strategy: 'filter_rules',
+            rules: { ACS: acs, PCS: pcs },
+            default_enumeration: 'other_or_unknown',
+        };
+        const preprocessing = { categorical_column_creator: transformation };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        (mockExpService.selectedVariables as any).set([clinical]);
+        fixture.detectChanges();
+
+        const draft = component.transformationDrafts[0];
+        expect(draft.rules.map((rule) => rule.value)).toEqual(['ACS', 'PCS']);
+        expect(draft.rules.map((rule) => rule.filter)).toEqual([acs, pcs]);
+        expect(component.transformationDraftStatus(draft).label).toBe('Applied');
+
+        // Apply commits the rendered builders; a rule that loaded must survive untouched.
+        const modals: any = new QueryList();
+        modals.reset([
+            {
+                exportFilterLogic: () => ({ condition: 'AND', rules: [{ field: 'clinical_sdr', operator: 'in', value: ['1', '2'] }], valid: true }),
+                filterError: () => null,
+                unloadedInput: () => false,
+            },
+            {
+                exportFilterLogic: () => ({ condition: 'AND', rules: [{ field: 'clinical_sdr', operator: 'equal', value: '4' }], valid: true }),
+                filterError: () => null,
+                unloadedInput: () => false,
+            },
+        ]);
+        component.transformationRuleModals = modals;
+
+        component.applyTransformation();
+        expect(draft.rules.map((rule) => (rule.filter as any)?.rules.length)).toEqual([1, 1]);
+        expect(component.transformationDraftIssues(draft)).toEqual([]);
+    });
+
+    it('refuses to erase a stored category rule its builder could not read', () => {
+        const clinical = { code: 'clinical_sdr', label: 'Clinical syndrome', type: 'nominal' };
+        const stored: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' };
+        const preprocessing = {
+            categorical_column_creator: {
+                code: 'stroke_territory_cohort',
+                strategy: 'filter_rules',
+                rules: { ACS: stored },
+            },
+        };
+        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        (mockExpService.selectedVariables as any).set([clinical]);
+        fixture.detectChanges();
+
+        const draft = component.transformationDrafts[0];
+        // The builder read nothing and exports nothing — as if the user had removed the rule.
+        const modals: any = new QueryList();
+        modals.reset([
+            { exportFilterLogic: () => null, filterError: () => null, unloadedInput: () => true },
+        ]);
+        component.transformationRuleModals = modals;
+
+        expect(component.commitTransformationRuleFilters()).toBeFalse();
+        expect(draft.rules[0].filter).toEqual(stored);
+        expect(component.transformationDraftIssues(draft).join(' ')).toContain('could not read');
     });
 
     it('hydrates every saved categorical creator into its own card', () => {
