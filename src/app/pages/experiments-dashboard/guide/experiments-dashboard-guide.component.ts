@@ -34,6 +34,7 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   private readonly guideLauncher = inject(GuideLauncherService);
   private readonly autoStartStorageKey = 'mip.guide.experiments-dashboard.autostarted';
   private layoutTimer: number | null = null;
+  private advanceTimer: number | null = null;
 
   /** Handed to the bar, which draws the control (see GuideLauncherService). */
   private readonly launcherHandle: GuideLauncher = {
@@ -50,13 +51,14 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   readonly currentIndex = signal(0);
   readonly highlightRect = signal<GuideRect | null>(null);
   readonly isCollapsed = signal(false);
+  /** Frozen when the guide opens so "Step X of Y" does not jump mid-tour. */
+  readonly totalSteps = signal(0);
 
   readonly currentStep = computed(() => this.activeSteps()[this.currentIndex()] ?? null);
   readonly previousStep = computed(() => {
     const previousIndex = this.getNavigableStepIndex(this.currentIndex() - 1, -1);
     return previousIndex === null ? null : this.activeSteps()[previousIndex] ?? null;
   });
-  readonly totalSteps = computed(() => this.countVisibleSteps());
   readonly currentStepNumber = computed(() => this.getCurrentStepNumber());
   readonly progressPercent = computed(() => {
     const total = this.totalSteps();
@@ -89,9 +91,8 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
 
   ngOnDestroy(): void {
     this.guideLauncher.unregister(this.launcherHandle);
-    if (this.layoutTimer !== null) {
-      window.clearTimeout(this.layoutTimer);
-    }
+    this.clearLayoutTimer();
+    this.clearAdvanceTimer();
   }
 
   startGuide(manual = true): void {
@@ -108,7 +109,11 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
       this.markAutoStarted();
     }
 
+    // Workbench path must not start inside compare mode.
+    this.ensureCompareModeOff();
+
     this.activeSteps.set(resolvedSteps);
+    this.totalSteps.set(resolvedSteps.length);
     this.currentIndex.set(this.getNavigableStepIndex(0, 1) ?? 0);
     this.isCollapsed.set(false);
     this.isOpen.set(true);
@@ -119,14 +124,27 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     this.isOpen.set(false);
     this.activeSteps.set([]);
     this.currentIndex.set(0);
+    this.totalSteps.set(0);
     this.highlightRect.set(null);
     this.isCollapsed.set(false);
     this.clearLayoutTimer();
+    this.clearAdvanceTimer();
   }
 
   goToNextStep(force = false): void {
     if (!force && !this.canGoToNext()) {
       return;
+    }
+
+    const step = this.currentStep();
+    // Leaving the compare control without an active workspace: do not linger.
+    if (step?.id === 'compare') {
+      // keep whatever the user chose; compare-workspace is optional if inactive
+    }
+
+    // Entering the open-experiment / workbench stretch: leave compare mode.
+    if (step?.id === 'new-experiment' || step?.id === 'tutorial-experiment') {
+      this.ensureCompareModeOff();
     }
 
     const nextIndex = this.getNavigableStepIndex(this.currentIndex() + 1, 1);
@@ -205,11 +223,39 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
       return;
     }
 
-    window.setTimeout(() => {
-      if (this.isOpen() && this.currentStep()?.id === step.id) {
-        this.goToNextStep(true);
+    // After opening a run, wait for the workbench target so we do not skip to compare-workspace.
+    this.clearAdvanceTimer();
+    this.advanceTimer = window.setTimeout(() => {
+      if (!this.isOpen() || this.currentStep()?.id !== step.id) {
+        return;
       }
+
+      if (step.id === 'tutorial-experiment') {
+        this.ensureCompareModeOff();
+        this.waitForWorkbenchThenAdvance(0);
+        return;
+      }
+
+      this.goToNextStep(true);
     }, 260);
+  }
+
+  private waitForWorkbenchThenAdvance(attempt: number): void {
+    const maxAttempts = 12;
+    if (this.findTarget('[data-guide="dashboard-detail-card"]')) {
+      this.goToNextStep(true);
+      return;
+    }
+
+    if (attempt >= maxAttempts) {
+      // Fall through to next navigable step (still prefers workbench when present).
+      this.goToNextStep(true);
+      return;
+    }
+
+    this.advanceTimer = window.setTimeout(() => {
+      this.waitForWorkbenchThenAdvance(attempt + 1);
+    }, 150);
   }
 
   private resolveSteps(): ExperimentsDashboardGuideStep[] {
@@ -220,6 +266,10 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     const step = this.currentStep();
     if (!step) {
       return;
+    }
+
+    if (step.id === 'tutorial-experiment' || step.id === 'workbench' || step.id === 'actions' || step.id === 'results') {
+      this.ensureCompareModeOff();
     }
 
     const target = step.selector ? this.findTarget(step.selector) : null;
@@ -250,6 +300,13 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     }
   }
 
+  private clearAdvanceTimer(): void {
+    if (this.advanceTimer !== null) {
+      window.clearTimeout(this.advanceTimer);
+      this.advanceTimer = null;
+    }
+  }
+
   private updateLayout(): void {
     const step = this.currentStep();
     if (!step) {
@@ -268,62 +325,60 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     return !step?.advanceOnTargetClick;
   }
 
-  private countVisibleSteps(): number {
-    let count = 0;
-    const steps = this.activeSteps();
-
-    for (let index = 0; index < steps.length; index += 1) {
-      if (this.isStepVisible(steps[index], index)) {
-        count += 1;
-      }
-    }
-
-    return count;
-  }
-
   private getCurrentStepNumber(): number {
     if (!this.currentStep()) {
       return 0;
     }
 
-    let visibleIndex = 0;
-    const steps = this.activeSteps();
-
-    for (let index = 0; index < steps.length; index += 1) {
-      if (this.isStepVisible(steps[index], index)) {
-        visibleIndex += 1;
-      }
-
-      if (index === this.currentIndex()) {
-        return visibleIndex;
-      }
-    }
-
-    return 0;
-  }
-
-  private isStepVisible(step: ExperimentsDashboardGuideStep | undefined, index: number): boolean {
-    if (!step) {
-      return false;
-    }
-
-    return index === this.currentIndex() || !this.isOptionalStepUnavailable(step);
+    // Stable progress against the frozen tour length (skipped optionals still advance the index).
+    return this.currentIndex() + 1;
   }
 
   private isOptionalStepUnavailable(step: ExperimentsDashboardGuideStep): boolean {
     return !!step.optional && !!step.selector && !this.findTarget(step.selector);
   }
 
+  /**
+   * Prefer the single-experiment workbench path over compare-workspace when both
+   * could be considered "available" after opening a card.
+   */
   private getNavigableStepIndex(startIndex: number, direction: 1 | -1): number | null {
     const steps = this.activeSteps();
 
     for (let index = startIndex; index >= 0 && index < steps.length; index += direction) {
-      if (!this.isOptionalStepUnavailable(steps[index])) {
-        return index;
+      const step = steps[index];
+      if (this.isOptionalStepUnavailable(step)) {
+        continue;
       }
+
+      // If we are moving forward from the open-experiment step, never land on
+      // compare-workspace while the workbench target exists (or may still mount).
+      if (
+        direction === 1
+        && step.id === 'compare-workspace'
+        && this.findTarget('[data-guide="dashboard-detail-card"]')
+      ) {
+        continue;
+      }
+
+      return index;
     }
 
     return null;
+  }
+
+  private ensureCompareModeOff(): void {
+    const exitBtn = [...this.document.querySelectorAll('button')].find((button) =>
+      /exit compare mode/i.test((button.textContent || '').trim())
+    );
+    if (exitBtn instanceof HTMLElement) {
+      exitBtn.click();
+    }
+
+    const compareToggle = this.document.querySelector('[data-guide="dashboard-compare"]');
+    if (compareToggle instanceof HTMLElement && compareToggle.classList.contains('active')) {
+      compareToggle.click();
+    }
   }
 
   private expandRect(rect: DOMRect, padding = 10): GuideRect {

@@ -18,9 +18,14 @@ export interface ExperimentsDashboardGuideStep {
   advanceOnTargetClick?: boolean;
   requirementHint?: string;
   maskBackground?: string;
+  /** When true, skipped only if selector is missing/zero-size. Never put Complete behind optional steps. */
   optional?: boolean;
 }
 
+/**
+ * Order matters: open → workbench → actions → results, then optional compare,
+ * then Guide Complete LAST. compare-workspace must not outrank Complete.
+ */
 export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] = [
   {
     id: 'dashboard-overview',
@@ -50,17 +55,8 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     id: 'tabs',
     section: 'Explore',
     title: 'My Experiments and Shared',
-    body: 'Switch between experiments you own and experiments shared with you.',
+    body: 'Switch between experiments you own and experiments shared with you. Shared stays empty until someone shares a run with you.',
     selector: '[data-guide="dashboard-tabs"]',
-    placement: 'bottom',
-    allowTargetInteraction: true,
-  },
-  {
-    id: 'compare',
-    section: 'Explore',
-    title: 'Compare Mode',
-    body: 'Turn on compare mode to select multiple experiments and read them as sections — the sets of the analysis set you opened, then one section per algorithm.',
-    selector: '[data-guide="dashboard-compare"]',
     placement: 'bottom',
     allowTargetInteraction: true,
   },
@@ -88,7 +84,7 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     id: 'workbench',
     section: 'Explore',
     title: 'Experiment Workbench',
-    body: 'After you select an experiment, this workbench shows its details, configuration, stored results, and comparison views.',
+    body: 'After you select an experiment, this workbench shows its details, configuration, and stored results.',
     selector: '[data-guide="dashboard-detail-card"]',
     placement: 'left',
     allowTargetInteraction: true,
@@ -98,7 +94,7 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     id: 'actions',
     section: 'Results',
     title: 'Experiment Actions',
-    body: 'Use these actions to edit the experiment in Studio, export as PDF, copy the link, share, or delete it.',
+    body: 'From here you can open the run in Studio or use the toolbar actions on this experiment (export, copy link, share, or delete when available).',
     selector: '[data-guide="dashboard-detail-actions"]',
     placement: 'left',
     optional: true,
@@ -114,20 +110,28 @@ export const EXPERIMENTS_DASHBOARD_GUIDE_STEPS: ExperimentsDashboardGuideStep[] 
     optional: true,
   },
   {
-    id: 'dashboard-guide-complete',
-    section: 'Results',
-    title: 'Guide Complete',
-    body: 'You successfully completed the dashboard guide.',
-    optional: true,
+    id: 'compare',
+    section: 'Explore',
+    title: 'Compare Mode',
+    body: 'Optional: turn on <strong>Compare</strong> to pick two or more runs and inspect them side by side. You can skip this and finish the guide.',
+    selector: '[data-guide="dashboard-compare"]',
+    placement: 'bottom',
+    allowTargetInteraction: true,
   },
   {
     id: 'compare-workspace',
     section: 'Results',
     title: 'Comparison Workspace',
-    body: 'When compare mode is active, this area groups the selected runs into sections. Each run is one row — open it to read its configuration and result in place. Pick at least two runs to use it.',
+    body: 'With compare on, select a second run from the list (you need at least two). The workspace shows each selected run so you can open configuration and results in place.',
     selector: '[data-guide="dashboard-compare-workspace"]',
     placement: 'left',
     allowTargetInteraction: true,
     optional: true,
+  },
+  {
+    id: 'dashboard-guide-complete',
+    section: 'Results',
+    title: 'Guide Complete',
+    body: 'You successfully completed the dashboard guide.',
   },
 ];
