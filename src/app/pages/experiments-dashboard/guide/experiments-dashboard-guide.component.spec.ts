@@ -33,6 +33,14 @@ describe('ExperimentsDashboardGuideComponent', () => {
     expect(component.currentStepNumber()).toBe(1);
   });
 
+  it('advances step ordinal by one per forward navigation', () => {
+    component.startGuide(true);
+    const before = component.currentStepNumber();
+    component.goToNextStep(true);
+    expect(component.currentStepNumber()).toBe(before + 1);
+    expect(component.totalSteps()).toBe(EXPERIMENTS_DASHBOARD_GUIDE_STEPS.length);
+  });
+
   it('uses Skip for optional steps that are not last', () => {
     component.activeSteps.set([...EXPERIMENTS_DASHBOARD_GUIDE_STEPS]);
     const compareIdx = EXPERIMENTS_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'compare-workspace');

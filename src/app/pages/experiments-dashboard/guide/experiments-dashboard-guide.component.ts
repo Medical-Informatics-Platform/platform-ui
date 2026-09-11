@@ -126,9 +126,9 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     this.activeSteps.set(resolvedSteps);
     this.totalSteps.set(resolvedSteps.length);
     this.currentIndex.set(this.getNavigableStepIndex(0, 1) ?? 0);
+    this.currentStepOrdinal.set(1);
     this.isCollapsed.set(false);
     this.isOpen.set(true);
-    this.recountProgress();
     this.syncStepLayout();
   }
 
@@ -160,14 +160,27 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
       this.ensureCompareModeOff();
     }
 
+    // Next from "Open an Experiment" must land on the workbench, same as the click path.
+    if (!force && step?.id === 'tutorial-experiment') {
+      this.clearAdvanceTimer();
+      this.waitForWorkbenchThenAdvance(0);
+      return;
+    }
+
     const nextIndex = this.getNavigableStepIndex(this.currentIndex() + 1, 1);
     if (nextIndex === null) {
       this.closeGuide();
       return;
     }
 
+    const movingForward = nextIndex > this.currentIndex();
     this.currentIndex.set(nextIndex);
-    this.recountProgress();
+    if (movingForward) {
+      this.currentStepOrdinal.update((value) => value + 1);
+    } else {
+      this.currentStepOrdinal.update((value) => Math.max(1, value - 1));
+    }
+    this.ensureTotalSteps(this.activeSteps().length);
     this.syncStepLayout();
   }
 
@@ -182,7 +195,8 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     }
 
     this.currentIndex.set(previousIndex);
-    this.recountProgress();
+    this.currentStepOrdinal.update((value) => Math.max(1, value - 1));
+    this.ensureTotalSteps(this.activeSteps().length);
     this.syncStepLayout();
   }
 
@@ -342,27 +356,16 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     return !step?.advanceOnTargetClick;
   }
 
+  /** Progress X advances one tick per navigation so optional skips cannot drop the counter. */
   private recountProgress(): void {
-    const steps = this.activeSteps();
-    // Keep Y frozen at the full tour length (set in startGuide). X counts only
-    // steps that are current or still navigable so skipped optionals leave no gaps.
-    let current = 0;
+    this.ensureTotalSteps(this.activeSteps().length);
+  }
 
-    for (let index = 0; index < steps.length; index += 1) {
-      const step = steps[index];
-      const visible = index === this.currentIndex() || !this.isOptionalStepUnavailable(step);
-      if (!visible) {
-        continue;
-      }
-      if (index <= this.currentIndex()) {
-        current += 1;
-      }
+  private ensureTotalSteps(length: number): void {
+    // Freeze Y at the full tour length once known; never shrink or grow mid-tour.
+    if (!this.totalSteps() && length) {
+      this.totalSteps.set(length);
     }
-
-    if (!this.totalSteps()) {
-      this.totalSteps.set(steps.length);
-    }
-    this.currentStepOrdinal.set(current);
   }
 
   private isOptionalStepUnavailable(step: ExperimentsDashboardGuideStep): boolean {
