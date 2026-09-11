@@ -68,6 +68,7 @@
         type="button"
         class="sign-in-btn"
         #accountToggle
+        data-guide="header-account"
         aria-haspopup="menu"
         [attr.aria-expanded]="accountMenuOpen()"
         [attr.aria-controls]="accountMenuId"
@@ -75,7 +76,7 @@
         (click)="toggleAccountMenu()"
         (keydown.escape)="closeAccountMenu()"
       >
-        <span class="account-guide-target" data-guide="header-account">
+        <span class="account-guide-target">
           <img src="assets/user-icon.png" alt="" class="account-picture" width="32" height="32" />
         </span>
         <span class="sign-in-btn__label">{{ displayName() }}</span>
@@ -101,8 +102,8 @@
       }
     </div>
     } @else {
-    <button class="sign-in-btn" (click)="login()" aria-label="Sign in">
-      <span class="account-guide-target" data-guide="header-account">
+    <button class="sign-in-btn" data-guide="header-account" (click)="login()" aria-label="Sign in">
+      <span class="account-guide-target">
         <img src="assets/grey-avatar.png" alt="" class="account-picture" width="32" height="32" />
       </span>
       <span class="sign-in-btn__label">Sign in</span>

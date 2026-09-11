@@ -107,4 +107,45 @@ describe('ExperimentsDashboardGuideComponent', () => {
       right: 690,
     }));
   });
+
+  it('points every content step with a selector at its data-guide target', () => {
+    const stepsWithSelectors = EXPERIMENTS_DASHBOARD_GUIDE_STEPS.filter((step) => !!step.selector);
+    expect(stepsWithSelectors.length).toBeGreaterThan(0);
+
+    for (const step of stepsWithSelectors) {
+      document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+
+      const target = document.createElement('div');
+      const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
+      expect(guideValue).withContext(step.id).toBeTruthy();
+      target.setAttribute('data-guide', guideValue!);
+      Object.defineProperty(target, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          top: 120,
+          right: 420,
+          bottom: 200,
+          left: 40,
+          width: 380,
+          height: 80,
+          x: 40,
+          y: 120,
+          toJSON: () => ({}),
+        }),
+      });
+      document.body.appendChild(target);
+
+      component.activeSteps.set([...EXPERIMENTS_DASHBOARD_GUIDE_STEPS] as any);
+      component.currentIndex.set(EXPERIMENTS_DASHBOARD_GUIDE_STEPS.findIndex((entry) => entry.id === step.id));
+      (component as any).updateLayout();
+
+      const highlight = component.highlightRect();
+      expect(highlight).withContext(step.id).not.toBeNull();
+      const centerX = 230;
+      const centerY = 160;
+      expect(highlight!.left <= centerX && centerX <= highlight!.right).withContext(step.id).toBeTrue();
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom).withContext(step.id).toBeTrue();
+    }
+  });
+
 });

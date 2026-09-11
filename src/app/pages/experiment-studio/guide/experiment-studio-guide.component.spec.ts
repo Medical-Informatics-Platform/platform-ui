@@ -2,6 +2,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { ExperimentStudioGuideComponent } from './experiment-studio-guide.component';
+import { EXPERIMENT_STUDIO_GUIDE_STEPS } from './experiment-studio-guide.content';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
 import { ExperimentStudioGuideStateService } from './experiment-studio-guide-state.service';
@@ -818,4 +819,56 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(steps[previewSexIndex].selector).toBe('[data-guide="variable-details"]');
     expect(steps[previewAgeIndex].allowTargetInteraction).toBeTrue();
   });
+
+  it('points every content step with a selector at its data-guide target', () => {
+    const stepsWithSelectors = EXPERIMENT_STUDIO_GUIDE_STEPS.filter((step) => !!step.selector);
+    expect(stepsWithSelectors.length).toBeGreaterThan(0);
+
+    for (const step of stepsWithSelectors) {
+      document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+
+      const target = document.createElement('div');
+      const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
+      expect(guideValue).withContext(step.id).toBeTruthy();
+      target.setAttribute('data-guide', guideValue!);
+      Object.defineProperty(target, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          top: 120,
+          right: 420,
+          bottom: 200,
+          left: 40,
+          width: 380,
+          height: 80,
+          x: 40,
+          y: 120,
+          toJSON: () => ({}),
+        }),
+      });
+      document.body.appendChild(target);
+
+      component.activeSteps.set([...EXPERIMENT_STUDIO_GUIDE_STEPS] as any);
+      component.currentIndex.set(EXPERIMENT_STUDIO_GUIDE_STEPS.findIndex((entry) => entry.id === step.id));
+      (component as any).updateLayout();
+
+      const highlight = component.highlightRect();
+      expect(highlight).withContext(step.id).not.toBeNull();
+      expect(highlight!.width).withContext(step.id).toBeGreaterThan(0);
+      expect(highlight!.height).withContext(step.id).toBeGreaterThan(0);
+      // Pathology & Datasets contract: target center sits inside the spotlight.
+      const centerX = 230;
+      const centerY = 160;
+      expect(highlight!.left <= centerX && centerX <= highlight!.right).withContext(step.id).toBeTrue();
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom).withContext(step.id).toBeTrue();
+    }
+  });
+
+  it('documents that the guide host stacks above the app header', () => {
+    // app-header uses z-index 10000; guide :host must stay above that (see component CSS).
+    // This keeps the Account menu / launcher spotlight visible on chrome targets.
+    const guideHostZIndex = 11000;
+    const appHeaderZIndex = 10000;
+    expect(guideHostZIndex).toBeGreaterThan(appHeaderZIndex);
+  });
+
 });

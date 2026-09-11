@@ -147,6 +147,8 @@ describe('HeaderComponent', () => {
     const actions = slotOf(signedOut.nativeElement as HTMLElement);
     expect(actions?.querySelector('.sign-in-btn__label')?.textContent).toContain('Sign in');
     expect(actions?.querySelector('.account-picture')).toBeTruthy();
+    expect(actions?.querySelector('[data-guide="header-account"]')).toBeTruthy();
+    expect(actions?.querySelector('.sign-in-btn')?.getAttribute('data-guide')).toBe('header-account');
   });
 
   /**
