@@ -9,18 +9,19 @@
   --guide-ink: var(--text-main);
   --guide-muted: var(--text-muted);
   --guide-border: rgba(127, 156, 232, 0.2);
+  /* Above app-header (10000) and studio sub-header (9990) so chrome is dimmed and
+     header targets (account, launcher, step bar) can receive the spotlight cutout. */
   position: relative;
-  z-index: 1500;
+  z-index: 11000;
 }
 
-/* The launcher control lives in the app header (see GuideLauncherService): as a fixed
-   circle it had to out-rank the bar (z 10001) and it moved whenever the bar's right slot
-   changed width. */
+/* The launcher control lives in the app header (see GuideLauncherService). It used to be
+   a fixed circle at z 10001; now the open guide itself outranks the chrome. */
 
 .guide-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1502;
+  z-index: 11002;
   pointer-events: none;
 }
 
@@ -93,6 +94,7 @@
 
 .guide-banner {
   position: fixed;
+  z-index: 11010;
   left: 50%;
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
   transform: translateX(-50%);
