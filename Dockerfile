@@ -1,5 +1,5 @@
 # Step 1: Build the Angular app
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 
 # Install dependencies with cache mount for npm cache
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/app/.angular/cache \
     npm run build -- --configuration ${BUILD_CONFIGURATION}
 
 # Step 2: Use Nginx to serve the Angular app
-FROM nginx:alpine-slim
+FROM nginx:alpine-slim@sha256:45b82ed5f285b90d63df07ba70430fdd8f25624b416617d9e6dc93412b2006dc
 RUN apk upgrade --no-cache \
     && apk add --no-cache gettext-envsubst
 ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
@@ -44,5 +44,10 @@ COPY nginx-websocket-map.conf /etc/nginx/conf.d/00-websocket-map.conf
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
+
+RUN chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d /var/cache/nginx \
+     && install -o nginx -g nginx -m 0644 /dev/null /var/run/nginx.pid
+
+USER nginx
 EXPOSE 80
 CMD ["/docker-entrypoint.sh"]
