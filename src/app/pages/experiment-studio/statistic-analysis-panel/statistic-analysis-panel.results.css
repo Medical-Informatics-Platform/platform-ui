@@ -441,18 +441,29 @@ button:disabled {
   text-wrap: pretty;
 }
 
-/* The list the disabled Preview/Apply pair rests on: one row per card that still
-   needs work, so the stage never just goes quiet on the user. */
-.transformation-issue-list {
-  display: grid;
-  gap: 4px;
-  margin: 6px 0 0;
-  padding-left: 18px;
+/* A stored rule the builder cannot render, applied unchanged: a fact about the data rather
+   than a mistake to fix, so it reads as a note and never as the red .row-error. */
+.transformation-saved-filter-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-left: 3px solid color-mix(in srgb, var(--primary-color) 45%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  border-radius: var(--radius-sm, 4px);
+  color: #475569;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-wrap: pretty;
 }
 
-.transformation-issue-list li {
-  line-height: 1.45;
-  text-wrap: pretty;
+.transformation-saved-filter-note i {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  opacity: 0.75;
 }
 
 .transformation-rules {

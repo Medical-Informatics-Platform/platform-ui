@@ -2099,7 +2099,6 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         component.applyTransformation();
         expect(draft.rules.map((rule) => (rule.filter as any)?.rules.length)).toEqual([1, 1]);
-        expect(component.transformationDraftIssues(draft)).toEqual([]);
     });
 
     it('refuses to erase a stored category rule its builder could not read', () => {
@@ -2125,13 +2124,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
         component.transformationRuleModals = modals;
 
-        expect(component.commitTransformationRuleFilters()).toBeFalse();
+        component.commitTransformationRuleFilters();
         expect(draft.rules[0].filter).toEqual(stored);
-        expect(component.transformationDraftIssues(draft).join(' ')).toContain('could not read');
 
-        // The hint is not a gate: a rule this UI cannot author still travels as it is,
+        // Nothing holds the stage: a rule this UI cannot author still travels as it is,
         // so an experiment opened for a small edit is never stranded by its own history.
-        expect(component.transformationHasBlockingIssues).toBeFalse();
         component.applyTransformation();
 
         expect(draft.rules[0].filter).toEqual(stored);
@@ -2265,7 +2262,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.sectionOpen().transformation).toBeTrue();
     });
 
-    it('blocks Apply while two derived columns share a name', () => {
+    it('applies the first card when two derived columns share a name', () => {
         const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
         const filter = categoryFilter();
         openStation('transformation');
@@ -2280,22 +2277,22 @@ describe('StatisticAnalysisPanelComponent', () => {
                 { exportFilterLogic: () => filter, filterError: () => null },
             ],
         } as any;
+        fixture.detectChanges();
 
         component.applyTransformation();
+        fixture.detectChanges();
 
-        expect(component.transformationBlockingMessages()).toEqual([
-            '"group" is used by more than one card; each derived column needs a unique name.',
-            '"group" is used by more than one card; each derived column needs a unique name.',
-        ]);
+        // Apply no longer refuses. The duplicate is named by the card's own chip and by
+        // the stage status, and only the first occurrence of a shared code is persisted.
+        expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Duplicate name');
+        expect(component.transformationStatusLabel).toBe('Pending');
         expect(navigate).not.toHaveBeenCalled();
-        // A refused Apply must not fold the stage: the editor holds the mistake.
+        // Apply no longer refuses, and the stage does not fold over the problem: the two
+        // Duplicate name chips are what name it, and they live in the station body.
         expect(component.sectionOpen().transformation).toBeTrue();
-        // Only the first occurrence of a duplicated code reaches the store.
-        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith(
-            jasmine.objectContaining({ code: 'group' })
-        );
         const persisted = mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0];
         expect(Array.isArray(persisted)).toBeFalse();
+        expect(persisted).toEqual(jasmine.objectContaining({ code: 'group' }));
     });
 
     it('copies live category filters onto rules before preview and apply', () => {
@@ -2314,7 +2311,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             ],
         } as any;
 
-        expect(component.commitTransformationRuleFilters()).toBeTrue();
+        component.commitTransformationRuleFilters();
         expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
         expect(component.transformationDrafts[1].rules[0].filter).toBe(secondFilter as any);
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
@@ -2899,55 +2896,58 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(cohorts).not.toContain(stored);
         });
 
-        it('lists every unfinished card and keeps both actions on Create', () => {
+        it('previews the complete cards and drops the unfinished ones', () => {
             const filter = categoryFilter();
             openStation('transformation');
             component.addTransformationDraft();
             component.addTransformationDraft();
             component.addTransformationDraft();
-            const [duplicated, alsoDuplicated, unfiltered, nameless] = component.transformationDrafts;
-            duplicated.code = 'group';
-            duplicated.rules = [{ value: 'a', filter }];
-            alsoDuplicated.code = 'group';
-            alsoDuplicated.rules = [{ value: 'b', filter }];
+            const [first, second, unfiltered, nameless] = component.transformationDrafts;
+            first.code = 'group_a';
+            first.rules = [{ value: 'a', filter }];
+            second.code = 'group_b';
+            second.rules = [{ value: 'b', filter }];
             unfiltered.code = 'other';
             unfiltered.rules = [{ value: 'c', filter: null }];
             nameless.defaultEnumeration = 'unknown';
             component.transformationRuleModals = {
                 toArray: () => [ruleModal(filter), ruleModal(filter), ruleModal(null)],
             } as any;
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                result: {
+                    featurewise: [
+                        { dataset: 'all datasets', variable: 'group_a', data: { counts: { a: 3 } } },
+                        { dataset: 'all datasets', variable: 'group_b', data: { counts: { b: 4 } } },
+                    ],
+                },
+            }));
             fixture.detectChanges();
 
-            const messages = component.transformationBlockingIssues().map((issue) => issue.message);
-            expect(messages.filter((message) => message.includes('unique name')).length).toBe(2);
-            expect(messages).toContain('"c" in "other" needs a category filter.');
-            expect(messages).toContain('A derived column needs a name before it can be previewed or applied.');
-
+            // The stage keeps no fix-list and no red row, and never dims the pair: the
+            // Pending chips on the two unfinished cards are the whole warning.
             const transformation = workflowSection('Transformation');
-            expect(transformation.querySelector('.transformation-issue-list')?.textContent)
-                .toContain('needs a category filter');
-            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeTrue();
-            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeTrue();
+            expect(transformation.querySelector('.row-error')).toBeNull();
+            expect(transformation.querySelector('.glass-feedback-warning')).toBeNull();
+            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
+            expect(component.transformationDraftStatus(unfiltered).label).toBe('Pending');
+            expect(component.transformationStatusLabel).toBe('Pending');
 
             mockExpService.loadDescriptiveOverview.calls.reset();
             component.previewTransformationData();
             fixture.detectChanges();
 
-            expect(component.transformationActiveTab).toBe('Create');
-            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
-            // A folded card would hide its own fix, so the blocked ones open up.
-            expect(component.transformationDrafts.every((draft) => draft.open)).toBeTrue();
-            expect(transformation.querySelectorAll('.transformation-create .row-error').length)
-                .toBeGreaterThanOrEqual(messages.length);
-
-            component.applyTransformation();
-            fixture.detectChanges();
-
-            expect(component.sectionOpen().transformation).toBeTrue();
-            expect(component.transformationActiveTab).toBe('Create');
+            // An incomplete card simply drops out of the describe; the complete ones
+            // still get their counts.
+            expect(component.transformationActiveTab).toBe('Statistics');
+            expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledTimes(1);
+            expect(component.transformationStatistics).toEqual([
+                { code: 'group_a', rows: [{ value: 'a', count: 3 }] },
+                { code: 'group_b', rows: [{ value: 'b', count: 4 }] },
+            ]);
         });
 
-        it('blocks Preview while a category builder is invalid', () => {
+        it('previews while a category builder rejects its condition', () => {
             openStation('transformation');
             const draft = component.transformationDrafts[0];
             draft.code = 'group_a';
@@ -2956,22 +2956,134 @@ describe('StatisticAnalysisPanelComponent', () => {
                 toArray: () => [ruleModal(null, 'A filter value is required')],
             } as any;
             fixture.detectChanges();
+            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
             component.previewTransformationData();
             fixture.detectChanges();
 
-            expect(component.transformationActiveTab).toBe('Create');
-            const messages = component.transformationBlockingIssues();
-            expect(messages.map((issue) => issue.message)).toEqual([
-                // The broken builder is what left the category without a filter, so
-                // the card reports both faces of the same unfinished rule.
-                'A filter value is required',
-                '"a" in "group_a" needs a category filter.',
-            ]);
-            expect(messages.every((issue) => issue.draftId === draft.id)).toBeTrue();
-            expect(messages.every((issue) => issue.blocking)).toBeTrue();
+            // A half-typed condition no longer strands the stage on Create. It does keep
+            // its previous filter rather than committing an empty one, and the Statistics
+            // tab says why the table has no counts.
+            expect(component.transformationActiveTab).toBe('Statistics');
+            expect(draft.rules[0].filter).toBeNull();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+            expect(component.transformationStatisticsError)
+                .toBe('Each derived column needs a filter on each one before counts can be loaded.');
+        });
+
+        it('explains a named card instead of claiming counts that never ran', () => {
+            openStation('transformation');
+            component.transformationDrafts[0].code = 'pro';
+            component.transformationRuleModals = { toArray: () => [] } as any;
+            fixture.detectChanges();
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewTransformationData();
+            fixture.detectChanges();
+
+            // A bare column name owns a heading above this table, so it has to own a reason
+            // too. Before, it rendered dashes under "counts from a describe run" — a describe
+            // that never happened.
+            expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
+            expect(component.transformationStatistics.map((block) => block.code)).toEqual(['pro']);
+            const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
+            expect(statistics?.querySelector('.glass-feedback-warning')?.textContent?.trim())
+                .toBe('Each derived column needs a named category before counts can be loaded.');
+            expect(statistics?.textContent).not.toContain('Category counts from a describe run');
+        });
+
+        it('names every gap when no card can be described', () => {
+            openStation('transformation');
+            component.addTransformationDraft();
+            const [unfiltered, nameless] = component.transformationDrafts;
+            unfiltered.code = 'group_a';
+            unfiltered.rules = [{ value: 'a', filter: null }];
+            nameless.code = 'group_b';
+            component.transformationRuleModals = { toArray: () => [ruleModal(null), ruleModal(null)] } as any;
+            fixture.detectChanges();
+
+            component.previewTransformationData();
+
+            // One line for the whole stage, covering each card's own shortcoming.
+            expect(component.transformationStatisticsError).toBe(
+                'Each derived column needs a named category and a filter on each one before counts can be loaded.'
+            );
+        });
+
+        it('dims Apply only while no card can form a column', () => {
+            openStation('transformation');
+            const draft = component.transformationDrafts[0];
+            draft.code = 'pro';
+            component.transformationRuleModals = { toArray: () => [] } as any;
+            component.onTransformationInput();
+            fixture.detectChanges();
+
+            // Apply has nothing to write, so it stays dim instead of answering the click with
+            // silence. Preview stays live: the read is what names the gap.
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeTrue();
+            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
+
+            const filter = categoryFilter();
+            draft.rules = [{ value: 'old', filter }];
+            component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
+            component.onTransformationInput();
+            fixture.detectChanges();
+
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
+        });
+
+        it('keeps the stage open after Apply while a card is unfinished', () => {
+            const filter = categoryFilter();
+            openStation('transformation');
+            component.addTransformationDraft();
+            const [complete, unfinished] = component.transformationDrafts;
+            complete.code = 'group_a';
+            complete.rules = [{ value: 'a', filter }];
+            unfinished.code = 'group_b';
+            unfinished.rules = [{ value: 'b', filter: null }];
+            component.transformationRuleModals = {
+                toArray: () => [ruleModal(filter), ruleModal(null)],
+            } as any;
+            fixture.detectChanges();
+
+            component.applyTransformation();
+            fixture.detectChanges();
+
+            // The complete card is committed. The stage does not fold over the card whose
+            // Pending chip is the only thing left saying that work remains.
+            expect(component.transformationStatusLabel).toBe('Pending');
+            expect(component.sectionOpen().transformation).toBeTrue();
+            const body = workflowSection('Transformation').querySelector('.workflow-section-body');
+            expect(body?.classList.contains('open')).toBeTrue();
+            expect(mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0])
+                .toEqual(jasmine.objectContaining({ code: 'group_a' }));
+        });
+
+        it('says so on the rule whose stored filter this builder cannot open', () => {
+            const clinical = { code: 'clinical_sdr', label: 'Clinical syndrome', type: 'nominal' };
+            // A tree shape the builder reads zero rules out of, as a stored experiment holds.
+            const stored: any = { condition: 'AND', rules: [{ unexpected: 'shape' }] };
+            const preprocessing = {
+                categorical_column_creator: { code: 'pro', strategy: 'filter_rules', rules: { old: stored } },
+            };
+            mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+            (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+            (mockExpService.selectedVariables as any).set([clinical]);
+            openStation('transformation');
+
+            const stage = workflowSection('Transformation');
+            const draft = component.transformationDrafts[0];
+            expect(component.transformationDraftStatus(draft).label).toBe('Applied');
+            expect(draft.rules[0].filter).toEqual(stored);
+
+            // The gate is gone; the honesty the gate carried is not. An Applied card with an
+            // empty builder says the filter is held, names no fix, and holds no action.
+            expect(stage.querySelector('.transformation-saved-filter-note')?.textContent)
+                .toContain('could not be opened in this builder');
+            expect(stage.querySelector('.transformation-create .row-error')).toBeNull();
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
+            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
         });
 
         it('loads category counts once every started card is complete', () => {

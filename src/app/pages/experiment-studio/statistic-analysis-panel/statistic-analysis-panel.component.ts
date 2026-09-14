@@ -699,12 +699,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
   isTransformationStatsLoading = false;
   transformationStatisticsError = '';
-  /**
-   * What a category builder complained about at the last commit attempt, per card.
-   * `blocking` separates a condition the user can still fix on the card from an
-   * imported rule the builder cannot author, which must never hold the stage.
-   */
-  transformationRuleFilterErrors: Record<number, { message: string; blocking: boolean }> = {};
   private transformationStatsRequestId = 0;
 
   readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
@@ -917,12 +911,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return 'Not defined';
   }
 
-  get transformationIsValid(): boolean {
-    return (
-      this.transformationConfigs().length > 0
-      && !this.transformationHasDuplicateCodes
-      && !this.transformationRulesNeedFilters
-    );
+  /**
+   * Whether Apply has anything to write. This is the one thing that dims Apply, and it is
+   * never about what a loaded rule says: a stored rule the builder cannot read still forms a
+   * config, so an experiment imported from elsewhere never loses its Apply button.
+   */
+  get transformationCanApply(): boolean {
+    return this.transformationConfigs().length > 0;
   }
 
   /** Pipeline-header badge: shows the derived-column count once applied. */
@@ -1502,12 +1497,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * Persist live category-filter builders onto every rule (across all cards) without
    * touching cohort filters. `#ruleModal` renders one modal per rule in DOM order, so a
    * single running index walks drafts and their rules in the same order the template emits.
+   * A rule is rewritten only when its builder can speak for it: a builder that rejects its
+   * own half-typed condition, or that could not read what the store holds, leaves that rule
+   * as it is rather than exporting an empty filter and erasing a configured category.
    */
-  commitTransformationRuleFilters(): boolean {
+  commitTransformationRuleFilters(): void {
     const modals = this.transformationRuleModals?.toArray() ?? [];
-    const builderErrors: Record<number, { message: string; blocking: boolean }> = {};
     let modalIndex = 0;
-    let committed = true;
     for (const draft of this.transformationDrafts) {
       for (const rule of draft.rules) {
         const modal = modals[modalIndex++];
@@ -1516,155 +1512,26 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         }
         const logic = modal.exportFilterLogic();
         if (modal.filterError()) {
-          // Keep walking the remaining cards: one broken builder must not hide what
-          // the others hold, and the fix list has to name every offender at once.
-          committed = false;
-          // An invalid condition is the user's own half-typed edit, so the stage waits
-          // for it: the card opens with the builder that complained.
-          builderErrors[draft.id] = { message: modal.filterError() as string, blocking: true };
+          // Keep walking the remaining cards: one broken builder must not stop the
+          // others from committing what they hold. The builder renders its own error.
           continue;
         }
         if (logic === null && modal.unloadedInput() && rule.filter) {
-          // The builder could not read the stored rule, so its empty result is not the user
-          // removing it. Keep the stored rule rather than erasing a configured category, and
-          // say so without blocking: there is nothing on this card to fix before the rule
-          // can be sent again.
-          committed = false;
-          builderErrors[draft.id] = {
-            message: `"${rule.value || 'This category'}" holds a saved filter this builder could not read. `
-              + 'It is applied unchanged; rebuild the rule only to replace it.',
-            blocking: false,
-          };
+          // An experiment opened for a small edit must not be stranded by a stored rule
+          // this UI cannot author, so the unreadable rule is applied unchanged. The rule row
+          // itself says so, straight from the builder's own unloadedInput() signal: an empty
+          // builder under an Applied chip otherwise reads as a category nobody configured.
           continue;
         }
         rule.filter = logic;
       }
     }
-    this.transformationRuleFilterErrors = builderErrors;
-    if (!committed) {
-      this.cdr.markForCheck();
-      return false;
-    }
     this.onTransformationChange();
-    return true;
   }
 
   previewTransformationData(): void {
-    // The commit is what surfaces a broken category builder; the issue list is what
-    // keeps Preview from describing a cohort the drafts cannot name yet.
     this.commitTransformationRuleFilters();
-    if (this.holdTransformationOnCreate()) return;
     this.setTransformationActiveTab('Statistics');
-  }
-
-  /**
-   * Keep the stage on Create while anything blocks Preview/Apply, and fold no card
-   * away while its own fix is pending. Returns true when the caller must read or
-   * write nothing else — no describe, no persisted config, no stage collapse.
-   */
-  private holdTransformationOnCreate(): boolean {
-    if (!this.transformationHasBlockingIssues) {
-      this.cdr.markForCheck();
-      return false;
-    }
-    this.transformationActiveTab = 'Create';
-    this.expandInvalidTransformationDrafts();
-    this.cdr.markForCheck();
-    return true;
-  }
-
-  /** A card folded to its header would hide the very error that blocks the stage. */
-  private expandInvalidTransformationDrafts(): void {
-    const blocked = new Set(
-      this.transformationBlockingIssues()
-        .filter((issue) => issue.blocking)
-        .map((issue) => issue.draftId)
-    );
-    if (!blocked.size) return;
-    this.transformationDrafts.forEach((draft) => {
-      if (blocked.has(draft.id)) draft.open = true;
-    });
-  }
-
-  /**
-   * What is wrong with each started card, one entry per problem. `blocking` entries hold
-   * Preview/Apply and always name a fix the user can still make on that card: a missing
-   * column name, a name two cards share, a card without a filtered category, or a
-   * condition the builder itself rejects. A stored rule the builder could not read is a
-   * hint only — its saved filter survives the commit, so an imported rule this UI cannot
-   * author must never strand the stage. A card counts once the user started work on it;
-   * an untouched card keeps Apply available as the no-op it is. Every started card wants
-   * a complete, uniquely named column: a name, at least one category, and a filter on
-   * each category. Requiring the filters to name a *selected* variable used to be one of
-   * these entries and is deliberately gone: a stored rule may legitimately point at a
-   * CDE outside the pool, which the user cannot select here.
-   */
-  transformationBlockingIssues(): Array<{ draftId?: number; message: string; blocking: boolean }> {
-    const issues: Array<{ draftId?: number; message: string; blocking: boolean }> = [];
-    this.transformationDrafts.forEach((draft) => {
-      const builderError = this.transformationRuleFilterErrors[draft.id];
-      if (builderError) {
-        issues.push({ draftId: draft.id, message: builderError.message, blocking: builderError.blocking });
-      }
-      if (!this.draftHasWork(draft)) return;
-
-      const code = draft.code.trim();
-      if (!code) {
-        issues.push({
-          draftId: draft.id,
-          message: 'A derived column needs a name before it can be previewed or applied.',
-          blocking: true,
-        });
-        return;
-      }
-      if (this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code)) {
-        issues.push({
-          draftId: draft.id,
-          message: `"${code}" is used by more than one card; each derived column needs a unique name.`,
-          blocking: true,
-        });
-      }
-
-      const named = draft.rules.filter((rule) => rule.value.trim().length > 0);
-      if (!named.length) {
-        issues.push({
-          draftId: draft.id,
-          message: `"${code}" needs at least one category with a filter.`,
-          blocking: true,
-        });
-        return;
-      }
-      const unfiltered = named.filter((rule) => !rule.filter);
-      if (unfiltered.length) {
-        const categories = unfiltered.map((rule) => `"${rule.value.trim()}"`).join(', ');
-        issues.push({
-          draftId: draft.id,
-          message: `${categories} in "${code}" needs a category filter.`,
-          blocking: true,
-        });
-        return;
-      }
-    });
-    return issues;
-  }
-
-  /** Preview and Apply share one gate: unfinished work, never an imported rule. */
-  get transformationHasBlockingIssues(): boolean {
-    return this.transformationBlockingIssues().some((issue) => issue.blocking);
-  }
-
-  /** The blocking messages only — what the stage names while Preview/Apply are held. */
-  transformationBlockingMessages(): string[] {
-    return this.transformationBlockingIssues()
-      .filter((issue) => issue.blocking)
-      .map((issue) => issue.message);
-  }
-
-  /** The same messages, narrowed to one card and repeated where the fix belongs. */
-  transformationDraftIssues(draft: TransformationColumnDraft): string[] {
-    return this.transformationBlockingIssues()
-      .filter((issue) => issue.draftId === draft.id)
-      .map((issue) => issue.message);
   }
 
   /** Clear the transformation station: pending edits and the committed config alike. */
@@ -1672,36 +1539,36 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationDrafts = [emptyTransformationDraft()];
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
-    this.transformationRuleFilterErrors = {};
     this.onTransformationChange();
   }
 
   /**
-   * Transformation is optional: committing is a no-op when nothing is configured.
-   * Apply keeps the user on the pipeline. A stage that now holds derived columns
-   * folds back to its sub-node overview, so the whole rail can be reviewed before
-   * Continue to Algorithm Selection. An untouched stage has nothing to review, so
-   * its editor stays open rather than collapsing to an empty overview.
+   * Transformation is optional, and Apply commits what the cards can express: it refuses
+   * nothing, so an unreadable stored rule keeps its own filter and an unfinished card
+   * contributes nothing. Apply keeps the user on the pipeline. A stage whose every card is
+   * settled folds back to its sub-node overview, so the rail can be reviewed before
+   * Continue to Algorithm Selection. A stage that still holds unfinished work stays open:
+   * the Pending / Duplicate name chips are the whole warning, and folding would hide them.
    */
   applyTransformation(): void {
-    // A failed commit is not a reason to refuse: an unreadable stored rule keeps its own
-    // filter and is reported as a hint. What refuses is the blocking list.
     this.commitTransformationRuleFilters();
-    if (this.holdTransformationOnCreate()) {
-      return;
-    }
-    if (!this.transformationConfigs().length) {
+    if (!this.transformationCanApply) {
+      // Nothing to write: the stage keeps its editor open, and Apply is dimmed for exactly
+      // this case rather than answering the click with silence.
       this.cdr.markForCheck();
       return;
     }
-    // Accepted: fold the cards and then the stage. The drafts keep their values,
-    // so reopening resumes where the user left off, on the editor and not on
-    // whatever preview tab they happened to be on.
+    // Accepted: fold the cards, then the stage. The drafts keep their values, so reopening
+    // resumes where the user left off, on the editor and not on whatever preview tab they
+    // happened to be on. A folded card still shows its status chip, so the cards can fold
+    // whether or not the stage does.
     this.transformationActiveTab = 'Create';
     this.transformationDrafts.forEach((draft) => {
       draft.open = false;
     });
-    this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    if (!this.transformationHasPendingChange) {
+      this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    }
     this.cdr.markForCheck();
   }
 
@@ -3274,6 +3141,26 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return rows;
   }
 
+  /**
+   * Why no card reached a complete config, phrased once for every named card that is short
+   * of one: a card with no named category needs a category, a card whose categories are
+   * unnamed by a filter needs the filter. A stage with no named cards at all has nothing to
+   * explain — the empty state already says so.
+   */
+  private transformationStatsGapNotice(): string {
+    const gaps: string[] = [];
+    if (this.transformationDrafts.some((draft) => draft.code.trim()
+      && !draft.rules.some((rule) => rule.value.trim().length > 0))) {
+      gaps.push('a named category');
+    }
+    if (this.transformationRulesNeedFilters) {
+      gaps.push('a filter on each one');
+    }
+    return gaps.length
+      ? `Each derived column needs ${gaps.join(' and ')} before counts can be loaded.`
+      : '';
+  }
+
   refreshTransformationStatistics(): void {
     // One stats table per named card; counts come from a single describe over all columns.
     const placeholderBlocks = this.transformationDrafts
@@ -3283,9 +3170,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     if (!configs.length) {
       this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError = this.transformationRulesNeedFilters
-        ? 'Each named category needs a filter before counts can be loaded.'
-        : '';
+      // Every named card gets a heading over this table, so a named card always needs a
+      // reason beside it: falling through to the "counts from a describe run" line would
+      // describe a describe that never ran.
+      this.transformationStatisticsError = this.transformationStatsGapNotice();
       this.isTransformationStatsLoading = false;
       this.cdr.markForCheck();
       return;
@@ -3329,16 +3217,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (Object.keys(this.validatePendingRules()).length > 0) {
       this.transformationStatistics = placeholderBlocks;
       this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
-      this.isTransformationStatsLoading = false;
-      this.cdr.markForCheck();
-      return;
-    }
-    if (this.transformationHasBlockingIssues) {
-      // Reaching Statistics without Preview (a stale tab, a re-render) must not describe
-      // a column the cards cannot name.
-      this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError = this.transformationBlockingIssues()
-        .find((issue) => issue.blocking)!.message;
       this.isTransformationStatsLoading = false;
       this.cdr.markForCheck();
       return;

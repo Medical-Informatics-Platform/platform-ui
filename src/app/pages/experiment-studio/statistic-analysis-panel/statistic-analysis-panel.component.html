@@ -1376,6 +1376,16 @@
                           variableScope="selectedVariables"
                           [filterLogic]="rule.filter"
                         ></app-filter-config-modal>
+                        @if (ruleModal.unloadedInput()) {
+                        <!-- The builder counted rules going in and produced none coming out, so
+                             the commit keeps the stored tree. The card still reads Applied with an
+                             empty builder, which nobody would guess is deliberate: say what is
+                             held, where it is held, and that nothing here asks for a fix. -->
+                        <p class="transformation-saved-filter-note">
+                          <i class="fas fa-bookmark" aria-hidden="true"></i>
+                          <span>A saved filter on this category could not be opened in this builder. It is applied exactly as stored; rebuild the rule only to replace it.</span>
+                        </p>
+                        }
                       </div>
                     </app-station-list-row>
                     } @empty {
@@ -1385,10 +1395,6 @@
                     </div>
                     }
                   </div>
-
-                  @for (issue of transformationDraftIssues(draft); track issue) {
-                  <div class="row-error">{{ issue }}</div>
-                  }
                 </div>
               </app-station-card>
               }
@@ -1397,18 +1403,6 @@
                 <span>Add another categorical column</span>
               </button>
             </div>
-            @if (transformationBlockingMessages().length) {
-            <!-- Preview and Apply are disabled while anything here is open, so the stage
-                 names what it is waiting for instead of leaving dead buttons behind. -->
-            <div class="glass-feedback glass-feedback-warning" role="alert">
-              <span>Fix before Preview or Apply:</span>
-              <ul class="transformation-issue-list">
-                @for (message of transformationBlockingMessages(); track $index) {
-                <li>{{ message }}</li>
-                }
-              </ul>
-            </div>
-            }
             } @else {
             <div class="transformation-statistics">
               @if (isTransformationStatsLoading) {
@@ -1460,8 +1454,7 @@
               applyLabel="Apply"
               applyIcon="fas fa-check"
               [resetDisabled]="transformationStatusLabel === 'Not defined'"
-              [previewDisabled]="transformationHasBlockingIssues"
-              [applyDisabled]="transformationHasBlockingIssues"
+              [applyDisabled]="!transformationCanApply"
               (reset)="resetTransformation()"
               (preview)="previewTransformationData()"
               (apply)="applyTransformation()"
