@@ -699,10 +699,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
   isTransformationStatsLoading = false;
   transformationStatisticsError = '';
-  /** Blocks Apply when two cards share a derived column name. */
-  transformationApplyError = '';
-  /** Category-builder errors, kept per card from the last commit attempt. */
-  transformationRuleFilterErrors: Record<number, string> = {};
+  /**
+   * What a category builder complained about at the last commit attempt, per card.
+   * `blocking` separates a condition the user can still fix on the card from an
+   * imported rule the builder cannot author, which must never hold the stage.
+   */
+  transformationRuleFilterErrors: Record<number, { message: string; blocking: boolean }> = {};
   private transformationStatsRequestId = 0;
 
   readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
@@ -1503,7 +1505,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    */
   commitTransformationRuleFilters(): boolean {
     const modals = this.transformationRuleModals?.toArray() ?? [];
-    const builderErrors: Record<number, string> = {};
+    const builderErrors: Record<number, { message: string; blocking: boolean }> = {};
     let modalIndex = 0;
     let committed = true;
     for (const draft of this.transformationDrafts) {
@@ -1517,15 +1519,22 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           // Keep walking the remaining cards: one broken builder must not hide what
           // the others hold, and the fix list has to name every offender at once.
           committed = false;
-          builderErrors[draft.id] = modal.filterError() as string;
+          // An invalid condition is the user's own half-typed edit, so the stage waits
+          // for it: the card opens with the builder that complained.
+          builderErrors[draft.id] = { message: modal.filterError() as string, blocking: true };
           continue;
         }
         if (logic === null && modal.unloadedInput() && rule.filter) {
           // The builder could not read the stored rule, so its empty result is not the user
-          // removing it. Keep the stored rule rather than erasing a configured category.
+          // removing it. Keep the stored rule rather than erasing a configured category, and
+          // say so without blocking: there is nothing on this card to fix before the rule
+          // can be sent again.
           committed = false;
-          builderErrors[draft.id] = `"${rule.value || 'This category'}" holds a saved filter this builder could not read. `
-            + 'Rebuild it before applying, or the rule will not be saved.';
+          builderErrors[draft.id] = {
+            message: `"${rule.value || 'This category'}" holds a saved filter this builder could not read. `
+              + 'It is applied unchanged; rebuild the rule only to replace it.',
+            blocking: false,
+          };
           continue;
         }
         rule.filter = logic;
@@ -1566,7 +1575,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** A card folded to its header would hide the very error that blocks the stage. */
   private expandInvalidTransformationDrafts(): void {
-    const blocked = new Set(this.transformationBlockingIssues().map((issue) => issue.draftId));
+    const blocked = new Set(
+      this.transformationBlockingIssues()
+        .filter((issue) => issue.blocking)
+        .map((issue) => issue.draftId)
+    );
     if (!blocked.size) return;
     this.transformationDrafts.forEach((draft) => {
       if (blocked.has(draft.id)) draft.open = true;
@@ -1574,19 +1587,24 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   /**
-   * What blocks Preview/Apply, one entry per problem, so the stage can name the fix
-   * instead of leaving a dead button behind. A card counts once the user started
-   * work on it; an untouched card keeps Apply available as the no-op it is. Every
-   * started card must be a complete, uniquely named column: a name, at least one
-   * category, a filter on each category, and a filter that points at a real
-   * data-model variable.
+   * What is wrong with each started card, one entry per problem. `blocking` entries hold
+   * Preview/Apply and always name a fix the user can still make on that card: a missing
+   * column name, a name two cards share, a card without a filtered category, or a
+   * condition the builder itself rejects. A stored rule the builder could not read is a
+   * hint only — its saved filter survives the commit, so an imported rule this UI cannot
+   * author must never strand the stage. A card counts once the user started work on it;
+   * an untouched card keeps Apply available as the no-op it is. Every started card wants
+   * a complete, uniquely named column: a name, at least one category, and a filter on
+   * each category. Requiring the filters to name a *selected* variable used to be one of
+   * these entries and is deliberately gone: a stored rule may legitimately point at a
+   * CDE outside the pool, which the user cannot select here.
    */
-  transformationBlockingIssues(): Array<{ draftId?: number; message: string }> {
-    const issues: Array<{ draftId?: number; message: string }> = [];
+  transformationBlockingIssues(): Array<{ draftId?: number; message: string; blocking: boolean }> {
+    const issues: Array<{ draftId?: number; message: string; blocking: boolean }> = [];
     this.transformationDrafts.forEach((draft) => {
       const builderError = this.transformationRuleFilterErrors[draft.id];
       if (builderError) {
-        issues.push({ draftId: draft.id, message: builderError });
+        issues.push({ draftId: draft.id, message: builderError.message, blocking: builderError.blocking });
       }
       if (!this.draftHasWork(draft)) return;
 
@@ -1595,6 +1613,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         issues.push({
           draftId: draft.id,
           message: 'A derived column needs a name before it can be previewed or applied.',
+          blocking: true,
         });
         return;
       }
@@ -1602,6 +1621,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         issues.push({
           draftId: draft.id,
           message: `"${code}" is used by more than one card; each derived column needs a unique name.`,
+          blocking: true,
         });
       }
 
@@ -1610,6 +1630,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         issues.push({
           draftId: draft.id,
           message: `"${code}" needs at least one category with a filter.`,
+          blocking: true,
         });
         return;
       }
@@ -1619,20 +1640,24 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         issues.push({
           draftId: draft.id,
           message: `${categories} in "${code}" needs a category filter.`,
+          blocking: true,
         });
         return;
       }
-      const referencesModel = named.some(
-        (rule) => this.expStudioService.filterVariableCodes(rule.filter).length > 0
-      );
-      if (!referencesModel) {
-        issues.push({
-          draftId: draft.id,
-          message: `The category filters of "${code}" must reference at least one selected variable.`,
-        });
-      }
     });
     return issues;
+  }
+
+  /** Preview and Apply share one gate: unfinished work, never an imported rule. */
+  get transformationHasBlockingIssues(): boolean {
+    return this.transformationBlockingIssues().some((issue) => issue.blocking);
+  }
+
+  /** The blocking messages only — what the stage names while Preview/Apply are held. */
+  transformationBlockingMessages(): string[] {
+    return this.transformationBlockingIssues()
+      .filter((issue) => issue.blocking)
+      .map((issue) => issue.message);
   }
 
   /** The same messages, narrowed to one card and repeated where the fix belongs. */
@@ -1642,17 +1667,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       .map((issue) => issue.message);
   }
 
-  /** Preview and Apply share one gate: unfinished work, never an empty stage. */
-  get transformationHasBlockingIssues(): boolean {
-    return this.transformationBlockingIssues().length > 0;
-  }
-
   /** Clear the transformation station: pending edits and the committed config alike. */
   resetTransformation(): void {
     this.transformationDrafts = [emptyTransformationDraft()];
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
-    this.transformationApplyError = '';
     this.transformationRuleFilterErrors = {};
     this.onTransformationChange();
   }
@@ -1665,18 +1684,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * its editor stays open rather than collapsing to an empty overview.
    */
   applyTransformation(): void {
-    this.transformationApplyError = '';
-    if (!this.commitTransformationRuleFilters()) {
-      return;
-    }
-    if (this.transformationRulesNeedFilters) {
-      return;
-    }
-    if (this.transformationHasDuplicateCodes) {
-      this.transformationApplyError = 'Each derived column needs a unique name.';
-      this.cdr.markForCheck();
-      return;
-    }
+    // A failed commit is not a reason to refuse: an unreadable stored rule keeps its own
+    // filter and is reported as a hint. What refuses is the blocking list.
+    this.commitTransformationRuleFilters();
     if (this.holdTransformationOnCreate()) {
       return;
     }
@@ -1726,7 +1736,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     // Opening another editor is a read: an empty card has no config to persist, so
     // leave the stored transformation untouched until the user types/commits.
     this.transformationDrafts.push(emptyTransformationDraft());
-    this.transformationApplyError = '';
     this.cdr.markForCheck();
   }
 
@@ -1744,7 +1753,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     } else {
       this.transformationDrafts.splice(index, 1);
     }
-    this.transformationApplyError = '';
     this.onTransformationChange();
   }
 
@@ -3326,8 +3334,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       return;
     }
     if (this.transformationHasBlockingIssues) {
+      // Reaching Statistics without Preview (a stale tab, a re-render) must not describe
+      // a column the cards cannot name.
       this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError = this.transformationBlockingIssues()[0].message;
+      this.transformationStatisticsError = this.transformationBlockingIssues()
+        .find((issue) => issue.blocking)!.message;
       this.isTransformationStatsLoading = false;
       this.cdr.markForCheck();
       return;
@@ -3904,7 +3915,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.transformationDrafts = [emptyTransformationDraft()];
       this.transformationStatistics = [];
       this.transformationStatisticsError = '';
-      this.transformationApplyError = '';
     }
     this.onTransformationChange();
   }

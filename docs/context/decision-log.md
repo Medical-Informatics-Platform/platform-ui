@@ -131,3 +131,17 @@ Consequences: Chart renders are cheap enough to leave on a plain change-detectio
 Files affected: `src/app/pages/experiment-studio/visualisations/histogram/**`, `src/app/pages/experiment-studio/variables-panel/histogram-graph/histogram-graph.component.*`, `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/visualisations/bubble-chart/bubble-chart.component.ts`, `src/app/pages/experiment-studio/visualisations/metadata-browser/collapsible-tree-browser/collapsible-tree-browser.component.ts`.
 
 Date: 2026-09-09.
+
+### Decision: The derived-column gate blocks what the user can fix, and only that
+
+Status: Accepted
+
+Context: The Transformation stage used to refuse Preview/Apply while any started card was unfinished. That is right for a card the user is typing into and wrong for a card the app merely *loaded*: a stored experiment can carry a category rule this builder cannot author, and under the old gate such a rule disabled both buttons over a card whose message told the user to fix something they had already written. The two were indistinguishable because the stage only had one kind of message. Day one of the filter round-trip work (shared operator table, bare-condition hydration, unary `value: null`) removed the shapes the builder could not read; the gate itself was taken out as a temporary unblock and left `Preview`/`Apply` permanently live, which traded a stuck stage for a half-typed column reaching exaflow and failing there.
+
+Decision: One list, two classes of entry. `transformationBlockingIssues()` reports each card's problems and marks each `blocking` or not. A blocking entry always names a fix that exists on that card — a missing column name, a name two cards share, a named category with no filter, a condition the builder itself rejects — and drives `previewDisabled`/`applyDisabled`, the stage-level `role="alert"` list, and `holdTransformationOnCreate()`, which keeps the stage on Create and expands the blocked cards so a folded card cannot hide its own fix. A non-blocking entry is a rule the builder could not read (`exportFilterLogic()` empty while `unloadedInput()` reports stored rules): the commit keeps the stored filter, the card says so, and the stage still applies. The entry the old gate had beside these — category filters must reference a *selected* variable — is gone for good: a stored rule may point at a CDE outside the pool, which cannot be selected from this card.
+
+Consequences: Apply is destructive for neither kind of rule, and Preview cannot describe a column the cards cannot name. A builder error blocks, which means an off-pool variable renders its free-text value box and the user can still satisfy the condition — verified by the specs, not yet in a browser against a stored experiment. `transformationBlockingIssues()` gained a `blocking` field; the `transformationApplyError` field is gone and the stage list is the single place a refused Apply speaks. `docs/context/risk-register.md` names the two ways to reintroduce the old failure.
+
+Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `docs/context/risk-register.md`, `docs/context/module-index.md`.
+
+Date: 2026-09-14.

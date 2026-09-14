@@ -1397,19 +1397,14 @@
                 <span>Add another categorical column</span>
               </button>
             </div>
-            @if (transformationApplyError) {
-            <div class="glass-feedback glass-feedback-warning">
-              {{ transformationApplyError }}
-            </div>
-            }
-            @if (transformationBlockingIssues().length) {
+            @if (transformationBlockingMessages().length) {
             <!-- Preview and Apply are disabled while anything here is open, so the stage
                  names what it is waiting for instead of leaving dead buttons behind. -->
             <div class="glass-feedback glass-feedback-warning" role="alert">
               <span>Fix before Preview or Apply:</span>
               <ul class="transformation-issue-list">
-                @for (issue of transformationBlockingIssues(); track $index) {
-                <li>{{ issue.message }}</li>
+                @for (message of transformationBlockingMessages(); track $index) {
+                <li>{{ message }}</li>
                 }
               </ul>
             </div>

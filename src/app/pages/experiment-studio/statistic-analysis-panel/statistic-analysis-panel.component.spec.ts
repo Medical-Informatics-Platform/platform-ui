@@ -2128,6 +2128,20 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.commitTransformationRuleFilters()).toBeFalse();
         expect(draft.rules[0].filter).toEqual(stored);
         expect(component.transformationDraftIssues(draft).join(' ')).toContain('could not read');
+
+        // The hint is not a gate: a rule this UI cannot author still travels as it is,
+        // so an experiment opened for a small edit is never stranded by its own history.
+        expect(component.transformationHasBlockingIssues).toBeFalse();
+        component.applyTransformation();
+
+        expect(draft.rules[0].filter).toEqual(stored);
+        expect(component.sectionOpen().transformation).toBeFalse();
+        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith(
+            jasmine.objectContaining({
+                code: 'stroke_territory_cohort',
+                rules: jasmine.objectContaining({ ACS: stored }),
+            })
+        );
     });
 
     it('hydrates every saved categorical creator into its own card', () => {
@@ -2269,7 +2283,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         component.applyTransformation();
 
-        expect(component.transformationApplyError).toContain('unique name');
+        expect(component.transformationBlockingMessages()).toEqual([
+            '"group" is used by more than one card; each derived column needs a unique name.',
+            '"group" is used by more than one card; each derived column needs a unique name.',
+        ]);
         expect(navigate).not.toHaveBeenCalled();
         // A refused Apply must not fold the stage: the editor holds the mistake.
         expect(component.sectionOpen().transformation).toBeTrue();
@@ -2765,9 +2782,16 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     describe('Data Handling preview contracts', () => {
-        /** Stand-in for a category-rule QueryBuilder, as the template hands them over. */
-        function ruleModal(filter: any, error: string | null = null) {
-            return { exportFilterLogic: () => filter, filterError: () => error };
+        /**
+         * Stand-in for a category-rule QueryBuilder, as the template hands them over.
+         * `unloaded` stands for a builder that could not read what the store holds.
+         */
+        function ruleModal(filter: any, error: string | null = null, unloaded = false) {
+            return {
+                exportFilterLogic: () => filter,
+                filterError: () => error,
+                unloadedInput: () => unloaded,
+            };
         }
 
         /** Stand-in for the cohort builder: exports what the editor holds, unapplied. */
@@ -2946,6 +2970,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 '"a" in "group_a" needs a category filter.',
             ]);
             expect(messages.every((issue) => issue.draftId === draft.id)).toBeTrue();
+            expect(messages.every((issue) => issue.blocking)).toBeTrue();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
         });
 

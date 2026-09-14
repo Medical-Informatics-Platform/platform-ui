@@ -441,8 +441,8 @@ button:disabled {
   text-wrap: pretty;
 }
 
-/* The list the disabled Preview/Apply pair rests on: same warning card as the
-   duplicate-name note, just stacked when several cards need work at once. */
+/* The list the disabled Preview/Apply pair rests on: one row per card that still
+   needs work, so the stage never just goes quiet on the user. */
 .transformation-issue-list {
   display: grid;
   gap: 4px;
