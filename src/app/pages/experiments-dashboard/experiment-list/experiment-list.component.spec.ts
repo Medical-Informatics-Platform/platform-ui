@@ -61,6 +61,8 @@ describe('ExperimentsListComponent list pane', () => {
             experiments: loaded,
             totalPages: signal(1),
             totalExperiments: signal(2),
+            historyTruncated: signal(false),
+            fullHistoryCap: 2500,
             isLoading: signal(false),
             getUserExperiments: jasmine.createSpy('getUserExperiments'),
             toggleExperimentShare: jasmine.createSpy('toggleExperimentShare').and.returnValue(of({ shared: true })),
@@ -94,6 +96,21 @@ describe('ExperimentsListComponent list pane', () => {
     expect(chips()[0].querySelector('.count-badge')!.textContent!.trim()).toBe('1');
     expect(chips()[0].classList.contains('selected')).toBeTrue();
     expect(chips()[1].classList.contains('selected')).toBeFalse();
+  });
+
+  it('names the history a client-side filter could not read, beside the count it limits', () => {
+    const dashboard = TestBed.inject(ExperimentsDashboardService) as any;
+    dashboard.historyTruncated.set(true);
+    fixture.detectChanges();
+
+    const summary = root().querySelector('.list-summary')!;
+    expect(summary.textContent).toContain('of');
+    expect(summary.querySelector('.list-summary-note')?.textContent)
+      .toContain('searched your 2500 most recent experiments');
+
+    dashboard.historyTruncated.set(false);
+    fixture.detectChanges();
+    expect(root().querySelector('.list-summary-note')).toBeNull();
   });
 
   it('sits under the tabs, never above search: folders cut across the list, they do not scope it', () => {

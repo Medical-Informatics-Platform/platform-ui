@@ -52,6 +52,10 @@
   @if (totalExperiments() > 0 && !isLoading()) {
   <p class="list-summary">
     Showing <strong>{{ rangeStart() }}–{{ rangeEnd() }}</strong> of <strong>{{ totalExperiments() }}</strong>
+    @if (historyTruncated()) {
+    <!-- The count above only covers the most recent runs a client-side filter could read. -->
+    <span class="list-summary-note">searched your {{ historyCap() }} most recent experiments — narrow the filters to reach older ones</span>
+    }
   </p>
   }
 

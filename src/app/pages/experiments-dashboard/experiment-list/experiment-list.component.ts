@@ -519,6 +519,8 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
   readonly isLoading = computed(() => this.experimentsService.isLoading());
   readonly currentPage = computed(() => this.pageIndex() + 1);
   readonly totalExperiments = computed(() => this.experimentsService.totalExperiments());
+  readonly historyTruncated = computed(() => this.experimentsService.historyTruncated());
+  readonly historyCap = computed(() => this.experimentsService.fullHistoryCap);
 
   readonly pagedExperiments = computed<Experiment[]>(() => {
     return this.experimentsService.experiments();

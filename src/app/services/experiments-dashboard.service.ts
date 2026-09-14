@@ -21,9 +21,21 @@ interface ExperimentsPage {
 }
 
 const PAGE_SIZE_FOR_FULL_LOAD = 50;
-// ponytail: caps the unfiltered-history snapshot at 2500 runs. Upgrade path is a backend
-// substring/date filter, which retires loadAllExperiments entirely.
+/**
+ * A filter the backend contract cannot express (substring search, author, variable, status,
+ * date) is answered from one ownership-scoped snapshot of the history, sliced here. That
+ * snapshot is capped, so past `FULL_LOAD_HISTORY_CAP` runs a search is honest about the
+ * range it covered rather than implying it read everything. Retiring the cap needs a backend
+ * substring/date filter, which retires loadAllExperiments entirely.
+ */
 const MAX_FULL_LOAD_PAGES = 50;
+const FULL_LOAD_HISTORY_CAP = PAGE_SIZE_FOR_FULL_LOAD * MAX_FULL_LOAD_PAGES;
+
+/** One ownership-scoped read of the history, and whether the cap cut it short. */
+interface Snapshot {
+  experiments: Experiment[];
+  truncated: boolean;
+}
 
 const DEFAULT_FILTERS: ExperimentFilters = {
   query: '',
@@ -43,6 +55,9 @@ export class ExperimentsDashboardService {
 
   experiments: WritableSignal<Experiment[]> = signal<Experiment[]>([]);
   totalExperiments = signal<number>(0);
+  /** True when a client-side filter had to stop at `fullHistoryCap` runs. */
+  historyTruncated = signal<boolean>(false);
+  readonly fullHistoryCap = FULL_LOAD_HISTORY_CAP;
   totalPages = signal<number>(0);
   currentPage = signal<number>(0);
   isLoading = signal<boolean>(false);
@@ -52,7 +67,7 @@ export class ExperimentsDashboardService {
   private lastListRequest: (() => void) | null = null;
 
   /** Full per-tab cache used only when a filter cannot be pushed to the backend contract. */
-  private allExperimentsCache = new Map<'mine' | 'shared', Experiment[]>();
+  private allExperimentsCache = new Map<'mine' | 'shared', Snapshot>();
 
   /** Clears the client-filter snapshot so the next load reads the backend again. */
   invalidateListCache(): void {
@@ -113,6 +128,8 @@ export class ExperimentsDashboardService {
     this.totalExperiments.set(response?.totalExperiments || 0);
     this.totalPages.set(response?.totalPages || 0);
     this.currentPage.set(response?.currentPage || 0);
+    // Server-paginated browsing never reads a capped snapshot.
+    this.historyTruncated.set(false);
   }
 
   /** The snapshot arrives already in the requested order (the server sorted it), so filtering and
@@ -178,7 +195,10 @@ export class ExperimentsDashboardService {
   private loadAllExperiments(onlyMine: boolean, sort: ExperimentSort): Observable<Experiment[]> {
     const cacheKey: 'mine' | 'shared' = onlyMine ? 'mine' : 'shared';
     const cached = this.allExperimentsCache.get(cacheKey);
-    if (cached) return of(cached);
+    if (cached) {
+      this.historyTruncated.set(cached.truncated);
+      return of(cached.experiments);
+    }
 
     const fetchPage = (page: number): Observable<{ page: ExperimentsPage; experiments: Experiment[] }> =>
       this.http
@@ -192,20 +212,26 @@ export class ExperimentsDashboardService {
 
     return fetchPage(0).pipe(
       switchMap((first) => {
-        const pageCount = Math.min(
-          Math.max(1, first.page?.totalPages || 1),
-          MAX_FULL_LOAD_PAGES,
-        );
+        const serverPages = first.page?.totalPages || 1;
+        const pageCount = Math.min(Math.max(1, serverPages), MAX_FULL_LOAD_PAGES);
         const pageRequests = Array.from({ length: pageCount - 1 }, (_, index) => fetchPage(index + 1));
 
         return (pageRequests.length ? forkJoin(pageRequests) : of([])).pipe(
-          map((rest) => [
-            ...first.experiments,
-            ...rest.flatMap((entry) => entry.experiments),
-          ]),
+          map((rest): Snapshot => ({
+            experiments: [
+              ...first.experiments,
+              ...rest.flatMap((entry) => entry.experiments),
+            ],
+            // Pages the history had that the cap refused to read: the search did not see them.
+            truncated: serverPages > pageCount,
+          })),
         );
       }),
-      tap((all) => this.allExperimentsCache.set(cacheKey, all)),
+      tap((snapshot) => {
+        this.allExperimentsCache.set(cacheKey, snapshot);
+        this.historyTruncated.set(snapshot.truncated);
+      }),
+      map((snapshot) => snapshot.experiments),
     );
   }
 
@@ -281,6 +307,7 @@ export class ExperimentsDashboardService {
     this.totalExperiments.set(0);
     this.totalPages.set(0);
     this.currentPage.set(0);
+    this.historyTruncated.set(false);
   }
 
   private normalize(value: string | null | undefined): string {

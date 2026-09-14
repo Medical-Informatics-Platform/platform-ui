@@ -72,6 +72,44 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       expect(service.totalExperiments()).toBe(0);
     });
 
+    it('names the runs a client-side filter searched once the history cap cut it short', () => {
+      service.getUserExperiments(0, 10, true, { status: 'success' });
+
+      // 51 pages of 50 exist; the snapshot reads 50 of them.
+      const first = httpMock.expectOne((request) => request.url === apiUrl);
+      expect(first.request.params.get('page')).toBe('0');
+      first.flush({
+        experiments: [backendExperiment('a', 'A')],
+        totalExperiments: 2550,
+        totalPages: 51,
+        currentPage: 0,
+      });
+
+      const rest = httpMock.match((request) => request.url === apiUrl);
+      expect(rest.length).toBe(49);
+      rest.forEach((request, index) => request.flush({
+        experiments: [],
+        totalExperiments: 2550,
+        totalPages: 51,
+        currentPage: index + 1,
+      }));
+
+      expect(service.fullHistoryCap).toBe(2500);
+      expect(service.historyTruncated()).toBeTrue();
+    });
+
+    it('does not claim a truncated history the snapshot actually covered', () => {
+      service.getUserExperiments(0, 10, true, { status: 'success' });
+      httpMock.expectOne((request) => request.url === apiUrl).flush({
+        experiments: [backendExperiment('a', 'A')],
+        totalExperiments: 1,
+        totalPages: 1,
+        currentPage: 0,
+      });
+
+      expect(service.historyTruncated()).toBeFalse();
+    });
+
     it('invalidates the client-filter snapshot on demand', () => {
       service.getUserExperiments(0, 10, true, { status: 'success' });
       httpMock.expectOne((request) => request.url === apiUrl).flush({

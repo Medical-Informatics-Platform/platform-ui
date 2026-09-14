@@ -169,6 +169,12 @@
   color: var(--text-main);
 }
 
+/* The history-cap note trails the count it qualifies, on its own line. */
+.list-summary-note {
+  display: block;
+  text-wrap: pretty;
+}
+
 /* COMPARE SELECTION */
 .compare-selection-bar {
   display: flex;
