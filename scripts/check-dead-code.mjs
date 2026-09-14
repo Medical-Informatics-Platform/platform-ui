@@ -109,11 +109,24 @@ for (const p of css) {
     importers.get(target).add(p);
   }
 }
-const reachableMarkup = (p) => {
-  const parts = [ownMarkup(p)];
-  for (const importer of importers.get(p) ?? []) parts.push(ownMarkup(importer));
-  // ponytail: one @import level (the repo has exactly one). Recurse if a sheet ever imports from a global sheet.
-  return parts.every((x) => x !== null) ? parts : null;
+/**
+ * Markup a sheet can style: its own, plus the markup of everything that imports it, as far
+ * up the chain as it goes — an imported sheet ships inside its importer, so it matches that
+ * importer's template too. A global sheet anywhere on the way reaches the whole app, which
+ * makes everything reachable, so the answer is `null` there as well.
+ */
+const reachableMarkup = (p, seen = new Set()) => {
+  if (seen.has(p)) return [];
+  seen.add(p);
+  const own = ownMarkup(p);
+  if (own === null) return null;
+  const parts = [own];
+  for (const importer of importers.get(p) ?? []) {
+    const upstream = reachableMarkup(importer, seen);
+    if (upstream === null) return null;
+    parts.push(...upstream);
+  }
+  return parts;
 };
 
 const orphanCss = [];
