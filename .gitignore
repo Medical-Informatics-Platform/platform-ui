@@ -74,3 +74,8 @@ yarn-error.log*
 .playwright-cli/
 output/
 experiment-studio-review/
+
+# Local agent tooling (Impeccable skill, hook manifest, detector scratch)
+.agents/
+.codex/
+.impeccable/
