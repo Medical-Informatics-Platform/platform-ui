@@ -36,13 +36,16 @@ flowchart TD
   - `GET /services/activeUser`
   - `POST /services/activeUser/agreeNDA`
   - `GET /services/data-models`
-  - `GET /services/algorithms`
+  - `GET /services/specifications/inputdata`
+  - `GET /services/specifications/preprocessing`
+  - `GET /services/specifications/algorithms`
   - `GET /services/experiments`
   - `GET /services/experiments/:id`
   - `POST /services/experiments`
   - `POST /services/experiments/transient`
   - `PATCH /services/experiments/:id`
   - `DELETE /services/experiments/:id`
+  - `GET|POST|PATCH|DELETE /services/experiment-folders/**` (folders, members, and sets)
 
 ## Authentication and Terms
 - `AuthService` checks the current session with `GET /services/activeUser`.
