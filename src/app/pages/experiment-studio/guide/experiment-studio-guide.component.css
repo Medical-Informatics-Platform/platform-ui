@@ -188,11 +188,15 @@
   margin-bottom: 16px;
 }
 
+/* The fill carries a scaleX: animating width re-laid out the whole banner on every
+   tour step. The ratio arrives as --guide-progress from the template. */
 .guide-progress-bar {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--guide-accent) 0%, var(--guide-accent-secondary) 100%);
-  transition: width 0.35s ease;
+  transform-origin: left center;
+  transform: scaleX(var(--guide-progress, 0));
+  transition: transform 0.35s var(--ease-standard);
 }
 
 .guide-banner-copy {

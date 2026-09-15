@@ -558,17 +558,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-.experiment-row.selected::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--primary-color);
-}
-
 .experiment-row.selected:hover {
   background: color-mix(in srgb, var(--primary-color) 7%, white);
 }

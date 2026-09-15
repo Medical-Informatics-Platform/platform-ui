@@ -80,7 +80,7 @@
     </div>
 
     <div class="guide-progress" aria-hidden="true">
-      <div class="guide-progress-bar" [style.width.%]="progressPercent()"></div>
+      <div class="guide-progress-bar" [style.--guide-progress]="progressPercent() / 100"></div>
     </div>
 
     <div class="guide-banner-body">

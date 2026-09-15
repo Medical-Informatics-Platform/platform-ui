@@ -29,8 +29,8 @@
 }
 
 .where-error {
-  border-left: 3px solid var(--danger, #dc2626);
-  border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0;
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 42%, transparent);
+  border-radius: var(--radius-md, 8px);
   background: #fef2f2;
   color: #991b1b;
   font-size: 0.82rem;

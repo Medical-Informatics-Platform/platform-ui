@@ -68,7 +68,6 @@
   background: color-mix(in srgb, var(--accent-color) 12%, white);
   color: #7c2d12;
   box-shadow: none;
-  border-left: 6px solid var(--accent-color);
   border-radius: var(--radius-lg);
   box-sizing: border-box;
   padding: 12px 14px;
