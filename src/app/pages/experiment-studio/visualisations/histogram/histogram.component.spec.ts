@@ -21,13 +21,7 @@ const RESIZE_MS = 300;
   standalone: true,
   imports: [HistogramComponent],
   template: `<div #wrapper><app-histogram [data]="data()" [config]="config()" /></div>`,
-  styles: [
-    `
-      app-histogram {
-        display: block;
-      }
-    `,
-  ],
+  styles: ['app-histogram { display: block; }'],
 })
 class HistogramSpecHostComponent {
   readonly wrapper = viewChild.required<ElementRef<HTMLDivElement>>('wrapper');
