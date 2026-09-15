@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { captureHtmlToPng, renderMipVersion } from '../core/pdf.utils';
 import { prettifyLabel } from '../core/algorithm-mappers';
-import { AlgorithmTableRegistry, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import { getAlgorithmTableBuilder, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
 
 interface ExperimentPdfDetails {
   experimentName: string;
@@ -523,7 +523,7 @@ export class ResultsPdfExportService {
 
   private getTablesForAlgorithm(algorithmKey?: string | null, result?: any): TableSpec[] {
     if (!algorithmKey || !result) return [];
-    const builder = AlgorithmTableRegistry[algorithmKey];
+    const builder = getAlgorithmTableBuilder(algorithmKey);
     if (!builder) return [];
     try {
       return builder(result) || [];

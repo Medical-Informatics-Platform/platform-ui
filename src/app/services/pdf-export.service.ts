@@ -252,7 +252,7 @@ export class PdfExportService {
                         doc.addImage(imgData, 'PNG', 15, yOffset, imgWidth, imgHeight);
                         yOffset += imgHeight + 12;
                     } catch (err) {
-                        console.warn(`Failed to render chart for ${label}`, err);
+                        console.warn('Failed to render chart', label, err);
                         doc.text(`${label} — (chart not ready)`, 15, yOffset);
                         yOffset += 10;
                     }
@@ -290,7 +290,7 @@ export class PdfExportService {
                         doc.addImage(imgData, 'PNG', 15, yOffset, imgWidth, imgHeight);
                         yOffset += imgHeight + 12;
                     } catch (err) {
-                        console.warn(`Failed to render nominal chart for ${label}`, err);
+                        console.warn('Failed to render nominal chart', label, err);
                         doc.text(`${label} — (chart not ready)`, 15, yOffset);
                         yOffset += 10;
                     }

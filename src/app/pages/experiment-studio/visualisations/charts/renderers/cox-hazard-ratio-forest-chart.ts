@@ -12,6 +12,14 @@ const SIGNIFICANT_COLOR = '#1d4ed8';
 const NEUTRAL_COLOR = '#64748b';
 const REFERENCE_LINE_COLOR = '#94a3b8';
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function formatClinicianPValue(pValue: number): string {
   if (!Number.isFinite(pValue)) return 'N/A';
   if (pValue < 0.001) return '<0.001';
@@ -122,10 +130,11 @@ export function buildCoxHazardRatioForestChart(result: any): EChartsOption[] {
         const row = rows[index];
         if (!row) return '';
         return (
-          `<b>${row.label}</b><br/>` +
-          `Hazard ratio: ${formatClinicianHazardRatio(row.hazardRatio)}<br/>` +
-          `95% CI: ${formatClinicianHazardRatio(row.ciLower)} – ${formatClinicianHazardRatio(row.ciUpper)}<br/>` +
-          `p-value: ${formatClinicianPValue(row.pValue)}`
+          '<b>' + escapeHtml(row.label) + '</b><br/>' +
+          'Hazard ratio: ' + formatClinicianHazardRatio(row.hazardRatio) + '<br/>' +
+          '95% CI: ' + formatClinicianHazardRatio(row.ciLower) + ' – ' +
+          formatClinicianHazardRatio(row.ciUpper) + '<br/>' +
+          'p-value: ' + formatClinicianPValue(row.pValue)
         );
       },
     },

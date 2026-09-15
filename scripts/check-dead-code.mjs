@@ -47,8 +47,19 @@ const css = files.filter((p) => extname(p) === '.css');
 const appMarkup = [...ts, ...html].map(read);
 const globalHay = appMarkup.join('\n');
 
-const word = (name) => new RegExp(`(?<![\\w$])${name.replace(/[\\$]/g, '\\$&')}(?![\\w$])`, 'g');
-const countIn = (haystack, name) => (haystack.match(word(name)) || []).length;
+const isWordChar = (value) => value !== undefined && /[A-Za-z0-9_$]/.test(value);
+const countIn = (haystack, name) => {
+  if (!name) return 0;
+  let count = 0;
+  let from = 0;
+  while ((from = haystack.indexOf(name, from)) !== -1) {
+    const before = haystack[from - 1];
+    const after = haystack[from + name.length];
+    if (!isWordChar(before) && !isWordChar(after)) count += 1;
+    from += name.length;
+  }
+  return count;
+};
 
 /* 1 ─ dead exports ─────────────────────────────────────────────────────────── */
 const DECL = /^\s*export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(const|let|var|function|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/;

@@ -187,20 +187,24 @@ export function createZoomableCirclePacking(
     }
   }
 
+  function appendTooltipRow(name: string, value: string): void {
+    const row = tooltip.append('div').style('margin-top', '4px');
+    row.append('strong').text(name);
+    row.append('span').text(' ' + value);
+  }
+
   function showTooltip(event: MouseEvent, d: any) {
     const label = d.data.label || '(no label)';
     const descriptionRaw = d.data.description || '';
     const description = decodeUnicode(descriptionRaw.trim());
     const type = d.data.type || '';
 
-    let html = `<div><strong>${label}</strong></div>`;
-    if (type)
-      html += `<div style="margin-top:4px;"><strong>Type:</strong> ${type}</div>`;
-    if (description)
-      html += `<div style="margin-top:4px;"><strong>Description:</strong> ${description}</div>`;
+    tooltip.selectAll('*').remove();
+    tooltip.append('div').append('strong').text(label);
+    if (type) appendTooltipRow('Type:', type);
+    if (description) appendTooltipRow('Description:', description);
 
     tooltip
-      .html(html)
       .style('left', `${event.clientX + 10}px`)
       .style('top', `${event.clientY + 10}px`)
       .transition()
