@@ -534,14 +534,22 @@ function truncateLabel(value: unknown): string {
 }
 
 function showTooltip(event: MouseEvent, node: TreeDatum): void {
-  const label = escapeHtml(normalizeString(node.data.label) || 'Untitled');
-  const type = escapeHtml(normalizeString(node.data.type));
-  const description = escapeHtml(normalizeString(node.data.description));
-  let html = `<strong>${label}</strong>`;
-  if (type) html += `<span><b>Type:</b> ${type}</span>`;
-  if (description) html += `<span><b>Description:</b> ${description}</span>`;
-  d3.select('.collapsible-tree-tooltip')
-    .html(html)
+  const label = normalizeString(node.data.label) || 'Untitled';
+  const type = normalizeString(node.data.type);
+  const description = normalizeString(node.data.description);
+  const tooltip = d3.select('.collapsible-tree-tooltip');
+
+  const appendRow = (name: string, value: string): void => {
+    const row = tooltip.append('span');
+    row.append('b').text(name);
+    row.append('span').text(' ' + value);
+  };
+
+  tooltip.selectAll('*').remove();
+  tooltip.append('strong').text(label);
+  if (type) appendRow('Type:', type);
+  if (description) appendRow('Description:', description);
+  tooltip
     .style('left', `${event.clientX + 12}px`)
     .style('top', `${event.clientY + 12}px`)
     .transition()
@@ -581,13 +589,4 @@ function codeOf(node: D3HierarchyNode | null | undefined): string {
 function normalizeString(value: unknown): string {
   if (value === null || value === undefined) return '';
   return String(value).trim();
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }

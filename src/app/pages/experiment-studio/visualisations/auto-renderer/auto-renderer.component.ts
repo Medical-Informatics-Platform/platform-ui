@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
-import { AlgorithmTableRegistry, TableSpec } from './algorithm-table-registry';
+import { getAlgorithmTableBuilder, TableSpec } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
 
@@ -43,7 +43,7 @@ export class AutoRendererComponent {
       return;
     }
 
-    const builder = AlgorithmTableRegistry[algorithm];
+    const builder = getAlgorithmTableBuilder(algorithm);
     if (!builder) {
       this.tableSpec.set(null);
       this.error.set(`No renderer for algorithm ${algorithm}`);

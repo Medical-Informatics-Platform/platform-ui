@@ -1957,8 +1957,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             { missing_values_handler: { strategies: { age: 'mean' } } },
             undefined
         );
-        const preprocessing = JSON.stringify(mockExpService.getAlgorithmResults.calls.mostRecent().args[3]);
-        expect(preprocessing).not.toContain('categorical_column_creator');
+        const preprocessingArg = mockExpService.getAlgorithmResults.calls.mostRecent().args[3] as Record<string, unknown>;
+        expect(Object.keys(preprocessingArg ?? {})).not.toContain('categorical_column_creator');
     });
 
     it('loads the processed summary when saved preprocessing is hydrated', () => {
@@ -2373,9 +2373,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             } as any);
 
-            const html = (
-                component.formatPreprocessingDocumentationHtml('missing_values_handler') as any
-            ).changingThisBreaksApplicationSecurity as string;
+            const html = component.formatPreprocessingDocumentationHtml('missing_values_handler');
 
             expect(html).toContain(
                 '<p class="preprocessing-doc-paragraph preprocessing-doc-intro">Handles missing values using a selected strategy for each variable.</p>'

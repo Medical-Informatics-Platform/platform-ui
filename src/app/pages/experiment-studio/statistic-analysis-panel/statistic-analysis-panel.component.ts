@@ -16,7 +16,6 @@ import {
   OnDestroy
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { Subject, Subscription, takeUntil } from 'rxjs';
@@ -261,7 +260,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   private csvExportService = inject(CsvExportService);
   private cdr = inject(ChangeDetectorRef);
   private runtimeEnvService = inject(RuntimeEnvService);
-  private sanitizer = inject(DomSanitizer);
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   rawSummary = this.createEmptySummary(true);
@@ -1643,10 +1641,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return step?.documentation?.trim() ?? '';
   }
 
-  formatPreprocessingDocumentationHtml(stepName: string): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(
-      this.buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName))
-    );
+  formatPreprocessingDocumentationHtml(stepName: string): string {
+    return this.buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName));
   }
 
   private buildPreprocessingDocumentationHtml(text: string): string {
@@ -1674,14 +1670,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       if (!listItems.length) {
         return;
       }
-      parts.push(`<ul class="preprocessing-doc-list">${listItems.join('')}</ul>`);
+      parts.push('<ul class="preprocessing-doc-list">' + listItems.join('') + '</ul>');
       listItems = [];
     };
 
     const pushParagraph = (line: string): void => {
       const escaped = escapeHtml(line);
       if (line.endsWith(':') && line.length <= 120) {
-        parts.push(`<p class="preprocessing-doc-section-title">${escaped}</p>`);
+        parts.push('<p class="preprocessing-doc-section-title">' + escaped + '</p>');
         isIntroParagraph = false;
         return;
       }
@@ -1689,7 +1685,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       const classes = isIntroParagraph
         ? 'preprocessing-doc-paragraph preprocessing-doc-intro'
         : 'preprocessing-doc-paragraph';
-      parts.push(`<p class="${classes}">${escaped}</p>`);
+      parts.push('<p class="' + classes + '">' + escaped + '</p>');
       isIntroParagraph = false;
     };
 
@@ -1711,13 +1707,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         const description = escapeHtml(itemText.slice(colonIndex + 1).trim());
         // The term keeps its colon: the item is read as one line of prose, not a table.
         listItems.push(
-          `<li><span class="preprocessing-doc-term">${term}:</span> <span class="preprocessing-doc-desc">${description}</span></li>`
+          '<li><span class="preprocessing-doc-term">' + term + ':</span> ' +
+          '<span class="preprocessing-doc-desc">' + description + '</span></li>'
         );
         continue;
       }
 
       if (isBullet) {
-        listItems.push(`<li><span class="preprocessing-doc-desc">${escapeHtml(itemText)}</span></li>`);
+        listItems.push('<li><span class="preprocessing-doc-desc">' + escapeHtml(itemText) + '</span></li>');
         continue;
       }
 

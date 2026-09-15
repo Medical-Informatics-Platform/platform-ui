@@ -157,12 +157,15 @@ function attachChartTooltip(
     count === null ? 'Masked for privacy (count below minimum threshold)' : smartFormat(count);
 
   const showTooltip = (binLabel: string, count: number | null) => {
+    tooltip.selectAll('*').remove();
     tooltip
-      .style('visibility', 'visible')
-      .html(`
-          <div style="margin-bottom: 4px; font-weight: 600; line-height: 1.4;">${formatTitle(binLabel)}</div>
-          <div>Count: ${formatCountLabel(count)}</div>
-        `);
+      .append('div')
+      .style('margin-bottom', '4px')
+      .style('font-weight', '600')
+      .style('line-height', '1.4')
+      .text(formatTitle(binLabel));
+    tooltip.append('div').text('Count: ' + formatCountLabel(count));
+    tooltip.style('visibility', 'visible');
   };
 
   const moveTooltip = (event: MouseEvent) => {

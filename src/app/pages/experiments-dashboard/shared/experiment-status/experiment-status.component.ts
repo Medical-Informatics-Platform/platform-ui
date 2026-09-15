@@ -36,7 +36,7 @@ export const statusChip = (status: string | null | undefined): Chip => {
       [class.pending]="chip().tone === 'pending'"
     >
       <i class="fas" [class]="chip().icon" aria-hidden="true"></i>
-      <span>{{ chip().label }}</span>
+      <span [textContent]="chip().label"></span>
     </span>
   `,
   styleUrl: './experiment-status.component.css',

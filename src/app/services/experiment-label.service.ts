@@ -63,7 +63,7 @@ export class ExperimentLabelService {
         if (!model) return empty;
         return build(model, this.expStudio.convertToD3Hierarchy(model));
       } catch (err) {
-        console.error(`[ExperimentLabelService] failed to load ${errorLabel}`, err);
+        console.error('[ExperimentLabelService] failed to load', errorLabel, err);
         return empty;
       } finally {
         inflight.delete(domain);

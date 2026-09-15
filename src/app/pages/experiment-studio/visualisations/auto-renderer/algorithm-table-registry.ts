@@ -1270,3 +1270,11 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   // Default fallback
   default: () => []
 };
+
+
+/** Safe key lookup for callers holding an algorithm name from the backend. */
+export function getAlgorithmTableBuilder(algorithmKey: string | null | undefined): TableBuilder | undefined {
+  if (!algorithmKey) return undefined;
+  const entry = Object.entries(AlgorithmTableRegistry).find(([key]) => key === algorithmKey);
+  return entry?.[1];
+}
