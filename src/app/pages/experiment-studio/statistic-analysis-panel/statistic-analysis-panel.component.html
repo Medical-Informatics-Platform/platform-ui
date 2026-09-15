@@ -519,8 +519,9 @@
           }
           <!-- Dashed rail rows: a sub-step the stage can still create, so a stage grows
                without being expanded first. Each row is the whole add flow and the station
-               it opens is already narrowed to the matching sub-step. -->
-          @if (!showOutliersSection) {
+               it opens is already narrowed to the matching sub-step. A row disappears only
+               once the rail itself holds the step, never because an editor was opened. -->
+          @if (!outlierSubNodeApplied) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
             <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('outlier')" title="Add and open this step">

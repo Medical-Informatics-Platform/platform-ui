@@ -441,6 +441,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** Track if outlier section is explicitly enabled by user */
   readonly userEnabledOutliers = signal<boolean>(false);
 
+  /**
+   * Which outlier card the editor shows: the station once the step is opened or holds a
+   * rule, the dashed add card while it is still dormant. The rail does not read this —
+   * see `outlierSubNodeApplied`.
+   */
   get showOutliersSection(): boolean {
     if (this.userEnabledOutliers()) return true;
     const hasApplied = Object.values(this.appliedOutlierRules).some((r) => r && r.enabled);
@@ -562,6 +567,17 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
 
     return nodes;
+  }
+
+  /**
+   * Rail counterpart of the outlier step: whether the rail already draws it as a node.
+   * The dashed row that creates a sub-step must answer to the same source as the rail's own
+   * rows — the persisted request — so a sub-step always has exactly one representation. The
+   * editor's `showOutliersSection` also turns true on a merely opened step, which used to
+   * leave an untouched step that was closed again with neither a node nor an add row.
+   */
+  get outlierSubNodeApplied(): boolean {
+    return this.appliedPreprocessingSubNodes.some((node) => node.id === 'outlier');
   }
 
   get appliedPreprocessingCount(): number {

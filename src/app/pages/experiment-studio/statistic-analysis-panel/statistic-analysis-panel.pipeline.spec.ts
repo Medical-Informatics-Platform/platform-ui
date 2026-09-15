@@ -246,6 +246,37 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(railRows(pipelineCard('analysis-preprocessing')).ghost).toEqual([]);
     });
 
+    /**
+     * An opened step that was never configured contributes nothing to the request, so closing
+     * it hands the stage back exactly as it was: the rail must keep offering the step, or the
+     * one control that creates it is gone until the user finds the editor by another route.
+     */
+    it('offers the outlier step from the rail again after an untouched step is closed', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        const rail = railRows(pipelineCard('analysis-preprocessing'));
+        (rail.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        // Nothing was configured, so the station footer's primary slot closes the station.
+        expect(component.pendingChangeCount).toBe(0);
+        component.commitOrClosePreprocessing();
+        fixture.detectChanges();
+
+        expect(component.sectionOpen().setup).toBeFalse();
+        expect(mockExpService.appliedPreprocessingConfig()).toBeNull();
+        const rows = railRows(pipelineCard('analysis-preprocessing'));
+        expect(rows.live.length).toBe(1);
+        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add outlier clipping')]);
+
+        // The row is still the whole add flow, and reopens the station on that sub-step.
+        (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        fixture.detectChanges();
+        expect(component.sectionOpen().setup).toBeTrue();
+        expect(component.preprocessingStepOpen.outlier).toBeTrue();
+    });
+
     it('opens the transformation stage on a blank column from the collapsed rail', () => {
         seedAppliedConfig({
             categorical_column_creator: {
