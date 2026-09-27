@@ -162,14 +162,20 @@ Note:
 ## `KMeansResult`
 
 Data includes:
-- `centers` (2D, 3D, or higher-dimensional)
+- `variables`, `k_selection`, `selected_k`, `initialization_method`, `n_init`, `converged`, `n_iter`
+- `clusters` (label, `size_interval`, `center` per variable, `profile`, `interpretation`, `quality.compactness`)
+- `elbow` (null, or `k_min`/`k_max`, `selected_k`, `inertia_by_k`, `warning`)
+- `n_obs_interval`, `center_definition`, `privacy_note`, `intended_use`, `warnings`, `limitations`
 
 Proposed visualization:
-- For 2D centers: Scatter plot.
-- For 3D centers: 3D scatter plot.
-- For >3 dimensions: Parallel coordinates plot.
-- Supporting table:
-  - Cluster center coordinates.
+- For 2 variables: Scatter plot of cluster centers.
+- For 3 variables: 3D scatter plot of cluster centers.
+- For any other number of variables: Parallel coordinates plot.
+- When `elbow` is present: Elbow curve of `inertia_by_k` with the selected k marked.
+- Supporting tables:
+  - K-Means summary (k selection, k, observations, initialization, convergence).
+  - Cluster centers and cluster profiles per cluster.
+  - Notes (privacy, center definition, warnings, limitations, intended use).
 
 ## `PCAResult`
 

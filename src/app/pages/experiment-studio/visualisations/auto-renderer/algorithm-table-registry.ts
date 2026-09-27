@@ -7,7 +7,7 @@ import {
   KMeansResult, PCAResult, PearsonResult,
   HistogramResult, DescriptiveStatsResult,
   VariableStats, NominalDescriptiveStats, NumericalDescriptiveStats,
-  QuartilesResult, BinnedMannWhitneyUTestResult
+  QuartilesResult, BinnedMannWhitneyUTestResult, StandardizedMeanDifferenceResult
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
@@ -381,12 +381,57 @@ function buildHistogramTables(result: HistogramResult): TableSpec[] {
 
 export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   kmeans: (result: KMeansResult) => {
-    const centers = result?.centers;
-    if (!Array.isArray(centers) || centers.length === 0) return [];
-    const dims = centers[0]?.length || 0;
-    const columns = [...Array(dims)].map((_, i) => ['x', 'y', 'z'][i] || `dim${i + 1}`);
-    const rows = centers.map((row: number[]) => row.map(v => Number(v.toFixed(3))));
-    return [{ title: 'K-Means Centers', columns, rows }];
+    if (!Array.isArray(result?.clusters) || result.clusters.length === 0) return [];
+
+    const variables = result.variables ?? [];
+    const clusters = result.clusters;
+    const tables: TableSpec[] = [{
+      title: 'K-Means Summary',
+      columns: ['Metric', 'Value'],
+      layout: 'compact',
+      rows: [
+        ['K selection', result.k_selection],
+        ['Selected k', formatDecimal(result.selected_k)],
+        ['Observations', result.n_obs_interval],
+        ['Initialization method', result.initialization_method],
+        ['Initializations', formatDecimal(result.n_init)],
+        ['Converged', result.converged ? 'Yes' : 'No'],
+        ['Iterations', formatDecimal(result.n_iter)],
+      ],
+    }, {
+      title: 'Cluster Centers',
+      columns: ['Cluster', 'Size', ...variables],
+      rows: clusters.map(c => [c.label, c.size_interval, ...variables.map(v => formatDecimal(c.center[v]))]),
+    }, {
+      title: 'Cluster Profiles',
+      columns: ['Cluster', 'Compactness', 'Profile', 'Interpretation'],
+      rows: clusters.map(c => [c.label, c.quality?.compactness ?? '-', (c.profile ?? []).join('; '), c.interpretation]),
+    }];
+
+    const noteRows: any[][] = [];
+    if (result.privacy_note) {
+      noteRows.push(['Privacy', result.privacy_note]);
+    }
+    if (result.center_definition) {
+      noteRows.push(['Centers', result.center_definition]);
+    }
+    for (const warning of result.warnings ?? []) {
+      noteRows.push(['Warning', warning]);
+    }
+    if (result.elbow?.warning) {
+      noteRows.push(['Warning', result.elbow.warning]);
+    }
+    for (const limitation of result.limitations ?? []) {
+      noteRows.push(['Limitation', limitation]);
+    }
+    for (const use of result.intended_use ?? []) {
+      noteRows.push(['Intended use', use]);
+    }
+    if (noteRows.length) {
+      tables.push({ title: 'Notes', columns: ['Type', 'Note'], rows: noteRows });
+    }
+
+    return tables;
   },
 
   linear_regression: (result: LinearRegressionResult) => {
@@ -1213,6 +1258,19 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         ['Group B sample size', formatDecimal(result.n2)],
       ],
       layout: 'compact',
+    }];
+  },
+
+  standardized_mean_difference: (result: StandardizedMeanDifferenceResult) => {
+    if (!Array.isArray(result?.comparisons)) return [];
+    return [{
+      title: 'Standardized Mean Difference',
+      columns: ['Group 1', 'Group 2', 'SMD'],
+      rows: result.comparisons.map(comparison => [
+        String(comparison.group1),
+        String(comparison.group2),
+        formatDecimal(comparison.smd),
+      ]),
     }];
   },
 

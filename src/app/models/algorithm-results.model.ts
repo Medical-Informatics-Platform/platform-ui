@@ -100,6 +100,16 @@ export interface BinnedMannWhitneyUTestResult {
     n2: number;
 }
 
+export interface StandardizedMeanDifferenceComparison {
+    group1: string | number;
+    group2: string | number;
+    smd: number;
+}
+
+export interface StandardizedMeanDifferenceResult {
+    comparisons: StandardizedMeanDifferenceComparison[];
+}
+
 export interface HistogramResult {
     histogram: HistogramResultItem[];
 }
@@ -112,10 +122,41 @@ interface HistogramResultItem {
     counts: (number | null)[];
 }
 
+export interface KMeansClusterReport {
+    cluster_id: string;
+    label: string;
+    size_interval: string;
+    center: Record<string, number>;
+    profile: string[];
+    interpretation: string;
+    quality: { compactness: string | null };
+}
+
+export interface KMeansElbowReport {
+    k_min: number;
+    k_max: number;
+    selected_k: number;
+    inertia_by_k: Record<string, number>;
+    warning: string | null;
+}
+
 export interface KMeansResult {
     title: string;
-    n_obs: number;
-    centers: number[][];
+    variables: string[];
+    k_selection: 'manual' | 'elbow';
+    selected_k: number;
+    initialization_method: string;
+    n_init: number;
+    n_obs_interval: string;
+    center_definition: string;
+    intended_use: string[];
+    privacy_note: string;
+    clusters: KMeansClusterReport[];
+    elbow: KMeansElbowReport | null;
+    converged: boolean;
+    n_iter: number;
+    warnings: string[];
+    limitations: string[];
 }
 
 export interface LinearRegressionResult {

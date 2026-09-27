@@ -44,17 +44,37 @@ describe('Chart renderers regressions', () => {
     expect(charts.length).toBe(1);
   });
 
-  it('falls back to parallel coordinates for high-dimensional kmeans centers', () => {
+  it('falls back to parallel coordinates for high-dimensional kmeans clusters', () => {
     const charts = buildKMeansChart({
-      centers: [
-        [0.1, 0.2, 0.3, 0.4],
-        [0.5, 0.6, 0.7, 0.8],
+      variables: ['v1', 'v2', 'v3', 'v4'],
+      clusters: [
+        { label: 'Cluster 0', center: { v1: 0.1, v2: 0.2, v3: 0.3, v4: 0.4 } },
+        { label: 'Cluster 1', center: { v1: 0.5, v2: 0.6, v3: 0.7, v4: 0.8 } },
       ],
+      elbow: null,
     });
 
     expect(charts.length).toBe(1);
     expect((charts[0] as any).title?.text).toContain('Parallel Coordinates');
     expect((charts[0] as any).series?.length).toBe(2);
+    expect((charts[0] as any).parallelAxis.map((a: any) => a.name)).toEqual(['v1', 'v2', 'v3', 'v4']);
+    expect((charts[0] as any).series?.[0]?.name).toBe('Cluster 0');
+  });
+
+  it('appends an elbow curve when kmeans used elbow selection', () => {
+    const charts = buildKMeansChart({
+      variables: ['v1', 'v2'],
+      clusters: [
+        { label: 'Cluster 0', center: { v1: 0.1, v2: 0.2 } },
+        { label: 'Cluster 1', center: { v1: 0.5, v2: 0.6 } },
+      ],
+      elbow: { k_min: 2, k_max: 4, selected_k: 3, inertia_by_k: { '4': 10, '2': 30, '3': 15 }, warning: null },
+    });
+
+    expect(charts.length).toBe(2);
+    expect((charts[1] as any).title?.text).toBe('Elbow Curve');
+    expect((charts[1] as any).xAxis?.data).toEqual(['2', '3', '4']);
+    expect((charts[1] as any).series?.[0]?.data).toEqual([30, 15, 10]);
   });
 
   it('builds class prior probabilities from Naive Bayes log priors', () => {

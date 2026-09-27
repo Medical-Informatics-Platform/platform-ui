@@ -121,6 +121,18 @@ export class ExperimentsDashboardService {
     this.lastListRequest?.();
   }
 
+  /** Visible K-means experiments (newest first) that can provide cluster columns. */
+  listKMeansExperiments(): Observable<BackendExperiment[]> {
+    return this.http
+      .get<ExperimentsPage>(this.apiUrl, {
+        params: this.buildServerParams(0, 50, false, 'created-desc', {
+          ...DEFAULT_FILTERS,
+          algorithm: 'kmeans',
+        }),
+      })
+      .pipe(map((page) => page?.experiments ?? []));
+  }
+
   private applyServerPage(response: ExperimentsPage | null): void {
     this.isLoading.set(false);
     const mappedExperiments = (response?.experiments || []).map(mapBackendToFrontend);

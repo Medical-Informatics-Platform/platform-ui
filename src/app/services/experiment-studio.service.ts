@@ -24,6 +24,11 @@ import {
 } from '../core/algorithm-parameter.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
+import {
+  KMEANS_CLUSTER_CREATOR,
+  KMeansClusterCreatorConfig,
+  isPlainObject,
+} from '../core/kmeans-cluster-source.utils';
 
 type PathologyAccessWarningKind = 'no-pathologies' | 'no-access';
 
@@ -360,15 +365,31 @@ export class ExperimentStudioService {
     return { ...this.syntheticDerivedNode(code), enumerations };
   }
 
-  /** Synthetic node for every applied transformation column, exposed in the assignable pool. */
+  /**
+   * Synthetic node for every applied transformation column (and the applied
+   * K-means cluster column), exposed in the assignable pool.
+   */
   private transformationColumnNodes(): any[] {
-    return this.appliedCategoricalCreators()
+    const nodes = this.appliedCategoricalCreators()
       .map((creator) =>
         this.derivedColumnNode(
           creator as { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown }
         )
       )
       .filter((node): node is any => !!node);
+
+    const clusterCreator = this.appliedKMeansClusterCreator();
+    if (clusterCreator) {
+      nodes.push({
+        ...this.syntheticDerivedNode(clusterCreator.code),
+        enumerations: clusterCreator.reusable_preprocessing.cluster_choices.map((choice) => ({
+          code: choice.cluster_id,
+          label: choice.label,
+        })),
+      });
+    }
+
+    return nodes;
   }
 
   /** Every applied categorical_column_creator config, in store order. */
@@ -376,6 +397,34 @@ export class ExperimentStudioService {
     return (this.appliedPreprocessingConfig()?.['categorical_column_creator'] as
       | Record<string, unknown>[]
       | undefined) ?? [];
+  }
+
+  /** Datasets the next analysis request sends: the selection minus excluded datasets. */
+  requestDatasets(): string[] {
+    return this.selectedDatasetsSignal().filter((ds) => !this.excludedDatasetsSignal().includes(ds));
+  }
+
+  /** Cohort filters the next analysis request sends, or null when there are no rules. */
+  requestFilters(filterOverride?: BackendFilter | null): BackendFilter | null {
+    const filterLogic = this.resolveFilterPayload(filterOverride);
+    return filterLogic && Array.isArray(filterLogic.rules) && filterLogic.rules.length > 0
+      ? filterLogic
+      : null;
+  }
+
+  /**
+   * The applied kmeans_cluster_creator config (a single object under its own key),
+   * or null when absent / malformed.
+   */
+  appliedKMeansClusterCreator(): KMeansClusterCreatorConfig | null {
+    const creator = this.appliedPreprocessingConfig()?.[KMEANS_CLUSTER_CREATOR] as
+      | KMeansClusterCreatorConfig
+      | undefined;
+    if (!isPlainObject(creator)) return null;
+    const code = typeof creator.code === 'string' ? creator.code.trim() : '';
+    if (!code) return null;
+    if (!isPlainObject(creator.reusable_preprocessing)) return null;
+    return creator;
   }
 
 
@@ -581,12 +630,26 @@ export class ExperimentStudioService {
    * using source CDEs in inputdata.variables and the new column code in algorithm.y.
    */
   setTransformationPreprocessing(config: Record<string, unknown>[] | null): void {
+    this.setAppliedPreprocessingStep('categorical_column_creator', config);
+  }
+
+  /**
+   * Merge the K-means cluster column step (exaflow `kmeans_cluster_creator`) into the
+   * same shared APPLIED_DESCRIPTIVE_PREPROCESSING config the transformation step uses,
+   * so it reaches every experiment run and the created column is assignable to y/x.
+   */
+  setKMeansClusterPreprocessing(config: KMeansClusterCreatorConfig | null): void {
+    this.setAppliedPreprocessingStep(KMEANS_CLUSTER_CREATOR, config);
+  }
+
+  /** Merge one preprocessing step into the shared applied config; null/empty clears it. */
+  private setAppliedPreprocessingStep(key: string, value: unknown): void {
     const current = this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? {};
     const next: PreprocessingConfig = { ...current };
-    if (config?.length) {
-      next['categorical_column_creator'] = config;
+    if (value === null || value === undefined || (Array.isArray(value) && !value.length)) {
+      delete next[key];
     } else {
-      delete next['categorical_column_creator'];
+      next[key] = value;
     }
     this.algorithmPreprocessingConfigurations.set({
       ...this.algorithmPreprocessingConfigurations(),
@@ -759,9 +822,7 @@ export class ExperimentStudioService {
     extraVariableCodes?: string[] | null,
   ): AnalysisInputData {
     const inputdata = algo.inputdata ?? {};
-    const datasets = datasetsOverride ?? this.selectedDatasetsSignal().filter(
-      (ds) => !this.excludedDatasetsSignal().includes(ds),
-    );
+    const datasets = datasetsOverride ?? this.requestDatasets();
     const variables = this.collectSourceVariables(filtersPayload, extraVariableCodes);
 
     return {
@@ -790,6 +851,8 @@ export class ExperimentStudioService {
           ...this.collectFilterVariableCodes(filtersPayload),
           // Transformation-rule filter fields (source CDEs referenced by the rules).
           ...this.collectTransformationFilterCodes(),
+          // Cluster CDEs the applied K-means cluster creator is built from.
+          ...this.kmeansClusterVariables(this.appliedKMeansClusterCreator()),
           // Previewed CDEs (histogram inspect happens before add-to-pool).
           ...this.toArray(extraCodes),
         ]
@@ -820,6 +883,42 @@ export class ExperimentStudioService {
       }
     }
     return steps.length ? steps : null;
+  }
+
+  /**
+   * Exaflow rejects missing values in the variables a K-means cluster column is
+   * built from, and the cluster step must run after missing value handling. Only
+   * the request is adjusted — the stored config keeps the user's own choices.
+   */
+  private withKMeansClusterRequirements(
+    config: PreprocessingConfig | null,
+  ): PreprocessingConfig | null {
+    const creator = this.appliedKMeansClusterCreator();
+    if (!creator) return config;
+
+    // Rebuild the key order so the cluster step is emitted last, after
+    // missing_values_handler and every other step.
+    const next: PreprocessingConfig = {};
+    for (const [key, value] of Object.entries(config ?? {})) {
+      if (key !== KMEANS_CLUSTER_CREATOR) next[key] = value;
+    }
+
+    const clusterVariables = this.kmeansClusterVariables(creator);
+
+    if (clusterVariables.length) {
+      const missing = isPlainObject(next[MISSING_VALUES_HANDLER])
+        ? { ...(next[MISSING_VALUES_HANDLER] as Record<string, unknown>) }
+        : {};
+      const strategies = { ...((missing['strategies'] as Record<string, unknown>) ?? {}) };
+      for (const code of clusterVariables) {
+        if (strategies[code] === undefined) strategies[code] = 'drop';
+      }
+      next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
+    }
+
+    next[KMEANS_CLUSTER_CREATOR] = creator;
+
+    return next;
   }
 
   private preprocessingStepsToConfig(
@@ -937,17 +1036,9 @@ export class ExperimentStudioService {
 
     // filters logic - a `null` filterOverride is the step-0 source snapshot,
     // which previews the selection with no cohort filter attached.
-    const filterLogic = this.resolveFilterPayload(filterOverride);
-    const hasFilters =
-      !!(
-        filterLogic &&
-        Array.isArray(filterLogic.rules) &&
-        filterLogic.rules.length > 0
-      );
-
     const yPayload = this.rolePayload(algoConfig, 'y', variables);
     const xPayload = this.rolePayload(algoConfig, 'x', covariates);
-    const filtersPayload = hasFilters ? filterLogic : null;
+    const filtersPayload = this.requestFilters(filterOverride);
 
     // special case for histogram (transient preview)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
@@ -980,11 +1071,13 @@ export class ExperimentStudioService {
         },
       );
     }
-    const preprocessing = this.resolveRequestPreprocessing(
-      requestAlgorithmName,
-      yPayload,
-      xPayload,
-      this.getStoredPreprocessingConfig(algoConfig.name, requestAlgorithmName)
+    const preprocessing = this.withKMeansClusterRequirements(
+      this.resolveRequestPreprocessing(
+        requestAlgorithmName,
+        yPayload,
+        xPayload,
+        this.getStoredPreprocessingConfig(algoConfig.name, requestAlgorithmName)
+      )
     );
     return this.buildExperimentRequest(
       expName,
@@ -1304,7 +1397,15 @@ export class ExperimentStudioService {
     const knownKeys = new Set([MISSING_VALUES_HANDLER, OUTLIER_WINSORIZER, 'longitudinal_transformer']);
     Object.keys(preprocessing)
       .filter((key) => !knownKeys.has(key))
-      .forEach((key) => entries.push({ label: key.replace(/_/g, ' '), value: 'configured' }));
+      .forEach((key) => {
+        if (key === KMEANS_CLUSTER_CREATOR) {
+          const creator = preprocessing[key] as { code?: unknown } | undefined;
+          const code = typeof creator?.code === 'string' ? creator.code.trim() : '';
+          entries.push({ label: 'K-means cluster column', value: code || 'configured' });
+          return;
+        }
+        entries.push({ label: key.replace(/_/g, ' '), value: 'configured' });
+      });
 
     return entries;
   }
@@ -1581,8 +1682,7 @@ export class ExperimentStudioService {
   ): ExperimentCreateRequest {
     // A `null` filterOverride is the step-0 source snapshot: the same describe
     // run with no cohort filter attached, i.e. the data exactly as selected.
-    const filters = this.resolveFilterPayload(filterOverride);
-    const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
+    const filtersPayload = this.requestFilters(filterOverride);
     const yPayload = variableCodes.length ? variableCodes : null;
     // Derived columns (e.g. categorical_column_creator output) belong in algorithm.y
     // only. Source inputdata.variables must be real data-model CDEs.
@@ -1590,10 +1690,10 @@ export class ExperimentStudioService {
       ? Array.from(
           new Set([
             ...sourceVariableCodes.map((code) => String(code).trim()).filter(Boolean),
-            ...this.collectFilterVariableCodes(hasFilters ? filters : null),
+            ...this.collectFilterVariableCodes(filtersPayload),
           ])
         )
-      : this.collectSourceVariables(hasFilters ? filters : null);
+      : this.collectSourceVariables(filtersPayload);
 
     return this.buildExperimentRequest(
       `experiment_describe_${variableCodes.join('_')}`,
@@ -1602,7 +1702,7 @@ export class ExperimentStudioService {
           data_model: this.getActiveDataModelCode(),
           datasets: this.selectedDatasetsSignal(),
           validation_datasets: null,
-          filters: hasFilters ? filters : null,
+          filters: filtersPayload,
           variables: sourceCodes,
         },
         preprocessing: this.preprocessingConfigToSteps(this.normalizePreprocessingConfig(preprocessing)),
@@ -1621,8 +1721,7 @@ export class ExperimentStudioService {
     parameters: Record<string, unknown>,
     preprocessing: PreprocessingConfig | null = null
   ): ExperimentCreateRequest {
-    const filters = this.filterLogic();
-    const hasFilters = !!(filters && Array.isArray(filters.rules) && filters.rules.length > 0);
+    const filtersPayload = this.requestFilters();
     const selectedYCodes = new Set(this.algorithmY().map((variable) => String(variable?.code ?? '')));
     const selectedXCodes = new Set(this.algorithmX().map((variable) => String(variable?.code ?? '')));
     const y = variableCodes.filter((code) => selectedYCodes.has(code));
@@ -1636,10 +1735,10 @@ export class ExperimentStudioService {
       {
         inputdata: {
           data_model: this.getActiveDataModelCode(),
-          datasets: this.selectedDatasetsSignal().filter(ds => !this.excludedDatasetsSignal().includes(ds)),
+          datasets: this.requestDatasets(),
           validation_datasets: null,
-          filters: hasFilters ? filters : null,
-          variables: this.collectSourceVariables(hasFilters ? filters : null),
+          filters: filtersPayload,
+          variables: this.collectSourceVariables(filtersPayload),
         },
         preprocessing: this.preprocessingConfigToSteps(this.normalizePreprocessingConfig(preprocessing)),
         algorithm: {
@@ -2041,6 +2140,13 @@ export class ExperimentStudioService {
       });
     }
     return [...codes];
+  }
+
+  /** Codes of the CDEs the given K-means cluster creator clusters on. */
+  private kmeansClusterVariables(creator: KMeansClusterCreatorConfig | null): string[] {
+    return this.toArray(creator?.reusable_preprocessing?.cluster_variables)
+      .map((code) => String(code).trim())
+      .filter((code) => code.length > 0);
   }
 
   setEditingExistingExperiment(isEditing: boolean) {
