@@ -245,6 +245,7 @@ describe('HeaderComponent', () => {
     expect(compiled.querySelector('app-studio-stepper')).toBeNull();
     const myExpBtn = compiled.querySelector<HTMLAnchorElement>('.header-nav-link--dashboard');
     expect(myExpBtn?.textContent).toContain('My experiments');
+    expect(myExpBtn?.getAttribute('data-guide')).toBe('dashboard-nav');
     expect(compiled.querySelector('.header-nav-link--studio')?.getAttribute('aria-current')).toBe('page');
     expect(compiled.querySelector('.sign-in-btn__label')?.textContent?.trim()).toBe('Marie Curie');
   });

@@ -148,4 +148,31 @@ describe('ExperimentsDashboardGuideComponent', () => {
     }
   });
 
+  it('ignores arrow keys while a text field is focused', () => {
+    component.activeSteps.set([
+      { id: 'one', section: 'Explore', title: 'One', body: '' },
+      { id: 'two', section: 'Explore', title: 'Two', body: '' },
+    ]);
+    component.isOpen.set(true);
+    component.currentIndex.set(0);
+
+    const input = document.createElement('input');
+    const preventDefault = jasmine.createSpy('preventDefault');
+    const typingEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(typingEvent, 'target', { configurable: true, value: input });
+    typingEvent.preventDefault = preventDefault;
+
+    component.onWindowKeydown(typingEvent);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(component.currentIndex()).toBe(0);
+
+    const bodyEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(bodyEvent, 'target', { configurable: true, value: document.body });
+    component.onWindowKeydown(bodyEvent);
+
+    expect(component.currentIndex()).toBe(1);
+    component.closeGuide();
+  });
+
 });

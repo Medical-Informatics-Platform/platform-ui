@@ -6,6 +6,7 @@ import {
   ExperimentsDashboardGuideStep,
 } from './experiments-dashboard-guide.content';
 import { GuideLauncher, GuideLauncherService } from '../../../services/guide-launcher.service';
+import { isTypingTarget } from '../../../core/keyboard.utils';
 
 interface GuideRect {
   top: number;
@@ -225,12 +226,18 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
     }
 
     if (event.key === 'ArrowRight') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
       this.goToNextStep();
       return;
     }
 
     if (event.key === 'ArrowLeft') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
       this.goToPreviousStep();
     }

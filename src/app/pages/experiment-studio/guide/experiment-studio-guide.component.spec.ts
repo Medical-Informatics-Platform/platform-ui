@@ -608,6 +608,9 @@ describe('ExperimentStudioGuideComponent', () => {
     const finishStep = steps.find((step: any) => step.id === 'experiment-finish');
 
     expect(finishStep?.allowTargetInteraction).toBeTrue();
+    expect(finishStep?.selector).toBe('[data-guide="dashboard-nav"]');
+    expect(finishStep?.body).toContain('header compass');
+    expect(finishStep?.body).not.toContain('the tour moves');
   });
 
   it('labels the final experiment step action as Move to dashboard', () => {
@@ -869,6 +872,87 @@ describe('ExperimentStudioGuideComponent', () => {
     const guideHostZIndex = 11000;
     const appHeaderZIndex = 10000;
     expect(guideHostZIndex).toBeGreaterThan(appHeaderZIndex);
+  });
+
+  it('ignores arrow keys while a text field is focused', () => {
+    component.activeSteps.set([
+      { id: 'one', section: 'Explore', title: 'One', body: '' },
+      { id: 'two', section: 'Explore', title: 'Two', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+    component.currentIndex.set(0);
+
+    const input = document.createElement('input');
+    const preventDefault = jasmine.createSpy('preventDefault');
+    const typingEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(typingEvent, 'target', { configurable: true, value: input });
+    typingEvent.preventDefault = preventDefault;
+
+    component.onWindowKeydown(typingEvent);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(component.currentIndex()).toBe(0);
+
+    const bodyEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(bodyEvent, 'target', { configurable: true, value: document.body });
+
+    component.onWindowKeydown(bodyEvent);
+
+    expect(component.currentIndex()).toBe(1);
+
+    component.closeGuide();
+  });
+
+  it('spots a target that renders after the step and bounds its retries', () => {
+    jasmine.clock().install();
+    const late = document.createElement('div');
+    late.setAttribute('data-guide', 'late-target');
+    late.style.cssText = 'position:fixed;top:0;left:0;width:120px;height:40px;';
+
+    try {
+      component.activeSteps.set([
+        { id: 'late', section: 'Explore', title: 'Late', body: '', selector: '[data-guide="late-target"]' },
+      ] as any);
+      component.isOpen.set(true);
+      component.currentIndex.set(0);
+
+      (component as any).syncStepLayout();
+      jasmine.clock().tick(1);
+      expect(component.highlightRect()).toBeNull();
+
+      // The owning view rendered late: the pending retry must pick the target up.
+      document.body.appendChild(late);
+      jasmine.clock().tick(150);
+      jasmine.clock().tick(260);
+      expect(component.highlightRect()).not.toBeNull();
+
+      // Attempts are bounded: an unreachable target stops polling.
+      component.activeSteps.set([
+        { id: 'never', section: 'Explore', title: 'Gone', body: '', selector: '[data-guide="never"]' },
+      ] as any);
+      (component as any).syncStepLayout();
+      jasmine.clock().tick(150 * 12);
+
+      expect((component as any).targetRetryTimer).toBeNull();
+      expect(component.highlightRect()).toBeNull();
+      expect(component.canGoToNext()).toBeTrue();
+    } finally {
+      late.remove();
+      jasmine.clock().uninstall();
+    }
+
+    component.closeGuide();
+  });
+
+  it('escapes guide labels inserted into step HTML', () => {
+    (component as any).guideCovariateLabel = 'Sex <b>x</b>';
+    (component as any).guideVariableLabel = 'Age & more';
+
+    const text = (component as any).replaceGuideTargets('Use Sex and Age');
+
+    expect(text).toContain('Sex &lt;b&gt;x&lt;/b&gt;');
+    expect(text).toContain('Age &amp; more');
+    expect(text).not.toContain('<b>');
   });
 
 });

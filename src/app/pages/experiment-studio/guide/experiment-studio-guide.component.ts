@@ -12,6 +12,8 @@ import { GuideOnboardingService } from '../../../services/guide-onboarding.servi
 import { GuideLauncherService, GuideLauncher } from '../../../services/guide-launcher.service';
 import { ExperimentStudioGuideStateService } from './experiment-studio-guide-state.service';
 import { computeGuideBlockingRects, measureGuideInteractionRect } from './experiment-studio-guide-mask.util';
+import { escapeHtml } from '../../../core/html.utils';
+import { isTypingTarget } from '../../../core/keyboard.utils';
 
 interface GuideRect {
   top: number;
@@ -44,6 +46,7 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
   private readonly guideState = inject(ExperimentStudioGuideStateService);
   private layoutTimer: number | null = null;
   private autoAdvanceTimer: number | null = null;
+  private targetRetryTimer: number | null = null;
   private targetResizeObserver: ResizeObserver | null = null;
   private observedTarget: HTMLElement | null = null;
   private domMutationObserver: MutationObserver | null = null;
@@ -198,14 +201,11 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
     this.disconnectTargetObserver();
     this.disconnectDomObserver();
     this.clearLayoutTimer();
+    this.clearTargetRetryTimer();
     this.clearAutoAdvanceTimer();
   }
 
-  startGuide(manual = true): void {
-    if (!manual && this.guideOnboarding.hasSeenStudioGuide()) {
-      return;
-    }
-
+  startGuide(): void {
     this.pendingStudioResetOnContinue.set(
       this.guideOnboarding.hasSeenStudioGuide()
       && this.experimentStudioService.hasPersistedStudioWork(),
@@ -251,6 +251,7 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
     this.disconnectTargetObserver();
     this.disconnectDomObserver();
     this.clearLayoutTimer();
+    this.clearTargetRetryTimer();
     this.clearAutoAdvanceTimer();
   }
 
@@ -316,12 +317,18 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
     }
 
     if (event.key === 'ArrowRight') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
       this.goToNextStep();
       return;
     }
 
     if (event.key === 'ArrowLeft') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
       event.preventDefault();
       this.goToPreviousStep();
     }
@@ -359,11 +366,16 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
   }
 
   private replaceGuideTargets(text: string): string {
+    // Labels come from runtime env and land in strings bound with [innerHTML],
+    // so escape them; the static step HTML keeps its markup.
+    const covariateLabel = escapeHtml(this.guideCovariateLabel);
+    const variableLabel = escapeHtml(this.guideVariableLabel);
+
     return text
-      .replace(/\bSex\b/g, this.guideCovariateLabel)
-      .replace(/\bAge\b/g, this.guideVariableLabel)
-      .replace(/\{\{GUIDE_COVARIATE\}\}/g, this.guideCovariateLabel)
-      .replace(/\{\{GUIDE_VARIABLE\}\}/g, this.guideVariableLabel);
+      .replace(/\bSex\b/g, covariateLabel)
+      .replace(/\bAge\b/g, variableLabel)
+      .replace(/\{\{GUIDE_COVARIATE\}\}/g, covariateLabel)
+      .replace(/\{\{GUIDE_VARIABLE\}\}/g, variableLabel);
   }
 
   private syncStepLayout(): void {
@@ -372,28 +384,68 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // A step change must never let a pending retry apply to the new step.
+    this.clearTargetRetryTimer();
+
     // Reveal the owning view before measuring the target (hidden views have no size).
     this.activateViewForStep(step);
 
-    const scrollAndObserve = () => {
-      const target = step.selector ? this.findTarget(step.selector) : null;
-      this.observeTarget(target);
-      if (target) {
-        target.scrollIntoView({
-          behavior: 'smooth',
-          block: this.getScrollBlock(step),
-          inline: 'nearest',
-        });
-      }
-      this.scheduleLayoutUpdate(target ? 260 : 0, true);
-    };
-
-    scrollAndObserve();
+    const target = step.selector ? this.findTarget(step.selector) : null;
+    this.focusStepTarget(step, target);
 
     // The owning view may not be rendered yet after activation, so retry the
-    // target scroll once the view has had a change-detection cycle to appear.
-    if (!step.selector || !this.findTarget(step.selector)) {
-      window.setTimeout(scrollAndObserve, 60);
+    // target scroll on a bounded schedule until the view has appeared.
+    if (!target && step.selector) {
+      this.scheduleTargetRetry(step, 0);
+    }
+  }
+
+  /**
+   * Observes and scrolls to the step target, then lets the smooth scroll settle
+   * before the spotlight is re-measured.
+   */
+  private focusStepTarget(step: ExperimentStudioGuideStep, target: HTMLElement | null): void {
+    this.observeTarget(target);
+    if (target) {
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: this.getScrollBlock(step),
+        inline: 'nearest',
+      });
+    }
+    this.scheduleLayoutUpdate(target ? 260 : 0, true);
+  }
+
+  /**
+   * Bounded retry for a step whose target is not measurable yet because its view
+   * is still rendering. Stops when the target appears, the step changes, or the
+   * attempts run out (then the spotlight simply stays off, as for any no-selector step).
+   */
+  private scheduleTargetRetry(step: ExperimentStudioGuideStep, attempt: number): void {
+    const maxAttempts = 12;
+    const retryDelayMs = 150;
+
+    this.clearTargetRetryTimer();
+
+    this.targetRetryTimer = window.setTimeout(() => {
+      this.targetRetryTimer = null;
+      if (!this.isOpen() || this.currentStep()?.id !== step.id || !step.selector) {
+        return;
+      }
+
+      const target = this.findTarget(step.selector);
+      if (target) {
+        this.focusStepTarget(step, target);
+      } else if (attempt < maxAttempts - 1) {
+        this.scheduleTargetRetry(step, attempt + 1);
+      }
+    }, retryDelayMs);
+  }
+
+  private clearTargetRetryTimer(): void {
+    if (this.targetRetryTimer !== null) {
+      window.clearTimeout(this.targetRetryTimer);
+      this.targetRetryTimer = null;
     }
   }
 
@@ -481,6 +533,10 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
     this.activateViewForStep(step);
 
     const target = step.selector ? this.findTarget(step.selector) : null;
+    if (target) {
+      // The target appeared on its own, so there is nothing left to poll for.
+      this.clearTargetRetryTimer();
+    }
     this.highlightRect.set(target ? this.expandRect(target.getBoundingClientRect()) : null);
 
     const cutoutTargets = step.allowTargetInteraction
@@ -507,17 +563,7 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
   }
 
   private canFocusGuideCard(): boolean {
-    const active = this.document.activeElement;
-    if (!(active instanceof HTMLElement)) {
-      return true;
-    }
-
-    const tag = active.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-      return false;
-    }
-
-    return !active.isContentEditable;
+    return !isTypingTarget(this.document.activeElement);
   }
 
   /**
@@ -620,7 +666,8 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
           && !this.findTarget('[data-guide="experiment-result"]');
       }
       default:
-        return true;
+        // Compile-time net: a requirement added to the union without a case fails the build.
+        return step.requirement satisfies never;
     }
   }
 

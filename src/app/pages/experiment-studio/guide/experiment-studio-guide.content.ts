@@ -290,7 +290,8 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'experiment-finish',
     section: 'Results',
     title: 'Studio guide done',
-    body: 'You finished the Studio path through Experiment Execution. Next, the tour moves to <strong>My experiments</strong> on the dashboard.',
+    body: 'You finished the Studio path through Experiment Execution. Next opens <strong>My experiments</strong>. That page has its own guide, started from the header compass.',
+    selector: '[data-guide="dashboard-nav"]',
     allowTargetInteraction: true,
   }
 ];
