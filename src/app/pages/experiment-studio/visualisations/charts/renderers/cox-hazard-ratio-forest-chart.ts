@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 export interface CoxForestRow {
   label: string;
@@ -11,14 +12,6 @@ export interface CoxForestRow {
 const SIGNIFICANT_COLOR = '#1d4ed8';
 const NEUTRAL_COLOR = '#64748b';
 const REFERENCE_LINE_COLOR = '#94a3b8';
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export function formatClinicianPValue(pValue: number): string {
   if (!Number.isFinite(pValue)) return 'N/A';

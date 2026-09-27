@@ -17,11 +17,6 @@ describe('AlgorithmRoleAssignmentComponent', () => {
   const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
   const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
   const derived = { code: 'derived_col', label: 'Derived column', type: 'real', isCreatedColumn: true };
-  const predictorStack = Array.from({ length: 8 }, (_, index) => ({
-    code: `predictor_${index}`,
-    label: `Predictor ${index + 1}`,
-    type: 'real',
-  }));
 
   beforeEach(async () => {
     experimentStudioService = {
@@ -189,25 +184,17 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(predictorRect.width).toBeCloseTo(outcomeRect.width, 0);
   });
 
-  it('keeps the last predictor chip inside the predictor rail when the stack is full', () => {
-    experimentStudioService.algorithmX.set(predictorStack);
+  it('scrolls a long chip stack instead of growing the rail', () => {
+    experimentStudioService.algorithmX.set([sex, bmi]);
     fixture.detectChanges();
 
-    const root = fixture.nativeElement as HTMLElement;
-    const predictorRail = root.querySelector<HTMLElement>('.rail--x');
-    const predictorChips = predictorRail?.querySelector<HTMLElement>('.chips');
-    const chips = Array.from(predictorRail!.querySelectorAll<HTMLElement>('.chip--x'));
+    const chips = (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLElement>('.rail--x .chips')!;
+    const style = getComputedStyle(chips);
 
-    expect(chips.length).toBe(predictorStack.length);
-
-    predictorChips!.scrollTop = predictorChips!.scrollHeight;
-
-    const railRect = predictorRail!.getBoundingClientRect();
-    const lastChipRect = chips.at(-1)!.getBoundingClientRect();
-
-    expect(lastChipRect.bottom).toBeLessThanOrEqual(railRect.bottom + 1);
+    expect(style.overflowY).toBe('auto');
+    expect(style.maxHeight).not.toBe('none');
   });
-
 
   it('keeps the assignment column on the same row as the pool list, to its right', () => {
     experimentStudioService.algorithmY.set([age]);

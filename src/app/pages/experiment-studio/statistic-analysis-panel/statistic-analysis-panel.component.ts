@@ -20,6 +20,7 @@ import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
+import { escapeHtml } from '../../../core/html.utils';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { HistogramComponent } from '../visualisations/histogram/histogram.component';
@@ -1650,13 +1651,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (!trimmed) {
       return '';
     }
-
-    const escapeHtml = (value: string): string =>
-      value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 
     const lines = trimmed.includes('\n')
       ? trimmed.split(/\r?\n/)

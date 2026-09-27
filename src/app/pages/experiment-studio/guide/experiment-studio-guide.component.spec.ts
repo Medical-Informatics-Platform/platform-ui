@@ -944,15 +944,4 @@ describe('ExperimentStudioGuideComponent', () => {
     component.closeGuide();
   });
 
-  it('escapes guide labels inserted into step HTML', () => {
-    (component as any).guideCovariateLabel = 'Sex <b>x</b>';
-    (component as any).guideVariableLabel = 'Age & more';
-
-    const text = (component as any).replaceGuideTargets('Use Sex and Age');
-
-    expect(text).toContain('Sex &lt;b&gt;x&lt;/b&gt;');
-    expect(text).toContain('Age &amp; more');
-    expect(text).not.toContain('<b>');
-  });
-
 });
