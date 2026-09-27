@@ -7,7 +7,7 @@
   <div class="rails">
     <div class="rail rail--y" [class.rail--empty]="y().length === 0">
       <div class="rail-label">Outcome <em>y</em> <span>usually one</span></div>
-      <div class="chips" cdkDropList #yList="cdkDropList" cdkDropListOrientation="horizontal"
+      <div class="chips" cdkDropList #yList="cdkDropList" cdkDropListOrientation="mixed"
         [cdkDropListConnectedTo]="[xList]" (cdkDropListDropped)="onChipDrop($event, 'y')">
         @if (y().length === 0) {
         <p class="invite">No outcome yet — set one from the list below</p>
@@ -27,7 +27,7 @@
     </div>
     <div class="rail rail--x" [class.rail--empty]="x().length === 0">
       <div class="rail-label">Predictors <em>x</em> <span>zero to many</span></div>
-      <div class="chips" cdkDropList #xList="cdkDropList" cdkDropListOrientation="horizontal"
+      <div class="chips" cdkDropList #xList="cdkDropList" cdkDropListOrientation="mixed"
         [cdkDropListConnectedTo]="[yList]" (cdkDropListDropped)="onChipDrop($event, 'x')">
         @if (x().length === 0) {
         <p class="invite">No predictors yet — add from the list, or leave empty</p>

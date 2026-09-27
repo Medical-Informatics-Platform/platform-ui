@@ -17,6 +17,11 @@ describe('AlgorithmRoleAssignmentComponent', () => {
   const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
   const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
   const derived = { code: 'derived_col', label: 'Derived column', type: 'real', isCreatedColumn: true };
+  const predictorStack = Array.from({ length: 8 }, (_, index) => ({
+    code: `predictor_${index}`,
+    label: `Predictor ${index + 1}`,
+    type: 'real',
+  }));
 
   beforeEach(async () => {
     experimentStudioService = {
@@ -182,6 +187,25 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     // The predictor slot starts where the outcome slot ends, at the same full width.
     expect(predictorRect.top).toBeGreaterThanOrEqual(outcomeRect.bottom - 1);
     expect(predictorRect.width).toBeCloseTo(outcomeRect.width, 0);
+  });
+
+  it('keeps the last predictor chip inside the predictor rail when the stack is full', () => {
+    experimentStudioService.algorithmX.set(predictorStack);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const predictorRail = root.querySelector<HTMLElement>('.rail--x');
+    const predictorChips = predictorRail?.querySelector<HTMLElement>('.chips');
+    const chips = Array.from(predictorRail!.querySelectorAll<HTMLElement>('.chip--x'));
+
+    expect(chips.length).toBe(predictorStack.length);
+
+    predictorChips!.scrollTop = predictorChips!.scrollHeight;
+
+    const railRect = predictorRail!.getBoundingClientRect();
+    const lastChipRect = chips.at(-1)!.getBoundingClientRect();
+
+    expect(lastChipRect.bottom).toBeLessThanOrEqual(railRect.bottom + 1);
   });
 
 

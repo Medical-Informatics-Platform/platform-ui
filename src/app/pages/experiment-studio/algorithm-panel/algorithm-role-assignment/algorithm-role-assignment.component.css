@@ -128,8 +128,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  min-height: 1.7rem;
+  max-height: 16rem;
+  min-height: 0;
+  overflow-y: auto;
   align-items: center;
+  align-content: start;
 }
 
 .chip {
