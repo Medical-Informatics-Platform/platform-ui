@@ -396,7 +396,7 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
     // The owning view may not be rendered yet after activation, so retry the
     // target scroll on a bounded schedule until the view has appeared.
     if (!target && step.selector) {
-      this.scheduleTargetRetry(step, 0);
+      this.scheduleTargetRetry(step);
     }
   }
 
@@ -421,10 +421,7 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
    * is still rendering. Stops when the target appears, the step changes, or the
    * attempts run out (then the spotlight simply stays off, as for any no-selector step).
    */
-  private scheduleTargetRetry(step: ExperimentStudioGuideStep, attempt: number): void {
-    const maxAttempts = 12;
-    const retryDelayMs = 150;
-
+  private scheduleTargetRetry(step: ExperimentStudioGuideStep, left = 12): void {
     this.clearTargetRetryTimer();
 
     this.targetRetryTimer = window.setTimeout(() => {
@@ -436,10 +433,10 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
       const target = this.findTarget(step.selector);
       if (target) {
         this.focusStepTarget(step, target);
-      } else if (attempt < maxAttempts - 1) {
-        this.scheduleTargetRetry(step, attempt + 1);
+      } else if (left > 1) {
+        this.scheduleTargetRetry(step, left - 1);
       }
-    }, retryDelayMs);
+    }, 150);
   }
 
   private clearTargetRetryTimer(): void {
