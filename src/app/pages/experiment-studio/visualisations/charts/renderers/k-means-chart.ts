@@ -1,34 +1,45 @@
 import { EChartsOption } from 'echarts';
 
 export function buildKMeansChart(output: any): EChartsOption[] {
-  const centers = output?.centers;
+  const clusters = output?.clusters;
   const title = 'K-Means Centers';
 
-  if (!Array.isArray(centers) || centers.length === 0) {
-    console.warn('[KMeans] No centers provided.');
+  if (!Array.isArray(clusters) || clusters.length === 0) {
+    console.warn('[KMeans] No clusters provided.');
     return [];
   }
 
-  const dims = centers[0].length;
+  const variables: string[] = output.variables ?? [];
+  const names: string[] = clusters.map((c: any) => c.label);
+  const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
-  if (dims === 2) {
-    return buildKMeans2DChart(centers, title);
-  } else if (dims === 3) {
-    return buildKMeans3DChart(centers, title);
-  } else {
-    return buildKMeansParallelCoordinatesChart(centers, title);
+  const charts = variables.length === 2
+    ? buildKMeans2DChart(centers as [number, number][], names, variables, title)
+    : variables.length === 3
+      ? buildKMeans3DChart(centers as [number, number, number][], variables, title)
+      : buildKMeansParallelCoordinatesChart(centers, names, variables, title);
+
+  if (output.elbow) {
+    charts.push(buildKMeansElbowChart(output.elbow));
   }
+
+  return charts;
 }
 
-function buildKMeans2DChart(centers: [number, number][], title: string): EChartsOption[] {
+function buildKMeans2DChart(
+  centers: [number, number][],
+  names: string[],
+  variables: string[],
+  title: string
+): EChartsOption[] {
   const series = centers.map(([x, y]: [number, number], i: number) => ({
-    name: `Cluster ${i + 1}`,
+    name: names[i],
     type: 'scatter',
     data: [[x, y]],
     symbolSize: 20,
     label: {
       show: true,
-      formatter: `Cluster ${i + 1}`,
+      formatter: names[i],
       position: 'top',
     },
   }));
@@ -41,27 +52,27 @@ function buildKMeans2DChart(centers: [number, number][], title: string): ECharts
       },
       xAxis: {
         type: 'value',
-        name: 'x',
+        name: variables[0],
       },
       yAxis: {
         type: 'value',
-        name: 'y',
+        name: variables[1],
       },
       series: series as any,
     },
   ];
 }
 
-function buildKMeans3DChart(centers: [number, number, number][], title: string): EChartsOption[] {
+function buildKMeans3DChart(
+  centers: [number, number, number][],
+  variables: string[],
+  title: string
+): EChartsOption[] {
   const series: any[] = [
     {
       type: 'scatter3D',
       data: centers,
       symbolSize: 20,
-      label: {
-        // show: true,
-        // formatter: (_: any, i: number) => `Cluster ${i + 1}`,
-      },
     },
   ];
 
@@ -73,15 +84,15 @@ function buildKMeans3DChart(centers: [number, number, number][], title: string):
       },
       xAxis3D: {
         type: 'value',
-        name: 'x',
+        name: variables[0],
       },
       yAxis3D: {
         type: 'value',
-        name: 'y',
+        name: variables[1],
       },
       zAxis3D: {
         type: 'value',
-        name: 'z',
+        name: variables[2],
       },
       grid3D: {
         boxWidth: 100,
@@ -98,7 +109,7 @@ function buildKMeans3DChart(centers: [number, number, number][], title: string):
       tooltip: {
         formatter: (params: any) => {
           const [x, y, z] = params.value;
-          return `x: ${x}<br>y: ${y}<br>z: ${z}`;
+          return `${variables[0]}: ${x}<br>${variables[1]}: ${y}<br>${variables[2]}: ${z}`;
         },
       },
       series: series as any, // Type assertion to bypass TS type check
@@ -106,13 +117,18 @@ function buildKMeans3DChart(centers: [number, number, number][], title: string):
   ];
 }
 
-function buildKMeansParallelCoordinatesChart(centers: number[][], title: string): EChartsOption[] {
+function buildKMeansParallelCoordinatesChart(
+  centers: number[][],
+  names: string[],
+  variables: string[],
+  title: string
+): EChartsOption[] {
   if (!centers.length || !Array.isArray(centers[0])) return [];
 
   const dims = centers[0].length;
   const parallelAxis = Array.from({ length: dims }, (_, i) => ({
     dim: i,
-    name: `Dim ${i + 1}`,
+    name: variables[i],
   }));
 
   return [
@@ -137,7 +153,7 @@ function buildKMeansParallelCoordinatesChart(centers: number[][], title: string)
       parallelAxis,
       series: centers.map((center, i) => ({
         type: 'parallel',
-        name: `Cluster ${i + 1}`,
+        name: names[i],
         data: [center],
         lineStyle: {
           width: 2,
@@ -146,4 +162,42 @@ function buildKMeansParallelCoordinatesChart(centers: number[][], title: string)
       })),
     },
   ];
+}
+
+function buildKMeansElbowChart(elbow: any): EChartsOption {
+  const sortedKs = Object.keys(elbow.inertia_by_k).sort((a, b) => Number(a) - Number(b));
+
+  return {
+    title: {
+      text: 'Elbow Curve',
+      left: 'center',
+    },
+    tooltip: {
+      trigger: 'axis',
+    },
+    xAxis: {
+      type: 'category',
+      name: 'k',
+      data: sortedKs,
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Inertia',
+    },
+    series: [
+      {
+        type: 'line',
+        name: 'Inertia',
+        data: sortedKs.map(k => elbow.inertia_by_k[k]),
+        markPoint: {
+          data: [
+            {
+              coord: [String(elbow.selected_k), elbow.inertia_by_k[String(elbow.selected_k)]],
+              name: 'Selected k',
+            },
+          ],
+        },
+      },
+    ],
+  } as EChartsOption;
 }

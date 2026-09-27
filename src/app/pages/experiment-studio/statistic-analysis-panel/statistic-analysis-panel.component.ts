@@ -39,6 +39,7 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { StationListRowComponent } from '../shared/station-list-row/station-list-row.component';
+import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -218,7 +219,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent, KMeansClusterSourceComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -336,7 +337,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (step === 'filters') return this.filterRuleCount() > 0;
     const applied = this.expStudioService.appliedPreprocessingConfig();
     if (!applied) return false;
-    if (step === 'transformation') return !!applied['categorical_column_creator'];
+    if (step === 'transformation') {
+      return !!applied['categorical_column_creator'] || !!applied['kmeans_cluster_creator'];
+    }
     return !!(
       applied['missing_values_handler'] ||
       applied['outlier_winsorizer'] ||
@@ -375,6 +378,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     } else if (step === 'transformation') {
       this.resetTransformation();
+      this.expStudioService.setKMeansClusterPreprocessing(null);
       this.sectionOpen.update((open) => ({ ...open, transformation: false }));
     }
     this.cdr.markForCheck();
@@ -603,6 +607,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         statusTone,
       });
     });
+
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    if (clusterCreator) {
+      const variables = clusterCreator.reusable_preprocessing.cluster_variables ?? [];
+      nodes.push({
+        id: `transformation:kmeans:${clusterCreator.code}`,
+        icon: 'fas fa-diagram-project',
+        title: `K-means clusters: ${clusterCreator.code}`,
+        subtitle: `${clusterCreator.reusable_preprocessing.cluster_choices.length} clusters from ${variables.join(', ')}`,
+        statusLabel: 'Applied',
+        statusTone: 'applied',
+      });
+    }
+
     return nodes;
   }
 
@@ -3615,8 +3633,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   private persistAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
     this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
     this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    this.expStudioService.setKMeansClusterPreprocessing(clusterCreator);
   }
 
   private syncAppliedPreprocessingForCurrentSelection(): void {

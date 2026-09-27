@@ -1450,4 +1450,143 @@ describe('ExperimentStudioService', () => {
     expect(service.algorithmY().map((v) => v.code)).toEqual(['age']);
     expect(service.algorithmX()).toEqual([]);
   });
+
+  describe('kmeans_cluster_creator preprocessing', () => {
+    const clusterFixture = (clusterVariables: string[]) => ({
+      code: 'kmeans_cluster',
+      reusable_preprocessing: {
+        schema_version: '1',
+        preprocessing_name: 'kmeans_cluster_creator',
+        cluster_variables: clusterVariables,
+        centers: { cluster_0: { a: 1, b: 2 }, cluster_1: { a: 3, b: 4 } },
+        source_context: { data_model: 'dm:1', datasets: ['ds1'], input_fingerprint: 'fp' },
+        available_outputs: [],
+        cluster_choices: [
+          { cluster_id: 'cluster_0', label: 'Cluster 0' },
+          { cluster_id: 'cluster_1', label: 'Cluster 1' },
+        ],
+      },
+    });
+
+    function stepNames(body: any): string[] {
+      return (body.analysis.preprocessing as AnalysisPreprocessingStep[]).map((step) => step.name);
+    }
+
+    it('exposes the cluster column in the assignable pool and reads back the applied creator', () => {
+      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+
+      expect(service.appliedKMeansClusterCreator()?.code).toBe('kmeans_cluster');
+      expect(service.appliedPreprocessingConfig()?.['kmeans_cluster_creator'])
+        .toEqual(clusterFixture(['a', 'b']));
+
+      const clusterNode = service.algorithmAssignableVariables().find((v) => v.code === 'kmeans_cluster');
+      expect(clusterNode).toBeTruthy();
+      expect(clusterNode?.isCreatedColumn).toBeTrue();
+      expect(clusterNode?.enumerations).toEqual([
+        { code: 'cluster_0', label: 'Cluster 0' },
+        { code: 'cluster_1', label: 'Cluster 1' },
+      ]);
+    });
+
+    it('drops the cluster column from the pool when cleared', () => {
+      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+
+      expect(service.algorithmAssignableVariables().map((v) => v.code)).toContain('kmeans_cluster');
+
+      service.setKMeansClusterPreprocessing(null);
+
+      expect(service.appliedKMeansClusterCreator()).toBeNull();
+      expect(service.appliedPreprocessingConfig()).toBeNull();
+      // Nothing was assigned to a role, so the code is no longer assignable.
+      expect(service.algorithmAssignableVariables().map((v) => v.code)).not.toContain('kmeans_cluster');
+    });
+
+    it('keeps a role node hydrated from a saved experiment when no creator is applied', () => {
+      service.setAlgorithmY([{ code: 'kmeans_cluster', label: 'kmeans_cluster', isCreatedColumn: true }]);
+
+      expect(service.algorithmY().map((v) => v.code)).toEqual(['kmeans_cluster']);
+
+      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      service.setKMeansClusterPreprocessing(null);
+
+      expect(service.appliedKMeansClusterCreator()).toBeNull();
+      // Same contract as the transformation column: a synthetic role node stays
+      // assignable while it is assigned.
+      expect(service.algorithmY().map((v) => v.code)).toEqual(['kmeans_cluster']);
+      expect(service.algorithmAssignableVariables().map((v) => v.code)).toContain('kmeans_cluster');
+    });
+
+    it('ignores an applied creator without a code or reusable preprocessing', () => {
+      service.setAppliedDescriptivePreprocessing({
+        kmeans_cluster_creator: { code: '  ', reusable_preprocessing: {} },
+      });
+      expect(service.appliedKMeansClusterCreator()).toBeNull();
+
+      service.setAppliedDescriptivePreprocessing({
+        kmeans_cluster_creator: { code: 'kmeans_cluster' },
+      });
+      expect(service.appliedKMeansClusterCreator()).toBeNull();
+    });
+
+    it('sends the cluster variables as source CDEs and the cluster step after missing value handling', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'a', label: 'A' }, { code: 'b', label: 'B' }]);
+      service.setAppliedDescriptivePreprocessing({
+        missing_values_handler: { strategies: { a: 'mean' } },
+      });
+      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      service.setAlgorithmY([{ code: 'kmeans_cluster', label: 'kmeans_cluster', isCreatedColumn: true }]);
+
+      const body = service.buildRequestBody('mock_algo');
+
+      expect(body.analysis.algorithm.y).toEqual(['kmeans_cluster']);
+      expect(body.analysis.inputdata.variables).toEqual(['a', 'b']);
+      expect(body.analysis.inputdata.variables).not.toContain('kmeans_cluster');
+
+      const names = stepNames(body);
+      expect(names.indexOf('missing_values_handler'))
+        .toBeLessThan(names.indexOf('kmeans_cluster_creator'));
+
+      const missingStep = (body.analysis.preprocessing as AnalysisPreprocessingStep[])
+        .find((step) => step.name === 'missing_values_handler');
+      // The user's own strategy for 'a' survives; 'b' gets the required drop.
+      expect(missingStep?.parameters['strategies']).toEqual({ a: 'mean', b: 'drop' });
+
+      // The request-only adjustments never reach the store.
+      expect(service.appliedPreprocessingConfig()?.['missing_values_handler'])
+        .toEqual({ strategies: { a: 'mean' } });
+    });
+
+    it('adds a missing values handler for the cluster variables when none is set', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'a', label: 'A' }, { code: 'b', label: 'B' }]);
+      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      service.setAlgorithmY([{ code: 'kmeans_cluster', label: 'kmeans_cluster', isCreatedColumn: true }]);
+
+      const body = service.buildRequestBody('mock_algo');
+
+      const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'kmeans_cluster_creator']);
+      expect(steps[0].parameters['strategies']).toEqual({ a: 'drop', b: 'drop' });
+      expect(steps[1].parameters['code']).toBe('kmeans_cluster');
+    });
+
+    it('summarizes an applied cluster creator as the cluster column it writes', () => {
+      expect(service.formatPreprocessingEntries({
+        kmeans_cluster_creator: { code: 'kmeans_cluster', reusable_preprocessing: {} },
+      })).toContain(jasmine.objectContaining({
+        label: 'K-means cluster column',
+        value: 'kmeans_cluster',
+      }));
+    });
+
+    it('leaves a config without a cluster creator untouched', () => {
+      const config = { missing_values_handler: { strategies: { age: 'mean' } } };
+
+      expect((service as any).withKMeansClusterRequirements(config)).toBe(config);
+      expect((service as any).withKMeansClusterRequirements(null)).toBeNull();
+    });
+  });
 });

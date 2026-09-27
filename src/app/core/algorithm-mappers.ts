@@ -13,6 +13,7 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "pearson_correlation": "Correlation",
   "anova_oneway": "Statistical Tests",
   "binned_mann_whitney_u_test": "Statistical Tests",
+  "standardized_mean_difference": "Statistical Tests",
   "ttest_independent": "Statistical Tests",
   "ttest_onesample": "Statistical Tests",
   "ttest_paired": "Statistical Tests",
@@ -402,13 +403,9 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
       ];
     case 'kmeans':
       return [
-        {
-          key: 'centers',
-          label: 'Cluster Centers',
-          type: 'dynamic-table',
-          getColumnsFrom: 'y',
-          rowLabelPrefix: 'Cluster'
-        }
+        { key: 'selected_k', label: 'Selected k', type: 'number' },
+        { key: 'n_obs_interval', label: 'Observations', type: 'text' },
+        { key: 'clusters', label: 'Clusters', type: 'table' },
       ];
     case 'quartiles':
       return [
@@ -430,6 +427,10 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
         { key: 'z_score', label: 'z-score', type: 'number', format: 'float' },
         { key: 'n1', label: 'Group A sample size', type: 'number' },
         { key: 'n2', label: 'Group B sample size', type: 'number' },
+      ];
+    case 'standardized_mean_difference':
+      return [
+        { key: 'comparisons', label: 'Pairwise Comparisons', type: 'table' },
       ];
     case 'linear_regression_cv':
       return [

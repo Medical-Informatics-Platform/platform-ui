@@ -32,6 +32,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             'setTransformationPreprocessing',
             'filterVariableCodes',
             'appliedCategoricalCreators',
+            'appliedKMeansClusterCreator',
+            'setKMeansClusterPreprocessing',
+            'requestDatasets',
+            'requestFilters',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -50,6 +54,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
+        mockExpService.appliedKMeansClusterCreator.and.returnValue(null);
+        mockExpService.requestDatasets.and.returnValue(['dataset-a']);
+        mockExpService.requestFilters.and.returnValue(null);
         mockExpService.appliedCategoricalCreators.and.callFake(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];

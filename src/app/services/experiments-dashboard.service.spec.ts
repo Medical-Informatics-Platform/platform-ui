@@ -1,6 +1,7 @@
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 
+import { BackendExperiment } from '../models/backend-experiment.model';
 import { Experiment } from '../models/experiments-dashboard.model';
 import { ExperimentsDashboardService } from './experiments-dashboard.service';
 
@@ -149,6 +150,26 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
 
       expect(service.experiments().map((experiment) => experiment.id)).toEqual(['a']);
     });
+  });
+
+  it('lists K-means experiments newest first', () => {
+    let emitted: BackendExperiment[] | undefined;
+
+    service.listKMeansExperiments().subscribe((experiments) => (emitted = experiments));
+
+    const req = httpMock.expectOne((candidate) => candidate.url === apiUrl);
+    expect(req.request.params.get('algorithm')).toBe('kmeans');
+    expect(req.request.params.get('page')).toBe('0');
+    expect(req.request.params.get('size')).toBe('50');
+
+    req.flush({
+      experiments: [{ uuid: 'u1' }],
+      totalExperiments: 1,
+      totalPages: 1,
+      currentPage: 0,
+    });
+
+    expect(emitted![0].uuid).toBe('u1');
   });
 
   it('resolves members that are already loaded without asking the backend', () => {

@@ -197,6 +197,31 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows).toContain(['Group B sample size', '80']);
   });
 
+  it('renders standardized mean difference comparisons', () => {
+    const tables = AlgorithmTableRegistry['standardized_mean_difference']({
+      comparisons: [
+        { group1: 'edsd0', group2: 'ppmi3', smd: -1.502242948685167 },
+        { group1: 1, group2: 2, smd: 0.25 },
+      ],
+    });
+
+    expect(tables.length).toBe(1);
+    expect(tables[0].title).toBe('Standardized Mean Difference');
+    expect(tables[0].columns).toEqual(['Group 1', 'Group 2', 'SMD']);
+    expect(tables[0].rows.length).toBe(2);
+    expect(tables[0].rows[0][0]).toBe('edsd0');
+    expect(tables[0].rows[0][1]).toBe('ppmi3');
+    expect(tables[0].rows[0][2]).toBe('-1.502');
+    expect(tables[0].rows[1][0]).toBe('1');
+  });
+
+  it('renders an empty standardized mean difference table when no pair is eligible', () => {
+    const tables = AlgorithmTableRegistry['standardized_mean_difference']({ comparisons: [] });
+
+    expect(tables.length).toBe(1);
+    expect(tables[0].rows.length).toBe(0);
+  });
+
   it('renders describe tables for both numeric and nominal entries', () => {
     const tables = AlgorithmTableRegistry['describe']({
       featurewise: [
@@ -508,5 +533,60 @@ describe('AlgorithmTableRegistry', () => {
       ['Factor', 'Intra-arterial urokinase', 'no, yes'],
       ['Outcome', 'Aspiration', 'no, yes'],
     ]);
+  });
+
+  it('renders kmeans summary, centers, profiles, and notes', () => {
+    const tables = AlgorithmTableRegistry['kmeans']({
+      title: 'K-Means',
+      variables: ['a', 'b'],
+      k_selection: 'manual',
+      selected_k: 2,
+      initialization_method: 'k-means++',
+      n_init: 10,
+      n_obs_interval: '100-200',
+      center_definition: 'Centers are cluster means.',
+      intended_use: ['u1'],
+      privacy_note: 'Cluster values are binned.',
+      clusters: [
+        {
+          cluster_id: '0',
+          label: 'Cluster 0',
+          size_interval: '10-20',
+          center: { a: 1, b: 2 },
+          profile: ['p0'],
+          interpretation: 'i0',
+          quality: { compactness: null },
+        },
+        {
+          cluster_id: '1',
+          label: 'Cluster 1',
+          size_interval: '20-30',
+          center: { a: 3, b: 4 },
+          profile: ['p1'],
+          interpretation: 'i1',
+          quality: { compactness: 'high' },
+        },
+      ],
+      elbow: null,
+      converged: true,
+      n_iter: 5,
+      warnings: ['w1'],
+      limitations: ['l1'],
+    });
+
+    expect(tables.map(table => table.title)).toEqual([
+      'K-Means Summary',
+      'Cluster Centers',
+      'Cluster Profiles',
+      'Notes',
+    ]);
+    expect(tables[1].columns).toEqual(['Cluster', 'Size', 'a', 'b']);
+    expect(tables[0].rows).toContain(['Observations', '100-200']);
+    expect(tables[3].rows).toContain(['Warning', 'w1']);
+    expect(tables[3].rows).toContain(['Limitation', 'l1']);
+  });
+
+  it('returns no kmeans tables without clusters', () => {
+    expect(AlgorithmTableRegistry['kmeans']({ clusters: [] })).toEqual([]);
   });
 });

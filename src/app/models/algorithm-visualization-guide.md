@@ -106,11 +106,15 @@ This document describes what the frontend currently renders for each algorithm a
 ### K-Means (`kmeans`)
 
 - Charts:
-  - 2D scatter for 2-dimensional centers.
-  - 3D scatter for 3-dimensional centers.
-  - Parallel coordinates fallback for dimensions greater than 3.
+  - 2D scatter when the result has 2 variables.
+  - 3D scatter when the result has 3 variables.
+  - Parallel coordinates fallback for any other number of variables.
+  - Elbow curve when `elbow` is present.
 - Tables:
-  - Cluster centers table.
+  - K-Means summary (k selection, selected k, observations, initialization, convergence).
+  - Cluster centers table (cluster label, size interval, center per variable).
+  - Cluster profiles table (compactness, profile, interpretation).
+  - Notes table (privacy, center definition, warnings, limitations, intended use).
 
 ### PCA (`pca`, `pca_with_transformation`)
 

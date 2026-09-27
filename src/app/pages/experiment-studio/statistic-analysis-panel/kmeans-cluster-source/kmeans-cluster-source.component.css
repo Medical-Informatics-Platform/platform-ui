@@ -1,0 +1,100 @@
+:host {
+  display: block;
+}
+
+.kmeans-cluster-source {
+  display: grid;
+  gap: 10px;
+}
+
+.kmeans-cluster-source-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kmeans-cluster-source-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.kmeans-cluster-source-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+/* Look comes from the global `.experiment-studio-page` control styles. There is no
+   global box-sizing reset, so keep the control inside its grid column. */
+.kmeans-cluster-source-field select,
+.kmeans-cluster-source-field input {
+  box-sizing: border-box;
+}
+
+.kmeans-cluster-source-applied {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 22%, transparent);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  font-size: 0.8rem;
+}
+
+.kmeans-cluster-source-applied-code {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kmeans-cluster-source-applied-detail {
+  color: var(--text-muted);
+}
+
+.kmeans-cluster-source-apply {
+  justify-self: start;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: var(--radius-md, 8px);
+  background: var(--primary-color);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.kmeans-cluster-source-remove {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger, #ef4444);
+}
+
+.kmeans-cluster-source-note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}

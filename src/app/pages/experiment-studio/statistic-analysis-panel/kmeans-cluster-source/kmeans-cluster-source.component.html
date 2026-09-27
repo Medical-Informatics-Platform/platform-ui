@@ -1,0 +1,65 @@
+<section class="kmeans-cluster-source">
+  <h3 class="kmeans-cluster-source-title">K-means cluster column</h3>
+  <p class="kmeans-cluster-source-hint">
+    Adds a categorical column that assigns every row to the nearest cluster of a finished K-means
+    experiment. Only experiments with the same data model, datasets and filters can be used; rows
+    with missing values in the clustering variables are dropped.
+  </p>
+
+  @if (applied(); as creator) {
+  <div class="kmeans-cluster-source-applied">
+    <span class="kmeans-cluster-source-applied-code">Column {{ creator.code }}</span>
+    <span class="kmeans-cluster-source-applied-detail">
+      {{ clusterCount() }} clusters from {{ clusterVariables().join(', ') }}
+    </span>
+    <button type="button" class="kmeans-cluster-source-remove" (click)="remove()">Remove</button>
+  </div>
+  } @else {
+  @if (loading()) {
+  <p class="kmeans-cluster-source-note">Loading K-means experiments…</p>
+  }
+  @if (error()) {
+  <p class="kmeans-cluster-source-error">{{ error() }}</p>
+  }
+  @if (!loading() && compatible().length === 0) {
+  <p class="kmeans-cluster-source-note">No compatible K-means experiments.</p>
+  }
+  @if (!loading() && compatible().length > 0) {
+  <div class="kmeans-cluster-source-field">
+    <label for="kmeans-cluster-source-experiment">K-means experiment</label>
+    <select
+      id="kmeans-cluster-source-experiment"
+      [ngModel]="selectedUuid()"
+      (ngModelChange)="selectedUuid.set($event)">
+      @for (experiment of compatible(); track experiment.uuid) {
+      <option [value]="experiment.uuid">
+        {{ experiment.name }} · {{ experiment.created | date: 'mediumDate' }}
+      </option>
+      }
+    </select>
+  </div>
+  <div class="kmeans-cluster-source-field">
+    <label for="kmeans-cluster-source-code">New column name</label>
+    <input
+      id="kmeans-cluster-source-code"
+      type="text"
+      [ngModel]="code()"
+      (ngModelChange)="code.set($event)"
+      placeholder="e.g. kmeans_cluster" />
+  </div>
+  <button
+    type="button"
+    class="kmeans-cluster-source-apply"
+    [disabled]="applying() || !selectedUuid()"
+    (click)="apply()">
+    Add column
+  </button>
+  }
+  @if (!loading() && hiddenCount() > 0) {
+  <p class="kmeans-cluster-source-note">
+    {{ hiddenCount() }} K-means experiments hidden because their data model, datasets or filters
+    differ.
+  </p>
+  }
+  }
+</section>

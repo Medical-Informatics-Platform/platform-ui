@@ -4,6 +4,7 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 
@@ -54,6 +55,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'setTransformationPreprocessing',
             'filterVariableCodes',
             'appliedCategoricalCreators',
+            'appliedKMeansClusterCreator',
+            'setKMeansClusterPreprocessing',
+            'requestDatasets',
+            'requestFilters',
+            'getActiveDataModelCode',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -69,6 +75,18 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
+        mockExpService.appliedKMeansClusterCreator.and.callFake(
+            () => (mockExpService.appliedPreprocessingConfig() as any)?.['kmeans_cluster_creator'] ?? null,
+        );
+        mockExpService.setKMeansClusterPreprocessing.and.callFake((creator: unknown) => {
+            const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
+            if (creator) next['kmeans_cluster_creator'] = creator;
+            else delete next['kmeans_cluster_creator'];
+            seedAppliedConfig(Object.keys(next).length ? next : null);
+        });
+        mockExpService.requestDatasets.and.returnValue(['dataset-a']);
+        mockExpService.requestFilters.and.returnValue(null);
+        mockExpService.getActiveDataModelCode.and.returnValue('Stroke:3.7');
         mockExpService.appliedCategoricalCreators.and.callFake(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
@@ -102,6 +120,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 provideZonelessChangeDetection(),
                 provideEchartsCore({ echarts: () => import('echarts') }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: (() => { const s = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']); s.getChartsForAlgorithm.and.returnValue([]); return s; })() },
                 { provide: PdfExportService, useValue: jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']) }
             ]
@@ -383,6 +402,29 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(nodes[1].subtitle).toContain('2 category rules');
         expect(component.appliedTransformationCount).toBe(2);
         expect(component.transformationBadgeLabel).toBe('2 Transformations active');
+    });
+
+    it('surfaces the applied K-means cluster column as a transformation sub-node', () => {
+        seedAppliedConfig({
+            kmeans_cluster_creator: {
+                code: 'kmeans_cluster',
+                reusable_preprocessing: {
+                    cluster_choices: [
+                        { cluster_id: 'c1', label: 'Cluster 1' },
+                        { cluster_id: 'c2', label: 'Cluster 2' },
+                    ],
+                    cluster_variables: ['a', 'b'],
+                },
+            },
+        });
+        fixture.detectChanges();
+
+        const nodes = component.appliedTransformationSubNodes;
+        const clusterNode = nodes.find((node) => node.id === 'transformation:kmeans:kmeans_cluster');
+        expect(clusterNode?.title).toBe('K-means clusters: kmeans_cluster');
+        expect(clusterNode?.subtitle).toBe('2 clusters from a, b');
+        expect(clusterNode?.statusLabel).toBe('Applied');
+        expect(clusterNode?.statusTone).toBe('applied');
     });
 
     it('collapses the stage on Apply so every derived column shows in the overview', () => {

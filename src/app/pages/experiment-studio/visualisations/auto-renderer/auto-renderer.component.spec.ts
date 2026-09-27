@@ -7,6 +7,44 @@ describe('AutoRendererComponent', () => {
   let fixture: ComponentFixture<AutoRendererComponent>;
   let cmp: AutoRendererComponent;
 
+  const kmeansResult = {
+    title: 'K-Means',
+    variables: ['a', 'b'],
+    k_selection: 'manual',
+    selected_k: 2,
+    initialization_method: 'k-means++',
+    n_init: 10,
+    n_obs_interval: '100-200',
+    center_definition: 'c',
+    intended_use: [],
+    privacy_note: 'p',
+    clusters: [
+      {
+        cluster_id: '0',
+        label: 'Cluster 0',
+        size_interval: '10-20',
+        center: { a: 1, b: 2 },
+        profile: ['p0'],
+        interpretation: 'i0',
+        quality: { compactness: null },
+      },
+      {
+        cluster_id: '1',
+        label: 'Cluster 1',
+        size_interval: '20-30',
+        center: { a: 3, b: 4 },
+        profile: ['p1'],
+        interpretation: 'i1',
+        quality: { compactness: null },
+      },
+    ],
+    elbow: null,
+    converged: true,
+    n_iter: 5,
+    warnings: [],
+    limitations: [],
+  };
+
   const setInputs = (inputs: Record<string, unknown>): void => {
     Object.entries(inputs).forEach(([name, value]) => {
       fixture.componentRef.setInput(name, value);
@@ -25,11 +63,11 @@ describe('AutoRendererComponent', () => {
   });
 
   it('renders tables for known algorithms', () => {
-    setInputs({ algorithm: 'kmeans', value: { centers: [[1, 2], [3, 4]] } });
+    setInputs({ algorithm: 'kmeans', value: kmeansResult });
 
     const tables = cmp.tableSpec();
     expect(tables).toBeTruthy();
-    expect(tables?.[0].columns.length).toBe(2);
+    expect(tables?.[1].columns).toEqual(['Cluster', 'Size', 'a', 'b']);
   });
 
   it('sets error when builder is missing', () => {
@@ -42,8 +80,9 @@ describe('AutoRendererComponent', () => {
   it('caches identical inputs to avoid redundant work', () => {
     const spy = spyOn(AlgorithmTableRegistry, 'kmeans').and.callThrough();
 
-    setInputs({ algorithm: 'kmeans', value: { centers: [[1, 2]] } });
+    setInputs({ algorithm: 'kmeans', value: kmeansResult });
     fixture.detectChanges();
+    setInputs({ algorithm: 'kmeans', value: { ...kmeansResult } });
 
     expect(spy).toHaveBeenCalledTimes(1);
   });
@@ -51,7 +90,7 @@ describe('AutoRendererComponent', () => {
   it('recomputes when mapping inputs change even if value is unchanged', () => {
     const spy = spyOn(AlgorithmTableRegistry, 'kmeans').and.callThrough();
 
-    setInputs({ algorithm: 'kmeans', value: { centers: [[1, 2]] } });
+    setInputs({ algorithm: 'kmeans', value: kmeansResult });
     setInputs({ labelMap: { x1: 'X 1' } });
 
     expect(spy).toHaveBeenCalledTimes(2);
@@ -59,13 +98,13 @@ describe('AutoRendererComponent', () => {
 
   it('uses result title for single-table algorithms', () => {
     setInputs({
-      algorithm: 'kmeans',
-      value: { title: 'Custom K-Means Title', centers: [[1, 2], [3, 4]] },
+      algorithm: 'binned_mann_whitney_u_test',
+      value: { title: 'Custom Title', u_stat: 1, p_value: 0.5, z_score: 0.1, n1: 10, n2: 12 },
     });
 
     const tables = cmp.tableSpec();
     expect(tables?.length).toBe(1);
-    expect(tables?.[0].title).toBe('Custom K-Means Title');
+    expect(tables?.[0].title).toBe('Custom Title');
   });
 
   it('prefixes first table title for multi-table algorithms when result title exists', () => {
@@ -87,14 +126,14 @@ describe('AutoRendererComponent', () => {
 
   it('uses fallback title when result title is missing', () => {
     setInputs({
-      algorithm: 'kmeans',
+      algorithm: 'binned_mann_whitney_u_test',
       fallbackTitle: 'Result K-Means',
-      value: { centers: [[1, 2], [3, 4]] },
+      value: { u_stat: 1, p_value: 0.5, z_score: 0.1, n1: 10, n2: 12 },
     });
 
     const tables = cmp.tableSpec();
     expect(tables?.length).toBe(1);
-    expect(tables?.[0].title).toBe('K-Means Centers');
+    expect(tables?.[0].title).toBe('Binned Mann-Whitney U Test');
   });
 
   it('uses full-width layout for tables with long row labels', () => {
