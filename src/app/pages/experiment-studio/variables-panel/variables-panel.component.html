@@ -24,7 +24,7 @@
                 <span class="study-context-sep" aria-hidden="true">·</span>
                 <span class="study-context-count" [title]="contextChipTitle">
                   <i class="fas fa-hospital" aria-hidden="true"></i>
-                  <span>{{ selectedDatasetCount() }}</span>
+                  <span>{{ selectedDatasetCount() }} dataset{{ selectedDatasetCount() === 1 ? '' : 's' }}</span>
                 </span>
                 }
                 <i class="fas fa-chevron-down study-context-chevron" aria-hidden="true"></i>
@@ -87,6 +87,7 @@
                 aria-label="Search variables or groups"
                 (click)="toggleSearch()">
                 <i class="fas fa-search" aria-hidden="true"></i>
+                <span>Search variables</span>
               </button>
               @if (searchExpanded()) {
               <div class="search-popover">
@@ -144,25 +145,6 @@
         <!-- Node details: histogram + metadata -->
         <section class="panel-block histogram-panel" id="histogram-graph" data-guide="variable-details">
           <div class="details-panel-header">
-            <div class="details-panel-controls" id="parameters-listing">
-              <button
-                type="button"
-                class="selection-toggle-btn"
-                data-guide="guide-add-variable"
-                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode"
-                [class.is-remove]="isSelectedNodeInPool()"
-                [disabled]="selectionToggleDisabled()"
-                [title]="selectionToggleTitle()"
-                (click)="toggleSelectedNodeInPool()">
-                <i class="fas" [class.fa-plus]="!isSelectedNodeInPool()" [class.fa-minus]="isSelectedNodeInPool()" aria-hidden="true"></i>
-                <span>{{ selectionToggleLabel() }}</span>
-              </button>
-              <app-selected-variables
-                data-guide="variable-containers"
-                [selectedNode]="selectedNode"
-                (variableClicked)="onVariableClicked($event)">
-              </app-selected-variables>
-            </div>
             <div class="details-panel-header-main">
               <div class="details-panel-title-block">
                 @if (selectedNode) {
@@ -180,6 +162,18 @@
                 <p class="details-panel-subtitle">Click a variable or group to see its chart and metadata.</p>
                 }
               </div>
+              <button
+                type="button"
+                class="selection-toggle-btn"
+                data-guide="guide-add-variable"
+                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode"
+                [class.is-remove]="isSelectedNodeInPool()"
+                [disabled]="selectionToggleDisabled()"
+                [title]="selectionToggleTitle()"
+                (click)="toggleSelectedNodeInPool()">
+                <i class="fas" [class.fa-plus]="!isSelectedNodeInPool()" [class.fa-minus]="isSelectedNodeInPool()" aria-hidden="true"></i>
+                <span>{{ selectionToggleLabel() }}</span>
+              </button>
             </div>
             <div
               class="details-segment"
@@ -316,6 +310,13 @@
           </div>
           }
         </section>
+
+        <app-selected-variables
+          mode="inline"
+          data-guide="variable-containers"
+          [selectedNode]="selectedNode"
+          (variableClicked)="onVariableClicked($event)">
+        </app-selected-variables>
       </aside>
     </div>
 

@@ -1,3 +1,40 @@
+@if (mode() === 'inline') {
+<section class="pool-card" aria-label="Variables in this experiment">
+  <header class="pool-card-header">
+    <div class="pool-card-title">
+      <span>Variables in this experiment</span>
+      <span class="count-badge">{{ variables().length }}</span>
+    </div>
+    @if (variables().length > 0) {
+    <button type="button" class="parameter-clear-btn" (click)="clearList()">
+      <i class="fas fa-trash-alt" aria-hidden="true"></i><span>Clear all</span>
+    </button>
+    }
+  </header>
+  <div class="pool-card-body">
+    @if (variables().length === 0) {
+    <p class="parameter-empty">No variables yet. Pick one in the map and choose <strong>Add</strong>.</p>
+    } @else {
+    <div class="studio-chip-row">
+      @for (variable of variables(); track variable.code ?? variable.label) {
+      <span class="studio-chip pool-chip"
+            [class.is-current]="selectedNode()?.code === variable.code"
+            (click)="onVariableClick(variable)">
+        <span class="pool-chip-dot" aria-hidden="true"></span>
+        <span>{{ variable.label }}</span>
+        <span class="pool-chip-type">{{ variable.type }}</span>
+        <button type="button" class="parameter-remove-btn"
+                [attr.aria-label]="'Remove ' + variable.label"
+                (click)="removeItem(variable); $event.stopPropagation()">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </span>
+      }
+    </div>
+    }
+  </div>
+</section>
+} @else {
 <button
   type="button"
   class="selected-variables-trigger"
@@ -68,4 +105,5 @@
     </tbody>
   </table>
 </div>
+}
 }

@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   filterOperatorBackendFor,
-  filterOperatorSpec,
+  filterOperatorPhrase,
   filterOperatorSymbolFor,
   filterOperatorSymbolsForType,
   filterOperatorValueKind,
@@ -140,8 +140,24 @@ export class FilterConfigModalComponent {
   compactValueSummary(block: FilterConditionBlock): string {
     if (this.isUnaryOperator(block.operator)) return '';
     const labels = block.values.map((value) => this.valueLabel(block, value));
+    if (this.normalizedOperator(block.operator) === 'between' && labels.length >= 2) {
+      return `${labels[0]} and ${labels[1]}`;
+    }
     if (labels.length <= 2) return labels.join(', ') || 'None';
     return `${labels.slice(0, 2).join(', ')} (+${labels.length - 2} more)`;
+  }
+
+  /** Category chips for the resting row: all options up to six, then the selected
+   *  ones plus a `+N more` chip. */
+  restingCategoryOptions(block: FilterConditionBlock): Array<{ value: string; label: string }> {
+    const options = this.categoryOptions(block);
+    if (options.length <= 6) return options;
+    const selected = options.filter((option) => this.isCategorySelected(block, option.value));
+    return selected.length ? selected : options.slice(0, 6);
+  }
+
+  hiddenCategoryCount(block: FilterConditionBlock): number {
+    return this.categoryOptions(block).length - this.restingCategoryOptions(block).length;
   }
 
   onConditionVariableTextChange(blockId: string, value: string): void {
@@ -213,8 +229,12 @@ export class FilterConfigModalComponent {
     return filterOperatorSymbolsForType(this.selectedFilter(block)?.type);
   }
 
+  private normalizedOperator(operator: string): string {
+    return filterOperatorSymbolFor(operator).trim().toLowerCase();
+  }
+
   operatorDisplayLabel(operator: string): string {
-    return filterOperatorSpec(operator)?.label ?? operator;
+    return filterOperatorPhrase(operator);
   }
 
   categoryOptions(block: FilterConditionBlock): Array<{ value: string; label: string }> {

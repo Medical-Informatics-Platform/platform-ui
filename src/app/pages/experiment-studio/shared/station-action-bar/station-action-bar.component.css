@@ -7,29 +7,23 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: var(--radius-md, 8px);
+  padding: 12px 18px;
+  border: 0;
+  border-top: 1px solid var(--studio-card-header-border);
+  border-radius: 0;
   background: var(--studio-card-header-bg);
 }
 
-.station-action-bar.tone-pending {
-  border-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
-  background: color-mix(in srgb, var(--primary-color) 4%, white);
+/* Standalone (non-footer) bars keep their own frame. */
+.station-action-bar:not(.is-flush) {
+  border: 1px solid var(--studio-card-border);
+  border-radius: var(--radius-lg);
 }
 
+.station-action-bar.tone-pending,
 .station-action-bar.tone-applied {
-  border-color: color-mix(in srgb, var(--panel-success-text, #166534) 22%, transparent);
-  background: var(--panel-success-bg, #dfefe4);
-}
-
-/* Footer variant: the station card already draws the frame, so only the top divider
-   is ours. Widths only — the tone rules above keep owning border-color/background. */
-.station-action-bar.is-flush {
-  border-width: 0;
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-radius: 0;
+  background: var(--studio-card-header-bg);
+  border-color: var(--studio-card-header-border);
 }
 
 .station-action-status {
@@ -37,7 +31,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -46,19 +40,14 @@
   align-items: center;
   justify-content: center;
   min-width: 1.5rem;
-  padding: 4px 10px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-color) 18%, white 82%);
-  color: #92400e;
-  font-size: 0.82rem;
+  background: color-mix(in srgb, var(--accent-color) 16%, white);
+  color: #78350f;
+  font-size: 0.74rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
-}
-
-.tone-applied .station-action-count {
-  background: color-mix(in srgb, var(--panel-success-text, #166534) 14%, white 86%);
-  color: var(--panel-success-text, #166534);
 }
 
 .station-action-text {
@@ -66,8 +55,8 @@
 }
 
 .tone-applied .station-action-text {
-  color: var(--panel-success-text, #166534);
-  font-weight: 700;
+  color: #065f46;
+  font-weight: 600;
 }
 
 .station-action-buttons {
@@ -82,9 +71,9 @@
 /* Secondary action: the solid Apply button is the only primary-coloured
    control in this bar. Blue-on-white reset read as a second primary. */
 .station-action-reset {
-  padding: 7px 10px;
+  padding: 0 12px;
   border: 0;
-  border-radius: var(--radius-md, 8px);
+  border-radius: 999px;
   background: transparent;
   color: var(--text-muted);
   font-family: inherit;
@@ -103,11 +92,14 @@
 /* Middle action: outlined, so it reads as a step (Clear · Preview · Apply) not a link pair.
    Disabled wears the same treatment as its neighbours; the station's fix list says why. */
 .station-action-preview {
-  padding: 6px 12px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 24%, transparent);
-  border-radius: var(--radius-md, 8px);
-  background: transparent;
-  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid rgba(127, 156, 232, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 600;
@@ -116,18 +108,24 @@
   transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 
+.station-action-preview i {
+  color: var(--primary-color);
+  font-size: 0.76rem;
+}
+
 .station-action-preview:hover:not(:disabled) {
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 6%, white);
+  border-color: rgba(43, 51, 233, 0.45);
+  background: rgba(43, 51, 233, 0.06);
+  color: var(--primary-color);
 }
 
 .station-action-apply {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 0 18px;
   border: 0;
-  border-radius: var(--radius-md, 8px);
+  border-radius: 999px;
   background: var(--primary-color);
   color: #ffffff;
   font-family: inherit;
@@ -135,13 +133,13 @@
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.18);
+  box-shadow: var(--shadow-sm);
   transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
 .station-action-apply:hover:not(:disabled) {
   background: var(--primary-dark);
-  box-shadow: 0 3px 12px rgba(43, 51, 233, 0.28);
+  box-shadow: var(--shadow-md);
 }
 
 /* Close, not Apply: same slot and same geometry, ring drawn as an inset shadow so adding
@@ -155,6 +153,15 @@
 .station-action-apply.is-quiet:hover:not(:disabled) {
   background: color-mix(in srgb, var(--primary-color) 6%, white);
   box-shadow: inset 0 0 0 1px var(--primary-color);
+}
+
+.station-action-reset,
+.station-action-preview,
+.station-action-apply {
+  height: 34px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .station-action-reset:disabled,
@@ -180,7 +187,7 @@
   .station-action-bar {
     align-items: flex-start;
     flex-direction: column;
-    padding: 10px 12px;
+    padding: 12px 12px;
   }
 
   .station-action-buttons {

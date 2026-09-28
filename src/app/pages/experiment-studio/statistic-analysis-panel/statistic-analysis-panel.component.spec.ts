@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { QueryList } from '@angular/core';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
@@ -34,8 +35,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             'appliedCategoricalCreators',
             'appliedKMeansClusterCreator',
             'setKMeansClusterPreprocessing',
+            'withKMeansClusterRequirements',
             'requestDatasets',
             'requestFilters',
+            'getActiveDataModelCode',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -55,8 +58,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
         mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
         mockExpService.appliedKMeansClusterCreator.and.returnValue(null);
+        // Pass-through by default; the creator-appending behaviour is the service's, not the panel's.
+        mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => config ?? null);
         mockExpService.requestDatasets.and.returnValue(['dataset-a']);
         mockExpService.requestFilters.and.returnValue(null);
+        mockExpService.getActiveDataModelCode.and.returnValue('Stroke:3.7');
         mockExpService.appliedCategoricalCreators.and.callFake(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
@@ -85,6 +91,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                     echarts: () => import('echarts'),
                 }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: mockChartBuilder },
                 { provide: PdfExportService, useValue: mockPdfService }
             ]
@@ -211,7 +218,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // An optional station with no conditions has nothing to keep: it returns to its card.
         expect(component.isStepAdded('filters')).toBeFalse();
         expect(component.sectionOpen().filters).toBeFalse();
-        expect(workflowSection('Filtering').textContent).toContain('Add Filtering');
+        expect(workflowSection('Filtering').textContent).toContain('Add filtering');
     });
 
     it('labels the filtering primary action Apply once conditions exist', () => {
@@ -221,7 +228,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const apply = filtering.querySelector('.station-action-apply') as HTMLButtonElement;
-        expect(apply.textContent?.trim()).toBe('Apply');
+        expect(apply.textContent?.trim()).toBe('Apply filters');
         expect(apply.classList.contains('is-quiet')).toBeFalse();
 
         apply.click();
@@ -276,7 +283,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const preprocessing = workflowSection('Preprocessing');
         const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
-        expect(preview.textContent?.trim()).toBe('Preview data');
+        expect(preview.textContent?.trim()).toBe('Preview processed data');
         expect(preprocessing.querySelector('.station-card-description')?.textContent?.trim()).toContain('Default: NA removal');
         // The shared action bar owns the station's only preview control.
         expect(preprocessing.querySelectorAll('.station-action-bar .station-action-preview').length).toBe(1);
@@ -420,7 +427,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const transformation = workflowSection('Transformation');
         expect(transformation.querySelector('.transformation-tabs')).toBeNull();
         const preview = transformation.querySelector('.station-action-preview') as HTMLButtonElement;
-        expect(preview.textContent?.trim()).toBe('Preview data');
+        expect(preview.textContent?.trim()).toBe('Preview counts');
 
         preview.click();
         fixture.detectChanges();
@@ -446,8 +453,18 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.enableOutlierHandling();
         fixture.detectChanges();
 
+        const before = (fixture.nativeElement as HTMLElement).textContent ?? '';
+        expect(before).toContain('How this works');
+        expect(before).not.toContain('Missing docs.');
+
+        const toggles = Array.from(
+            fixture.nativeElement.querySelectorAll('.preprocessing-doc-toggle')
+        ) as HTMLButtonElement[];
+        expect(toggles.length).toBe(2);
+        toggles.forEach((toggle) => toggle.click());
+        fixture.detectChanges();
+
         const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-        expect(text).toContain('Documentation');
         expect(text).toContain('Missing docs.');
         expect(text).toContain('Second line.');
         expect(text).toContain('Outlier docs.');
@@ -658,13 +675,21 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(node.querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
         }
 
+        // The K-means station is opened from its pill, like the categorical drafts.
+        const addKmeans = Array.from(
+            workflowSection('Transformation').querySelectorAll('.transformation-add-row .btn-add-step')
+        ).find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
+        addKmeans.click();
+        fixture.detectChanges();
+
         // Titled cards keep the shared anatomy: icon tile + collapsible header.
         const titled = (Array.from(
             (fixture.nativeElement as HTMLElement).querySelectorAll('.pipeline-node .station-card')
         ) as HTMLElement[]).filter((card) => card.querySelector('.station-card-title')?.textContent?.trim());
         expect(titled.map((card) => card.querySelector('.station-card-title')?.textContent?.trim())).toEqual([
             'Missing Values',
-            'Create new categorical column',
+            'Categorical column',
+            'K-means cluster column',
         ]);
         for (const card of titled) {
             expect(card.querySelector('.station-card-icon i')).toBeTruthy();
@@ -675,14 +700,15 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('keeps the preprocessing and transformation stations collapsible', () => {
         fixture.detectChanges();
 
-        // Filtering is the only static station; the other three toggle through their header.
+        // Filtering is the only static station; the other four toggle through their header.
         openStation('setup');
         openStation('transformation');
         component.enableOutlierHandling();
+        component.kmeansClusterCardOpen.set(true);
         fixture.detectChanges();
 
         const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.pipeline-node .station-card-header'));
-        expect(headers.filter((header) => header.tagName === 'BUTTON' && header.hasAttribute('aria-expanded')).length).toBe(3);
+        expect(headers.filter((header) => header.tagName === 'BUTTON' && header.hasAttribute('aria-expanded')).length).toBe(4);
 
         const missingHeader = headers.find((header) => header.textContent?.includes('Missing Values')) as HTMLButtonElement;
         expect(missingHeader.getAttribute('aria-expanded')).toBe('true');
@@ -763,7 +789,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // contribute to the pending count. Only the longitudinal step counts.
         openStation('setup');
         expect(component.pendingChangeCount).toBe(1);
-        expect(fixture.nativeElement.textContent).toContain('1 pending step');
+        expect(fixture.nativeElement.textContent).toContain('1 change');
     });
 
     it('shows category choices for categorical constant preprocessing values', () => {
@@ -1231,8 +1257,15 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(text).toContain('Categorical');
         expect(text).toContain('Age');
         expect(text).toContain('Sex');
-        expect(text).toContain('PDF');
-        expect(text).toContain('CSV');
+        expect(text).toContain('Export');
+        const exportTrigger = workspace.querySelector('.summary-export-group .studio-export-btn') as HTMLButtonElement;
+        expect(exportTrigger).toBeTruthy();
+        exportTrigger.click();
+        fixture.detectChanges();
+        const exportMenu = workspace.querySelector('.studio-export-menu') as HTMLElement;
+        expect(exportMenu).toBeTruthy();
+        expect(exportMenu.textContent).toContain('PDF');
+        expect(exportMenu.textContent).toContain('CSV');
         const variableButtons = Array.from(workspace.querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[];
         const ageButton = variableButtons.find((button) => button.textContent?.includes('Age'));
         const ageButtonText = ageButton?.textContent ?? '';
@@ -1243,6 +1276,41 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(ageButtonText).toContain('0%');
         expect(ageButton?.querySelector('.statistics-variable-coverage')?.getAttribute('title')).toContain('of 10');
         expect(ageButtonText).not.toContain('Numerical');
+
+        // The bar puts the missing share under the name; 0% still shows the track.
+        const bars = Array.from(workspace.querySelectorAll('.statistics-variable-bar')) as HTMLElement[];
+        expect(bars.length).toBe(2);
+        expect(bars[0].querySelector('span')?.getAttribute('style')).toContain('2%');
+        expect(bars[0].getAttribute('data-severity')).toBe('none');
+        expect(bars[1].querySelector('span')?.getAttribute('style')).toContain('90.9091%');
+        expect(bars[1].getAttribute('data-severity')).toBe('none');
+
+        // The dataset header carries its own n from the Total row.
+        expect(workspace.querySelector('.statistics-table th small')?.textContent).toContain('n = 10');
+    });
+
+    it('keeps CSV to the Table tab and opens PDF from the merged Export menu', () => {
+        configureRawSummary();
+        component.addStep('filters');
+        fixture.detectChanges();
+
+        const rawSection = workflowSection('Raw Data Summary');
+        const trigger = rawSection.querySelector('.summary-export-group .studio-export-btn') as HTMLButtonElement;
+        // The tour's analysis-export spotlight rides the merged Export control.
+        expect(trigger.getAttribute('data-guide')).toBe('analysis-export');
+        trigger.click();
+        fixture.detectChanges();
+        expect(rawSection.querySelector('.studio-export-menu')?.textContent).toContain('CSV');
+        expect(rawSection.querySelector('.studio-export-menu')?.textContent).toContain('PDF');
+
+        component.setSummaryTab('raw', 'Charts');
+        fixture.detectChanges();
+        expect(component.summaryExportMenuKind()).toBeNull();
+        trigger.click();
+        fixture.detectChanges();
+        const menuText = rawSection.querySelector('.studio-export-menu')?.textContent ?? '';
+        expect(menuText).toContain('PDF');
+        expect(menuText).not.toContain('CSV');
     });
 
     it('pools the rail foot over counts rather than averaging the row shares', () => {
@@ -1338,7 +1406,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
-        expect(fixture.nativeElement.querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+        expect(fixture.nativeElement.querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Sex');
     });
 
     it('keeps the raw variable browser visible when the right panel switches to charts', () => {
@@ -1355,7 +1423,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(rawSection.querySelectorAll('.statistics-browser').length).toBe(1);
         expect(rawSection.querySelector('.chart-browser')).toBeNull();
         expect(rawSection.querySelector('.statistics-browser')?.textContent).toContain('Age');
-        expect(rawSection.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
+        expect(rawSection.querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Age');
         expect(rawSection.querySelector('app-chart-renderer')).toBeTruthy();
     });
 
@@ -1373,12 +1441,12 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.setSummaryTab('raw', 'Charts');
         fixture.detectChanges();
         expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
-        expect(workflowSection('Raw Data Summary').querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+        expect(workflowSection('Raw Data Summary').querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Sex');
 
         component.setSummaryTab('raw', 'Statistics');
         fixture.detectChanges();
         expect(component.selectedStatisticBlock('raw')?.name).toBe('Sex');
-        expect(workflowSection('Raw Data Summary').querySelector('.statistics-panel h4')?.textContent).toContain('Sex');
+        expect(workflowSection('Raw Data Summary').querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Sex');
     });
 
     it('shows a chart empty state for a selected variable without chart options', () => {
@@ -1409,7 +1477,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(processedSection.querySelector('.statistics-browser')).toBeTruthy();
         expect(processedSection.querySelector('.chart-browser')).toBeNull();
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
-        expect(processedSection.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
+        expect(processedSection.querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Age');
     });
 
     it('applies longitudinal preprocessing with visit pair and per-variable strategies', () => {
@@ -1571,9 +1639,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
 
         fixture.detectChanges();
-        const preview = fixture.nativeElement.querySelector('.preview-panel') as HTMLElement;
-        expect(preview.textContent).toContain('Outlier Report Preview');
-        expect(preview.textContent).toContain('0');
+        const preview = fixture.nativeElement.querySelector('.outlier-report-section') as HTMLElement;
+        expect(preview).toBeTruthy();
+        expect(preview.textContent).toContain('Values that would be capped');
+        expect(preview.textContent).toContain('dataset-a');
         expect(preview.textContent).toContain('2');
     });
 
@@ -2160,7 +2229,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // The primary card has no Remove Step: Clear already covers it.
         expect(cardActions().length).toBe(0);
 
-        (workflowSection('Transformation').querySelector('.transformation-cards .btn-add-dashed') as HTMLButtonElement)
+        (workflowSection('Transformation').querySelector('.transformation-add-row .btn-add-step') as HTMLButtonElement)
             .click();
         fixture.detectChanges();
 
@@ -2254,7 +2323,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // Apply no longer refuses. The duplicate is named by the card's own chip and by
         // the stage status, and only the first occurrence of a shared code is persisted.
         expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Duplicate name');
-        expect(component.transformationStatusLabel).toBe('Pending');
+        expect(component.transformationStatusLabel).toBe('Not applied');
         expect(navigate).not.toHaveBeenCalled();
         // Apply no longer refuses, and the stage does not fold over the problem: the two
         // Duplicate name chips are what name it, and they live in the station body.
@@ -2322,7 +2391,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.fetchDescriptiveStatistics();
             fixture.detectChanges();
 
-            expect(component.distributionFor(age)).toEqual([]);
+            expect(component.distributionFor(age)).toEqual([{ label: 'Mean', value: '71' }]);
         });
 
         it('shows no evidence at all before the descriptive stats arrive', () => {
@@ -2892,8 +2961,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(transformation.querySelector('.glass-feedback-warning')).toBeNull();
             expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
             expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
-            expect(component.transformationDraftStatus(unfiltered).label).toBe('Pending');
-            expect(component.transformationStatusLabel).toBe('Pending');
+            expect(component.transformationDraftStatus(unfiltered).label).toBe('Not applied');
+            expect(component.transformationStatusLabel).toBe('Not applied');
 
             mockExpService.loadDescriptiveOverview.calls.reset();
             component.previewTransformationData();
@@ -2907,6 +2976,54 @@ describe('StatisticAnalysisPanelComponent', () => {
                 { code: 'group_a', rows: [{ value: 'a', count: 3 }] },
                 { code: 'group_b', rows: [{ value: 'b', count: 4 }] },
             ]);
+        });
+
+        it('runs the applied K-means creator and shows the cluster column counts', () => {
+            const creator = {
+                code: 'kmeans_cluster',
+                reusable_preprocessing: {
+                    cluster_variables: ['age', 'sex'],
+                    cluster_choices: [
+                        { cluster_id: 'cluster_0', label: 'Cluster 0' },
+                        { cluster_id: 'cluster_1', label: 'Cluster 1' },
+                    ],
+                },
+            };
+            mockExpService.appliedKMeansClusterCreator.and.returnValue(creator as any);
+            mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => ({
+                ...(config ?? {}),
+                kmeans_cluster_creator: creator,
+            }));
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                result: {
+                    featurewise: [{
+                        dataset: 'all datasets',
+                        variable: 'kmeans_cluster',
+                        data: { counts: { cluster_0: 12, cluster_1: 7 } },
+                    }],
+                },
+            }));
+            openStation('transformation');
+            fixture.detectChanges();
+
+            component.previewTransformationData();
+            fixture.detectChanges();
+
+            // The creator goes into the describe as a preprocessing step, read over its own
+            // clustering variables, and the cluster column comes back as a variable with counts.
+            const [columns, preprocessing, sourceCodes] =
+                mockExpService.loadDescriptiveOverview.calls.mostRecent().args;
+            expect(columns).toEqual(['kmeans_cluster']);
+            expect((preprocessing as any)?.['kmeans_cluster_creator']).toBe(creator);
+            expect(sourceCodes).toContain('age');
+            expect(sourceCodes).toContain('sex');
+            expect(component.transformationStatistics).toEqual([{
+                code: 'kmeans_cluster',
+                rows: [
+                    { value: 'cluster_0', count: 12 },
+                    { value: 'cluster_1', count: 7 },
+                ],
+            }]);
         });
 
         it('previews while a category builder rejects its condition', () => {
@@ -3014,7 +3131,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             // The complete card is committed. The stage does not fold over the card whose
             // Pending chip is the only thing left saying that work remains.
-            expect(component.transformationStatusLabel).toBe('Pending');
+            expect(component.transformationStatusLabel).toBe('Not applied');
             expect(component.sectionOpen().transformation).toBeTrue();
             const body = workflowSection('Transformation').querySelector('.workflow-section-body');
             expect(body?.classList.contains('open')).toBeTrue();

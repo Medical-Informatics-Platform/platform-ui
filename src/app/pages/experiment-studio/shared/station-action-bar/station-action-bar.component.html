@@ -21,7 +21,9 @@
       type="button"
       class="station-action-preview"
       (click)="preview.emit()"
-    >{{ previewLabel() }}</button>
+    >
+      <i class="fas fa-eye" aria-hidden="true"></i>{{ previewLabel() }}
+    </button>
     }
     <button
       type="button"

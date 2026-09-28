@@ -8,10 +8,10 @@
       </ng-container>
 
       @if (previewExpression()) {
-      <div class="block-preview">
-        <span>Preview</span>
+      <details class="block-preview">
+        <summary>Show as expression</summary>
         <code>{{ previewExpression() }}</code>
-      </div>
+      </details>
       }
 
       @if (filterError()) {
@@ -28,29 +28,24 @@
   <div class="filter-block-group" [class.is-root]="depth === 0" [class.is-nested]="depth > 0">
     <div class="filter-group-header">
       <div class="filter-group-scope">
-        <i class="fas fa-layer-group scope-icon" aria-hidden="true"></i>
-        <span class="scope-text">{{ depth === 0 ? 'Match' : 'Nested group — Match' }}</span>
-        <select
-          class="scope-logic-select"
-          [ngModel]="groupCondition(group)"
-          (ngModelChange)="setGroupCondition(group.id, $event)"
-        >
-          <option value="AND">ALL (AND)</option>
-          <option value="OR">ANY (OR)</option>
-        </select>
-        <span class="scope-text">{{ depth === 0 ? 'of the following conditions:' : 'of these:' }}</span>
+        <span class="scope-text">{{ depth === 0 ? 'Keep records that match' : 'Group · match' }}</span>
+        <div class="scope-tray" role="radiogroup" aria-label="Match">
+          <button type="button" role="radio" [attr.aria-checked]="groupCondition(group) === 'AND'"
+                  [class.active]="groupCondition(group) === 'AND'" (click)="setGroupCondition(group.id, 'AND')">all</button>
+          <button type="button" role="radio" [attr.aria-checked]="groupCondition(group) === 'OR'"
+                  [class.active]="groupCondition(group) === 'OR'" (click)="setGroupCondition(group.id, 'OR')">any</button>
+        </div>
+        <span class="scope-text">{{ depth === 0 ? 'of these conditions' : 'of these' }}</span>
       </div>
 
       <div class="filter-group-actions">
         @if (removable) {
           <button
             type="button"
-            class="builder-token-btn muted"
+            class="builder-token-btn muted filter-group-remove"
             title="Remove group"
             (click)="removeBlock(group.id)"
-          >
-            <i class="fas fa-trash" aria-hidden="true"></i>
-          </button>
+          >Remove group</button>
         }
       </div>
     </div>
@@ -78,28 +73,36 @@
               -->
               <details class="condition-row" [open]="activeBlockId() === block.id">
                 <summary class="compact-condition-row" (click)="toggleActiveBlock(block.id)">
-                  <span class="compact-left">
-                    <span class="compact-variable">{{ block.variableText || 'Select variable...' }}</span>
-                    <span class="compact-operator">{{ operatorDisplayLabel(block.operator) }}</span>
-                    @if (!isUnaryOperator(block.operator)) {
-                      <span class="compact-value" [title]="compactValueSummary(block)">
-                        {{ compactValueSummary(block) }}
-                      </span>
-                    }
-                  </span>
-                  <span class="compact-right">
+                  <span class="compact-join">{{ $first ? 'where' : (groupCondition(group) === 'AND' ? 'and' : 'or') }}</span>
+                  <span class="compact-variable">
+                    {{ block.variableText || 'Select variable...' }}
                     @if (variableType(block)) {
                       <span class="type-badge">{{ variableType(block) }}</span>
                     }
-                    <button
-                      type="button"
-                      class="compact-delete-btn"
-                      title="Remove condition"
-                      (click)="$event.preventDefault(); removeBlock(block.id)"
-                    >
-                      <i class="fas fa-trash-can" aria-hidden="true"></i>
-                    </button>
                   </span>
+                  <span class="compact-operator">{{ operatorDisplayLabel(block.operator) }}</span>
+                  @if (!isUnaryOperator(block.operator)) {
+                  <span class="compact-value" [title]="compactValueSummary(block)">
+                    @if (isMultiValueOperator(block.operator) && categoryOptions(block).length) {
+                    @for (category of restingCategoryOptions(block); track category.value) {
+                    <span class="value-chip" [class.is-selected]="isCategorySelected(block, category.value)">{{ category.label }}</span>
+                    }
+                    @if (hiddenCategoryCount(block) > 0) {
+                    <span class="value-chip value-chip-more">+{{ hiddenCategoryCount(block) }} more</span>
+                    }
+                    } @else {
+                    {{ compactValueSummary(block) }}
+                    }
+                  </span>
+                  }
+                  <button
+                    type="button"
+                    class="compact-delete-btn"
+                    title="Remove condition"
+                    (click)="$event.preventDefault(); removeBlock(block.id)"
+                  >
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                  </button>
                 </summary>
 
                 <div class="expanded-row">
@@ -204,7 +207,7 @@
                     title="Remove condition"
                     (click)="removeBlock(block.id)"
                   >
-                    <i class="fas fa-trash-can" aria-hidden="true"></i>
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
                   </button>
                 </div>
               </details>
