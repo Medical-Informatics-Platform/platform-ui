@@ -4,7 +4,7 @@
     type="text"
     [ngModel]="filters().query"
     (ngModelChange)="onQueryInput($event)"
-    placeholder="Search…"
+    placeholder="Search name or variable"
     [title]="
       filters().query ? '' : 'Search by name, description, author, algorithm…'
     "

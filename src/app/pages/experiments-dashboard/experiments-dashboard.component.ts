@@ -18,7 +18,7 @@ import { ExperimentsDashboardGuideComponent } from './guide/experiments-dashboar
 import { ExperimentFolderComponent } from './experiment-folder/experiment-folder.component';
 import { ExperimentFoldersService } from '../../services/experiment-folders.service';
 import { readDashboardQuery, updateDashboardQuery } from './dashboard-query.utils';
-import { ExperimentStatusComponent } from './shared/experiment-status/experiment-status.component';
+import { statusChip } from './shared/experiment-status/experiment-status.component';
 
 @Component({
   selector: 'app-experiments-dashboard',
@@ -34,7 +34,6 @@ import { ExperimentStatusComponent } from './shared/experiment-status/experiment
     ExperimentsCompareComponent,
     ExperimentsDashboardGuideComponent,
     ExperimentFolderComponent,
-    ExperimentStatusComponent
   ]
 })
 export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
@@ -133,9 +132,31 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
 
       this.sharedExperimentId.set(null);
     });
+
+    effect(() => {
+      if (!this.allowDefaultOpen() || this.suppressDefaultOpen() || this.openedDefault) return;
+      const loading = this.experimentsService.isLoading();
+      const list = this.experimentsService.experiments();
+      if (this.selectedExperiment() || this.selectedFolderId() || this.compareMode() || this.hasDeepLink()) {
+        this.openedDefault = true;
+        return;
+      }
+      const params = readDashboardQuery();
+      if (params.get('experiment') || params.get('folder') || params.get('compare')) return;
+      const first = list[0];
+      if (loading || !first) return;
+      this.openedDefault = true;
+      // At the stacked (master/detail) breakpoint a selection hides the list, so the list
+      // stays the landing view there.
+      if (window.matchMedia?.('(max-width: 1100px)').matches) return;
+      this.onExperimentSelected(first);
+    });
   }
 
   hasDeepLink = signal(false);
+  private readonly allowDefaultOpen = signal(false);
+  private readonly suppressDefaultOpen = signal(false);
+  private openedDefault = false;
 
   ngOnInit(): void {
     this.titleService.setTitle('Experiments · MIP');
@@ -154,6 +175,7 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
         this.hasDeepLink.set(true);
       }
     });
+    this.allowDefaultOpen.set(true);
   }
 
   ngOnDestroy(): void {
@@ -234,28 +256,44 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     this.syncCompareUrl([]);
   }
 
-  toggleCompareMode() {
-    const isOn = this.compareMode();
-
-    if (isOn) {
-      // turn OFF -> clear
-      this.compareMode.set(false);
-      this.compareIds.set([]);
-      this.compareOriginFolderId.set(null);
-      updateDashboardQuery({ compare: null, folder: null });
-    } else {
-      // turn ON -> set selected
-      const current = this.selectedExperiment();
-      // The canvas and the workspace both own the centre pane, and the canvas branch is
-      // checked first: opening compare has to give the folder up or the button flips while
-      // the pane stays put.
-      const ids = current ? [current.id] : [];
-      this.compareIds.set(ids);
-      this.selectedFolderId.set(null);
-      this.compareOriginFolderId.set(null);
-      this.compareMode.set(true);
-      this.syncCompareUrl(ids);
+  onCompareToggled(id: string) {
+    const ids = this.compareIds();
+    const next = ids.includes(id)
+      ? ids.filter((existing) => existing !== id)
+      : ids.length >= 3
+        ? ids
+        : [...ids, id];
+    if (next === ids) return;
+    this.compareIds.set(next);
+    if (!this.compareMode()) return;
+    if (next.length < 2) {
+      // Same exit as Done: drop ?compare= and put a run back in the pane openCompare cleared.
+      this.closeCompare();
+      return;
     }
+    this.syncCompareUrl(next);
+  }
+
+  openCompare() {
+    if (this.compareIds().length < 2) return;
+    this.selectedFolderId.set(null);
+    this.selectedExperiment.set(null);
+    this.compareOriginFolderId.set(null);
+    this.compareMode.set(true);
+    this.syncCompareUrl(this.compareIds());
+  }
+
+  closeCompare() {
+    this.compareMode.set(false);
+    this.compareOriginFolderId.set(null);
+    updateDashboardQuery({ compare: null });
+    if (this.selectedExperiment()) return;
+    const ids = this.compareIds();
+    const list = this.experimentsService.experiments();
+    const restored = list.find((experiment) => ids.includes(experiment.id)) ?? list[0];
+    if (!restored) return;
+    this.selectedExperiment.set(restored);
+    this.syncSelectionUrl(restored.id);
   }
 
   readonly compareOriginFolderName = computed(() => {
@@ -263,23 +301,10 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     return id ? this.foldersService.folderById(id)?.name ?? null : null;
   });
 
-  readonly canQuickCompare = computed(() => {
-    return this.compareIds().length === 0 && this.experimentsService.experiments().length >= 2;
-  });
-
   removeFromCompare(experimentId: string) {
     const ids = this.compareIds().filter((id) => id !== experimentId);
     this.compareIds.set(ids);
     this.syncCompareUrl(ids);
-  }
-
-  selectFirstTwoForCompare() {
-    const list = this.experimentsService.experiments();
-    if (list.length >= 2) {
-      const ids = [list[0].id, list[1].id];
-      this.compareIds.set(ids);
-      this.syncCompareUrl(ids);
-    }
   }
 
   getAlgorithmLabel(code: string | null | undefined): string {
@@ -298,22 +323,28 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
       .filter((exp): exp is Experiment => !!exp);
   });
 
+  readonly compareDiffRows = computed(() => {
+    const experiments = this.experimentsForCompare();
+    const fields: { k: string; value: (experiment: Experiment) => string }[] = [
+      { k: 'Algorithm', value: (experiment) => this.getAlgorithmLabel(experiment.algorithmName) },
+      { k: 'Outcome (y)', value: (experiment) => experiment.variables?.join(', ') || '—' },
+      { k: 'Predictors (x)', value: (experiment) => experiment.covariates?.join(', ') || '—' },
+      { k: 'Datasets', value: (experiment) => experiment.datasets?.join(', ') || '—' },
+      { k: 'Filters', value: (experiment) => experiment.filters?.length ? experiment.filters.join(', ') : 'None' },
+      { k: 'Status', value: (experiment) => statusChip(experiment.status).label },
+    ];
+    return fields.map((field) => {
+      const vals = experiments.map((experiment) => field.value(experiment));
+      const same = vals.every((value) => value === vals[0]);
+      return { k: field.k, same, vals };
+    });
+  });
+
   // click on list row
   onExperimentSelected(experiment: Experiment) {
     this.selectedExperiment.set(experiment);
     this.selectedFolderId.set(null);
-
-    // if in compare mode, toggle comparison list
-    if (this.compareMode()) {
-      const ids = this.compareIds();
-      const nextIds = ids.includes(experiment.id)
-        ? ids.filter(id => id !== experiment.id)
-        : [...ids, experiment.id];
-      this.compareIds.set(nextIds);
-      this.syncCompareUrl(nextIds);
-      return;
-    }
-
+    this.compareMode.set(false);
     this.syncSelectionUrl(experiment.id);
   }
 
@@ -369,6 +400,7 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   }
 
   closeMobileDetail() {
+    this.suppressDefaultOpen.set(true);
     this.selectedExperiment.set(null);
     this.selectedFolderId.set(null);
     this.compareMode.set(false);
@@ -378,12 +410,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   }
 
   onRunExperiment(expId: string) {
-    this.router.navigate(['/experiment-studio'], {
-      queryParams: { experimentId: expId, mode: 'edit' }
-    });
-  }
-
-  onEditExperiment(expId: string) {
     this.router.navigate(['/experiment-studio'], {
       queryParams: { experimentId: expId, mode: 'edit' }
     });
@@ -408,19 +434,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     this.isConfirmingDelete = true;
   }
 
-  onDeleteFromList(expId: string) {
-    this.experimentToDeleteId = expId;
-
-    const current = this.selectedExperiment();
-    if (!current || current.id !== expId) {
-      const found = this.experimentsService
-        .experiments()
-        .find(e => e.id === expId);
-      if (found) this.selectedExperiment.set(found);
-    }
-    this.isConfirmingDelete = true;
-  }
-
   confirmDelete(expId: string) {
     if (!expId) return;
 
@@ -433,7 +446,9 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
     });
 
     if (this.selectedExperiment()?.id === expId) {
-      this.selectedExperiment.set(null);
+      const next = this.experimentsService.experiments().find((experiment) => experiment.id !== expId) ?? null;
+      this.selectedExperiment.set(next);
+      if (next) this.syncSelectionUrl(next.id);
     }
 
     this.compareIds.set(this.compareIds().filter(id => id !== expId));

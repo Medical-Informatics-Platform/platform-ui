@@ -1,77 +1,93 @@
 <div class="experiments-list-root">
-  <!-- Search bar -->
+  <!-- Row 1: the search the list answers to, and the panel that narrows it. -->
   <div class="list-toolbar" data-guide="dashboard-search">
     <app-experiment-search [filters]="filters()" (filtersChange)="patchFilters($event)"></app-experiment-search>
+
+    <button type="button" class="filter-toggle-btn" [class.active]="filtersOpen() || hasActiveFilters()"
+      (click)="toggleFilters()" [attr.aria-expanded]="filtersOpen()" title="Filter">
+      <i class="fas fa-sliders-h" aria-hidden="true"></i>
+      <span class="filter-toggle-label">Filter</span>
+      @if (activeFilterCount()) {
+      <span class="count-badge">{{ activeFilterCount() }}</span>
+      }
+    </button>
   </div>
 
-  <!-- Experiments Tabs and view controls. One line at every width: the sort orders sit behind an
-       icon, so nothing here drops onto a ragged second row inside the rail. -->
+  <!-- Row 2: whose runs, which folder, and the one write this row of controls owns. The folder is
+       a select because it is a choice of one, not a chip to press: "All folders" is the clear. -->
   <div class="filter-row experiments-tabs-row" data-guide="dashboard-tabs">
     <div class="experiments-tabs">
       <button type="button" class="tab-btn" [class.active]="onlyMine()" (click)="setTab(true)">
         <i class="far fa-user" aria-hidden="true"></i>
-        <span class="tab-btn__label">My Experiments</span>
+        <span class="tab-btn__label">Mine</span>
       </button>
       <button type="button" class="tab-btn" [class.active]="!onlyMine()" (click)="setTab(false)">
         <i class="fas fa-users" aria-hidden="true"></i>
-        <span class="tab-btn__label">Shared</span>
+        <span class="tab-btn__label">Shared with me</span>
       </button>
     </div>
 
     <div class="list-view-controls">
-      <!-- Sort: the same native <details> disclosure the row actions use, on an icon. The active
-           order is named in the tooltip, so the collapsed control still says what the list does. -->
-      <details class="row-overflow sort-overflow" #sortMenu>
-        <summary class="icon-btn sort-overflow__trigger" [title]="'Sort: ' + sortLabel()"
-          aria-label="Sort experiments">
-          <i class="fas fa-arrow-down-wide-short" aria-hidden="true"></i>
-        </summary>
-
-        <div class="row-overflow__menu">
-          @for (option of sortOptions; track option.value) {
-          <button type="button" class="row-overflow__item" (click)="setSort(option.value)">
-            <i class="fas fa-check sort-overflow__check"
-              [class.sort-overflow__check--off]="option.value !== sort()" aria-hidden="true"></i>
-            <span>{{ option.label }}</span>
-          </button>
-          }
-        </div>
-      </details>
-
-      <button type="button" class="filter-toggle-btn" [class.active]="filtersOpen() || hasActiveFilters()"
-        (click)="toggleFilters()" [attr.aria-expanded]="filtersOpen()" title="Filters">
-        <i class="fas fa-sliders-h" aria-hidden="true"></i>
-        <span class="filter-toggle-label">Filters</span>
-        @if (activeFilterCount()) {
-        <span class="count-badge">{{ activeFilterCount() }}</span>
+      <select class="folder-select" aria-label="Folder" [value]="selectedFolderId() ?? 'all'"
+        (change)="onFolderPick($any($event.target).value)">
+        <option value="all" [selected]="(selectedFolderId() ?? 'all') === 'all'">All folders</option>
+        @for (folder of foldersService.folders(); track folder.id) {
+        <option [value]="folder.id" [selected]="folder.id === selectedFolderId()">{{ folder.name }} ({{
+          folder.experimentIds.length }})</option>
         }
+      </select>
+
+      @if (isCreatingFolder()) {
+      <span class="folder-chip-form">
+        <input class="folder-chip-input" [value]="newFolderDraft()" placeholder="Folder name"
+          aria-label="New folder name" (input)="newFolderDraft.set($any($event.target).value)"
+          (keydown.enter)="commitNewFolder()" (keydown.escape)="cancelNewFolder()" />
+        <button type="button" class="folder-chip-form-action" [disabled]="folderBusy()"
+          (click)="commitNewFolder()">Add</button>
+        <button type="button" class="folder-chip-form-action cancel" (click)="cancelNewFolder()">Cancel</button>
+      </span>
+      } @else {
+      <button type="button" class="folder-chip folder-chip--new" title="New folder" (click)="startNewFolder()">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+        New
       </button>
+      }
     </div>
   </div>
 
-  @if (totalExperiments() > 0 && !isLoading()) {
-  <p class="list-summary">
-    Showing <strong>{{ rangeStart() }}–{{ rangeEnd() }}</strong> of <strong>{{ totalExperiments() }}</strong>
-    @if (historyTruncated()) {
-    <!-- The count above only covers the most recent runs a client-side filter could read. -->
-    <span class="list-summary-note">searched your {{ historyCap() }} most recent experiments — narrow the filters to reach older ones</span>
-    }
-  </p>
-  }
-
-  @if (compareMode()) {
-  <div class="compare-selection-bar">
-    <span class="compare-selection-count">{{ compareIds().length }} selected</span>
-    <div class="compare-selection-actions">
-      <button type="button" class="compare-selection-btn" (click)="selectAllOnPage()">Select page</button>
-      <button type="button" class="compare-selection-btn" (click)="clearCompareSelection.emit()"
-        [disabled]="!compareIds().length">Clear</button>
-    </div>
-  </div>
+  @if (folderFormError(); as folderFormError) {
+  <p class="folder-strip-error">{{ folderFormError }}</p>
+  } @else if (folderWriteError(); as folderWriteError) {
+  <p class="folder-strip-error">{{ folderWriteError }}</p>
+  } @else if (foldersService.loadError(); as foldersLoadError) {
+  <p class="folder-strip-error">{{ foldersLoadError }}</p>
+  } @else if (!foldersService.folders().length && foldersService.loading()) {
+  <p class="folder-strip-hint">Reading your folders…</p>
+  } @else if (!foldersService.folders().length) {
+  <p class="folder-strip-hint">Group related runs here, then compare them side by side.</p>
   }
 
   @if (filtersOpen()) {
   <div class="advanced-filters">
+    <!-- Sort re-orders what these filters narrow, so it lives with them and only exists while the
+         panel is open. The active order is named in the trigger's tooltip. -->
+    <details class="row-overflow sort-overflow" #sortMenu>
+      <summary class="icon-btn sort-overflow__trigger" [title]="'Sort: ' + sortLabel()"
+        aria-label="Sort experiments">
+        <i class="fas fa-arrow-down-wide-short" aria-hidden="true"></i>
+      </summary>
+
+      <div class="row-overflow__menu">
+        @for (option of sortOptions; track option.value) {
+        <button type="button" class="row-overflow__item" (click)="setSort(option.value)">
+          <i class="fas fa-check sort-overflow__check"
+            [class.sort-overflow__check--off]="option.value !== sort()" aria-hidden="true"></i>
+          <span>{{ option.label }}</span>
+        </button>
+        }
+      </div>
+    </details>
+
     <label class="filter-field">
       <span class="filter-label">Algorithm</span>
       <select [ngModel]="filters().algorithm" (ngModelChange)="patchFilters({ algorithm: $event || null })">
@@ -118,54 +134,6 @@
   </div>
   }
 
-  <!-- Folder chips: a cross-cutting selection over the list, so they sit under the tabs and
-       never above search. Same segmented recipe as the tabs above them. -->
-  <div class="folder-strip">
-    <span class="folder-strip-label">Folders</span>
-
-    <div class="folder-chips">
-      @for (folder of foldersService.folders(); track folder.id) {
-      <button type="button" class="folder-chip" [class.selected]="folder.id === selectedFolderId()"
-        [class.folder-chip--receiving]="receivingFolderId() === folder.id"
-        [attr.aria-pressed]="folder.id === selectedFolderId()" [title]="folder.name + ' · drop a run here to add it'"
-        (click)="selectFolder(folder.id)" (dragover)="onFolderChipDragOver(folder.id, $event)"
-        (dragleave)="onFolderChipDragLeave(folder.id, $event)" (drop)="onFolderChipDrop(folder, $event)">
-        <i class="fas fa-object-group" aria-hidden="true"></i>
-        <span class="folder-chip__name">{{ folder.name }}</span>
-        <span class="count-badge">{{ folder.experimentIds.length }}</span>
-      </button>
-      }
-
-      @if (isCreatingFolder()) {
-      <span class="folder-chip-form">
-        <input class="folder-chip-input" [value]="newFolderDraft()" placeholder="Folder name"
-          aria-label="New folder name" (input)="newFolderDraft.set($any($event.target).value)"
-          (keydown.enter)="commitNewFolder()" (keydown.escape)="cancelNewFolder()" />
-        <button type="button" class="folder-chip-form-action" [disabled]="folderBusy()"
-          (click)="commitNewFolder()">Add</button>
-        <button type="button" class="folder-chip-form-action cancel" (click)="cancelNewFolder()">Cancel</button>
-      </span>
-      } @else {
-      <button type="button" class="folder-chip folder-chip--new" title="New folder" (click)="startNewFolder()">
-        <i class="fas fa-plus" aria-hidden="true"></i>
-        New
-      </button>
-      }
-    </div>
-
-    @if (folderFormError(); as folderFormError) {
-    <p class="folder-strip-error">{{ folderFormError }}</p>
-    } @else if (folderWriteError(); as folderWriteError) {
-    <p class="folder-strip-error">{{ folderWriteError }}</p>
-    } @else if (foldersService.loadError(); as foldersLoadError) {
-    <p class="folder-strip-error">{{ foldersLoadError }}</p>
-    } @else if (!foldersService.folders().length && foldersService.loading()) {
-    <p class="folder-strip-hint">Reading your folders…</p>
-    } @else if (!foldersService.folders().length) {
-    <p class="folder-strip-hint">Group related runs here, then compare them side by side.</p>
-    }
-  </div>
-
   @if (isLoading() && !pagedExperiments().length) {
   <div class="list-skeleton" aria-label="Loading experiments" aria-busy="true">
     @for (row of [1, 2, 3, 4]; track row) {
@@ -208,48 +176,37 @@
   } @else {
   <ul class="experiments-list" role="listbox" aria-label="Experiments">
     @for (exp of pagedExperiments(); track exp.id) {
-    <li class="experiment-row" draggable="true" tabindex="0" role="option" [attr.aria-selected]="
-        (!compareMode() && exp.id === selectedExperimentId()) ||
-        (compareMode() && isInCompare(exp.id))
-      " [class.selected]="
-        (!compareMode() && exp.id === selectedExperimentId()) ||
-        (compareMode() && isInCompare(exp.id))
-      " [class.experiment-row--dragging]="draggingExperimentId() === exp.id"
-      [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null"
-      (click)="selectExperiment(exp)" (keydown)="onRowKeydown($event, exp)"
-      (dragstart)="onExperimentDragStart(exp, $event)" (dragend)="onExperimentDragEnd()">
-      <!-- LEFT: main info -->
+    <!-- A row is selected when it is the one the detail pane shows. Compare membership is a
+         separate check on the left of the row, so the two never borrow each other's highlight. -->
+    <li class="experiment-row" draggable="true" tabindex="0" role="option"
+      [attr.aria-selected]="exp.id === selectedExperimentId()" [class.selected]="exp.id === selectedExperimentId()"
+      [class.experiment-row--dragging]="draggingExperimentId() === exp.id"
+      [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)"
+      (keydown)="onRowKeydown($event, exp)" (dragstart)="onExperimentDragStart(exp, $event)"
+      (dragend)="onExperimentDragEnd()">
+      <button type="button" class="row-check" [class.row-check--on]="isInCompare(exp.id)"
+        [attr.aria-pressed]="isInCompare(exp.id)" aria-label="Select for compare"
+        [attr.data-guide]="$first ? 'dashboard-compare' : null"
+        [disabled]="!isInCompare(exp.id) && compareIds().length >= 3"
+        (click)="onCompareCheck(exp.id, $event)"></button>
+
       <div class="row-main">
         <div class="row-title-line">
           <span class="exp-name" [title]="exp.name">
             {{ exp.name || "Untitled Investigation" }}
           </span>
-          <app-experiment-status [status]="exp.status" [compact]="true" />
+          <app-experiment-status [status]="exp.status" [dot]="true" />
         </div>
 
-        <div class="row-meta-line">
-          <span class="meta-item">
-            <i class="far fa-calendar" aria-hidden="true"></i>
-            {{ exp.dateCreated | date : "mediumDate" }}
-          </span>
+        @if (modelLine(exp); as line) {
+        <div class="row-model-line">{{ line }}</div>
+        }
 
-          <span class="meta-item algo-item">
-            <i class="fas fa-flask" aria-hidden="true"></i>
-            <span class="meta-item__text">{{ getAlgorithmLabel(exp.algorithmName) }}</span>
-          </span>
-
-          @if (getDomainLabel(exp.domain); as domainLabel) {
-          <span class="meta-item domain-item">
-            <i class="fas fa-layer-group" aria-hidden="true"></i>
-            <span class="meta-item__text">{{ domainLabel }}</span>
-          </span>
-          }
-        </div>
+        <div class="row-meta-line">{{ metaLine(exp) }}</div>
       </div>
 
-      <!-- RIGHT: actions -->
       <div class="row-actions">
-        <!-- Add to folder: the membership menu for this run. -->
+        <!-- Add to folder: the membership menu for this run, and the only action left on the row. -->
         <span class="folder-menu-anchor">
           <button class="icon-btn" [class.active]="folderMenuExpId() === exp.id" title="Add to folder"
             aria-haspopup="menu" [attr.aria-expanded]="folderMenuExpId() === exp.id"
@@ -257,46 +214,6 @@
             <i class="fas fa-object-group" aria-hidden="true"></i>
           </button>
         </span>
-
-        @if (copyToastVisible() && lastSharedExperimentId() === exp.id) {
-        <span class="copy-chip">
-          {{ copyToastMessage() }}
-        </span>
-        }
-
-        <!-- Infrequent row actions live behind one overflow trigger. -->
-        <details class="row-overflow" (click)="$event.stopPropagation()">
-          <summary class="icon-btn" title="More actions" aria-label="More actions">
-            <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
-          </summary>
-
-          <div class="row-overflow__menu">
-            <button type="button" class="row-overflow__item" (click)="onCopyLinkClicked(exp, $event)">
-              <i class="fas fa-link" aria-hidden="true"></i>
-              Copy link
-            </button>
-
-            @if (isOwner(exp)) {
-            <button type="button" class="row-overflow__item" (click)="onToggleShare(exp, $event)">
-              <i class="fas fa-share-alt" aria-hidden="true"></i>
-              {{ exp.isShared ? 'Make private' : 'Share' }}
-            </button>
-            }
-
-            <button type="button" class="row-overflow__item" (click)="onEditRequested(exp.id); $event.stopPropagation()">
-              <i class="far fa-edit" aria-hidden="true"></i>
-              Edit in Studio
-            </button>
-
-            @if (isOwner(exp)) {
-            <button type="button" class="row-overflow__item row-overflow__item--danger"
-              (click)="onDeleteRequested(exp.id); $event.stopPropagation()">
-              <i class="far fa-trash-alt" aria-hidden="true"></i>
-              Delete
-            </button>
-            }
-          </div>
-        </details>
       </div>
 
       <!-- The panel belongs to the row, not to the trigger: the side pane clips horizontal
@@ -342,8 +259,29 @@
     }
   </ul>
 
-  <!-- Pagination: the only pager in the pane. Its range sits above the list in .list-summary. -->
+  @if (compareIds().length > 0) {
+  <div class="compare-selection-bar">
+    <span class="compare-selection-count">{{ compareIds().length }} selected</span>
+    <div class="compare-selection-actions">
+      <button type="button" class="compare-selection-btn" (click)="clearCompareSelection.emit()">Clear</button>
+      <button type="button" class="compare-selection-btn"
+        [disabled]="compareIds().length < 2" (click)="compareOpened.emit()">
+        {{ compareIds().length >= 2 ? 'Compare ' + compareIds().length : 'Pick one more' }}
+      </button>
+    </div>
+  </div>
+  }
+
+  <!-- Pagination: the only pager in the pane, and the range it pages through. -->
   <div class="list-pagination">
+    <p class="list-summary">
+      Showing <strong>{{ rangeStart() }}–{{ rangeEnd() }}</strong> of <strong>{{ totalExperiments() }}</strong>
+      @if (historyTruncated()) {
+      <!-- The count above only covers the most recent runs a client-side filter could read. -->
+      <span class="list-summary-note">searched your {{ historyCap() }} most recent experiments — narrow the filters to reach older ones</span>
+      }
+    </p>
+
     <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage() === 1">
       ‹ Prev
     </button>

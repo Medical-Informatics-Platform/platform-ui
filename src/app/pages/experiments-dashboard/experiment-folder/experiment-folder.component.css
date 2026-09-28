@@ -110,23 +110,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Count badge: the compare button's recipe, so a count looks the same everywhere. */
-.count-badge {
-  background: var(--primary-color);
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 800;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
 .folder-rename-form {
   display: flex;
   align-items: center;

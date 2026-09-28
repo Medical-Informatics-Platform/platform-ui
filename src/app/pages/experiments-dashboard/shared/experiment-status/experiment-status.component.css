@@ -50,3 +50,24 @@
   color: #92400e;
   border-color: rgba(245, 158, 11, 0.24);
 }
+
+/* The dot is the same three tones with the chip's padding and word taken away. */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #475569;
+  flex-shrink: 0;
+}
+
+.status-dot.completed {
+  background: #065f46;
+}
+
+.status-dot.error {
+  background: #991b1b;
+}
+
+.status-dot.pending {
+  background: #92400e;
+}

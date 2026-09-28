@@ -3,15 +3,15 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
-import { EXPERIMENT_DRAG_MIME } from '../../../core/experiment-drag.utils';
 import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { FakeExperimentFoldersService } from '../experiment-folders.testing';
 import { ExperimentsListComponent } from './experiment-list.component';
 
-const experiment = (id: string): Experiment => ({
+const experiment = (id: string, overrides: Partial<Experiment> = {}): Experiment => ({
   id,
   name: `Run ${id}`,
   dateCreated: new Date('2026-01-01T00:00:00.000Z'),
@@ -20,6 +20,7 @@ const experiment = (id: string): Experiment => ({
   author: 'Marie Curie',
   authorEmail: 'marie.curie@chuv.ch',
   isShared: false,
+  ...overrides,
 });
 
 describe('ExperimentsListComponent list pane', () => {
@@ -27,28 +28,28 @@ describe('ExperimentsListComponent list pane', () => {
   let component: ExperimentsListComponent;
   let foldersService: FakeExperimentFoldersService;
   let loaded: ReturnType<typeof signal<Experiment[]>>;
+  let labelMaps: Record<string, Record<string, string>>;
+  let pendingLabels: Promise<Record<string, string>> | null;
 
   const root = () => fixture.nativeElement as HTMLElement;
   const rowTrigger = () =>
     (fixture.nativeElement as HTMLElement).querySelector('.folder-menu-anchor > .icon-btn') as HTMLButtonElement;
-  const chips = () => Array.from(root().querySelectorAll<HTMLElement>('.folder-chip:not(.folder-chip--new)'));
 
   const rows = () => Array.from(root().querySelectorAll<HTMLElement>('.experiment-row'));
-  const dataTransferWith = (type: string, value: string) => {
-    const dataTransfer = new DataTransfer();
-    dataTransfer.setData(type, value);
-    return dataTransfer;
-  };
-  /** Returns the event so a spec can assert whether the target accepted the drag. */
-  const dispatchDrag = (type: string, target: HTMLElement, dataTransfer: DataTransfer, relatedTarget?: Node | null) => {
-    const event = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, relatedTarget });
-    target.dispatchEvent(event);
-    return event;
+  const folderSelect = () => root().querySelector<HTMLSelectElement>('select[aria-label="Folder"]')!;
+
+  /** A pick from the select, the way the browser hands one over. */
+  const pickFolder = (value: string) => {
+    const select = folderSelect();
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
   };
 
   beforeEach(async () => {
     foldersService = new FakeExperimentFoldersService();
     loaded = signal<Experiment[]>([experiment('a'), experiment('b')]);
+    labelMaps = {};
+    pendingLabels = null;
 
     await TestBed.configureTestingModule({
       imports: [ExperimentsListComponent],
@@ -73,6 +74,12 @@ describe('ExperimentsListComponent list pane', () => {
           useValue: { loadAllDataModels: () => of([]), backendAlgorithms: signal({}) },
         },
         { provide: ExperimentFoldersService, useValue: foldersService },
+        {
+          provide: ExperimentLabelService,
+          useValue: {
+            getLabelMap: (domain: string) => pendingLabels ?? Promise.resolve(labelMaps[domain] ?? {}),
+          },
+        },
       ],
     }).compileComponents();
 
@@ -84,18 +91,17 @@ describe('ExperimentsListComponent list pane', () => {
     component.ngOnDestroy();
   });
 
-  it('shows one chip per folder with its member count and the selected state', () => {
+  it('offers one option per folder with its member count, and wears the open folder', () => {
     foldersService.seedFolder('ANOVA', ['a']);
     foldersService.seedFolder('PCA');
     fixture.componentRef.setInput('selectedFolderId', foldersService.folders()[0].id);
     fixture.detectChanges();
 
-    expect(root().querySelector('.folder-strip-label')!.textContent!.trim()).toBe('Folders');
-    expect(chips().length).toBe(2);
-    expect(chips()[0].textContent).toContain('ANOVA');
-    expect(chips()[0].querySelector('.count-badge')!.textContent!.trim()).toBe('1');
-    expect(chips()[0].classList.contains('selected')).toBeTrue();
-    expect(chips()[1].classList.contains('selected')).toBeFalse();
+    const texts = Array.from(folderSelect().options).map((option) => option.textContent!.trim());
+    expect(texts).toContain('All folders');
+    expect(texts).toContain('ANOVA (1)');
+    expect(texts).toContain('PCA (0)');
+    expect(folderSelect().value).toBe(foldersService.folders()[0].id);
   });
 
   it('names the history a client-side filter could not read, beside the count it limits', () => {
@@ -113,49 +119,45 @@ describe('ExperimentsListComponent list pane', () => {
     expect(root().querySelector('.list-summary-note')).toBeNull();
   });
 
-  it('sits under the tabs, never above search: folders cut across the list, they do not scope it', () => {
+  it('sits under the tabs, never above search: the folder select is part of the tabs row', () => {
     foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
-    const order = Array.from(
-      root().querySelectorAll<HTMLElement>('.list-toolbar, .experiments-tabs-row, .folder-strip'),
-    ).map((region) =>
-      region.classList.contains('list-toolbar') ? 'search' : region.classList.contains('folder-strip') ? 'folders' : 'tabs',
-    );
-    expect(order).toEqual(['search', 'tabs', 'folders']);
+    const regions = Array.from(
+      root().querySelectorAll<HTMLElement>('.list-toolbar, .experiments-tabs-row'),
+    ).map((region) => (region.classList.contains('list-toolbar') ? 'search' : 'tabs'));
+    expect(regions).toEqual(['search', 'tabs']);
+    expect(folderSelect().closest('.experiments-tabs-row')).not.toBeNull();
   });
 
-  it('wears the tab recipe on the chip, including the ghost "+ New" chip', () => {
+  it('keeps the "+ New" control on the tabs row and the folder icon on the row', () => {
     foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
-    const newChip = root().querySelector('.folder-chip--new')!;
-    expect(newChip.classList.contains('folder-chip')).toBeTrue();
+    expect(root().querySelector('.folder-chip--new')).toBeTruthy();
 
     // fa-object-group: fa-layer-group already means domain in this pane and is the compare placeholder.
-    expect(chips()[0].querySelector('i')!.classList.contains('fa-object-group')).toBeTrue();
-    const rowTrigger = root().querySelector('.folder-menu-anchor .icon-btn i')!;
-    expect(rowTrigger.classList.contains('fa-object-group')).toBeTrue();
-    expect(rowTrigger.classList.contains('fa-layer-group')).toBeFalse();
+    const rowTriggerIcon = root().querySelector('.folder-menu-anchor .icon-btn i')!;
+    expect(rowTriggerIcon.classList.contains('fa-object-group')).toBeTrue();
+    expect(rowTriggerIcon.classList.contains('fa-layer-group')).toBeFalse();
   });
 
-  it('tells the dashboard which folder is open and clears it when the chip is pressed again', () => {
+  it('tells the dashboard which folder is open, and "All folders" is the clear', () => {
     const folder = foldersService.seedFolder('ANOVA');
     fixture.detectChanges();
 
     const emitted: Array<string | null> = [];
     component.folderSelected.subscribe((id) => emitted.push(id));
 
-    chips()[0].click();
-    // The chip only knows what the dashboard feeds it back, so press it the way the parent does.
+    pickFolder(folder.id);
     fixture.componentRef.setInput('selectedFolderId', folder.id);
     fixture.detectChanges();
-    chips()[0].click();
+    pickFolder('all');
 
     expect(emitted).toEqual([folder.id, null]);
   });
 
-  it('creates a folder from the strip and opens it', () => {
+  it('creates a folder from the tabs row and opens it', () => {
     fixture.detectChanges();
 
     (root().querySelector('.folder-chip--new') as HTMLButtonElement).click();
@@ -171,7 +173,7 @@ describe('ExperimentsListComponent list pane', () => {
 
     const emitted: Array<string | null> = [];
     component.folderSelected.subscribe((id) => emitted.push(id));
-    chips()[0].click();
+    pickFolder(foldersService.folders()[0].id);
     expect(emitted).toEqual([foldersService.folders()[0].id]);
   });
 
@@ -252,101 +254,54 @@ describe('ExperimentsListComponent list pane', () => {
     expect(root().querySelector('.folder-menu')).toBeNull();
   });
 
-  it('offers every row to a folder as a drag carrying its run id', () => {
-    foldersService.seedFolder('ANOVA');
+  it('states the model on its own line and checks a run into compare without selecting it', () => {
+    loaded.set([experiment('a', { variables: ['MMSE'], covariates: ['Age'] }), experiment('b')]);
     fixture.detectChanges();
 
-    const row = rows()[0];
-    expect(row.getAttribute('draggable')).toBe('true');
+    expect(rows()[0].textContent).toContain('MMSE ~ Age');
 
-    const dataTransfer = new DataTransfer();
-    dispatchDrag('dragstart', row, dataTransfer);
-    fixture.detectChanges();
+    const selected: Experiment[] = [];
+    const toggled: string[] = [];
+    component.experimentSelected.subscribe((exp) => selected.push(exp));
+    component.compareToggled.subscribe((id) => toggled.push(id));
 
-    expect(dataTransfer.getData(EXPERIMENT_DRAG_MIME)).toBe('a');
-    expect(row.classList.contains('experiment-row--dragging')).toBeTrue();
+    (rows()[0].querySelector('.row-check') as HTMLButtonElement).click();
 
-    dispatchDrag('dragend', row, dataTransfer);
-    fixture.detectChanges();
-    expect(row.classList.contains('experiment-row--dragging')).toBeFalse();
+    expect(toggled).toEqual(['a']);
+    expect(selected).toEqual([]);
   });
 
-  it('files a run dropped on a folder chip, without opening the canvas first', () => {
-    const folder = foldersService.seedFolder('ANOVA', ['a']);
+  it('shows catalog labels on the model line and never the variable codes', async () => {
+    labelMaps['dementia:1'] = { age: 'Age', biol_sex: 'Biological sex' };
+    loaded.set([experiment('a', { domain: 'dementia:1', variables: ['age'], covariates: ['biol_sex'] })]);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
-    const chip = chips()[0];
-    const dataTransfer = dataTransferWith(EXPERIMENT_DRAG_MIME, 'b');
-    const hover = dispatchDrag('dragover', chip, dataTransfer);
-    fixture.detectChanges();
-
-    // No preventDefault means no drop event at all, so the ring has to follow the acceptance.
-    expect(hover.defaultPrevented).toBeTrue();
-    expect(chip.classList.contains('folder-chip--receiving')).toBeTrue();
-
-    dispatchDrag('drop', chip, dataTransfer);
-    fixture.detectChanges();
-
-    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a', 'b']);
-    expect(chip.classList.contains('folder-chip--receiving')).toBeFalse();
+    const text = rows()[0].textContent ?? '';
+    expect(text).toContain('Age ~ Biological sex');
+    expect(text).not.toContain('biol_sex');
+    expect(text).not.toContain('age ~');
+    expect(root().querySelector('.row-model-line')?.textContent).toBe('Age ~ Biological sex');
   });
 
-  it('adds on a drop instead of toggling a member the run already is', () => {
-    const folder = foldersService.seedFolder('ANOVA', ['a']);
+  it('keeps the model line hidden until a real label exists', async () => {
+    let resolveMap!: (map: Record<string, string>) => void;
+    pendingLabels = new Promise((resolve) => {
+      resolveMap = resolve;
+    });
+    loaded.set([experiment('a', { domain: 'dementia:1', variables: ['age'], covariates: ['biol_sex'] })]);
     fixture.detectChanges();
 
-    const dataTransfer = dataTransferWith(EXPERIMENT_DRAG_MIME, 'a');
-    dispatchDrag('drop', chips()[0], dataTransfer);
+    expect(root().querySelector('.row-model-line')).toBeNull();
+    expect(rows()[0].textContent).not.toContain('biol_sex');
+
+    resolveMap({ age: 'age', biol_sex: 'Biological sex' });
+    await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a']);
-  });
-
-  it('holds the chip ring while the pointer crosses the chip itself', () => {
-    foldersService.seedFolder('ANOVA');
-    fixture.detectChanges();
-
-    const chip = chips()[0];
-    const dataTransfer = dataTransferWith(EXPERIMENT_DRAG_MIME, 'b');
-    dispatchDrag('dragover', chip, dataTransfer);
-    fixture.detectChanges();
-
-    dispatchDrag('dragleave', chip, dataTransfer, chip.querySelector('.folder-chip__name'));
-    fixture.detectChanges();
-    expect(chip.classList.contains('folder-chip--receiving')).toBeTrue();
-
-    dispatchDrag('dragleave', chip, dataTransfer, null);
-    fixture.detectChanges();
-    expect(chip.classList.contains('folder-chip--receiving')).toBeFalse();
-  });
-
-  it('ignores a drag that carries something other than a run', () => {
-    const folder = foldersService.seedFolder('ANOVA');
-    fixture.detectChanges();
-
-    const chip = chips()[0];
-    const dataTransfer = dataTransferWith('text/plain', 'a');
-    const hover = dispatchDrag('dragover', chip, dataTransfer);
-    fixture.detectChanges();
-    expect(hover.defaultPrevented).toBeFalse();
-    expect(chip.classList.contains('folder-chip--receiving')).toBeFalse();
-
-    dispatchDrag('drop', chip, dataTransfer);
-    fixture.detectChanges();
-    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual([]);
-  });
-
-  it('reports a drop the server refused instead of letting the chip look like it took the run', () => {
-    spyOn(console, 'error');
-    const folder = foldersService.seedFolder('ANOVA', ['a']);
-    foldersService.failWith('addExperiment');
-    fixture.detectChanges();
-
-    dispatchDrag('drop', chips()[0], dataTransferWith(EXPERIMENT_DRAG_MIME, 'b'));
-    fixture.detectChanges();
-
-    expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a']);
-    expect(root().querySelector('.folder-strip-error')!.textContent).toContain('Could not add a run');
+    expect(root().querySelector('.row-model-line')?.textContent).toBe('Biological sex');
+    expect(rows()[0].textContent).not.toContain('age');
   });
 
   it('keeps the name form open when the create never reached the server', () => {
@@ -395,7 +350,9 @@ describe('ExperimentsListComponent list pane', () => {
     expect(foldersService.folders().length).toBe(1);
     expect(foldersService.folders()[0].experimentIds).toEqual(['a']);
   });
+
   describe('the tabs row', () => {
+    // Sort sits inside the filter panel, so the panel is opened before the orders are looked for.
     const trigger = () => root().querySelector<HTMLButtonElement>('.sort-overflow__trigger')!;
 
     // A sort pick writes the query, and Karma keeps one page across specs: start clean, leave clean.
@@ -405,6 +362,12 @@ describe('ExperimentsListComponent list pane', () => {
     });
     afterEach(() => history.replaceState(null, '', '/experiments-dashboard'));
 
+    const openFilters = () => {
+      fixture.detectChanges();
+      (root().querySelector('.filter-toggle-btn') as HTMLButtonElement).click();
+      fixture.detectChanges();
+    };
+
     const orders = () => Array.from(root().querySelectorAll<HTMLElement>('.sort-overflow .row-overflow__item'));
     const details = () => root().querySelector<HTMLDetailsElement>('.sort-overflow')!;
     const checkOf = (item: HTMLElement) =>
@@ -412,7 +375,6 @@ describe('ExperimentsListComponent list pane', () => {
 
     it('keeps the tabs and the controls on one row, with the six orders behind the sort icon', () => {
       fixture.detectChanges();
-
       // A select here measured 112px and pushed Filters onto a second line of its own.
       expect(root().querySelector('select.sort-select')).toBeNull();
 
@@ -425,6 +387,8 @@ describe('ExperimentsListComponent list pane', () => {
         // A wrapped row would stand as tall as both of its lines together.
         expect(rowEl.getBoundingClientRect().height).toBeLessThanOrEqual(tallest + 4);
       }
+
+      openFilters();
 
       expect(trigger().title).toBe('Sort: Newest');
       expect(details().open).toBeFalse();
@@ -446,7 +410,7 @@ describe('ExperimentsListComponent list pane', () => {
     });
 
     it('folds back into the icon once an order is taken, and says which one is on', () => {
-      fixture.detectChanges();
+      openFilters();
       trigger().click();
       fixture.detectChanges();
 
@@ -460,7 +424,7 @@ describe('ExperimentsListComponent list pane', () => {
   });
 
   describe('the page count', () => {
-    it('is paged once, with the range stated under the tabs instead', () => {
+    it('is paged once, with the range stated inside the pager', () => {
       fixture.detectChanges();
 
       expect(root().querySelectorAll('.list-pagination').length).toBe(1);
