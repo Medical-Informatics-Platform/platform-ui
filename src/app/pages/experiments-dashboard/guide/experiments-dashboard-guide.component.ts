@@ -409,17 +409,15 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   }
 
   private ensureCompareModeOff(): void {
-    const exitBtn = [...this.document.querySelectorAll('button')].find((button) =>
-      /exit compare mode/i.test((button.textContent || '').trim())
+    const done = [...this.document.querySelectorAll('.compare-workspace button')].find((button) =>
+      /^done$/i.test((button.textContent || '').trim())
     );
-    if (exitBtn instanceof HTMLElement) {
-      exitBtn.click();
-    }
+    if (done instanceof HTMLElement) done.click();
 
-    const compareToggle = this.document.querySelector('[data-guide="dashboard-compare"]');
-    if (compareToggle instanceof HTMLElement && compareToggle.classList.contains('active')) {
-      compareToggle.click();
-    }
+    const clear = [...this.document.querySelectorAll('.compare-selection-btn')].find((button) =>
+      /^clear$/i.test((button.textContent || '').trim())
+    );
+    if (clear instanceof HTMLElement) clear.click();
   }
 
   private expandRect(rect: DOMRect, padding = 10): GuideRect {

@@ -3,15 +3,17 @@ import { CdkMenu, CdkMenuItem } from '@angular/cdk/menu';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
+import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentFolder } from '../../../models/experiment-folder.model';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ExperimentSearchComponent } from '../experiment-search/experiment-search.component';
 import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
-import { Router, RouterModule } from '@angular/router';
-import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
-import { beginExperimentDrag, droppedExperimentId, isExperimentDrag, leavesDragZone } from '../../../core/experiment-drag.utils';
+import { RouterModule } from '@angular/router';
+import { isExperimentOwner } from '../../../core/share.utils';
+import { beginExperimentDrag } from '../../../core/experiment-drag.utils';
+import { formulaLine } from '../../../core/result-label.utils';
 import { ExperimentFilters, EXPERIMENT_SORTS, EXPERIMENT_SORT_VALUES, ExperimentSort } from '../experiment-search/experiment-filter.model';
 import { readDashboardQuery, updateDashboardQuery } from '../dashboard-query.utils';
 import { InflightWrites } from '../../../core/inflight-writes';
@@ -25,6 +27,8 @@ const DATE_PRESETS = ['any', 'today', '7d', '30d'] as const;
 const STATUSES = ['any', 'success', 'error'] as const;
 const SHARED = ['any', 'shared', 'private'] as const;
 
+const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' });
+
 @Component({
   selector: 'app-experiments-list',
   imports: [CommonModule, FormsModule, RouterModule, ExperimentSearchComponent, ExperimentStatusComponent, CdkMenu, CdkMenuItem],
@@ -36,35 +40,26 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
   experimentsService = inject(ExperimentsDashboardService);
   readonly foldersService = inject(ExperimentFoldersService);
   readonly expStudio = inject(ExperimentStudioService);
-  private router = inject(Router);
+  private readonly labelService = inject(ExperimentLabelService);
+  /** Domain code → variable code → catalog label. Missing key means the map is still loading. */
+  private readonly labelsByDomain = signal<Record<string, Record<string, string>>>({});
+  private readonly labelLoads = new Set<string>();
   private renderer = inject(Renderer2);
   private cdr = inject(ChangeDetectorRef);
 
   readonly experimentSelected = output<Experiment>();
-  readonly deleteRequested = output<string>();
-  readonly editRequested = output<string>();
   /** null clears the folder canvas; a folder and an experiment never share the centre pane. */
   readonly folderSelected = output<string | null>();
   readonly clearCompareSelection = output<void>();
+  readonly compareToggled = output<string>();
+  readonly compareOpened = output<void>();
 
   readonly selectedExperimentId = input<string | null>(null);
   readonly selectedFolderId = input<string | null>(null);
   readonly currentUserEmail = input<string | null>(null);
   readonly compareIds = input<string[]>([]);
-  readonly compareMode = input<boolean>(false);
 
   constructor() {
-    this.expStudio.loadAllDataModels().subscribe(models => {
-      const map: Record<string, string> = {};
-      models.forEach(m => {
-        if (m.code) {
-          const key = m.version ? `${m.code}:${m.version}` : m.code;
-          map[key] = m.label || m.code;
-        }
-      });
-      this.modelLabels.set(map);
-    });
-
     effect(() => {
       this.experimentsService.getUserExperiments(
         this.pageIndex(),
@@ -73,6 +68,19 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
         this.filters(),
         this.sort(),
       );
+    });
+
+    effect(() => {
+      const domains = this.pagedExperiments()
+        .map((exp) => exp.domain)
+        .filter((domain): domain is string => !!domain);
+      for (const domain of domains) {
+        if (this.labelsByDomain()[domain] || this.labelLoads.has(domain)) continue;
+        this.labelLoads.add(domain);
+        void this.labelService.getLabelMap(domain).then((map) => {
+          this.labelsByDomain.update((current) => ({ ...current, [domain]: map }));
+        });
+      }
     });
 
     // Running jobs change server-side; refresh the visible page while any row is still active.
@@ -183,11 +191,6 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
   // advanced filters
   readonly filtersOpen = signal(false);
 
-  // share toast
-  readonly copyToastVisible = signal<boolean>(false);
-  readonly copyToastMessage = signal<string>('Link copied to clipboard');
-  readonly lastSharedExperimentId = signal<string | null>(null);
-
   // filters (single source of truth)
   readonly filters = signal<ExperimentFilters>({
     query: '',
@@ -220,7 +223,6 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
       .sort((a, b) => a.label.localeCompare(b.label)),
   );
 
-  private modelLabels = signal<Record<string, string>>({});
   private statusPoll: ReturnType<typeof setInterval> | null = null;
 
   patchFilters(patch: Partial<ExperimentFilters>) {
@@ -260,12 +262,9 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
     return this.compareIds().includes(id);
   }
 
-  selectAllOnPage(): void {
-    for (const experiment of this.pagedExperiments()) {
-      if (!this.isInCompare(experiment.id)) {
-        this.experimentSelected.emit(experiment);
-      }
-    }
+  onCompareCheck(id: string, event: Event): void {
+    event.stopPropagation();
+    this.compareToggled.emit(id);
   }
 
   setTab(isMine: boolean) {
@@ -294,11 +293,11 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
   private readonly writes = new InflightWrites((message) => this.folderWriteError.set(message));
   readonly folderBusy = this.writes.busy;
 
-  selectFolder(folderId: string) {
+  onFolderPick(value: string): void {
     this.closeFolderMenu();
     this.isCreatingFolder.set(false);
     this.folderFormError.set(null);
-    this.folderSelected.emit(this.selectedFolderId() === folderId ? null : folderId);
+    this.folderSelected.emit(value === 'all' ? null : value);
   }
 
   startNewFolder() {
@@ -418,101 +417,61 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
     );
   }
 
-  // ---- drag a run onto a folder: the canvas and the chips both receive it ----
-  /** The row in flight, so it can sit back visually while its ghost travels. */
   readonly draggingExperimentId = signal<string | null>(null);
-  /** The chip currently under the pointer, or null while nothing local accepts the drag. */
-  readonly receivingFolderId = signal<string | null>(null);
 
   onExperimentDragStart(exp: Experiment, event: DragEvent): void {
     beginExperimentDrag(event.dataTransfer, exp.id);
     this.draggingExperimentId.set(exp.id);
-    // A menu left open under the drag would swallow the drop and look like a dead row.
     this.closeFolderMenu();
   }
 
   onExperimentDragEnd(): void {
     this.draggingExperimentId.set(null);
-    this.receivingFolderId.set(null);
   }
-
-  onFolderChipDragOver(folderId: string, event: DragEvent): void {
-    if (!isExperimentDrag(event.dataTransfer)) return;
-    // Without this the browser refuses the drop and the chip never gets to say yes.
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-    this.receivingFolderId.set(folderId);
-  }
-
-  onFolderChipDragLeave(folderId: string, event: DragEvent): void {
-    if (!leavesDragZone(event, event.currentTarget)) return;
-    if (this.receivingFolderId() === folderId) this.receivingFolderId.set(null);
-  }
-
-  /**
-   * A drop always adds — unlike the row menu there is no second gesture to undo a mistake, and
-   * toggling would silently remove a member the user meant to drop a second run next to.
-   */
-  onFolderChipDrop(folder: ExperimentFolder, event: DragEvent): void {
-    this.receivingFolderId.set(null);
-    this.draggingExperimentId.set(null);
-
-    const experimentId = droppedExperimentId(event.dataTransfer);
-    if (!experimentId) return;
-    event.preventDefault();
-
-    this.writes.run(
-      `add-member:${folder.id}:${experimentId}`,
-      this.foldersService.addExperiment(folder.id, experimentId),
-      () => this.folderWriteError.set(null),
-      `Could not add a run to ${folder.name} — nothing was saved.`,
-    );
-  }
-
-  // ---- share logic (unchanged) ----
-  private showCopyToast(message: string, expId: string) {
-    this.copyToastMessage.set(message);
-    this.copyToastVisible.set(true);
-    this.lastSharedExperimentId.set(expId);
-
-    setTimeout(() => {
-      this.copyToastVisible.set(false);
-      this.lastSharedExperimentId.set(null);
-    }, 2400);
-  }
-
 
   isOwner(exp: Experiment): boolean {
     return isExperimentOwner(this.currentUserEmail(), exp.authorEmail);
   }
 
-  onCopyLinkClicked(exp: Experiment, event: MouseEvent) {
-    event.stopPropagation();
-    copyShareUrl(buildExperimentShareUrl(this.router, exp.id)).then((message) => this.showCopyToast(message, exp.id));
+  /** Outcome and predictors on one line, using catalog labels. A bare variable code is never shown. */
+  modelLine(exp: Experiment): string {
+    const domain = exp.domain;
+    const map = domain ? this.labelsByDomain()[domain] : undefined;
+    if (domain && !map) return '';
+    const names = (codes: string[] | undefined) =>
+      (codes ?? []).map((code) => this.displayName(code, map)).filter((name) => name.length > 0);
+    return formulaLine(names(exp.variables), names(exp.covariates));
   }
 
-  onToggleShare(exp: Experiment, event: MouseEvent) {
-    event.stopPropagation();
+  private displayName(code: string, map: Record<string, string> | undefined): string {
+    const label = map?.[code];
+    if (label && label !== code) return label;
+    // An empty map means the catalog could not be read (load failed or the model version is
+    // gone); showing the code beats a row that silently loses its variables.
+    if (map && Object.keys(map).length === 0) return code;
+    if (map || /^[a-z][a-z0-9_]*$/.test(code)) return '';
+    return code;
+  }
 
-    // Extra safety update check
+  metaLine(exp: Experiment): string {
+    const parts = [this.getAlgorithmLabel(exp.algorithmName), this.relativeWhen(exp.dateCreated)];
     if (!this.isOwner(exp)) {
-      console.warn('Cannot share/unshare experiment owned by someone else.');
-      return;
+      const who = exp.authorEmail?.split('@')[0] || exp.author;
+      if (who) parts.push(who);
     }
-
-    const newShared = !exp.isShared;
-
-    this.experimentsService
-      .toggleExperimentShare(exp.id, newShared)
-      .subscribe({
-        next: () => this.showCopyToast(shareToggleToast(newShared), exp.id),
-        error: (err) => {
-          console.error('Failed to toggle share:', err);
-          this.showCopyToast(SHARE_TOAST.toggleFailed, exp.id);
-        },
-      });
+    return parts.filter(Boolean).join(' · ');
   }
 
+  private relativeWhen(value: Date | string): string {
+    const date = value instanceof Date ? value : new Date(value);
+    const minutes = Math.round((date.getTime() - Date.now()) / 60000);
+    if (!Number.isFinite(minutes)) return '';
+    if (minutes > -1) return 'Just now';
+    if (minutes > -60) return RELATIVE_TIME.format(minutes, 'minute');
+    if (minutes > -1440) return RELATIVE_TIME.format(Math.round(minutes / 60), 'hour');
+    if (minutes > -10080) return RELATIVE_TIME.format(Math.round(minutes / 1440), 'day');
+    return formatDate(date, 'mediumDate', 'en-US');
+  }
 
   // pages
   readonly totalPages = computed(() => this.experimentsService.totalPages());
@@ -568,23 +527,10 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
     return exp.id === this.guideExperimentId();
   }
 
-  onEditRequested(id: string) {
-    this.editRequested.emit(id);
-  }
-
-  onDeleteRequested(id: string) {
-    this.deleteRequested.emit(id);
-  }
-
   getAlgorithmLabel(code: string | null | undefined): string {
     if (!code) return 'Unknown algorithm';
     const algoConfig = this.expStudio.backendAlgorithms()[code];
     return algoConfig?.label || code;
-  }
-
-  getDomainLabel(code: string | null | undefined): string | null {
-    if (!code) return null;
-    return this.modelLabels()[code] || code;
   }
 
   private selectGuideExperiment(experiments: Experiment[]): Experiment | null {

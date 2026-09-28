@@ -23,6 +23,10 @@
   min-width: 0;
 }
 
+.list-toolbar .filter-toggle-btn {
+  flex-shrink: 0;
+}
+
 /* TABS + VIEW CONTROLS */
 .filter-row.experiments-tabs-row {
   margin-top: 2px;
@@ -333,27 +337,6 @@
   margin-top: 2px;
 }
 
-.folder-strip-label {
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--text-muted);
-}
-
-.folder-chips {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  /* Long folder names scroll; "+ New" never falls onto a second line. */
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  background: var(--glass-bg);
-  padding: 4px;
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--glass-border);
-}
-
 .folder-chip {
   flex-shrink: 0;
   border: none;
@@ -385,35 +368,6 @@
   background: #ffffff;
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
-}
-
-.folder-chip--receiving {
-  background: #ffffff;
-  color: var(--primary-color);
-  box-shadow: var(--shadow-sm), 0 0 0 2px var(--primary-color);
-}
-
-.folder-chip__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 140px;
-}
-
-.count-badge {
-  background: var(--primary-color);
-  color: #ffffff;
-  font-size: 0.58rem;
-  font-weight: 800;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 
 .folder-chip-form {
@@ -504,12 +458,6 @@
   overflow-x: visible;
 }
 
-.experiments-list::-webkit-scrollbar,
-.folder-chips::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
 .experiments-list::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -527,7 +475,7 @@
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg, 12px);
-  padding: 14px 16px;
+  padding: 9px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -573,15 +521,48 @@
   z-index: 1;
 }
 
+.row-check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid #94a3b8;
+  background: #fff;
+  cursor: pointer;
+}
+
+.row-check--on {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.row-check:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.folder-select {
+  max-width: 11rem;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0 8px;
+}
+
 /* CONTENT */
 .row-main {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-/* The title line keeps the run name and status together. The meta stack below restores the
-   taller card shape: date, algorithm and domain each get a readable line instead of competing
-   for one narrow row. Action buttons are unaffected. */
 .row-title-line {
   display: flex;
   align-items: center;
@@ -602,46 +583,25 @@
   white-space: nowrap;
 }
 
-.row-meta-line {
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
+.row-model-line {
+  margin-top: 2px;
   min-width: 0;
-  font-size: 0.76rem;
-  line-height: 1.35;
-  color: var(--text-muted);
-}
-
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  max-width: 100%;
-  flex: 0 1 auto;
-}
-
-.algo-item,
-.domain-item {
-  width: 100%;
-  opacity: 0.85;
-}
-
-/* The label, not the item, is the box that truncates: a flex container clips, it never draws the
-   ellipsis. */
-.meta-item__text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-main);
 }
 
-.meta-item i {
-  font-size: 0.72rem;
-  line-height: 1;
-  flex-shrink: 0;
+.row-meta-line {
+  margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  line-height: 1.35;
   color: var(--text-muted);
 }
 
@@ -679,25 +639,6 @@
 .icon-btn.shared {
   background: color-mix(in srgb, var(--success) 10%, white);
   color: #065f46;
-}
-
-.icon-btn.danger:hover {
-  background: color-mix(in srgb, var(--danger) 10%, white);
-  color: #991b1b;
-}
-
-.copy-chip {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--primary-color);
-  color: #ecfeff;
-  font-size: 0.68rem;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
-  white-space: nowrap;
-  z-index: 9999;
 }
 
 /* ROW OVERFLOW MENU */
@@ -763,19 +704,6 @@
 
 .row-overflow__item:hover i {
   color: inherit;
-}
-
-.row-overflow__item--danger {
-  color: #b91c1c;
-}
-
-.row-overflow__item--danger i {
-  color: #b91c1c;
-}
-
-.row-overflow__item--danger:hover {
-  background: #fef2f2;
-  color: #991b1b;
 }
 
 /* LOADING SKELETON */
@@ -887,12 +815,18 @@
 /* PAGINATION */
 .list-pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin: 2px 0;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.list-pagination .list-summary {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .page-info {
@@ -1039,8 +973,7 @@
    treatment on both trays, and the Filters control keeps its icon and count badge without its
    word — the row has room for the tabs, the sort icon and the sliders, not for the word. */
 @container list-pane (max-width: 420px) {
-  .experiments-tabs,
-  .folder-chips {
+  .experiments-tabs {
     gap: 6px;
     padding: 3px;
   }
@@ -1081,10 +1014,6 @@
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {
-  .folder-chip__name {
-    max-width: 110px;
-  }
-
   .advanced-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

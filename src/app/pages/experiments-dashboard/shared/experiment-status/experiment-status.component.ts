@@ -28,16 +28,29 @@ export const statusChip = (status: string | null | undefined): Chip => {
 @Component({
   selector: 'app-experiment-status',
   template: `
-    <span
-      class="status-chip"
-      [class.status-chip--compact]="compact()"
-      [class.completed]="chip().tone === 'success'"
-      [class.error]="chip().tone === 'error'"
-      [class.pending]="chip().tone === 'pending'"
-    >
-      <i class="fas" [class]="chip().icon" aria-hidden="true"></i>
-      <span [textContent]="chip().label"></span>
-    </span>
+    @if (dot()) {
+      <!-- A dense row has no room for a word: the dot carries the tone, the label travels as text. -->
+      <span
+        class="status-dot"
+        role="img"
+        [class.completed]="chip().tone === 'success'"
+        [class.error]="chip().tone === 'error'"
+        [class.pending]="chip().tone === 'pending'"
+        [title]="chip().label"
+        [attr.aria-label]="chip().label"
+      ></span>
+    } @else {
+      <span
+        class="status-chip"
+        [class.status-chip--compact]="compact()"
+        [class.completed]="chip().tone === 'success'"
+        [class.error]="chip().tone === 'error'"
+        [class.pending]="chip().tone === 'pending'"
+      >
+        <i class="fas" [class]="chip().icon" aria-hidden="true"></i>
+        <span [textContent]="chip().label"></span>
+      </span>
+    }
   `,
   styleUrl: './experiment-status.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,6 +58,8 @@ export const statusChip = (status: string | null | undefined): Chip => {
 export class ExperimentStatusComponent {
   readonly status = input.required<string>();
   readonly compact = input(false);
+  /** True renders the tone as a bare dot; the chip stays the default everywhere else. */
+  readonly dot = input(false);
 
   protected readonly chip = computed(() => statusChip(this.status()));
 }

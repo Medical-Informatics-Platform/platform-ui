@@ -7,7 +7,7 @@ import { Experiment } from '../../../models/experiments-dashboard.model';
 import { BackendExperimentWithResult } from '../../../models/backend-experiment.model';
 import { AlgorithmResultComponent } from '../../experiment-studio/algorithm-panel/algorithm-result/algorithm-result.component';
 import { getOutputSchema, prettifyLabel } from '../../../core/algorithm-mappers';
-import { enrichPcaResult, withLabels } from '../../../core/result-label.utils';
+import { enrichPcaResult, formulaLine, pluralize, rowsUsedLabel, withLabels } from '../../../core/result-label.utils';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
@@ -247,6 +247,53 @@ export class ExperimentDetailsComponent {
       null;
     return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap());
   });
+
+  readonly questionLine = computed(() => formulaLine(
+    this.variablesWithLabels().map((item) => item.label),
+    this.covariatesWithLabels().map((item) => item.label),
+  ));
+
+  readonly authorLine = computed(() =>
+    this.isOwner() ? 'by you' : `by ${this.selectedExperiment()?.author || 'someone else'}`
+  );
+
+  readonly visibilityLine = computed(() => {
+    if (!this.isOwner()) return 'Shared with you';
+    return this.isShared() ? 'Shared' : 'Private';
+  });
+
+  readonly failedRun = computed(() => (this.selectedExperiment()?.status || '').toLowerCase() === 'error');
+
+  readonly failureMessage = computed(() =>
+    this.loadError() || 'This run failed before it produced a result.'
+  );
+
+  readonly rowsUsed = computed(() => rowsUsedLabel(this.experimentResult()?.n_obs));
+
+  readonly datasetCountLine = computed(() =>
+    `${this.domainLabel()} · ${pluralize(this.datasetsWithLabels().length, 'dataset')}`
+  );
+
+  readonly datasetNames = computed(() =>
+    this.datasetsWithLabels().map((dataset) => dataset.label).join(', ')
+  );
+
+  readonly parameterSummary = computed(() => {
+    const params = this.parameterEntries();
+    const body = params.length
+      ? params.map((entry) => `${entry.label}: ${entry.value}`).join(' · ')
+      : 'Default parameters';
+    const version = this.selectedExperiment()?.mipVersion;
+    return version ? `${body} · MIP ${version}` : body;
+  });
+
+  copyFailure(): void {
+    const message = this.failureMessage();
+    navigator.clipboard.writeText(message).then(
+      () => this.showCopyToast('Error copied'),
+      () => this.showCopyToast('Could not copy the error'),
+    );
+  }
 
   readonly parameterEntries = computed(() => {
     const fullExperiment = this.fullExperimentSignal();

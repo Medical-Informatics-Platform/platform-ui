@@ -142,7 +142,8 @@ describe('ExperimentsDashboardComponent folders', () => {
     const folder = openFolder(['a', 'b']);
     component.onFolderSelected(folder.id);
 
-    component.toggleCompareMode();
+    component.compareIds.set(['a', 'b']);
+    component.openCompare();
 
     expect(component.compareMode()).toBeTrue();
     expect(component.selectedFolderId()).toBeNull();
@@ -183,9 +184,10 @@ describe('ExperimentsDashboardComponent folders', () => {
     component.onFolderCompare(['a', 'b']);
     expect(component.compareOriginFolderId()).toBe(folder.id);
 
-    // Exit, then press Compare again: the set is hand-built from here.
-    component.toggleCompareMode();
-    component.toggleCompareMode();
+    // Leave the folder comparison, then open compare by hand: the set is no longer that folder's.
+    component.closeCompare();
+    component.compareIds.set(['a', 'b']);
+    component.openCompare();
 
     expect(component.compareOriginFolderId()).toBeNull();
   });
@@ -269,26 +271,21 @@ describe('ExperimentsDashboardComponent folders', () => {
       expect(component.compareIds()).toEqual(['b']);
     });
 
-    it('selects the first two experiments for quick compare', () => {
-      dashboardService.experiments.set([experiment('exp-1'), experiment('exp-2'), experiment('exp-3')]);
-      component.compareIds.set([]);
+    it('adds a run from its checkbox and ignores a fourth', () => {
+      component.onCompareToggled('a');
+      component.onCompareToggled('b');
+      component.onCompareToggled('c');
+      component.onCompareToggled('d');
 
-      expect(component.canQuickCompare()).toBeTrue();
-
-      component.selectFirstTwoForCompare();
-
-      expect(component.compareIds()).toEqual(['exp-1', 'exp-2']);
-      expect(component.canQuickCompare()).toBeFalse();
+      expect(component.compareIds()).toEqual(['a', 'b', 'c']);
+      expect(component.compareMode()).toBeFalse();
     });
 
-    it('does not allow quick compare when already having selections or fewer than 2 runs', () => {
-      dashboardService.experiments.set([experiment('exp-1')]);
-      component.compareIds.set([]);
-      expect(component.canQuickCompare()).toBeFalse();
+    it('drops a checked run when its checkbox is pressed again', () => {
+      component.compareIds.set(['a', 'b']);
+      component.onCompareToggled('a');
 
-      dashboardService.experiments.set([experiment('exp-1'), experiment('exp-2')]);
-      component.compareIds.set(['exp-1']);
-      expect(component.canQuickCompare()).toBeFalse();
+      expect(component.compareIds()).toEqual(['b']);
     });
 
     it('resolves compare origin folder name when origin folder exists', () => {
