@@ -1,5 +1,4 @@
 <section class="kmeans-cluster-source">
-  <h3 class="kmeans-cluster-source-title">K-means cluster column</h3>
   <p class="kmeans-cluster-source-hint">
     Adds a categorical column that assigns every row to the nearest cluster of a finished K-means
     experiment. Only experiments with the same data model, datasets and filters can be used; rows
@@ -22,7 +21,79 @@
   <p class="kmeans-cluster-source-error">{{ error() }}</p>
   }
   @if (!loading() && compatible().length === 0) {
-  <p class="kmeans-cluster-source-note">No compatible K-means experiments.</p>
+  <p class="kmeans-cluster-source-note">
+    @if (experiments().length === 0) {
+    No finished K-means experiment yet. Run the report here on the variables you have, then reuse it.
+    } @else {
+    No compatible K-means experiment: a run must finish successfully on the same data model,
+    datasets and filters. You can run a new report here instead.
+    }
+  </p>
+
+  <div class="kmeans-cluster-source-run">
+    <p class="kmeans-cluster-source-run-title">Run K-means here</p>
+    <p class="kmeans-cluster-source-hint">
+      Pick the numerical variables to cluster. The report runs on the current data model,
+      datasets and filters; its stored centers become the new cluster column.
+    </p>
+
+    @if (numericVariables().length === 0) {
+    <p class="kmeans-cluster-source-note">No numerical variables in this experiment yet.</p>
+    } @else {
+    <div class="kmeans-cluster-source-vars">
+      @for (variable of numericVariables(); track variable.code) {
+      <label class="kmeans-cluster-source-var">
+        <input type="checkbox" [checked]="runSelectedCodes().includes(variable.code)"
+               (change)="toggleRunVariable(variable.code)" />
+        <span>{{ variable.label || variable.code }}</span>
+      </label>
+      }
+    </div>
+    }
+
+    <button type="button" class="kmeans-cluster-source-apply"
+            [disabled]="runLoading() || runSelectedCodes().length === 0"
+            (click)="runReport()">
+      {{ runLoading() ? 'Running K-means…' : 'Run K-means report' }}
+    </button>
+
+    @if (runError()) {
+    <p class="kmeans-cluster-source-error">{{ runError() }}</p>
+    }
+
+    @if (report(); as result) {
+    <div class="kmeans-cluster-report">
+      <div class="kmeans-cluster-report-head">
+        <strong>K-means report</strong>
+        <span>{{ result.selected_k }} clusters · {{ result.k_selection }} selection · {{ result.n_obs_interval }} observations</span>
+      </div>
+      <div class="kmeans-cluster-report-list">
+        @for (cluster of result.clusters; track cluster.cluster_id) {
+        <div class="kmeans-cluster-report-row">
+          <strong>{{ cluster.label }}</strong>
+          <span class="kmeans-cluster-report-size">{{ cluster.size_interval }}</span>
+          <span class="kmeans-cluster-report-profile">{{ cluster.interpretation || (cluster.profile || []).join('; ') }}</span>
+        </div>
+        }
+      </div>
+      @if (result.elbow; as elbow) {
+      <p class="kmeans-cluster-source-note">
+        Elbow selection: k {{ elbow.k_min }}–{{ elbow.k_max }}, selected k {{ elbow.selected_k }}.
+      </p>
+      }
+      @if (reportReusable()) {
+      <div class="kmeans-cluster-source-field">
+        <label for="kmeans-cluster-source-run-code">New column name</label>
+        <input id="kmeans-cluster-source-run-code" type="text"
+               [ngModel]="code()" (ngModelChange)="code.set($event)"
+               placeholder="e.g. kmeans_cluster" />
+      </div>
+      <button type="button" class="kmeans-cluster-source-apply"
+              [disabled]="!code().trim()" (click)="useReport()">Use as cluster column</button>
+      }
+    </div>
+    }
+  </div>
   }
   @if (!loading() && compatible().length > 0) {
   <div class="kmeans-cluster-source-field">

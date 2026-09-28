@@ -2,9 +2,12 @@ import { BackendExperiment } from '../models/backend-experiment.model';
 import { BackendFilter } from '../models/filters.model';
 import {
   KMEANS_CLUSTER_CREATOR,
+  KMEANS_RESULT_TYPE,
   KMeansSourceContext,
   canonicalFilterKey,
   extractReusablePreprocessing,
+  findKMeansReport,
+  findReusablePreprocessing,
   kmeansSourceIsReusable,
 } from './kmeans-cluster-source.utils';
 
@@ -123,7 +126,7 @@ describe('kmeans-cluster-source.utils', () => {
   });
 
   describe('extractReusablePreprocessing', () => {
-    it('returns the preprocessing of a valid result', () => {
+    it('returns the preprocessing of a privacy_safe_cluster_report result', () => {
       const reusable = {
         schema_version: '1',
         preprocessing_name: KMEANS_CLUSTER_CREATOR,
@@ -138,13 +141,57 @@ describe('kmeans-cluster-source.utils', () => {
         cluster_choices: [{ cluster_id: '0', label: 'Cluster 1' }],
       };
 
+      expect(extractReusablePreprocessing({
+        result_type: KMEANS_RESULT_TYPE,
+        reusable_preprocessing: reusable,
+      })).toBe(reusable);
+      // Legacy stored results predate the result_type marker.
       expect(extractReusablePreprocessing({ reusable_preprocessing: reusable })).toBe(reusable);
+    });
+
+    it('rejects a different report type even when the preprocessing block looks reusable', () => {
+      const reusable = {
+        schema_version: '1',
+        preprocessing_name: KMEANS_CLUSTER_CREATOR,
+        cluster_variables: ['age'],
+        centers: { '0': { age: 61.5 } },
+        source_context: { data_model: 'Stroke:3.7', datasets: ['diabetes'], input_fingerprint: 'abc' },
+        available_outputs: [],
+        cluster_choices: [{ cluster_id: '0', label: 'Cluster 1' }],
+      };
+
+      expect(extractReusablePreprocessing({
+        result_type: 'privacy_safe_outlier_report',
+        reusable_preprocessing: reusable,
+      })).toBeNull();
     });
 
     it('returns null for missing or malformed preprocessing', () => {
       expect(extractReusablePreprocessing({ centers: [[1, 2]] })).toBeNull();
       expect(extractReusablePreprocessing(null)).toBeNull();
       expect(extractReusablePreprocessing({ reusable_preprocessing: null })).toBeNull();
+    });
+
+    it('finds the reusable block in nested transient envelopes', () => {
+      const reusable = {
+        schema_version: '1',
+        preprocessing_name: KMEANS_CLUSTER_CREATOR,
+        cluster_variables: ['age'],
+        centers: { c1: { age: 40 } },
+        source_context: { data_model: 'Stroke:3.7', datasets: ['diabetes'], input_fingerprint: 'fp' },
+        available_outputs: [],
+        cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
+      };
+      const report = { result_type: KMEANS_RESULT_TYPE, reusable_preprocessing: reusable, clusters: [] };
+
+      expect(findReusablePreprocessing({ result: report })).toBe(reusable);
+      expect(findReusablePreprocessing({ result: { result: report } })).toBe(reusable);
+    });
+
+    it('finds a nested K-means report for display', () => {
+      const report = { selected_k: 2, clusters: [{ cluster_id: 'c1', label: 'Cluster 1' }] };
+      expect(findKMeansReport({ result: { result: report } })).toBe(report);
+      expect(findKMeansReport({ result: { message: 'nope' } })).toBeNull();
     });
   });
 });
