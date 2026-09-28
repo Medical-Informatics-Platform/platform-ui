@@ -81,14 +81,20 @@ describe('BubbleChartComponent tutorial highlighting', () => {
     expect((component as any).getPendingTutorialHighlightCode()).toBeNull();
   });
 
-  it('hides the In pool legend state while the pool is empty', () => {
+  it('always shows every legend state and the map hint', () => {
     const legend = fixture.nativeElement.querySelector('.map-legend') as HTMLElement;
 
+    expect(legend.textContent).toContain('Group');
     expect(legend.textContent).toContain('Available');
-    expect(legend.textContent).not.toContain('In pool');
+    expect(legend.textContent).toContain('In pool');
+    expect(legend.textContent).toContain('Selected');
+    expect(fixture.nativeElement.querySelector('.map-legend-swatch.selected')).not.toBeNull();
 
     setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'real' }] });
 
     expect(legend.textContent).toContain('In pool');
+
+    const hint = fixture.nativeElement.querySelector('.map-hint') as HTMLElement;
+    expect(hint.textContent).toContain('double-click to add');
   });
 });

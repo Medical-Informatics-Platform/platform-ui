@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { ExperimentStudioNavigationService } from '../../../../services/experiment-studio-navigation.service';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
-import { LabeledItem, withLabels } from '../../../../core/result-label.utils';
+import { LabeledItem, pluralize, rowsUsedLabel, withLabels } from '../../../../core/result-label.utils';
 import { formatAlgorithmParameterValue } from '../../../../core/algorithm-parameter.utils';
 import { countFilterRules, formatFilterExpression } from '../../../../core/filter-display.utils';
 
@@ -56,6 +56,38 @@ export class ExperimentSetupSummaryComponent {
   });
 
   readonly preprocessing = computed(() => this.setup()?.preprocessing ?? []);
+
+  readonly dataLine = computed(() => {
+    const setup = this.setup();
+    if (!setup) return '';
+    return `${setup.dataModel ?? 'Data'} · ${pluralize(setup.datasets?.length ?? 0, 'dataset')}`;
+  });
+
+  readonly datasetLine = computed(() =>
+    this.datasets().map((dataset) => dataset.label).join(', ')
+  );
+
+  readonly filterSummary = computed(() => {
+    const count = this.filterRuleCount();
+    if (!count) return 'None';
+    const expression = this.filterExpression();
+    return `${expression || 'Filters applied'} · ${pluralize(count, 'rule')}`;
+  });
+
+  readonly missingValuesSummary = computed(() => {
+    const row = this.preprocessing().find((entry) => /missing/i.test(entry.label));
+    return row?.value ?? 'Drop rows';
+  });
+
+  readonly transformSummary = computed(() =>
+    this.preprocessing()
+      .filter((entry) => /transform/i.test(entry.label))
+      .map((entry) => entry.value)
+      .join(', ')
+  );
+
+  /** Result metadata the snapshot does not carry: show what is known, skip when absent. */
+  readonly rowsUsedSummary = computed(() => rowsUsedLabel(this.studio.runResult()?.n_obs));
 
   readonly algorithmKey = computed(() => this.setup()?.algorithmKey ?? '');
   readonly algorithmLabel = computed(() => {

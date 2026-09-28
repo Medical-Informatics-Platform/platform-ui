@@ -167,54 +167,68 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.algorithmY()).toEqual([age]);
   });
 
-  it('stacks the outcome rail above the predictor rail instead of side by side', () => {
-    experimentStudioService.algorithmY.set([age]);
-    experimentStudioService.algorithmX.set([sex, bmi]);
-    fixture.detectChanges();
-
-    const rails = (fixture.nativeElement as HTMLElement).querySelector('.rails') as HTMLElement;
-    const outcome = rails.querySelector<HTMLElement>('.rail--y');
-    const predictor = rails.querySelector<HTMLElement>('.rail--x');
-
-    expect(getComputedStyle(rails).gridTemplateColumns.split(' ').length).toBe(1);
-    const outcomeRect = outcome!.getBoundingClientRect();
-    const predictorRect = predictor!.getBoundingClientRect();
-    // The predictor slot starts where the outcome slot ends, at the same full width.
-    expect(predictorRect.top).toBeGreaterThanOrEqual(outcomeRect.bottom - 1);
-    expect(predictorRect.width).toBeCloseTo(outcomeRect.width, 0);
-  });
-
-  it('scrolls a long chip stack instead of growing the rail', () => {
-    experimentStudioService.algorithmX.set([sex, bmi]);
-    fixture.detectChanges();
-
-    const chips = (fixture.nativeElement as HTMLElement)
-      .querySelector<HTMLElement>('.rail--x .chips')!;
-    const style = getComputedStyle(chips);
-
-    expect(style.overflowY).toBe('auto');
-    expect(style.maxHeight).not.toBe('none');
-  });
-
-  it('keeps the assignment column on the same row as the pool list, to its right', () => {
+  it('renders the role band as a horizontal strip above the full-width roster', () => {
     experimentStudioService.algorithmY.set([age]);
     experimentStudioService.algorithmX.set([sex, bmi]);
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
-    const railsRect = (root.querySelector('.rails') as HTMLElement).getBoundingClientRect();
-    const rosterRect = (root.querySelector('.roster') as HTMLElement).getBoundingClientRect();
+    const band = root.querySelector<HTMLElement>('.role-band')!;
+    const rails = root.querySelector<HTMLElement>('.rails')!;
+    const roster = root.querySelector<HTMLElement>('.roster')!;
+    const outcome = rails.querySelector<HTMLElement>('.rail--y')!;
+    const predictor = rails.querySelector<HTMLElement>('.rail--x')!;
 
-    // Below the stacking breakpoint the rails return above the list, so the row
-    // relationship below is only meaningful on a desktop-width viewport.
-    if (window.innerWidth <= 640) {
-      pending('the pool row needs a viewport wider than 640px');
-    }
-
-    // Two columns of one row: the rails start to the right of the whole list.
-    expect(railsRect.left).toBeGreaterThanOrEqual(rosterRect.right - 1);
-    expect(railsRect.top).toBeLessThan(rosterRect.bottom);
+    expect(getComputedStyle(rails).display).toBe('flex');
+    expect(band.textContent).toContain('Roles');
+    expect(band.textContent).toContain('Outcome');
+    expect(band.textContent).toContain('Predictors');
+    expect(root.querySelector('.role-action--quiet')?.textContent).toContain('Done');
+    // The roster is a sibling below the rails, not a side column.
+    expect(roster.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      rails.getBoundingClientRect().bottom - 1,
+    );
+    // Outcome and predictor sit on the same band row.
+    expect(Math.abs(outcome.getBoundingClientRect().top - predictor.getBoundingClientRect().top))
+      .toBeLessThanOrEqual(1);
   });
+
+  it('caps the roster at five rows and scrolls the overflow', () => {
+    experimentStudioService.algorithmAssignableVariables.set([
+      age,
+      sex,
+      bmi,
+      derived,
+      { code: 'a', label: 'A', type: 'real' },
+      { code: 'b', label: 'B', type: 'real' },
+      { code: 'c', label: 'C', type: 'real' },
+    ]);
+    fixture.detectChanges();
+
+    const roster = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.roster')!;
+    const style = getComputedStyle(roster);
+
+    expect(style.overflowY).toBe('auto');
+    expect(style.maxHeight).toBe('220px');
+  });
+
+  it('collapses to the compact band with Add and expands back with Done', () => {
+    experimentStudioService.algorithmY.set([age]);
+    fixture.detectChanges();
+
+    fixture.componentInstance.collapseRoles();
+    fixture.detectChanges();
+    let root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.roster')).toBeNull();
+    expect(root.querySelector('.role-action--add')?.textContent).toContain('Add');
+
+    (root.querySelector('.role-action--add') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.roster')).toBeTruthy();
+    expect(root.querySelector('.role-action--quiet')?.textContent).toContain('Done');
+  });
+
   it('setRole unassigns a node back to the pool', () => {
     experimentStudioService.algorithmY.set([age]);
     fixture.detectChanges();

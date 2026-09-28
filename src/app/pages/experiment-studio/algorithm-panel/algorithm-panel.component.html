@@ -4,16 +4,9 @@
 <section class="algorithm-roles-board algorithm-studio-card" aria-label="Algorithm selection workspace">
   <header class="algorithm-roles-board__header">
     <div>
-      <h5 class="algorithm-roles-board__title">Algorithm selection</h5>
-      <p class="algorithm-roles-board__lede">
-        Assign outcomes and predictors, pick a method from the catalog on the left, then review
-        the details and configure the parameters on the right. Matching updates as you assign.
-      </p>
+      <h5 class="algorithm-roles-board__title">Algorithm</h5>
     </div>
-    <span class="algorithm-count-badge">
-      <strong>{{ algoCounts().active }}</strong>
-      <span>runnable of {{ algoCounts().all }} methods</span>
-    </span>
+    <span class="algorithm-count-badge">{{ algoCounts().active }} of {{ algoCounts().all }} runnable</span>
   </header>
 
   <div class="algorithm-pool">
@@ -22,7 +15,8 @@
 
   <div class="algorithm-workspace">
     <aside class="algorithm-catalog" data-guide="algorithm-selection" aria-labelledby="catalog-title">
-      <h2 class="catalog-title" id="catalog-title">Algorithm catalog</h2>
+      <div class="step-kicker algorithm-step-kicker"><span class="step-kicker-n">2</span> Method</div>
+      <h2 class="catalog-title sr-only" id="catalog-title">Algorithm catalog</h2>
 
       <div class="catalog-search">
         <div class="catalog-search-field">
@@ -31,7 +25,7 @@
             id="algo-search"
             class="catalog-search-input"
             type="search"
-            placeholder="Search algorithms…"
+            placeholder="Search methods…"
             autocomplete="off"
             [value]="algoSearchQuery()"
             (input)="onSearchInput($event)"
@@ -45,22 +39,16 @@
           >&times;</button>
           }
         </div>
-        <button
-          type="button"
-          class="pill-toggle catalog-chip"
-          [class.on]="showOnlyActive()"
-          [attr.aria-pressed]="showOnlyActive()"
-          (click)="toggleActiveOnly()"
-          [title]="
-            showOnlyActive()
-              ? 'Showing runnable methods. Click to show all.'
-              : 'Showing all methods. Click to show only runnable ones.'
-          "
-        >
-          <span class="pill-dot" aria-hidden="true"></span>
-          <span class="catalog-chip-label">{{ showOnlyActive() ? 'Runnable' : 'All' }}</span>
-          <span class="catalog-chip-count">{{ algoCounts().active }}/{{ algoCounts().all }}</span>
-        </button>
+        <div class="modal-tabs catalog-mode-tabs" role="group" aria-label="Method filter">
+          <button type="button" [class.active]="showOnlyActive()" [attr.aria-pressed]="showOnlyActive()"
+                  (click)="showOnlyActive() || toggleActiveOnly()">
+            Runnable {{ algoCounts().active }}
+          </button>
+          <button type="button" [class.active]="!showOnlyActive()" [attr.aria-pressed]="!showOnlyActive()"
+                  (click)="!showOnlyActive() || toggleActiveOnly()">
+            All {{ algoCounts().all }}
+          </button>
+        </div>
       </div>
 
       @if (hasAnyVisibleAlgorithms()) {
@@ -74,6 +62,7 @@
             (click)="toggleMatchCategory(category.name)"
           >
             <span class="algorithm-match-cat-name">{{ category.name }}</span>
+            <span class="algorithm-match-cat-count">{{ categoryRunnableCount(category) }} runnable</span>
             <span class="algorithm-match-cat-meta" aria-hidden="true"></span>
           </button>
           @if (isMatchCategoryOpen(category.name) || searchActive()) {
@@ -86,8 +75,7 @@
               [class.selected]="algorithm.name === selectedAlgorithm()?.name"
               [attr.aria-disabled]="algorithm.isDisabled"
               (click)="onAlgorithmClick(algorithm)"
-              (mouseenter)="showTooltip(algorithm, $event)"
-              (mouseleave)="hideTooltip()"
+              [title]="algorithm.description || algorithm.label"
             >
               <span class="algo-tile-top">
                 <span class="algo-label">{{ algorithm.label }}</span>
@@ -117,21 +105,21 @@
       <section class="algorithm-details" aria-label="Algorithm configuration">
         <div class="algorithm-details__header">
           <div class="algorithm-details__heading">
-            <h2 class="algorithm-match-title">Algorithm configuration</h2>
-            @if (selectedAlgorithmCategory()) {
-            <span class="inspector-tag">{{ selectedAlgorithmCategory() }}</span>
-            }
+            <div class="step-kicker"><span class="step-kicker-n">3</span></div>
+            <h2 class="algorithm-details__title">{{ algorithm.label }}</h2>
           </div>
-          <span class="algorithm-details__title">{{ algorithm.label }}</span>
+          @if (selectedAlgorithmCategory()) {
+          <span class="inspector-tag">{{ selectedAlgorithmCategory() }}</span>
+          }
         </div>
         @if (algorithm.description) {
         <p class="config-description">{{ algorithm.description }}</p>
         }
         @if (selectedAlgorithmDocumentation()) {
-        <details class="documentation-panel" open>
+        <details class="documentation-panel">
           <summary class="documentation-summary">
             <span class="documentation-chevron" aria-hidden="true"></span>
-            <span class="documentation-label">Documentation</span>
+            <span class="documentation-label">How this method works</span>
           </summary>
           <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
         </details>
@@ -142,115 +130,32 @@
       <section class="algorithm-params" data-guide="algorithm-settings" aria-label="Parameter selection">
         @if (selectedAlgorithm(); as algorithm) {
         <div class="algorithm-params__body">
-            @if (algorithmRunRequirements().length > 0) {
-            <div class="studio-settings-block studio-settings-block--alert algorithm-requirements-panel" role="status" aria-label="Requirements before running">
-              <div class="algorithm-requirements-heading">
-                <span>Complete before running</span>
-              </div>
-              <ul class="algorithm-requirements-list">
-                @for (requirement of algorithmRunRequirements(); track requirement.id) {
-                <li class="algorithm-requirement-item">
-                  <span class="algorithm-requirement-message">{{ requirement.message }}</span>
-                  <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(requirement)">
-                    {{ requirement.actionLabel }}
-                  </button>
-                </li>
+            @if (algorithmNeeds().length) {
+            <ul class="algo-needs algorithm-requirements-panel" aria-label="Requirements before running">
+              <li class="algorithm-requirements-heading sr-only">Complete before running</li>
+              @for (need of algorithmNeeds(); track need.key) {
+              <li class="algorithm-requirement-item" [class.is-met]="need.met">
+                <span class="algo-needs-mark" aria-hidden="true"></span>
+                <span>{{ need.title }}</span>
+                @for (message of need.messages; track message) {
+                <small>{{ message }}</small>
                 }
-              </ul>
-            </div>
+                @if (need.action) {
+                <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(need.action)">
+                  {{ need.action.actionLabel }}
+                </button>
+                }
+              </li>
+              }
+            </ul>
+            } @else if (selectedAlgorithm()) {
+            <p class="algo-needs-all-met">✓ All inputs match</p>
             }
 
             <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
 
-            @if (canToggleCrossValidation()) {
-            <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
-              <label class="checkbox-wrapper">
-                <input type="checkbox" [checked]="crossValidationEnabled()" (change)="toggleCrossValidation($event)" />
-                <span>Enable cross-validation</span>
-              </label>
-              <div class="cross-validation-hint">
-                Optional. Enable to run the cross-validation variant (default: 5 folds).
-              </div>
-            </div>
-            }
-
-            @if (isCrossValidationOnly()) {
-            <div class="studio-settings-block studio-settings-block--option cross-validation-toggle">
-              <div class="cross-validation-hint">
-                Cross-validation is enabled for this algorithm.
-              </div>
-            </div>
-            }
-
-            @if (canToggleTransformation()) {
-            <div class="studio-settings-block studio-settings-block--option transformation-toggle">
-              <label class="checkbox-wrapper">
-                <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
-                <span>Enable data transformations</span>
-              </label>
-              <div class="transformation-hint">
-                Optional. Pick a single transformation per variable.
-              </div>
-
-              @if (!selectedVariables.length) {
-              <div class="transformation-empty">
-                Select variables to configure transformations.
-              </div>
-              } @else {
-              <div class="transformation-grid" [class.disabled]="!transformationEnabled()">
-                <div class="transformation-header">Variable</div>
-                <div class="transformation-header">None</div>
-                <div class="transformation-header">Standardize</div>
-                <div class="transformation-header">Center</div>
-                <div class="transformation-header">Exp</div>
-
-                @for (v of selectedVariables; track v.code) {
-                <div class="transformation-cell transformation-label">
-                  {{ v.label || v.name || v.code }}
-                </div>
-                <div class="transformation-cell">
-                  <input type="radio" [name]="'transform-' + v.code" [value]="'none'"
-                    [checked]="getTransformationAssignment(v.code) === 'none'"
-                    (change)="setTransformationAssignment(v.code, 'none')" [disabled]="!transformationEnabled()" />
-                </div>
-                <div class="transformation-cell">
-                  <input type="radio" [name]="'transform-' + v.code" [value]="'standardize'"
-                    [checked]="getTransformationAssignment(v.code) === 'standardize'"
-                    (change)="setTransformationAssignment(v.code, 'standardize')" [disabled]="!transformationEnabled()" />
-                </div>
-                <div class="transformation-cell">
-                  <input type="radio" [name]="'transform-' + v.code" [value]="'center'"
-                    [checked]="getTransformationAssignment(v.code) === 'center'"
-                    (change)="setTransformationAssignment(v.code, 'center')" [disabled]="!transformationEnabled()" />
-                </div>
-                <div class="transformation-cell">
-                  <input type="radio" [name]="'transform-' + v.code" [value]="'exp'"
-                    [checked]="getTransformationAssignment(v.code) === 'exp'"
-                    (change)="setTransformationAssignment(v.code, 'exp')" [disabled]="!transformationEnabled()" />
-                </div>
-                }
-              </div>
-              }
-            </div>
-            }
-
-            @if (errorMsg()) {
-            <div class="backend-error-banner">
-              <strong>Backend error: </strong>
-              <span>{{ errorMsg() }}</span>
-            </div>
-            }
-
-            @if (!hasAlgorithmParameterControls()) {
-            <div class="config-placeholder config-placeholder--minimal">
-              <div class="config-placeholder-content">
-                <h6>No additional parameters for this algorithm</h6>
-                <p>
-                  This algorithm does not expose extra configuration fields. Review the
-                  documentation and run the experiment when you are ready.
-                </p>
-              </div>
-            </div>
+            @if (visibleConfigSchema().length || isOutlierReportSelected()) {
+            <h3 class="algorithm-params__title">Parameters</h3>
             }
 
             @if (isOutlierReportSelected()) {
@@ -328,15 +233,115 @@
             </section>
             }
 
+
             @if (visibleConfigSchema().length) {
             <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
-              @for (field of visibleConfigSchema(); track field.key) {
+              @for (field of primaryConfigSchema(); track field.key) {
+              <ng-container *ngTemplateOutlet="configField; context: { $implicit: field }"></ng-container>
+              }
+
+              @if (advancedConfigSchema().length) {
+              <details class="config-advanced">
+                <summary class="config-advanced__summary">
+                  <span class="config-advanced__chevron" aria-hidden="true"></span>
+                  Advanced ({{ advancedConfigSchema().length }})
+                </summary>
+                <div class="config-advanced__body">
+                  @for (field of advancedConfigSchema(); track field.key) {
+                  <ng-container *ngTemplateOutlet="configField; context: { $implicit: field }"></ng-container>
+                  }
+                </div>
+              </details>
+              }
+            </form>
+            }
+
+            @if (canToggleCrossValidation() || isCrossValidationOnly()) {
+            <div class="config-option-row" [class.is-locked]="isCrossValidationOnly()">
+              <div class="config-option-copy">
+                <span class="config-option-label">{{ crossValidationLabel() }}</span>
+                <span class="config-option-hint">
+                  {{ isCrossValidationOnly() ? 'Always on for this method' : 'Runs the cross-validation variant and reports fold metrics' }}
+                </span>
+              </div>
+              <label class="toggle-switch" [class.is-locked]="isCrossValidationOnly()">
+                <input type="checkbox" [checked]="crossValidationEnabled()" [disabled]="isCrossValidationOnly()"
+                  (change)="toggleCrossValidation($event)" />
+                <span class="toggle-slider" aria-hidden="true"></span>
+                <span class="sr-only">Cross-validation</span>
+              </label>
+            </div>
+            }
+
+            @if (canToggleTransformation()) {
+            <div class="config-option-row">
+              <div class="config-option-copy">
+                <span class="config-option-label">Data transformations</span>
+                <span class="config-option-hint">Optional. Pick a single transformation per variable.</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
+                <span class="toggle-slider" aria-hidden="true"></span>
+                <span class="sr-only">Data transformations</span>
+              </label>
+            </div>
+
+            @if (transformationEnabled()) {
+            @if (!selectedVariables.length) {
+            <p class="transformation-empty">Select variables to configure transformations.</p>
+            } @else {
+            <div class="transformation-options">
+              @if (selectedVariables.length > 6) {
+              <div class="transformation-set-all">
+                <span class="transformation-row-label">Set all</span>
+                <div class="modal-tabs transformation-tray" role="group" aria-label="Set all transformations">
+                  @for (choice of transformationOptions; track choice.value) {
+                  <button type="button" [class.active]="isAllTransformation(choice.value)"
+                    (click)="setAllTransformationAssignments(choice.value)">{{ choice.label }}</button>
+                  }
+                </div>
+              </div>
+              }
+              @for (v of selectedVariables; track v.code) {
+              <div class="transformation-row">
+                <span class="transformation-row-label">{{ v.label || v.name || v.code }}</span>
+                <div class="modal-tabs transformation-tray" role="group"
+                  [attr.aria-label]="'Transformation for ' + (v.label || v.name || v.code)">
+                  @for (choice of transformationOptions; track choice.value) {
+                  <button type="button"
+                    [class.active]="getTransformationAssignment(v.code) === choice.value"
+                    [attr.aria-pressed]="getTransformationAssignment(v.code) === choice.value"
+                    (click)="setTransformationAssignment(v.code, choice.value)">{{ choice.label }}</button>
+                  }
+                </div>
+              </div>
+              }
+            </div>
+            }
+            }
+            }
+
+            @if (!hasAlgorithmParameterControls()) {
+            <div class="config-placeholder config-placeholder--minimal">
+              <div class="config-placeholder-content">
+                <h6>No additional parameters for this algorithm</h6>
+                <p>
+                  This algorithm does not expose extra configuration fields. Review the
+                  documentation and run the experiment when you are ready.
+                </p>
+              </div>
+            </div>
+            }
+
+            </fieldset>
+
+            <ng-template #configField let-field>
               @if (configForm().get(field.key)) {
-              <div class="config-field">
-                <label class="font-semibold mb-1 text-[var(--primary-color)] flex items-center gap-2">
+              <div class="config-field" [formGroup]="configForm()">
+                <label>
                   {{ prettyFieldLabel(field) }}
-                  @if (field.required) {
-                  <span class="required-tag">Required</span>
+                  @if (!field.required) {
+                  <span class="optional-tag">optional</span>
                   }
                 </label>
 
@@ -398,13 +403,15 @@
                   }
                 </select>
                 } @else if (field.type === 'multi-select') {
-                <select multiple [formControlName]="field.key" class="config-select">
+                <div class="chip-picker" role="group" [attr.aria-label]="prettyFieldLabel(field)">
                   @for (opt of field.options; track opt) {
-                  <option [ngValue]="bindOptionValue(opt)">
+                  <button type="button" class="chip-picker-option"
+                    [class.active]="isMultiSelectOptionSelected(field.key, opt)"
+                    (click)="toggleMultiSelectOption(field.key, opt)">
                     {{ opt.label ?? opt.name ?? opt }}
-                  </option>
+                  </button>
                   }
-                </select>
+                </div>
                 } @else if (field.type === 'checkbox') {
                 <label class="checkbox-wrapper">
                   <input type="checkbox" [formControlName]="field.key" />
@@ -432,14 +439,11 @@
                 }
               </div>
               }
-              }
-            </form>
-            }
-
-            </fieldset>
+              </ng-template>
         </div>
         } @else {
         <div class="algorithm-params__empty">
+          <div class="step-kicker"><span class="step-kicker-n">3</span></div>
           <h3 class="algorithm-params__empty-title">No algorithm selected</h3>
           <p class="algorithm-params__empty-text">
             Select a runnable algorithm from the catalog to configure parameters and run the
@@ -449,6 +453,19 @@
         }
       </section>
     </div>
+  </div>
+
+  <div class="algorithm-run-bar" [class.is-ready]="canRun()" role="status">
+    <span class="algorithm-run-status">
+      <span class="algorithm-run-dot" aria-hidden="true"></span>
+      <span class="algorithm-run-text">{{ readinessText() }}</span>
+    </span>
+    @if (!canRun()) {
+    <span class="algorithm-run-hint">Finish the needs above to enable the run.</span>
+    }
+    @if (errorMsg()) {
+    <span class="algorithm-run-error">Backend error: {{ errorMsg() }}</span>
+    }
   </div>
 </section>
 

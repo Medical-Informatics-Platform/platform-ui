@@ -7,6 +7,112 @@
   </div>
   }
 
+  @if (linearRegression(); as model) {
+  <section class="lr-result" aria-label="Linear regression result">
+    @if (model.figures.length) {
+    <div class="key-figures" role="group" aria-label="Key figures">
+      @for (figure of model.figures; track figure.label) {
+      <div class="key-figure">
+        <span class="key-figure-label">{{ figure.label }}</span>
+        <span class="key-figure-value">{{ figure.value }}</span>
+        <span class="key-figure-note">{{ figure.note }}</span>
+      </div>
+      }
+    </div>
+    }
+
+    <section class="coefficients-card" aria-labelledby="coef-heading">
+      <header class="coefficients-head">
+        <div class="coefficients-copy">
+          <h3 id="coef-heading" class="coefficients-title">Coefficients</h3>
+          <span class="coefficients-subtitle">
+            Effect on {{ model.dependent }} , other predictors held constant
+          </span>
+        </div>
+        <div class="coefficients-actions">
+          <div class="modal-tabs coef-columns" role="group" aria-label="Coefficient columns">
+            <button type="button" [class.active]="coefficientColumns() === 'key'"
+              [attr.aria-pressed]="coefficientColumns() === 'key'" (click)="coefficientColumns.set('key')">
+              Key columns
+            </button>
+            <button type="button" [class.active]="coefficientColumns() === 'all'"
+              [attr.aria-pressed]="coefficientColumns() === 'all'" (click)="coefficientColumns.set('all')">
+              All columns
+            </button>
+          </div>
+          <button type="button" class="csv-link" (click)="downloadCoefficientsCsv()"
+            title="Download coefficients as CSV" aria-label="Download coefficients as CSV">CSV ↓</button>
+        </div>
+      </header>
+
+      <div class="coef-table" [class.is-all-columns]="coefficientColumns() === 'all'">
+        <div class="coef-row coef-row--head" role="row">
+          <span>Variable</span>
+          <span class="is-numeric">Estimate</span>
+          @if (coefficientColumns() === 'all') {
+          <span class="is-numeric">Std. error</span>
+          <span class="is-numeric">t</span>
+          }
+          <span class="is-numeric">95% CI</span>
+          <span class="is-center">Interval vs 0</span>
+          <span class="is-numeric">p</span>
+        </div>
+
+        @for (row of model.rows; track row.variable) {
+        <div class="coef-row" [class.is-intercept]="row.isIntercept" role="row">
+          <span class="coef-variable">{{ row.variable }}</span>
+          <span class="is-numeric coef-estimate">{{ row.estimateText }}</span>
+          @if (coefficientColumns() === 'all') {
+          <span class="is-numeric coef-muted">{{ row.stdErrText }}</span>
+          <span class="is-numeric coef-muted">{{ row.tText }}</span>
+          }
+          <span class="is-numeric coef-muted">{{ row.ciText }}</span>
+          <span class="coef-plot-cell">
+            @if (!row.isIntercept) {
+            <span class="coef-plot" aria-hidden="true">
+              <span class="coef-plot-zero"></span>
+              <span class="coef-plot-interval" [class.is-significant]="row.significant"
+                [style.left.%]="row.plotLeft" [style.width.%]="row.plotWidth"></span>
+              <span class="coef-plot-marker" [class.is-significant]="row.significant"
+                [style.left.%]="row.markerLeft"></span>
+            </span>
+            }
+          </span>
+          <span class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
+        </div>
+        }
+      </div>
+
+      <p class="coef-note">
+        Bold p-values are below 0.05. Each interval is drawn on its own scale around zero, so
+        compare direction and whether it crosses zero, not size between rows.
+      </p>
+    </section>
+
+    @if (model.fitMetrics.length) {
+    <section class="model-fit">
+      <button type="button" class="model-fit-summary" [attr.aria-expanded]="fitOpen()" (click)="fitOpen.set(!fitOpen())">
+        <span class="model-fit-arrow" [class.is-open]="fitOpen()" aria-hidden="true"></span>
+        <span class="model-fit-title">Model fit details</span>
+        @if (model.fitGlance) {
+        <span class="model-fit-glance">{{ model.fitGlance }}</span>
+        }
+      </button>
+
+      @if (fitOpen()) {
+      <dl class="model-fit-grid">
+        @for (metric of model.fitMetrics; track metric.label) {
+        <div class="model-fit-item">
+          <dt>{{ metric.label }}</dt>
+          <dd>{{ metric.value }}</dd>
+        </div>
+        }
+      </dl>
+      }
+    </section>
+    }
+  </section>
+  } @else {
   @if (renderedCharts().length > 0) {
   <section class="results-primary-visual gen-charts" aria-labelledby="results-chart-heading">
     <header class="results-section-intro">
@@ -29,13 +135,5 @@
       [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" />
   </section>
   }
-
-  <!-- Raw fallback -->
-  <!-- <details class="text-xs text-gray-500 mt-4">
-    <summary class="cursor-pointer">View Raw JSON</summary>
-    <pre class="bg-gray-100 rounded p-2 overflow-auto">
-      {{ result() | json }}
-    </pre>
-  </details> -->
-
+  }
 </div>

@@ -43,6 +43,14 @@ interface AlgorithmRunRequirement {
   actionLabel: string;
 }
 
+interface AlgorithmNeedItem {
+  key: string;
+  met: boolean;
+  title: string;
+  messages: string[];
+  action?: AlgorithmRunRequirement;
+}
+
 @Component({
   selector: 'app-algorithm-panel',
   imports: [
@@ -85,6 +93,117 @@ export class AlgorithmPanelComponent {
     const algorithm = this.selectedAlgorithm();
     return !!algorithm && !this.experimentStudioService.isAlgorithmAvailable(algorithm.name);
   });
+  readonly selectedAvailabilityDetails = computed(() => this.availabilityDetails(this.selectedAlgorithm()));
+
+  readonly algorithmNeeds = computed<AlgorithmNeedItem[]>(() => {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm) return [];
+
+    const needs: AlgorithmNeedItem[] = [];
+    const details = this.selectedAvailabilityDetails();
+    const detailByRole = new Map(details.map((detail) => [detail.role, detail]));
+
+    for (const role of ['y', 'x'] as const) {
+      const detail = detailByRole.get(role);
+      if (detail) {
+        needs.push({
+          key: `needs-${role}`,
+          met: detail.messages.length === 0,
+          title: this.needsRequirementText(detail),
+          messages: [...detail.messages],
+        });
+      } else if (role === 'y' && !('y' in (algorithm.inputdata ?? {}))) {
+        needs.push({
+          key: 'needs-y',
+          met: true,
+          title: 'No outcome needed',
+          messages: this.experimentStudioService.algorithmY().length ? ['Your outcome is ignored'] : [],
+        });
+      }
+    }
+
+    this.algorithmRunRequirements().forEach((requirement) => {
+      needs.push({
+        key: `run-${requirement.id}`,
+        met: false,
+        title: requirement.message,
+        messages: [],
+        action: requirement,
+      });
+    });
+
+    return needs;
+  });
+
+  needsRequirementText(detail: AlgorithmAvailabilityDetail): string {
+    const typeText = this.requirementTypeText(detail.types);
+
+    if (detail.role === 'y') {
+      if (detail.minCount <= 0 && !detail.required) {
+        return 'No outcome needed';
+      }
+      const article = typeText
+        ? `${/^[aeiou]/i.test(typeText) ? 'an' : 'a'} ${typeText} `
+        : '';
+      const noun = detail.minCount > 1 ? 'outcomes' : 'outcome';
+      return detail.minCount > 1
+        ? `Needs at least ${detail.minCount} ${noun}`
+        : `Needs ${article}${noun}`;
+    }
+
+    const noun = detail.minCount > 1 ? 'predictors' : 'predictor';
+    if (detail.minCount > 0) {
+      return `At least ${detail.minCount}${typeText ? ` ${typeText}` : ''} ${noun}`;
+    }
+    if (detail.maxCount !== null) {
+      return `Up to ${detail.maxCount} ${noun}`;
+    }
+    return 'Predictors optional';
+  }
+
+  private requirementTypeText(types: string[] | undefined | null): string {
+    if (!Array.isArray(types) || types.length === 0) return '';
+    const labels = new Set<string>();
+    types.forEach((type) => {
+      const normalized = String(type ?? '').trim().toLowerCase();
+      if (!normalized) return;
+      if (['real', 'int', 'integer', 'numeric', 'numerical'].includes(normalized)) {
+        labels.add('numerical');
+      } else if (
+        ['text', 'nominal', 'categorical', 'polynominal', 'ordinal', 'string'].includes(normalized)
+      ) {
+        labels.add('categorical');
+      } else {
+        labels.add(normalized);
+      }
+    });
+    return Array.from(labels).join(' or ');
+  }
+
+  readonly readinessText = computed(() => {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm) return 'Pick a method to continue';
+
+    if (!this.canRun()) {
+      const reasons = this.algorithmNeeds()
+        .filter((need) => !need.met)
+        .flatMap((need) => (need.action ? [need.title] : need.messages))
+        .filter((message) => !!message);
+      if (!reasons.length) return 'Not ready to run yet';
+      return `${reasons.length} ${reasons.length === 1 ? 'thing' : 'things'} left — ${reasons.slice(0, 2).join(' · ')}${reasons.length > 2 ? ` +${reasons.length - 2}` : ''}`;
+    }
+
+    const y = this.experimentStudioService.algorithmY();
+    const x = this.experimentStudioService.algorithmX();
+    const outcome = y[0] ? ` · y ${y[0].label ?? y[0].name ?? y[0].code}` : '';
+    const predictors = ` · ${x.length} ${x.length === 1 ? 'predictor' : 'predictors'}`;
+    return `Ready · ${algorithm.label}${outcome}${predictors}`;
+  });
+
+  categoryRunnableCount(category: { algorithms: AlgorithmConfig[] }): number {
+    return category.algorithms.filter((algorithm) => !algorithm.isDisabled).length;
+  }
+
   readonly selectedAlgorithmAvailabilitySummary = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
@@ -678,6 +797,32 @@ export class AlgorithmPanelComponent {
     if (!this.isOutlierReportSelected()) return schema;
     return schema.filter((field) => field.type !== 'dict' && !['strategies', 'tails', 'folds'].includes(String(field.key)));
   });
+
+  /** Backend metadata has no advanced flag yet; the heuristic mirrors the review handoff. */
+  isAdvancedField(field: any): boolean {
+    return field?.advanced ?? (field?.default !== undefined && !field?.required);
+  }
+
+  readonly primaryConfigSchema = computed(() =>
+    this.visibleConfigSchema().filter((field) => !this.isAdvancedField(field) && this.configForm().get(field.key))
+  );
+
+  readonly advancedConfigSchema = computed(() =>
+    this.visibleConfigSchema().filter((field) => this.isAdvancedField(field) && this.configForm().get(field.key))
+  );
+
+  readonly crossValidationLabel = computed(() => {
+    const field = this.enrichedConfigSchema().find((entry) => entry.key === 'n_splits');
+    const folds = field?.default;
+    return `Cross-validation · ${folds !== undefined && folds !== null && folds !== '' ? folds : 5} folds`;
+  });
+
+  readonly transformationOptions = [
+    { value: 'none', label: 'None' },
+    { value: 'standardize', label: 'Standardize' },
+    { value: 'center', label: 'Center' },
+    { value: 'exp', label: 'Exp' },
+  ] as const;
 
   readonly outlierReportVariables = computed(() => {
     const unique = new Map<string, any>();
@@ -1332,6 +1477,52 @@ export class AlgorithmPanelComponent {
     return this.transformationAssignments?.[variableCode] ?? 'none';
   }
 
+  isAllTransformation(value: string): boolean {
+    const variables = this.selectedVariables;
+    if (!variables.length) return false;
+    return variables.every((v) => this.getTransformationAssignment(v.code) === value);
+  }
+
+  setAllTransformationAssignments(value: string): void {
+    const algorithm = this.selectedAlgorithm();
+    if (!algorithm) return;
+    const next = { ...this.transformationAssignments };
+    this.selectedVariables.forEach((v) => {
+      if (v?.code) next[String(v.code)] = value;
+    });
+    this.transformationAssignments = next;
+    const baseName =
+      this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
+    this.transformationSelectionsByAlgorithm[baseName] = { ...next };
+  }
+
+  private multiSelectValues(key: string): string[] {
+    const value = this.configForm().get(key)?.value;
+    if (Array.isArray(value)) return value.map((entry) => String(entry));
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '');
+    }
+    return [];
+  }
+
+  isMultiSelectOptionSelected(key: string, option: unknown): boolean {
+    const value = String(this.bindOptionValue(option));
+    return this.multiSelectValues(key).includes(value);
+  }
+
+  toggleMultiSelectOption(key: string, option: unknown): void {
+    const control = this.configForm().get(key);
+    if (!control) return;
+    const value = String(this.bindOptionValue(option));
+    const current = this.multiSelectValues(key);
+    const next = current.includes(value)
+      ? current.filter((entry) => entry !== value)
+      : [...current, value];
+    control.setValue(next);
+    control.markAsTouched();
+    control.updateValueAndValidity();
+  }
+
   private extractTransformationAssignments(data: any): Record<string, string> {
     if (!data || typeof data !== 'object') return {};
     const result: Record<string, string> = {};
@@ -1367,7 +1558,10 @@ export class AlgorithmPanelComponent {
   }
 
   availabilityDetails(algorithm: AlgorithmConfig | null = null): AlgorithmAvailabilityDetail[] {
-    return (algorithm ?? this.tooltipData())?.availability?.details ?? [];
+    const target = algorithm ?? this.tooltipData();
+    if (!target) return [];
+    if (target.availability?.details?.length) return target.availability.details;
+    return this.experimentStudioService.getAlgorithmAvailability(target.name).details ?? [];
   }
 
   availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
