@@ -32,3 +32,20 @@ export function enrichPcaResult<T>(
   if (allNames.length === 0) return result;
   return { ...result, variable_names: allNames };
 }
+
+/** `3 datasets`, `1 dataset`. */
+export function pluralize(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`;
+}
+
+/** `y ~ x1, x2`, or the plain list when either side is empty. */
+export function formulaLine(y: string[], x: string[], xSeparator = ', '): string {
+  if (y.length && x.length) return `${y.join(', ')} ~ ${x.join(xSeparator)}`;
+  return [...y, ...x].join(', ');
+}
+
+/** A result's `n_obs` as a grouped count, or '' when absent or not a positive number. */
+export function rowsUsedLabel(nObs: unknown): string {
+  if (typeof nObs !== 'number' || !Number.isFinite(nObs) || nObs <= 0) return '';
+  return new Intl.NumberFormat('en-US').format(nObs);
+}
