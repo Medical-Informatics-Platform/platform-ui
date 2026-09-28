@@ -24,6 +24,7 @@ describe('ExperimentSetupSummaryComponent', () => {
   let fixture: ComponentFixture<ExperimentSetupSummaryComponent>;
   const studio = {
     runSetup: signal<ExperimentRunSetup | null>(null),
+    runResult: signal<any | null>(null),
     availableDatasets: signal([{ code: 'clinical', label: 'Clinical' }, { code: 'biochemistry', label: 'Biochemistry' }]),
     variableLabelMap: signal<Record<string, string>>({
       outcome_3m: '3m mRS good outcome',
@@ -90,8 +91,8 @@ describe('ExperimentSetupSummaryComponent', () => {
     }));
 
     expect(textOf(html, '.setup-summary-title')).toBe('Experiment setup');
-    expect(textOf(html, '.setup-field-label')).toBe('Pathology');
-    expect(textOf(html, '.setup-field-value')).toBe('EU Children');
+    expect(textOf(html, '.setup-field-label')).toBe('Data');
+    expect(textOf(html, '.setup-field-value')).toBe('EU Children · 2 datasets');
     expect(html.textContent).toContain('Clinical');
     expect(html.textContent).toContain('Biochemistry');
     expect(html.textContent).toContain('3m mRS good outcome');
@@ -122,15 +123,15 @@ describe('ExperimentSetupSummaryComponent', () => {
   it('says so when the cohort was not filtered or parameters were left alone', () => {
     const html = render(buildSetup({ parameters: {} }));
 
-    expect(html.textContent).toContain('every row of the selection was used');
-    expect(html.textContent).toContain('Run with the default parameters');
+    expect(html.textContent).toContain('FiltersNone');
+    expect(html.textContent).toContain('Default parameters');
   });
 
   it('walks back to the step that owns each part of the setup', () => {
     const html = render(buildSetup());
     const actions = Array.from(html.querySelectorAll<HTMLButtonElement>('.setup-field-action'));
 
-    actions[0].click(); // datasets
+    actions[0].click(); // data
     actions[1].click(); // variables
     actions[2].click(); // cohort filters
     actions[3].click(); // data handling

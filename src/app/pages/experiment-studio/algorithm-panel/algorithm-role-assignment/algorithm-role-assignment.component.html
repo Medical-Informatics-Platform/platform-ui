@@ -1,63 +1,70 @@
-<section class="role-assignment" aria-label="Assign variables and covariates" data-guide="guide-role-assignment" tabindex="-1">
-  <div class="pane-head">
-    <h2 class="pane-title" id="pool-h">Experiment pool</h2>
-    <span class="pane-count">{{ assignable().length }} {{ assignable().length === 1 ? 'variable' : 'variables' }}</span>
-  </div>
+<section class="role-assignment" [class.is-expanded]="rolesExpanded()" aria-label="Assign variables and covariates"
+  data-guide="guide-role-assignment" tabindex="-1">
+  <div class="role-band">
+    <div class="step-kicker role-step-kicker"><span class="step-kicker-n">1</span> Roles</div>
 
-  <div class="rails">
-    <div class="rail rail--y" [class.rail--empty]="y().length === 0">
-      <div class="rail-label">Outcome <em>y</em> <span>usually one</span></div>
-      <div class="chips" cdkDropList #yList="cdkDropList" cdkDropListOrientation="mixed"
-        [cdkDropListConnectedTo]="[xList]" (cdkDropListDropped)="onChipDrop($event, 'y')">
-        @if (y().length === 0) {
-        <p class="invite">No outcome yet — set one from the list below</p>
-        }
-        @for (node of y(); track node.code) {
-        <span class="chip chip--y" cdkDrag [cdkDragData]="node">
-          <span class="chip-name">{{ label(node) }}</span>
-          <span class="chip-type">{{ node.type }}</span>
-          @if (isCreated(node)) {
-          <span class="role-chip-created">created</span>
+    <div class="rails" [class.is-compact]="!rolesExpanded()">
+      <div class="rail rail--y" [class.rail--empty]="y().length === 0">
+        <div class="rail-label">Outcome <em>y</em><span>usually one</span></div>
+        <div class="chips" cdkDropList #yList="cdkDropList" cdkDropListOrientation="mixed"
+          [cdkDropListConnectedTo]="[xList]" (cdkDropListDropped)="onChipDrop($event, 'y')">
+          @if (y().length === 0) {
+          <p class="invite">No outcome yet — add one below</p>
           }
-          <button type="button" class="chip-x" (click)="removeFrom('y', node)"
-            [attr.aria-label]="'Remove ' + label(node) + ' from outcome'">×</button>
-        </span>
-        }
+          @for (node of y(); track node.code) {
+          <span class="chip chip--y" cdkDrag [cdkDragData]="node">
+            <span class="chip-name">{{ label(node) }}</span>
+            <span class="chip-type">{{ node.type }}</span>
+            @if (isCreated(node)) {
+            <span class="role-chip-created">created</span>
+            }
+            <button type="button" class="chip-x" (click)="removeFrom('y', node)"
+              [attr.aria-label]="'Remove ' + label(node) + ' from outcome'">×</button>
+          </span>
+          }
+        </div>
+      </div>
+
+      <div class="rail rail--x" [class.rail--empty]="x().length === 0">
+        <div class="rail-label">Predictors <em>x</em><span>zero to many</span></div>
+        <div class="chips" cdkDropList #xList="cdkDropList" cdkDropListOrientation="mixed"
+          [cdkDropListConnectedTo]="[yList]" (cdkDropListDropped)="onChipDrop($event, 'x')">
+          @if (x().length === 0) {
+          <p class="invite">No predictors yet — add from the list or leave empty</p>
+          }
+          @for (node of x(); track node.code) {
+          <span class="chip chip--x" cdkDrag [cdkDragData]="node">
+            <span class="chip-name">{{ label(node) }}</span>
+            <span class="chip-type">{{ node.type }}</span>
+            @if (isCreated(node)) {
+            <span class="role-chip-created">created</span>
+            }
+            <button type="button" class="chip-x" (click)="removeFrom('x', node)"
+              [attr.aria-label]="'Remove ' + label(node) + ' from predictors'">×</button>
+          </span>
+          }
+        </div>
       </div>
     </div>
-    <div class="rail rail--x" [class.rail--empty]="x().length === 0">
-      <div class="rail-label">Predictors <em>x</em> <span>zero to many</span></div>
-      <div class="chips" cdkDropList #xList="cdkDropList" cdkDropListOrientation="mixed"
-        [cdkDropListConnectedTo]="[yList]" (cdkDropListDropped)="onChipDrop($event, 'x')">
-        @if (x().length === 0) {
-        <p class="invite">No predictors yet — add from the list, or leave empty</p>
-        }
-        @for (node of x(); track node.code) {
-        <span class="chip chip--x" cdkDrag [cdkDragData]="node">
-          <span class="chip-name">{{ label(node) }}</span>
-          <span class="chip-type">{{ node.type }}</span>
-          @if (isCreated(node)) {
-          <span class="role-chip-created">created</span>
-          }
-          <button type="button" class="chip-x" (click)="removeFrom('x', node)"
-            [attr.aria-label]="'Remove ' + label(node) + ' from predictors'">×</button>
-        </span>
-        }
-      </div>
+
+    <div class="role-band-actions">
+      @if (rolesExpanded()) {
+      <button type="button" class="role-action role-action--quiet" (click)="collapseRoles()">Done</button>
+      } @else {
+      <button type="button" class="role-action role-action--add" (click)="expandRoles()">+ Add</button>
+      }
     </div>
   </div>
 
-  <label class="sr-only" for="pool-filter">Filter variables</label>
-  <input
-    class="pool-search"
-    id="pool-filter"
-    type="search"
-    placeholder="Filter by name or type"
-    autocomplete="off"
-    [value]="poolFilter()"
-    (input)="onFilter($event)">
+  @if (rolesExpanded()) {
+  <div class="roster-tools">
+    <label class="sr-only" for="pool-filter">Filter variables</label>
+    <input class="pool-search" id="pool-filter" type="search" placeholder="Filter by name or type" autocomplete="off"
+      [value]="poolFilter()" (input)="onFilter($event)">
+  </div>
 
-  <ul class="roster" aria-labelledby="pool-h">
+  @if (filteredPool().length > 0) {
+  <ul class="roster" aria-label="Unassigned variables">
     @for (node of filteredPool(); track node.code) {
     <li class="row">
       <div class="var-main">
@@ -67,24 +74,22 @@
         <span class="role-chip-created">created</span>
         }
       </div>
-      <div class="roles" role="radiogroup" [attr.aria-label]="'Role for ' + label(node)">
-        <button type="button" role="radio" data-role="y" [attr.aria-checked]="roleOf(node) === 'y'"
-          (click)="setRole(node, 'y')">
+      <div class="roles modal-tabs role-tray" role="radiogroup" [attr.aria-label]="'Role for ' + label(node)"
+        title="Click Outcome or Predictor on a row. Drag a chip between the slots to move it; × returns it to this list.">
+        <button type="button" role="radio" data-role="y" [class.active]="roleOf(node) === 'y'"
+          [attr.aria-checked]="roleOf(node) === 'y'" (click)="setRole(node, 'y')">
           <span class="role-btn-label">Outcome</span>
-          <span class="role-btn-var" aria-hidden="true">y</span>
         </button>
-        <button type="button" role="radio" data-role="x" [attr.aria-checked]="roleOf(node) === 'x'"
-          (click)="setRole(node, 'x')">
+        <button type="button" role="radio" data-role="x" [class.active]="roleOf(node) === 'x'"
+          [attr.aria-checked]="roleOf(node) === 'x'" (click)="setRole(node, 'x')">
           <span class="role-btn-label">Predictor</span>
-          <span class="role-btn-var" aria-hidden="true">x</span>
         </button>
       </div>
     </li>
     }
   </ul>
-  @if (filteredPool().length === 0) {
-  <p class="hint">Nothing left to assign — clear the filter, or move a chip back with its ×.</p>
   } @else {
-  <p class="hint">Click Outcome or Predictor on a row. Drag a chip between the slots to move it; × returns it to this list.</p>
+  <p class="hint">Nothing left to assign — clear the filter, or move a chip back with its ×.</p>
+  }
   }
 </section>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 
@@ -19,6 +19,30 @@ export class AlgorithmRoleAssignmentComponent {
   readonly y = this.expStudioService.algorithmY;
   readonly x = this.expStudioService.algorithmX;
   readonly poolFilter = signal('');
+  /** Compact once both roles have a value; expanded by default so y can be assigned. */
+  readonly rolesExpanded = signal(this.y().length === 0);
+
+  constructor() {
+    effect(() => {
+      if (this.y().length === 0 && !this.rolesExpanded()) {
+        this.rolesExpanded.set(true);
+      }
+    });
+  }
+
+  expandRoles(): void {
+    this.rolesExpanded.set(true);
+    requestAnimationFrame(() => {
+      document.getElementById('pool-filter')?.focus();
+    });
+  }
+
+  collapseRoles(): void {
+    this.rolesExpanded.set(false);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>('.role-action--add')?.focus();
+    });
+  }
 
   /** Assignable pool members not yet assigned to either role. */
   readonly source = computed(() => {

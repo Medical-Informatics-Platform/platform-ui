@@ -27,60 +27,75 @@
 } @else if (result()) {
   <div class="experiment-panel-workspace experiment-panel-workspace--result">
     <section class="experiment-panel-main result-section" #resultSection data-guide="experiment-result">
-      <div class="result-section-toolbar" [class.result-section-toolbar--save-as]="saveAsMode()">
-        <h2 class="result-section-title">{{ resultDisplayTitle() }}</h2>
+      <header class="result-header">
+        <div class="result-header-main">
+          <span class="result-eyebrow">{{ resultEyebrow() }}</span>
+          <h2 class="result-section-title">{{ resultHeadline() }}</h2>
+          <div class="result-meta">
+            <span class="result-status" [class.is-saved]="savedTone() === 'is-saved'">
+              <span class="result-status-dot" aria-hidden="true"></span>{{ savedText() }}
+            </span>
+            <span>{{ runTimeText() }}</span>
+            @if (runDurationText()) {
+            <span>{{ runDurationText() }}</span>
+            }
+            @if (mipVersion) {
+            <span>MIP {{ mipVersion }}</span>
+            }
+          </div>
+        </div>
 
         @if (!saveAsMode()) {
-        <div class="result-toolbar-actions" data-guide="save-as-flow" role="group" aria-label="Result actions">
-          <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="backToAlgorithm()"
+        <div class="result-actions" data-guide="save-as-flow" role="group" aria-label="Result actions">
+          <button type="button" class="result-action" (click)="backToAlgorithm()"
             title="Edit parameters" data-guide="edit-parameters-action">
-            <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-sliders-h"></i></span>
-            <span class="toolbar-btn-label">Edit parameters</span>
+            Edit parameters
           </button>
-          <button type="button" class="toolbar-btn toolbar-btn--primary" (click)="toggleSaveAsMode()"
+
+          <div class="result-export">
+            <button type="button" class="result-action result-action--export" [attr.aria-expanded]="exportOpen()"
+              data-guide="result-export" title="Export result" (click)="toggleExport()">
+              Export <span class="result-action-caret" aria-hidden="true">▾</span>
+            </button>
+
+            @if (exportOpen()) {
+            <div class="result-export-menu" role="menu">
+              <button type="button" role="menuitem" (click)="onExportPdf(resultSection)">
+                <strong>PDF report</strong>
+                <small>Figures, tables and setup</small>
+              </button>
+              <button type="button" role="menuitem" (click)="onExportAllCsv(resultSection)">
+                <strong>All tables as CSV</strong>
+                <small>One file, a titled block per table</small>
+              </button>
+            </div>
+            }
+          </div>
+
+          <button type="button" class="result-action result-action--primary" (click)="toggleSaveAsMode()"
             data-guide="save-as-action">
-            <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-copy"></i></span>
-            <span class="toolbar-btn-label">Save as</span>
-          </button>
-          <span class="toolbar-divider" aria-hidden="true"></span>
-          <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="exportPdf.emit(resultSection)"
-            data-guide="result-export" title="Export as PDF">
-            <span class="toolbar-btn-icon" aria-hidden="true"><i class="fas fa-file-pdf"></i></span>
-            <span class="toolbar-btn-label">Export PDF</span>
+            {{ saveLabel() }}
           </button>
         </div>
         } @else {
-        <div class="result-toolbar-actions result-toolbar-actions--save-as" data-guide="save-as-form">
-          <div class="save-as-inline">
-            <label class="save-as-inline-label" for="save-as-name-input">Experiment name</label>
-            <input id="save-as-name-input" type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
-              placeholder="Enter a name for this experiment" class="save-as-input" />
-          </div>
-          <div class="result-toolbar-action-buttons">
-            <button type="button" class="toolbar-btn toolbar-btn--ghost" (click)="cancelSaveAs()">
-              <span class="toolbar-btn-label">Cancel</span>
-            </button>
-            <button type="button" class="toolbar-btn toolbar-btn--primary" (click)="onSaveAs()"
-              [disabled]="!saveAsName().trim() || isRunning()">
-              <span class="toolbar-btn-label">{{ isRunning() ? "Saving..." : "Save experiment" }}</span>
-            </button>
-          </div>
+        <div class="result-save-form" data-guide="save-as-form">
+          <label class="sr-only" for="save-as-name-input">Experiment name</label>
+          <input id="save-as-name-input" type="text" [ngModel]="saveAsName()" (ngModelChange)="saveAsName.set($event)"
+            placeholder="Experiment name" class="save-as-input" />
+          <button type="button" class="result-action" (click)="cancelSaveAs()">Cancel</button>
+          <button type="button" class="result-action result-action--primary" (click)="onSaveAs()"
+            [disabled]="!saveAsName().trim() || isRunning()">
+            {{ isRunning() ? "Saving…" : "Save" }}
+          </button>
         </div>
         }
-      </div>
-
+      </header>
       <div class="result-section-body">
         <app-algorithm-result [result]="result()" [schema]="schema()" [algorithm]="resultAlgorithmKey()"
           [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
           [algorithmLabel]="resultAlgorithmLabel()" />
       </div>
 
-      @if (mipVersion) {
-      <div class="mip-version-bar">
-        <span class="mip-version-label">MIP Version:</span>
-        <span class="mip-version-value">{{ mipVersion }}</span>
-      </div>
-      }
     </section>
 
     @if (setupSnapshot()) {

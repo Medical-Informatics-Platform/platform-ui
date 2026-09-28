@@ -53,32 +53,26 @@ circle:hover {
 }
 
 .map-chrome {
-  position: absolute;
-  z-index: 3;
-  left: 10px;
-  right: 10px;
-  top: 10px;
+  position: static;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.map-chrome > * {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--studio-card-header-border);
+  background: var(--studio-card-header-bg);
   pointer-events: auto;
 }
 
 .map-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(43, 51, 233, 0.12);
-  font-size: 0.68rem;
-  font-weight: 650;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -102,6 +96,16 @@ circle:hover {
 
 .map-legend-swatch.pool {
   background: var(--accent-color);
+}
+
+.map-legend-swatch.selected {
+  background: #3f6078;
+}
+
+.map-hint {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 #chart-canvas {
@@ -154,4 +158,10 @@ circle.node.filter {
 
 circle.node.group {
   fill-opacity: 0.8;
+}
+
+/* The map square is the canvas, not the shell: the footer strip adds height below it
+   instead of being carved out of a square shell. */
+:host-context(.metadata-browser-shell.is-map) .chart-body {
+  aspect-ratio: 1 / 1;
 }

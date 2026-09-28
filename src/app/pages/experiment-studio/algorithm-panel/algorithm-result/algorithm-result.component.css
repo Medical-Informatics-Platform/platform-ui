@@ -31,7 +31,7 @@
   margin: 0;
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--primary-color);
+  color: var(--text-main);
   letter-spacing: 0.02em;
 }
 
@@ -50,25 +50,19 @@
 /* CHARTS SECTION */
 
 .gen-charts {
-  border-radius: 16px;
-  border: 1px solid #cdeaea;
-  background: radial-gradient(
-    circle at top left,
-    #ffffff 0,
-    #f3fcfc 55%,
-    #edf9f9 100%
-  );
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #ffffff;
   padding: 16px 18px 18px;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06),
-    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+  box-shadow: none;
 }
 
 .gen-charts h3 {
   font-size: 0.98rem;
-  color: var(--primary-color);
-  font-weight: 600;
+  color: var(--text-main);
+  font-weight: 700;
   margin: 0 0 10px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .gen-charts app-chart-renderer {
@@ -160,5 +154,382 @@ tr:hover td {
   td {
     padding: 0.45rem 0.6rem;
     white-space: nowrap;
+  }
+}
+
+/* ==========================================================================
+   Linear-regression result (Results page review 1b)
+   ==========================================================================
+
+   Key figures first, one coefficients card with an inline interval-vs-zero
+   column, and model-fit details collapsed underneath. Ink titles, primary blue
+   only on actions and significant effects. */
+
+.lr-result {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.key-figures {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.key-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.key-figure:first-child {
+  border-left: 0;
+}
+
+.key-figure-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.key-figure-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.key-figure-note {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+.coefficients-card {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.coefficients-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.coefficients-copy {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.coefficients-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.coefficients-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.coefficients-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.coef-columns button {
+  min-height: 26px;
+  padding: 0 12px;
+  font-size: 0.76rem;
+}
+
+.csv-link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.csv-link:hover,
+.csv-link:focus-visible {
+  background: #eef0fd;
+  outline: none;
+}
+
+.coef-table {
+  display: grid;
+  min-width: 0;
+}
+
+.coef-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 0.7fr 1.1fr 1.3fr 0.6fr;
+  column-gap: 16px;
+  align-items: center;
+  padding: 11px 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 0.88rem;
+  color: var(--text-main);
+  min-width: 0;
+}
+
+.coef-table.is-all-columns .coef-row {
+  grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
+}
+
+.coef-row--head {
+  padding: 8px 16px;
+  border-top: 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  background: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.coef-row:not(.coef-row--head):first-of-type {
+  border-top: 0;
+}
+
+.coef-row.is-intercept {
+  border-top: 1px dashed rgba(148, 163, 184, 0.4);
+  color: #64748b;
+}
+
+.coef-row.is-intercept .coef-variable,
+.coef-row.is-intercept .coef-estimate {
+  font-weight: 400;
+}
+
+.coef-variable {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.coef-row.is-intercept .coef-variable {
+  font-weight: 400;
+}
+
+.is-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.is-center {
+  text-align: center;
+}
+
+.coef-muted {
+  color: var(--text-muted);
+}
+
+.coef-p {
+  font-weight: 400;
+}
+
+.coef-p.is-significant {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.coef-plot-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.coef-plot {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 18px;
+}
+
+.coef-plot-zero {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background: rgba(148, 163, 184, 0.75);
+}
+
+.coef-plot-interval {
+  position: absolute;
+  top: 7px;
+  height: 4px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.coef-plot-interval.is-significant {
+  background: color-mix(in srgb, var(--primary-color) 62%, white);
+}
+
+.coef-plot-marker {
+  position: absolute;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.coef-plot-marker.is-significant {
+  background: var(--primary-color);
+}
+
+.coef-note {
+  margin: 0;
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.model-fit {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.model-fit-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+}
+
+.model-fit-summary:hover,
+.model-fit-summary:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.model-fit-arrow {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  flex: 0 0 auto;
+}
+
+.model-fit-arrow.is-open {
+  transform: rotate(45deg);
+}
+
+.model-fit-glance {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.model-fit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.model-fit-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.model-fit-item dt {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.model-fit-item dd {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .key-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .key-figure {
+    border-left: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.22);
+  }
+
+  .key-figure:first-child {
+    border-top: 0;
+  }
+
+  .coef-table {
+    overflow-x: auto;
+  }
+
+  .coef-row,
+  .coef-table.is-all-columns .coef-row {
+    min-width: 620px;
+  }
+
+  .model-fit-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

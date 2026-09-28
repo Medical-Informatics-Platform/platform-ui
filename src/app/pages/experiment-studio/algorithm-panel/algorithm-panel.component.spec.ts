@@ -155,20 +155,70 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renders all algorithm configuration fields without an advanced toggle', async () => {
+  it('groups default optional parameter fields under a closed Advanced disclosure', async () => {
     fixture.componentInstance.setStudioSubstep('parameters');
     await fixture.whenStable();
     fixture.detectChanges();
 
     const nativeElement = fixture.nativeElement as HTMLElement;
-    const fields = nativeElement.querySelectorAll('.config-field');
-
-    expect(fields.length).toBe(4);
+    const details = nativeElement.querySelector('.config-advanced') as HTMLDetailsElement | null;
+    expect(details).toBeTruthy();
+    expect(details?.open).toBeFalse();
+    expect(details?.textContent).toContain('Advanced (4)');
+    expect(nativeElement.querySelectorAll('.config-field').length).toBe(4);
     expect(nativeElement.textContent).toContain('Fourth');
     expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBeFalse();
     expect(fixture.componentInstance.canRun()).toBeTrue();
-    expect(nativeElement.textContent).not.toContain('Show advanced configuration');
-    expect(nativeElement.textContent).not.toContain('Hide advanced configuration');
+  });
+
+  it('keeps required parameters in the primary list and knows the friendly needs copy', async () => {
+    const xDetail = {
+      role: 'x' as const,
+      label: 'Predictor',
+      selectedCount: 2,
+      minCount: 1,
+      maxCount: null,
+      required: false,
+      types: ['real'],
+      stattypes: [],
+      messages: [],
+      satisfied: true,
+    };
+    const kmeansLike: AlgorithmConfig = {
+      ...algorithm,
+      name: 'kmeans_like',
+      label: 'K-means',
+      inputdata: { x: { types: ['real'], required: true, min_count: 1 } } as any,
+      availability: { available: true, summary: '', details: [xDetail] },
+      configSchema: [
+        { key: 'k', label: 'Number of clusters (k)', type: 'number', default: 4, required: true },
+        { key: 'max_iter', label: 'Max iterations', type: 'number', default: 100 },
+      ],
+    };
+
+    experimentStudioService.availableGroupedAlgorithms.set({ Clustering: [kmeansLike] });
+    experimentStudioService.backendAlgorithms.set({ kmeans_like: kmeansLike });
+    experimentStudioService.selectedAlgorithm.set(kmeansLike);
+    experimentStudioService.algorithmY.set([{ code: 'mmse', label: 'MMSE', type: 'integer' }]);
+    experimentStudioService.algorithmX.set([{ code: 'age', label: 'Age', type: 'real' }, { code: 'bmi', label: 'BMI', type: 'real' }]);
+    fixture.componentInstance.setStudioSubstep('parameters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('.documentation-panel')?.textContent).toContain('How this method works');
+    const needsText = root.querySelector('.algo-needs')?.textContent ?? '';
+    expect(needsText).toContain('No outcome needed');
+    expect(needsText).toContain('Your outcome is ignored');
+    expect(needsText).toContain('At least 1 numerical predictor');
+
+    const primaryLabels = Array.from(root.querySelectorAll('.config-form > .config-field > label'))
+      .map((label) => label.textContent ?? '').join(' ');
+    const advancedText = root.querySelector('.config-advanced')?.textContent ?? '';
+    expect(primaryLabels).toContain('Number of clusters');
+    expect(advancedText).toContain('Max iterations');
+    expect((root.querySelector('.config-advanced') as HTMLDetailsElement)?.open).toBeFalse();
   });
 
   it('renders selected algorithm documentation separately from the short description', async () => {
@@ -180,10 +230,10 @@ describe('AlgorithmPanelComponent', () => {
     const details = nativeElement.querySelector('.documentation-panel') as HTMLDetailsElement;
 
     expect(nativeElement.querySelector('.config-description')?.textContent).toContain('Algorithm with more than three configuration fields.');
-    expect(details?.textContent).toContain('Documentation');
+    expect(details?.textContent).toContain('How this method works');
     expect(details?.textContent).toContain('Line one.');
     expect(details?.textContent).toContain('Line two.');
-    expect(details?.open).toBeTrue();
+    expect(details?.open).toBeFalse();
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
@@ -342,7 +392,8 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
     expect(details?.textContent).toContain('Unavailable docs.');
-    expect(details?.open).toBeTrue();
+    expect(details?.open).toBeFalse();
+    details?.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
@@ -697,12 +748,15 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    const items = (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-requirement-item');
-    expect(items.length).toBe(2);
-    expect(items[0]?.textContent).toContain('Outcome needs at least 1, selected 0.');
-    expect(items[0]?.textContent).toContain('Assign outcome');
-    expect(items[1]?.textContent).toContain('Apply missing value preprocessing');
-    expect(items[1]?.textContent).toContain('Go to preprocessing');
+    const items = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('.algorithm-requirement-item'),
+    ) as HTMLElement[];
+    expect(items.length).toBe(3);
+    const needsText = items.map((item) => item.textContent ?? '').join(' ');
+    expect(needsText).toContain('Outcome needs at least 1, selected 0.');
+    expect(needsText).toContain('Assign outcome');
+    expect(needsText).toContain('Apply missing value preprocessing');
+    expect(needsText).toContain('Go to preprocessing');
   });
 
   it('keeps the availability run-requirement action on the algorithm panel for role assignment', async () => {
@@ -854,6 +908,8 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(fixture.componentInstance.studioSubstep()).toBe('parameters');
     const details = root.querySelector('.documentation-panel') as HTMLDetailsElement | null;
+    expect(details?.open).toBeFalse();
+    details?.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(details?.open).toBeTrue();
     expect(details?.textContent).toContain('Line one.');
     expect(root.querySelector('.config-form')).toBeTruthy();
@@ -921,7 +977,8 @@ describe('AlgorithmPanelComponent', () => {
   it('defaults to runnable only and reveals unavailable methods on demand', () => {
     // The catalog ships in Runnable mode: the chip is pressed from the first render.
     const root = fixture.nativeElement as HTMLElement;
-    expect(root.querySelector('.pill-toggle')?.getAttribute('aria-pressed')).toBe('true');
+    const modeTabs = () => Array.from(root.querySelectorAll('.catalog-mode-tabs button')) as HTMLButtonElement[];
+    expect(modeTabs()[0]?.getAttribute('aria-pressed')).toBe('true');
 
     const disabledAlgorithm = { ...algorithm, isDisabled: true, label: 'Locked Algorithm' };
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
@@ -933,17 +990,16 @@ describe('AlgorithmPanelComponent', () => {
     // because it holds the selected method.
     expect(root.querySelector('.algo-tile')?.textContent).toContain('Locked Algorithm');
 
-    const filter = root.querySelector('.pill-toggle') as HTMLButtonElement;
-    // The single status chip reads All {runnable}/{total} until toggled back.
-    expect(filter?.textContent).toContain('All');
-    expect(filter?.textContent).toContain('0/1');
-    expect(filter?.getAttribute('aria-pressed')).toBe('false');
+    const allTab = modeTabs()[1];
+    expect(allTab?.textContent).toContain('All');
+    expect(allTab?.textContent).toContain('1');
+    expect(allTab?.getAttribute('aria-pressed')).toBe('true');
 
-    filter.click();
+    modeTabs()[0].click();
     fixture.detectChanges();
     expect(fixture.componentInstance.showOnlyActive()).toBeTrue();
-    expect(filter.getAttribute('aria-pressed')).toBe('true');
-    expect(filter.textContent).toContain('Runnable');
+    expect(modeTabs()[0].getAttribute('aria-pressed')).toBe('true');
+    expect(modeTabs()[0].textContent).toContain('Runnable');
     expect(root.querySelector('.algo-tile')).toBeNull();
     expect(root.textContent).toContain('No runnable methods for this assignment.');
   });
@@ -1104,7 +1160,7 @@ describe('AlgorithmPanelComponent', () => {
     const labels = Array.from(root.querySelectorAll('.config-field > label')).map(
       (label) => label.textContent?.trim(),
     );
-    expect(labels).toEqual(jasmine.arrayContaining(['First', 'Second', 'Third', 'Fourth']));
+    expect(labels).toEqual(jasmine.arrayContaining(['First optional', 'Second optional', 'Third optional', 'Fourth optional']));
     expect(component.configForm().get('first')?.value).toBe(1);
   });
 
