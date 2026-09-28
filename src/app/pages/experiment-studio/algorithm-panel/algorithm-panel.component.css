@@ -35,7 +35,6 @@
   border-radius: var(--radius-lg, 12px);
   background: var(--studio-card-bg);
   box-shadow: var(--studio-card-shadow, 0 8px 32px rgba(15, 23, 42, 0.08));
-  overflow: hidden;
   color: var(--text-main);
 }
 
@@ -52,7 +51,6 @@
 
 .algorithm-roles-board__title {
   margin: 0 0 2px;
-  font-size: 1.15rem;
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: 0.01em;
@@ -61,18 +59,8 @@
 
 /* Live runnable/total counter — tabular so filtering never reflows the header. */
 .algorithm-count-badge {
-  display: inline-flex;
-  align-items: baseline;
   gap: 6px;
   flex: 0 0 auto;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.12));
-  background: var(--studio-card-bg);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 .algorithm-count-badge strong {
@@ -115,16 +103,12 @@
   flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
-  height: auto;
-  max-height: 22rem;
-  overflow: hidden;
   border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
 }
 
 .algorithm-pool > app-algorithm-role-assignment {
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
 }
 
 /* LEFT OF THE BOTTOM ROW: ALGORITHM CATALOG */
@@ -324,8 +308,6 @@
   gap: 2px;
   width: 100%;
   max-width: 100%;
-  min-height: 40px;
-  padding: 10px 12px;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
   background: #ffffff;
@@ -394,10 +376,8 @@
 
 .algo-why {
   display: block;
-  font-size: 0.68rem;
   font-weight: 500;
   line-height: 1.4;
-  color: #b45309;
 }
 
 .algo-tile.disabled-algo {
@@ -462,8 +442,6 @@
   color: var(--text-muted);
   font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .algorithm-params__body {
@@ -476,15 +454,8 @@
 .algorithm-params__empty {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px;
   flex: 1 1 auto;
-  margin: 16px;
-  padding: 22px 22px;
   border-radius: var(--radius-md, 8px);
-  border: 1px dashed rgba(148, 163, 184, 0.5);
-  background: var(--bg-neutral);
 }
 
 .algorithm-params__empty-title {
@@ -512,23 +483,17 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px 16px 12px;
   position: static;
   background: var(--studio-card-bg);
   color: var(--text-main);
 }
 
 .algorithm-details__header {
-  display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
 .algorithm-details__heading {
-  display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
 }
 
 /* Documentation */
@@ -540,26 +505,9 @@
 /* The native disclosure triangle is hidden, so the summary states its own affordance:
    a chevron that turns with the state, driven by [open] on the <details> itself. */
 .documentation-summary {
-  display: flex;
-  align-items: center;
   gap: 8px;
   cursor: pointer;
   list-style: none;
-  padding: 6px 8px;
-  margin: -6px -8px;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--primary-color);
-}
-
-.documentation-summary:hover {
-  background: color-mix(in srgb, var(--primary-color) 6%, white);
-}
-
-.documentation-panel[open] > .documentation-summary {
-  border-bottom: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.14));
-  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
 }
 
 .documentation-summary::-webkit-details-marker {
@@ -582,9 +530,6 @@
 }
 
 .documentation-content {
-  margin-top: 0.5rem;
-  padding-left: 10px;
-  border-left: 2px solid color-mix(in srgb, var(--primary-color) 26%, white);
   font-size: 0.82rem;
   line-height: 1.45;
   color: rgba(20, 22, 31, 0.72);
@@ -601,11 +546,6 @@
 
 /* Run requirements */
 
-.transformation-empty {
-  font-size: 0.74rem;
-  color: #6b7280;
-}
-
 .config-form {
   display: flex;
   flex-direction: column;
@@ -613,9 +553,7 @@
 }
 
 .config-field {
-  display: flex;
   flex-direction: column;
-  padding: 4px 0;
 }
 
 /* Fields are divided by a hairline rather than framed: the parameters read as one
@@ -716,30 +654,6 @@
 }
 
 /* Validation states: valid stays neutral; only the invalid edge and message signal a problem. */
-
-.config-input.ng-valid.ng-touched,
-.config-select.ng-valid.ng-touched {
-  border: 1px solid rgba(148, 163, 184, 0.34);
-  background: #ffffff;
-  background-image: none;
-  box-shadow: none;
-  padding-right: 12px;
-}
-
-.config-input.ng-invalid.ng-touched,
-.config-select.ng-invalid.ng-touched {
-  border: 1px solid var(--danger);
-  background-color: #ffffff;
-  background-image: none;
-  box-shadow: none;
-  padding-right: 12px;
-}
-
-.config-input.ng-invalid.ng-touched:focus,
-.config-select.ng-invalid.ng-touched:focus {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
-}
 
 /* Placeholders */
 
@@ -1003,8 +917,6 @@
   /* Stacked: head, rails, list and hint sit in one column, so the band hugs that
      taller content and the window scrolls rather than the band scrolling inside it. */
   .algorithm-pool {
-    height: auto;
-    max-height: none;
     border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
   }
 
@@ -1028,5 +940,614 @@
   .algorithm-match-cat-meta::after,
   .documentation-chevron {
     transition: none;
+  }
+}
+
+/* =========================================================================
+   Algorithm panel review pass: step kickers, compact role band, catalog,
+   needs checklist, parameter layout, advanced grouping, option switches,
+   transformations and the readiness bar.
+   ========================================================================= */
+
+.algorithm-step-kicker {
+  padding: 10px 14px 0;
+}
+
+.step-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.step-kicker-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--studio-card-border);
+  font-size: 0.68rem;
+}
+
+.algorithm-roles-board__title {
+  font-size: 0.96rem;
+}
+
+.algorithm-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The role band owns its own height now: the expanded roster caps itself and
+   scrolls; the pool no longer forces the whole assignment band into 22rem. */
+.algorithm-roles-board {
+  /* visible keeps the run bar sticking to the page scroller; the bar rounds its
+     own bottom corners so the card frame stays intact. */
+  overflow: visible;
+}
+
+.algorithm-pool {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.algorithm-pool > app-algorithm-role-assignment {
+  overflow: visible;
+}
+
+.catalog-mode-tabs {
+  flex: 0 0 auto;
+}
+
+.catalog-mode-tabs button {
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+}
+
+.catalog-title.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.algorithm-match-cat-count {
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.algo-tile {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.algo-tile-top::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(71, 85, 105, 0.45);
+}
+
+.algo-tile.selected .algo-tile-top::before {
+  box-shadow: inset 0 0 0 3.5px var(--primary-color);
+}
+
+.algo-tile.disabled-algo .algo-tile-top::before {
+  box-shadow: inset 0 0 0 1.5px rgba(71, 85, 105, 0.25);
+}
+
+.algo-why {
+  font-size: 0.74rem;
+  color: #78350f;
+}
+
+/* Configuration head: number ring, real method label, category tag. */
+.algorithm-details {
+  padding: 14px 16px 8px;
+}
+
+.algorithm-details__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.algorithm-details__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.algorithm-details__title {
+  margin: 0;
+  min-width: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.inspector-tag {
+  flex: 0 0 auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.config-description {
+  max-width: 60ch;
+  margin-top: 6px;
+}
+
+/* Documentation is a quiet text link by default. */
+.documentation-panel {
+  margin-top: 2px;
+}
+
+.documentation-summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.documentation-summary:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.documentation-chevron {
+  display: none;
+}
+
+.documentation-panel[open] > .documentation-summary {
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.documentation-content {
+  margin-top: 6px;
+  padding-left: 0;
+  border-left: 0;
+}
+
+/* Needs checklist */
+.algo-needs {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+  font-size: 0.8rem;
+}
+
+.algo-needs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.algo-needs-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #a06b10;
+  transform: translateY(2px);
+}
+
+.algo-needs li.is-met .algo-needs-mark {
+  background: var(--success);
+  box-shadow: none;
+}
+
+.algo-needs small {
+  flex-basis: 100%;
+  padding-left: 20px;
+  color: #78350f;
+}
+
+.algo-needs-all-met {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success) 10%, white);
+  color: #065f46;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Parameters */
+.algorithm-params__title {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Parameter rows: label beside control, sentence case, optional tag. */
+.config-field {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 360px);
+  gap: 2px 16px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+.config-field > label {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding-top: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.config-field-desc,
+.config-field-hint {
+  grid-column: 1;
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.config-field > .config-input,
+.config-field > .config-select,
+.config-field > .checkbox-wrapper,
+.config-field > .chip-picker,
+.config-field > .validation-message {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+
+.optional-tag {
+  margin-left: 4px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.chip-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chip-picker-option {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.chip-picker-option.active {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Advanced fields stay behind a disclosure, closed by default. */
+.config-advanced {
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  margin-top: 4px;
+}
+
+.config-advanced__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.config-advanced__summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-advanced__chevron {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.config-advanced[open] > .config-advanced__summary .config-advanced__chevron {
+  transform: rotate(45deg);
+}
+
+.config-advanced__body {
+  padding-bottom: 6px;
+}
+
+/* Option rows: cross-validation and transformations use the studio switch. */
+.config-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+}
+
+.config-option-row.is-locked {
+  opacity: 0.86;
+}
+
+.config-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.config-option-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.config-option-hint {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch.is-locked {
+  cursor: not-allowed;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 75%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 22%, white);
+  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2.5px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+  transition: transform 0.22s var(--ease-standard, ease), box-shadow 0.22s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--primary-color);
+  border-color: rgba(43, 51, 233, 0.24);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  cursor: not-allowed;
+}
+
+/* Transformation rows */
+.transformation-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.transformation-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transformation-row,
+.transformation-set-all {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 16px;
+  padding: 4px 0;
+}
+
+.transformation-row-label {
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.transformation-tray {
+  flex-wrap: wrap;
+  width: max-content;
+  max-width: 100%;
+}
+
+.transformation-tray button {
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 0.72rem;
+}
+
+/* Muted validation: invalid keeps a danger edge; valid is neutral. */
+.config-input.ng-valid.ng-touched,
+.config-select.ng-valid.ng-touched {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: #fff;
+  background-image: none;
+  box-shadow: none;
+  padding-right: 12px;
+}
+
+.config-input.ng-invalid.ng-touched,
+.config-select.ng-invalid.ng-touched {
+  border: 1px solid var(--danger);
+  background-color: #fff;
+  background-image: none;
+  box-shadow: none;
+  padding-right: 12px;
+}
+
+.config-input.ng-invalid.ng-touched:focus,
+.config-select.ng-invalid.ng-touched:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+/* Readiness bar: Run lives in the step bar, so this closes the panel with state only. */
+.algorithm-run-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  border-radius: 0 0 var(--radius-lg, 12px) var(--radius-lg, 12px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--studio-card-header-border);
+  background: var(--studio-card-header-bg);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.algorithm-run-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.algorithm-run-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b45309;
+}
+
+.algorithm-run-bar.is-ready .algorithm-run-dot {
+  background: var(--success);
+}
+
+.algorithm-run-text {
+  min-width: 0;
+}
+
+.algorithm-run-bar.is-ready {
+  color: #065f46;
+  font-weight: 600;
+}
+
+.algorithm-run-error {
+  flex-basis: 100%;
+  color: #8a1f1f;
+}
+
+/* Empty state under the ③ kicker, without the dashed frame. */
+.algorithm-params__empty {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .algorithm-details__header {
+    flex-wrap: wrap;
+  }
+
+  .config-field,
+  .transformation-row,
+  .transformation-set-all {
+    grid-template-columns: 1fr;
+  }
+
+  .config-field > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+
+  .algorithm-workspace {
+    grid-template-columns: 1fr;
   }
 }
