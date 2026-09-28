@@ -10,6 +10,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { pluralize } from '../../../../../core/result-label.utils';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
   NormalizedGroupNode,
@@ -109,9 +110,7 @@ export class OntologyTreeBrowserComponent {
     return `${this.pluralize(group.directGroupCount, 'group')} · ${this.pluralize(group.totalVariableCount, 'variable')}`;
   });
 
-  pluralize(count: number, singular: string): string {
-    return `${count} ${singular}${count === 1 ? '' : 's'}`;
-  }
+  readonly pluralize = pluralize;
 
   constructor() {
     effect(() => {
