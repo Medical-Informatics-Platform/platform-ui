@@ -102,7 +102,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'variable-containers',
     section: 'Explore',
     title: 'Compose Your Experiment',
-    body: 'Select an item in the Map or List view, then click <strong>Add</strong> (or double-click the item). The numeric chip next to Add opens your current selection so you can review, remove, or clear variables.',
+    body: 'Select an item in the Map or List view, then click <strong>Add</strong> (or double-click the item). Every added variable stays visible in the <strong>Variables in this experiment</strong> card, where you can jump to it or remove it.',
     selector: '[data-guide="variable-containers"]',
   },
   {

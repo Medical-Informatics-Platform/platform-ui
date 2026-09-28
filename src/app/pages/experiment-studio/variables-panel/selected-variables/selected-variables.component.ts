@@ -18,6 +18,7 @@ export class SelectedVariablesComponent {
   private elementRef = inject(ElementRef);
 
   readonly selectedNode = input<any>();
+  readonly mode = input<'popover' | 'inline'>('popover');
   readonly variableClicked = output<any>();
 
   readonly isOpen = signal(false);

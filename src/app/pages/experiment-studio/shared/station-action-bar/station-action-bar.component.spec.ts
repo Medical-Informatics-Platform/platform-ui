@@ -12,6 +12,7 @@ import { StationActionBarComponent } from './station-action-bar.component';
       [statusText]="text()"
       [tone]="tone()"
       [resetLabel]="resetLabel()"
+      [previewLabel]="previewLabel()"
       applyLabel="Apply Preprocessing"
       applyIcon="fa fa-magic"
       [applyVariant]="variant()"
@@ -25,6 +26,7 @@ class HostComponent {
   readonly text = signal('pending steps');
   readonly tone = signal<'default' | 'pending' | 'applied'>('pending');
   readonly resetLabel = signal('Reset Changes');
+  readonly previewLabel = signal('Preview data');
   readonly variant = signal<'primary' | 'quiet'>('primary');
   resetClicks = 0;
   applyClicks = 0;
@@ -65,6 +67,7 @@ describe('StationActionBarComponent', () => {
     expect(html.querySelector('.station-action-count')?.textContent?.trim()).toBe('2');
     expect(html.textContent).toContain('2 pending steps');
     expect(html.querySelector('.station-action-reset')?.textContent?.trim()).toBe('Reset Changes');
+    expect(html.querySelector('.station-action-preview i')?.className).toContain('fa-eye');
     expect(html.querySelector('.station-action-apply')?.textContent?.trim()).toContain('Apply Preprocessing');
     expect(html.querySelector('.station-action-apply i')?.className).toContain('fa-magic');
     expect(html.querySelector('.station-action-bar')?.classList.contains('tone-pending')).toBeTrue();

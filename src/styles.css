@@ -225,6 +225,24 @@ select:required:valid {
   background-color: color-mix(in srgb, var(--success) 10%, white);
 }
 
+/* The one count recipe — compare buttons, folder chips, row menus, canvas headers and the
+   studio variable pool. Tabular so a count does not jitter as it changes. */
+.count-badge {
+  background: var(--primary-color);
+  color: #ffffff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .experiment-studio-page .config-field,
   .experiment-studio-page .workflow-section-body.open > *,
@@ -495,156 +513,6 @@ select:required:valid {
   outline-offset: 2px;
 }
 
-/* Result toolbar — action group (#2B33E9 / #7F9CE8) */
-.experiment-studio-page .result-toolbar-actions {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.experiment-studio-page .toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 7px 13px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-  color: #334155;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.experiment-studio-page .toolbar-btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: rgba(43, 51, 233, 0.07);
-  color: #2b33e9;
-  flex-shrink: 0;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.experiment-studio-page .toolbar-btn-icon i {
-  font-size: 0.72rem;
-}
-
-.experiment-studio-page .toolbar-btn--ghost:hover {
-  background: rgba(127, 156, 232, 0.14);
-  color: #2b33e9;
-}
-
-.experiment-studio-page .toolbar-btn--ghost:hover .toolbar-btn-icon {
-  background: rgba(43, 51, 233, 0.12);
-  color: #2b33e9;
-}
-
-.experiment-studio-page .toolbar-btn--primary {
-  background: var(--primary-color);
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-}
-
-.experiment-studio-page .toolbar-btn--primary .toolbar-btn-icon {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-
-.experiment-studio-page .toolbar-btn--primary:hover:not(:disabled) {
-  background: var(--primary-dark);
-  box-shadow: var(--shadow-md);
-}
-
-.experiment-studio-page .toolbar-btn--primary:disabled {
-  background: rgba(127, 156, 232, 0.55);
-  color: rgba(255, 255, 255, 0.92);
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-.experiment-studio-page .toolbar-btn:focus-visible {
-  outline: 2px solid #2b33e9;
-  outline-offset: 2px;
-}
-
-.experiment-studio-page .toolbar-divider {
-  width: 1px;
-  align-self: stretch;
-  min-height: 24px;
-  margin: 4px 3px;
-  background: rgba(127, 156, 232, 0.32);
-  flex-shrink: 0;
-}
-
-.experiment-studio-page .result-toolbar-actions--save-as {
-  gap: 10px;
-  padding: 0;
-  align-items: flex-end;
-}
-
-.experiment-studio-page .save-as-inline {
-  flex: 1 1 260px;
-  min-width: min(100%, 260px);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.experiment-studio-page .save-as-inline-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-}
-
-.experiment-studio-page .result-toolbar-actions--save-as .save-as-input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(127, 156, 232, 0.35);
-  background: #fff;
-  font-size: 0.85rem;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.experiment-studio-page .result-toolbar-actions--save-as .save-as-input:focus {
-  border-color: var(--primary-color, #2b33e9);
-  box-shadow: 0 0 0 3px rgba(127, 156, 232, 0.2);
-}
-
-.experiment-studio-page .result-toolbar-action-buttons {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .experiment-studio-page .studio-skeleton-card {
   display: flex;
   flex-direction: column;
@@ -829,31 +697,9 @@ select:required:valid {
   gap: 12px;
 }
 
-.chart-panel-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.chart-panel-kicker {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .chart-search {
   max-width: none;
   margin: 10px 0 12px;
-}
-
-.chart-panel-header h4 {
-  margin: 2px 0 0;
-  color: var(--text-main);
-  font-size: 1rem;
 }
 
 .chart-note {
@@ -946,14 +792,7 @@ select:required:valid {
   box-shadow: none;
 }
 
-.statistics-browser-header,
-.statistics-panel-header,
-.summary-panel-actions,
-.statistics-variable-group-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+
 
 .statistics-browser-header,
 .statistics-panel-header,
@@ -980,8 +819,8 @@ select:required:valid {
 
 .statistics-variable-group {
   display: grid;
-  gap: 9px;
-  margin-top: 20px;
+  gap: 4px;
+  margin-top: 16px;
 }
 
 /* Rail row = name, then the one number the step is decided on, right-aligned.
@@ -989,8 +828,10 @@ select:required:valid {
    can scan; selection is a tonal fill plus a leading accent edge. */
 .statistics-variable-btn {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  row-gap: 5px;
   width: 100%;
   padding: 7px 10px;
   border: 0;
@@ -1002,6 +843,30 @@ select:required:valid {
   text-align: left;
   transition: background 0.14s var(--ease-standard),
     border-color 0.14s var(--ease-standard);
+}
+
+/* Missing-share bar: one full-width row under the variable name, so the rail
+   ranks coverage without adding a second number beside it. */
+.statistics-variable-bar {
+  flex: 1 0 100%;
+  height: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(43, 51, 233, 0.08);
+}
+
+.statistics-variable-bar > span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--primary-light) 70%, var(--text-muted));
+}
+
+.statistics-variable-bar[data-severity='warning'] > span {
+  background: var(--accent-color);
+}
+
+.statistics-variable-bar[data-severity='high'] > span {
+  background: color-mix(in srgb, var(--danger) 75%, var(--text-main));
 }
 
 .statistics-variable-btn > span:first-of-type {
@@ -1069,41 +934,12 @@ select:required:valid {
   font-weight: 700;
 }
 
-/* Export actions read as one segmented control in the same family as the
-   .summary-tabs pill tray above the pane: one tray, no per-button chrome. */
-.summary-panel-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--studio-card-border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--primary-color) 5%, white);
-}
-
-.summary-panel-actions .studio-export-btn {
-  min-height: 28px;
-  padding: 5px 12px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, transparent);
-  border-radius: 999px;
-  background: transparent;
-  font-size: 0.78rem;
-  letter-spacing: var(--letter-spacing-config);
-}
-
-.summary-panel-actions .studio-export-btn:hover:not(:disabled) {
-  background: var(--card-bg);
-  border-color: transparent;
-  box-shadow: var(--shadow-sm);
-}
-
-.summary-panel-actions .studio-export-btn:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.summary-panel-actions .studio-export-btn:active:not(:disabled) {
-  transform: scale(0.97);
+.statistics-browser-header,
+.statistics-panel-header,
+.statistics-variable-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* The share a variable is judged on, right-aligned in the rail. Severity is
@@ -1166,7 +1002,7 @@ select:required:valid {
 
 .statistics-table th:first-child {
   z-index: 4;
-  background: color-mix(in srgb, var(--primary-light) 13%, white 87%);
+  background: var(--studio-card-header-bg);
 }
 
 .statistics-table th:not(:first-child),
@@ -1190,7 +1026,24 @@ select:required:valid {
 .statistics-table th.statistics-col-rollup,
 .statistics-table td.statistics-col-rollup {
   border-left: 1px solid var(--studio-card-border);
-  background: color-mix(in srgb, var(--primary-color) 4%, var(--card-bg));
+}
+
+.statistics-table th.statistics-col-rollup {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.statistics-table td.statistics-col-rollup {
+  font-weight: 700;
+}
+
+/* Per-dataset n under the header label, read from the Total row, so the
+   Missing % above the fold is readable without scrolling to the count. */
+.statistics-table th small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 /* Metric groups: the three counts answer "how much data do I have", the rest
    answer "what does it look like". One flat list of ten identical bold rows
@@ -1264,45 +1117,43 @@ select:required:valid {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(71, 85, 105, 0.14);
+  border: 0;
   border-radius: 999px;
   background: rgba(248, 250, 252, 0.88);
   color: #475569;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: none;
 }
 
 .preprocessing-state-mini {
   padding: 3px 7px;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
+  flex-shrink: 0;
 }
 
 .preprocessing-state-chip {
-  padding: 6px 10px;
-  font-size: 0.74rem;
+  padding: 2px 9px;
+  font-size: 0.72rem;
   flex-shrink: 0;
 }
 
 .preprocessing-state-mini.state-pending,
 .preprocessing-state-chip.state-pending {
-  background: color-mix(in srgb, var(--accent-color) 14%, white 86%);
-  border-color: color-mix(in srgb, var(--accent-color) 30%, transparent);
-  color: #92400e;
+  background: color-mix(in srgb, var(--accent-color) 16%, white);
+  color: #78350f;
 }
 
 .preprocessing-state-mini.state-applied,
 .preprocessing-state-chip.state-applied {
-  background: var(--panel-success-bg, #dfefe4);
-  border-color: color-mix(in srgb, var(--panel-success-text, #166534) 18%, transparent);
-  color: var(--panel-success-text, #166534);
+  background: color-mix(in srgb, var(--success) 12%, white);
+  color: #065f46;
 }
 
 .preprocessing-state-mini.state-default,
 .preprocessing-state-chip.state-default {
-  background: rgba(43, 51, 233, 0.06);
-  border-color: rgba(43, 51, 233, 0.18);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
   color: var(--primary-color, #2B33E9);
 }
 
@@ -1343,15 +1194,6 @@ select:required:valid {
 
 .outlier-preprocessing-workspace .preprocessing-detail-panel {
   padding: 16px;
-}
-
-.outlier-preview-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px 16px;
-  border-top: 1px solid var(--studio-card-border);
-  background: var(--studio-card-header-bg);
 }
 
 @media (max-width: 768px) {
@@ -1456,48 +1298,13 @@ select:required:valid {
   min-width: 0;
 }
 
-.result-section-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 12px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid rgba(127, 156, 232, 0.14);
-}
-
-.result-section-toolbar--save-as {
-  align-items: stretch;
-}
-
 .result-section-title {
   margin: 0;
   font-size: 1.02rem;
   font-weight: 700;
-  color: #026d6d;
+  color: var(--text-main);
   line-height: 1.3;
   min-width: 0;
-  flex: 1 1 200px;
-}
-
-.result-section-toolbar .result-toolbar-actions {
-  flex: 0 1 auto;
-  min-width: 0;
-  justify-content: flex-end;
-}
-
-.result-toolbar-actions--save-as {
-  flex: 1 1 100%;
-  justify-content: space-between;
-}
-
-.result-toolbar-action-buttons {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex-shrink: 0;
 }
 
 .result-section-body {
@@ -1506,36 +1313,6 @@ select:required:valid {
 
 .result-section-body app-algorithm-result {
   display: block;
-}
-
-.experiment-panel-workspace--result .mip-version-bar {
-  margin-top: 14px;
-}
-
-.studio-settings-block {
-  margin: 0 0 12px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.82);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.studio-settings-block--alert {
-  border-color: rgba(245, 158, 11, 0.35);
-  background: linear-gradient(180deg, #fffbeb 0%, #fff7ed 100%);
-  color: #92400e;
-}
-
-.studio-settings-block--option {
-  border-color: rgba(127, 156, 232, 0.28);
-  background: rgba(248, 251, 255, 0.9);
-  color: #334155;
-}
-
-.algorithm-requirements-panel {
-  margin-bottom: 14px;
 }
 
 .algorithm-requirement-action {
@@ -1689,4 +1466,57 @@ select:required:valid {
   .experiment-panel-main {
     order: 1;
   }
+}
+
+/* The segmented tray recipe shared by the Data Handling overlays and the
+   Algorithm catalog filter: one surface, one active white pill. */
+.modal-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--border-color);
+  border-radius: 999px;
+  margin: 0;
+}
+
+.modal-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  min-height: 28px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.modal-tabs button:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--primary-color);
+}
+
+.modal-tabs button.active {
+  background: var(--card-bg);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.modal-tabs button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }

@@ -38,7 +38,6 @@ import {
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
-import { StationListRowComponent } from '../shared/station-list-row/station-list-row.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -47,6 +46,8 @@ import { countFilterRules } from '../../../core/filter-display.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
+import { pluralize } from '../../../core/result-label.utils';
+import { filterOperatorPhrase } from '../../../core/filter-logic.utils';
 import {
   cloneOutlierRules,
   createDefaultOutlierRule,
@@ -113,11 +114,20 @@ interface TransformationColumnDraft {
   defaultEnumeration: string;
   rules: TransformationRule[];
   open: boolean;
+  /** Rule index whose filter editor is expanded; at most one open per card. */
+  openRuleIndex?: number | null;
+}
+
+/** A summary cell as a number: tolerates grouping commas and a trailing %; null when not numeric. */
+function parseNumber(value: unknown): number | null {
+  const text = String(value ?? '').replace(/[,%]/g, '').trim();
+  const number = Number(text);
+  return text !== '' && Number.isFinite(number) ? number : null;
 }
 
 let transformationDraftSeq = 0;
 function emptyTransformationDraft(): TransformationColumnDraft {
-  return { id: ++transformationDraftSeq, code: '', defaultEnumeration: '', rules: [], open: true };
+  return { id: ++transformationDraftSeq, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
 }
 
 /** One sub-step of a pipeline stage, rendered on the pipeline-overview rail. */
@@ -130,6 +140,8 @@ interface PipelineSubNode {
   subtitle: string;
   statusLabel: string;
   statusTone: 'applied' | 'default' | 'pending';
+  /** Optional consequence line (e.g. rows the default drop-NaN would remove). */
+  impact?: string;
 }
 
 type MetricKey =
@@ -219,7 +231,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, StationListRowComponent, KMeansClusterSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -378,7 +390,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     } else if (step === 'transformation') {
       this.resetTransformation();
-      this.expStudioService.setKMeansClusterPreprocessing(null);
       this.sectionOpen.update((open) => ({ ...open, transformation: false }));
     }
     this.cdr.markForCheck();
@@ -527,8 +538,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
       }
       default:
-        return 'Default';
+        return 'Default · in run';
     }
+  }
+
+  /** Terminal card's preprocessing fact: default drop-NaN, or the applied step count. */
+  get terminalPreprocessingLine(): string {
+    if (this.preprocessingBadgeTone === 'default') return 'Preprocessing: default drop NaN';
+    return `Preprocessing: ${pluralize(this.appliedPreprocessingCount, 'step')}`;
   }
 
   /**
@@ -665,6 +682,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const entries = Object.entries(handler?.strategies ?? {}).filter(([, action]) => action !== 'no_action');
     const imputed = entries.filter(([, action]) => action !== 'drop');
     const pending = this.hasPendingMissingChanges ? 'pending' : 'applied';
+    const droppedByDefault = this.rowsDroppedByDefault;
+    const impact = droppedByDefault != null
+      ? `${droppedByDefault.toLocaleString()} rows would be removed`
+      : undefined;
 
     if (imputed.length) {
       const summary = imputed.slice(0, 3).map(([code, action]) => {
@@ -689,20 +710,22 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         subtitle: `Rows with missing values removed for ${entries.length} ${entries.length === 1 ? 'variable' : 'variables'}`,
         statusLabel: 'Applied',
         statusTone: pending,
+        impact,
       };
     }
 
     return {
       id: 'missing',
       icon: 'fas fa-eraser',
-      title: 'Missing Values Handler',
-      subtitle: 'Default NaN removal active across all selected variables',
+      title: 'Missing values · remove rows',
+      subtitle: `All ${this.preprocessingVariables.length} selected variables`,
       statusLabel: 'Default',
       statusTone: 'default',
+      impact,
     };
   }
 
-  private missingStrategyLabel(action: string): string {
+  missingStrategyLabel(action: string): string {
     return this.missingActions.find((item) => item.value === action)?.label ?? action;
   }
 
@@ -715,6 +738,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const count = this.filterRuleCount();
     if (count > 0) return `Applied ✓ (${count} ${count === 1 ? 'rule' : 'rules'})`;
     return 'No filters applied';
+  }
+
+  /** Footer fact after Preview data: filtered rows (raw summary) out of the unfiltered
+   *  source snapshot. The processed summary is excluded: its drop is preprocessing, not the filter. */
+  get filterPreviewStatus(): string {
+    const matched = this.getSummaryTotalRows(this.rawSummary);
+    const source = this.getSummaryTotalRows(this.sourceSummary);
+    return matched !== null && source !== null
+      ? `${matched.toLocaleString()} of ${source.toLocaleString()} records match · last preview`
+      : '';
   }
 
   readonly missingActions: Array<{ value: MissingAction; label: string }> = [
@@ -931,15 +964,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   get transformationStatusLabel(): string {
     const validCount = this.transformationConfigs().length;
-    if (validCount > 0 && !this.transformationHasPendingChange) return 'Applied';
+    // An applied K-means cluster column is a derived column of this stage, so the stage
+    // is not "Not defined" just because no categorical card is configured.
+    const hasAppliedColumn = validCount > 0 || !!this.expStudioService.appliedKMeansClusterCreator();
+    if (hasAppliedColumn && !this.transformationHasPendingChange) return 'Applied';
     if (
-      validCount > 0
+      hasAppliedColumn
       || this.transformationHasPendingChange
       || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
     ) {
-      return 'Pending';
+      return 'Not applied';
     }
-    return 'Not defined';
+    return 'Not set';
   }
 
   /**
@@ -959,6 +995,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     return this.transformationStatusLabel;
   }
+
+  /** Status chip for the K-means cluster column card on the Transformation step. */
+  get kmeansClusterStatusLabel(): string {
+    return this.expStudioService.appliedKMeansClusterCreator() ? 'Applied' : 'Not set';
+  }
+
+  /** Collapsible body state of the K-means cluster column card. */
+  readonly kmeansClusterCardOpen = signal(false);
 
   /** True when a named category on any card is still missing an applied filter. */
   get transformationRulesNeedFilters(): boolean {
@@ -1183,15 +1227,19 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   get missingPreprocessingStatusLabel(): string {
-    if (this.hasPendingMissingChanges) return 'Pending';
+    if (this.hasPendingMissingChanges) {
+      return `${pluralize(this.pendingMissingChangeCount, 'change')} · not applied`;
+    }
     if (Object.values(this.appliedPreprocessingRules).some((rule) => rule.enabled && rule.action !== 'no_action')) return 'Applied';
-    if (this.preprocessingVariables.some((variable) => this.isPreprocessingVariableUsingDefault(variable))) return 'Default';
+    if (this.preprocessingVariables.some((variable) => this.isPreprocessingVariableUsingDefault(variable))) return 'Default · in run';
     return 'Required';
   }
 
   get outlierPreprocessingStatusLabel(): string {
     if (!this.outlierPreprocessingVariables.length) return 'Not available';
-    if (this.hasPendingOutlierChanges) return 'Pending';
+    if (this.hasPendingOutlierChanges) {
+      return `${pluralize(this.pendingOutlierChangeCount, 'change')} · not applied`;
+    }
     if (Object.values(this.appliedOutlierRules).some((rule) => rule.enabled)) return 'Applied';
     return 'Optional';
   }
@@ -1202,7 +1250,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   get longitudinalPreprocessingStatusLabel(): string {
     if (!this.isLongitudinalModel) return 'Not available';
-    if (this.pendingLongitudinalChangeCount > 0) return 'Pending';
+    if (this.pendingLongitudinalChangeCount > 0) {
+      return `${pluralize(this.pendingLongitudinalChangeCount, 'change')} · not applied`;
+    }
     if (this.appliedLongitudinalEnabled) return 'Applied';
     return 'Required';
   }
@@ -1231,6 +1281,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   setSummaryTab(kind: SummaryKind, tab: TabKey): void {
     const summary = this.getSummary(kind);
     summary.activeTab = tab;
+    this.summaryExportMenuKind.set(null);
     if (tab === 'Histogram') {
       const block = this.selectedStatisticBlock(kind);
       if (block) this.ensureHistogramForBlock(kind, block);
@@ -1510,6 +1561,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
   }
 
+  /** "How this works" disclosures, moved from the body summary into the card header. */
+  readonly preprocessingDocOpen = signal<Record<'missing' | 'outlier' | 'longitudinal', boolean>>({
+    missing: false,
+    outlier: false,
+    longitudinal: false,
+  });
+
+  togglePreprocessingDoc(step: 'missing' | 'outlier' | 'longitudinal'): void {
+    this.preprocessingDocOpen.update((open) => ({ ...open, [step]: !open[step] }));
+    this.cdr.markForCheck();
+  }
+
   /** Maps a station status label onto the shared chip states (Default / Pending / Applied). */
   statusTone(label: string, pending = false): StationStatus {
     if (pending) return 'pending';
@@ -1563,6 +1626,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationDrafts = [emptyTransformationDraft()];
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
+    // The K-means cluster column is a derived column of this stage too.
+    this.expStudioService.setKMeansClusterPreprocessing(null);
     this.onTransformationChange();
   }
 
@@ -1597,12 +1662,54 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   addTransformationRule(draft: TransformationColumnDraft): void {
     draft.rules.push({ value: '', filter: null });
+    draft.openRuleIndex = draft.rules.length - 1;
     this.onTransformationChange();
   }
 
   removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
     draft.rules.splice(index, 1);
+    if (draft.openRuleIndex === index) draft.openRuleIndex = null;
+    else if (draft.openRuleIndex != null && draft.openRuleIndex > index) draft.openRuleIndex -= 1;
     this.onTransformationChange();
+  }
+
+  toggleTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    draft.openRuleIndex = draft.openRuleIndex === index ? null : index;
+    this.cdr.markForCheck();
+  }
+
+  private firstFilterCondition(filter: unknown): { field: string; operator: string; value: unknown } | null {
+    if (!filter || typeof filter !== 'object') return null;
+    const node = filter as { field?: unknown; operator?: unknown; value?: unknown; rules?: unknown[] };
+    if (node.field) {
+      return { field: String(node.field), operator: String(node.operator ?? ''), value: node.value };
+    }
+    for (const rule of Array.isArray(node.rules) ? node.rules : []) {
+      const found = this.firstFilterCondition(rule);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /** A one-line rule summary for the collapsed row. */
+  transformationRuleSummary(rule: TransformationRule): string {
+    const condition = this.firstFilterCondition(rule.filter);
+    if (!condition) return 'No rule yet';
+    const variable = this.expStudioService.selectedVariables()
+      .find((item) => String(item?.code ?? '') === condition.field);
+    const label = String(variable?.label ?? variable?.name ?? condition.field);
+    const values = Array.isArray(condition.value)
+      ? condition.value.map(String).join(', ')
+      : String(condition.value ?? '');
+    const phrase = filterOperatorPhrase(condition.operator);
+    return values ? `${label} ${phrase} ${values}` : `${label} ${phrase}`;
+  }
+
+  /** Loaded record count for one enumeration of a card's column. */
+  transformationCount(draft: TransformationColumnDraft, value: string): string {
+    const block = this.transformationStatistics.find((item) => item.code === draft.code.trim());
+    const row = block?.rows.find((item) => item.value === value);
+    return row?.count != null ? row.count.toLocaleString() : '—';
   }
 
   /** Per-card chip: a card is Applied only when it is complete and its name is unique. */
@@ -1612,8 +1719,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (this.buildTransformationConfigForDraft(draft)) {
       return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
     }
-    if (this.draftHasWork(draft) || isDuplicate) return { label: 'Pending', tone: 'pending' };
-    return { label: 'Not defined', tone: 'default' };
+    if (this.draftHasWork(draft) || isDuplicate) return { label: 'Not applied', tone: 'pending' };
+    return { label: 'Not set', tone: 'default' };
   }
 
   toggleTransformationDraft(draft: TransformationColumnDraft): void {
@@ -1762,6 +1869,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return { total, missing, share: missing / total };
   }
 
+  /** The Total row's count for one dataset column, for the header's `n =` line. */
+  datasetTotalLabel(block: PivotBlock, dataset: string): string | null {
+    const total = block.rows.find((row) => row.metric === 'Total')?.values[dataset];
+    if (total === undefined || total === null || total === '') return null;
+    return this.displayNumber(total);
+  }
+
   /** Display form of a canonical pivot value: parse the stored string, then
    *  locale-group it. Storage and CSV export use `formatNumber`, never this. */
   displayNumber(value: string | undefined | null): string {
@@ -1826,6 +1940,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.formatPercent(coverage.share * 100);
   }
 
+  /** Bar length for a share scaled up so small shares stay visible (×1000: 5% is a half
+   *  bar), floored at 2% so a clean variable still shows the track. */
+  barWidth(share: unknown, scale: number): number {
+    return Math.max(2, Math.min(100, (parseNumber(share) ?? 0) * scale));
+  }
+
   /** The full count belongs in its tooltip; the row only carries the share. */
   coverageTitle(coverage: { total: number; missing: number }): string {
     return `${coverage.missing.toLocaleString()} of ${coverage.total.toLocaleString()} values missing`;
@@ -1854,7 +1974,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (!block) return [];
     // A nominal block carries no quantile rows at all, so the lookups come back
     // 'N/A'; those are absent data, not values, and must not render as a row of N/A.
-    return (['min', 'q1', 'q2', 'q3', 'max'] as const)
+    return (['mean', 'std', 'min', 'q1', 'q2', 'q3', 'max'] as const)
       .map((key) => ({
         label: this.metricLabel[key],
         value: this.displayNumber(this.statisticMetricText(block, this.metricLabel[key])),
@@ -1903,6 +2023,69 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (action === 'no_action') return `${missing} of ${total} values (${share}) stay missing.`;
     const fill = action === 'constant' ? 'a fixed value' : `the ${action}`;
     return `Fills ${missing} of ${total} values (${share}) with ${fill}. Rows kept.`;
+  }
+
+  /** Footer summary for the preprocessing action bar: what changed and how. */
+  get preprocessingActionSummary(): string {
+    if (this.pendingChangeCount === 0) return 'No changes — every variable uses the default';
+    const missingVariable = this.preprocessingVariables.find((variable) =>
+      this.prepVariableHasPendingChange('missing', variable)
+    );
+    if (missingVariable) {
+      const action = this.ruleFor(missingVariable).action;
+      return `${pluralize(this.pendingChangeCount, 'change')}: ${this.variableLabel(missingVariable)} → ${this.missingStrategyLabel(action).toLowerCase()}`;
+    }
+    return `${pluralize(this.pendingChangeCount, 'change')} pending`;
+  }
+
+  /** Choice-card effect line. Empty when the summary has not loaded: the label alone
+   *  is still better than the old select. */
+  missingActionEffect(variable: VariableRow, action: MissingAction): string {
+    const coverage = this.coverageFor(variable);
+    if (!coverage) return '';
+    const n = coverage.missing.toLocaleString();
+    switch (action) {
+      case 'drop':
+        return `Removes ${n} records (${this.coveragePercent(coverage)}) from the run`;
+      case 'mean':
+      case 'median': {
+        const value = this.distributionMapValue(variable, action);
+        return `Fills ${n} values with the ${action}${value ? `, ${value}` : ''}`;
+      }
+      case 'constant':
+        return `Fills ${n} values with a value you set`;
+      default:
+        return '';
+    }
+  }
+
+  distributionMapValue(variable: VariableRow, label: string): string {
+    return this.distributionFor(variable)
+      .find((point) => point.label.toLowerCase() === label.toLowerCase())?.value ?? '';
+  }
+
+  /** Per-dataset coverage for the missing-values evidence tiles. Derives the same
+   *  Missing/Total rows the table uses, split by dataset, minus the rollup column. */
+  coverageByDataset(variable: VariableRow): Array<{ label: string; missing: number; total: number; share: number }> {
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    const totalRow = block.rows.find((row) => row.metric === 'Total');
+    const missingRow = block.rows.find((row) => row.metric === 'Missing');
+    if (!totalRow || !missingRow) return [];
+    return block.columns
+      .filter((dataset) => !this.isRollupColumn(dataset))
+      .map((dataset) => {
+        const total = parseNumber(totalRow.values[dataset]) ?? 0;
+        if (total <= 0) return null;
+        const missing = Math.min(parseNumber(missingRow.values[dataset]) ?? 0, total);
+        return {
+          label: this.datasetLabel(dataset),
+          missing,
+          total,
+          share: missing / total,
+        };
+      })
+      .filter((tile): tile is { label: string; missing: number; total: number; share: number } => !!tile);
   }
 
   ruleFor(variable: VariableRow): PreprocessingRule {
@@ -1955,6 +2138,130 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     };
     this.updatePreprocessingStatus();
     this.emitProgressState();
+  }
+
+  outlierStrategyDisplay(strategy: OutlierStrategy): string {
+    return this.outlierStrategies.find((item) => item.value === strategy)?.label ?? strategy;
+  }
+
+  outlierTailDisplay(tail: OutlierTail): string {
+    if (tail === 'left') return 'Low only';
+    if (tail === 'right') return 'High only';
+    return 'Both';
+  }
+
+  outlierFoldDisplay(strategy: OutlierStrategy): string {
+    switch (strategy) {
+      case 'gaussian': return '× std. dev.';
+      case 'iqr': return '× IQR';
+      case 'mad': return '× MAD';
+      case 'quantile': return 'Quantile';
+    }
+  }
+
+  outlierRuleSummary(variable: VariableRow): string {
+    const rule = this.outlierRuleFor(variable);
+    if (!rule.enabled) return 'Off';
+    return `${this.outlierStrategyDisplay(rule.strategy)} × ${rule.fold ?? '—'} · ${this.outlierTailDisplay(rule.tail)}`;
+  }
+
+  outlierPreviewRowsFor(variable: VariableRow): OutlierPreviewRow[] {
+    const label = this.variableLabel(variable);
+    return this.outlierPreviewRows.filter((row) => row.variable === label || row.variable === variable.code);
+  }
+
+  private outlierDistributionNumbers(variable: VariableRow): {
+    min: number; q1: number; median: number; q3: number; max: number; mean: number | null; std: number | null;
+  } | null {
+    const points = this.distributionFor(variable);
+    if (!points.length) return null;
+    const byLabel = new Map(points.map((point) => [point.label.toLowerCase(), point.value]));
+    const number = (label: string) => parseNumber(byLabel.get(label));
+    const min = number('min');
+    const q1 = number('q1');
+    const median = number('median');
+    const q3 = number('q3');
+    const max = number('max');
+    if (min === null || q1 === null || median === null || q3 === null || max === null) return null;
+    return { min, q1, median, q3, max, mean: number('mean'), std: number('standard deviation') };
+  }
+
+  /** Client-side bounds for the strategies the summary can price. MAD/quantile and
+   *  Gaussian without mean/std return null; the strip then says so. */
+  private outlierBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
+    const numbers = this.outlierDistributionNumbers(variable);
+    if (!numbers) return null;
+    const rule = this.outlierRuleFor(variable);
+    const k = Number(rule.fold);
+    if (!Number.isFinite(k)) return null;
+    let lo: number;
+    let hi: number;
+    switch (rule.strategy) {
+      case 'iqr': {
+        const iqr = numbers.q3 - numbers.q1;
+        lo = numbers.q1 - k * iqr;
+        hi = numbers.q3 + k * iqr;
+        break;
+      }
+      case 'gaussian': {
+        if (numbers.mean === null || numbers.std === null) return this.reportBounds(variable);
+        lo = numbers.mean - k * numbers.std;
+        hi = numbers.mean + k * numbers.std;
+        break;
+      }
+      default:
+        // MAD and arbitrary quantiles are not in the summary; the report's own
+        // bounds are the fallback once a report has run.
+        return this.reportBounds(variable);
+    }
+    return {
+      lo: rule.tail === 'right' ? null : lo,
+      hi: rule.tail === 'left' ? null : hi,
+    };
+  }
+
+  private reportBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
+    const row = this.outlierPreviewRowsFor(variable)[0];
+    if (!row) return null;
+    const lo = parseNumber(row.lowerBound);
+    const hi = parseNumber(row.upperBound);
+    if (lo === null && hi === null) return null;
+    return { lo, hi };
+  }
+
+  outlierBoundsView(variable: VariableRow): {
+    min: number; iqrLeft: number; iqrWidth: number; medianLeft: number;
+    loPct: number | null; hiPct: number | null; cappedLeft: number | null; cappedRight: number | null;
+    loLabel: string | null; hiLabel: string | null; note: string;
+  } | null {
+    const numbers = this.outlierDistributionNumbers(variable);
+    if (!numbers || numbers.max <= numbers.min) return null;
+    const span = numbers.max - numbers.min;
+    const pct = (value: number) => Math.max(0, Math.min(100, ((value - numbers.min) / span) * 100));
+    const bounds = this.outlierBounds(variable);
+    const loPct = bounds?.lo != null ? pct(bounds.lo) : null;
+    const hiPct = bounds?.hi != null ? pct(bounds.hi) : null;
+    const reportRows = this.outlierPreviewRowsFor(variable);
+    const cappedCount = reportRows.reduce(
+      (sum, row) => sum + (parseNumber(row.lowerOutliers) ?? 0) + (parseNumber(row.upperOutliers) ?? 0), 0);
+    const note = bounds
+      ? `Below ${bounds.lo?.toLocaleString() ?? '—'} or above ${bounds.hi?.toLocaleString() ?? '—'} → capped`
+        + (reportRows.length && cappedCount > 0 ? ` · ${cappedCount.toLocaleString()} values` : '')
+      : 'Bounds shown after Refresh report';
+
+    return {
+      min: numbers.min,
+      iqrLeft: pct(numbers.q1),
+      iqrWidth: Math.max(2, pct(numbers.q3) - pct(numbers.q1)),
+      medianLeft: pct(numbers.median),
+      loPct,
+      hiPct,
+      cappedLeft: loPct,
+      cappedRight: hiPct !== null ? 100 - hiPct : null,
+      loLabel: bounds?.lo != null ? bounds.lo.toLocaleString() : null,
+      hiLabel: bounds?.hi != null ? bounds.hi.toLocaleString() : null,
+      note,
+    };
   }
 
   outlierRuleFor(variable: VariableRow): OutlierRule {
@@ -2032,22 +2339,34 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   batchMenuOpen = signal<'missing' | 'outlier' | null>(null);
+  summaryExportMenuKind = signal<SummaryKind | null>(null);
 
   toggleBatchMenu(kind: 'missing' | 'outlier'): void {
     this.batchMenuOpen.update((open) => (open === kind ? null : kind));
     this.cdr.markForCheck();
   }
 
-  closeBatchMenuOnOutsideClick(event: MouseEvent): void {
-    if (this.batchMenuOpen() === null) {
-      return;
-    }
-    const target = event.target;
-    if (target instanceof Element && target.closest('.batch-menu')) {
-      return;
-    }
-    this.batchMenuOpen.set(null);
+  toggleSummaryExportMenu(kind: SummaryKind): void {
+    this.summaryExportMenuKind.update((open) => (open === kind ? null : kind));
     this.cdr.markForCheck();
+  }
+
+  closeBatchMenuOnOutsideClick(event: MouseEvent): void {
+    const target = event.target;
+    if (
+      this.batchMenuOpen() !== null
+      && !(target instanceof Element && target.closest('.batch-menu'))
+    ) {
+      this.batchMenuOpen.set(null);
+      this.cdr.markForCheck();
+    }
+    if (
+      this.summaryExportMenuKind() !== null
+      && !(target instanceof Element && target.closest('.summary-export-group'))
+    ) {
+      this.summaryExportMenuKind.set(null);
+      this.cdr.markForCheck();
+    }
   }
 
   applyBatchMissingStrategy(strategy: 'drop' | 'mean' | 'median'): void {
@@ -3176,13 +3495,24 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   refreshTransformationStatistics(): void {
-    // One stats table per named card; counts come from a single describe over all columns.
-    const placeholderBlocks = this.transformationDrafts
-      .filter((draft) => draft.code.trim().length > 0)
-      .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) }));
+    // One stats table per derived column (categorical cards and the applied K-means
+    // cluster column); counts come from a single describe over all of them.
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    const clusterCode = String(clusterCreator?.code ?? '').trim();
+    const clusterValues = (clusterCreator?.reusable_preprocessing.cluster_choices ?? []).map(
+      (choice) => choice.cluster_id
+    );
+    const placeholderBlocks = [
+      ...this.transformationDrafts
+        .filter((draft) => draft.code.trim().length > 0)
+        .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) })),
+      ...(clusterCode
+        ? [{ code: clusterCode, rows: clusterValues.map((value) => ({ value, count: null })) }]
+        : []),
+    ];
     const configs = this.transformationConfigs();
 
-    if (!configs.length) {
+    if (!configs.length && !clusterCode) {
       this.transformationStatistics = placeholderBlocks;
       // Every named card gets a heading over this table, so a named card always needs a
       // reason beside it: falling through to the "counts from a describe run" line would
@@ -3193,7 +3523,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       return;
     }
 
-    const columnCodes = configs.map((config) => String(config['code'] ?? '').trim()).filter(Boolean);
+    const columnCodes = [
+      ...configs.map((config) => String(config['code'] ?? '').trim()).filter(Boolean),
+      ...(clusterCode ? [clusterCode] : []),
+    ];
     const columnSet = new Set(columnCodes);
     const sourceCodes = Array.from(
       new Set(
@@ -3203,6 +3536,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
               this.expStudioService.filterVariableCodes(filter)
             )
           ),
+          ...(clusterCreator?.reusable_preprocessing.cluster_variables ?? []),
           ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
         ]
           .map((code) => String(code).trim())
@@ -3212,8 +3546,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     if (!sourceCodes.length) {
       this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError =
-        'Category filters must reference at least one data-model variable before counts can be loaded.';
+      this.transformationStatisticsError = configs.length
+        ? 'Category filters must reference at least one data-model variable before counts can be loaded.'
+        : 'The K-means cluster column has no clustering variables to read.';
       this.isTransformationStatsLoading = false;
       this.cdr.markForCheck();
       return;
@@ -3227,7 +3562,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     // Pipeline consistency: the preview runs the cohort filter, the preprocessing
     // configured so far (applied rules plus pending edits), then the
-    // transformation under test.
+    // transformation under test. The service appends the applied K-means replay step
+    // last, with the missing-value handling it needs, exactly as a run would.
     if (Object.keys(this.validatePendingRules()).length > 0) {
       this.transformationStatistics = placeholderBlocks;
       this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
@@ -3235,10 +3571,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-    const preprocessing: PreprocessingConfig = {
-      ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
-      categorical_column_creator: this.transformationConfigPayload(),
-    };
+    const preprocessing: PreprocessingConfig =
+      this.expStudioService.withKMeansClusterRequirements({
+        ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
+        ...(configs.length ? { categorical_column_creator: this.transformationConfigPayload() } : {}),
+      }) ?? {};
     this.expStudioService
       .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
       .subscribe({
@@ -3250,15 +3587,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
             this.cdr.markForCheck();
             return;
           }
-          this.transformationStatistics = configs.map((config) => {
-            const code = String(config['code'] ?? '').trim();
-            const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
-            const def = String(config['default_enumeration'] ?? '').trim();
-            return {
-              code,
-              rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
-            };
-          });
+          this.transformationStatistics = [
+            ...configs.map((config) => {
+              const code = String(config['code'] ?? '').trim();
+              const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
+              const def = String(config['default_enumeration'] ?? '').trim();
+              return {
+                code,
+                rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
+              };
+            }),
+            ...(clusterCode
+              ? [{
+                  code: clusterCode,
+                  rows: this.buildTransformationStatisticsFromDescribe(response, clusterCode, clusterValues, ''),
+                }]
+              : []),
+          ];
           const hasAnyCount = this.transformationStatistics.some((block) =>
             block.rows.some((row) => typeof row.count === 'number' && Number.isFinite(row.count))
           );
@@ -3827,6 +4172,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       dropped: Math.max(0, raw - processed),
       percentage: raw > 0 ? (processed / raw) * 100 : 0,
     };
+  }
+
+  /** Rows the default drop-NaN rule would remove. Only priced when both raw and
+   *  processed summaries have loaded; otherwise the rail stays honest and the
+   *  row falls back to its unpriced layout. */
+  private get rowsDroppedByDefault(): number | null {
+    const retention = this.cohortRetention;
+    return retention && retention.dropped > 0 ? retention.dropped : null;
   }
 
   private isNumericVariable(variable: VariableRow): boolean {

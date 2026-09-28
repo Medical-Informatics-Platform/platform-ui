@@ -57,6 +57,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'appliedCategoricalCreators',
             'appliedKMeansClusterCreator',
             'setKMeansClusterPreprocessing',
+            'withKMeansClusterRequirements',
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
@@ -87,6 +88,14 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.requestDatasets.and.returnValue(['dataset-a']);
         mockExpService.requestFilters.and.returnValue(null);
         mockExpService.getActiveDataModelCode.and.returnValue('Stroke:3.7');
+        mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => {
+            const creator = mockExpService.appliedKMeansClusterCreator();
+            if (!creator) return config ?? null;
+            const next: Record<string, unknown> = { ...(config ?? {}) };
+            delete next['kmeans_cluster_creator'];
+            next['kmeans_cluster_creator'] = creator;
+            return next;
+        });
         mockExpService.appliedCategoricalCreators.and.callFake(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
@@ -200,6 +209,34 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.isStepAdded('setup')).toBeFalse();
     });
 
+    it('shows what the next run will use in the terminal card', async () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        await fixture.whenStable();
+
+        component.rawSummary = {
+            ...component.rawSummary,
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: 20 } }],
+        } as any;
+        component.processedSummary = {
+            ...component.processedSummary,
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: 17 } }],
+        } as any;
+        // Toggling a signal marks the OnPush view for the summary mutation above;
+        // production paths call markForCheck when a summary lands instead.
+        component.showUnappliedChangesWarning.set(true);
+        fixture.detectChanges();
+
+        const terminal = fixture.nativeElement.querySelector('.pipeline-terminal-card') as HTMLElement;
+        const text = terminal.textContent ?? '';
+        expect(text).toContain('The next run will use');
+        expect(text).toContain('17 of 20 records');
+        expect(text).toContain('1 variables');
+        expect(text).toContain('1 datasets');
+        expect(text).toContain('Preprocessing: default drop NaN');
+        expect(terminal.querySelector('.unapplied-warning-card')).toBeTruthy();
+    });
+
     it('shows the default NA-removal sub-node before any customization', () => {
         const nodes = component.appliedPreprocessingSubNodes;
 
@@ -222,23 +259,22 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         const preprocessing = pipelineCard('analysis-preprocessing');
         expect(preprocessing.classList.contains('is-dormant')).toBeFalse();
-        expect(preprocessing.querySelector('.pipeline-node-header h3')?.textContent?.trim()).toBe('2. Preprocessing');
+        expect(preprocessing.querySelector('.pipeline-node-header h3')?.textContent?.trim()).toBe('Preprocessing');
         expect(preprocessing.querySelector('.pipeline-node-subtitle')?.textContent).toContain('Default NaN removal is already in effect');
 
         const badge = preprocessing.querySelector('.pipeline-status-badge') as HTMLElement;
-        expect(badge.textContent?.trim()).toBe('Default');
+        expect(badge.textContent?.trim()).toBe('Default · in run');
         expect(badge.classList.contains('default')).toBeTrue();
         expect(badge.classList.contains('applied')).toBeFalse();
 
         const rows = railRows(preprocessing);
         expect(rows.live.length).toBe(1);
-        expect(rows.live[0].textContent).toContain('Default NaN removal active');
+        expect(rows.live[0].textContent).toContain('Missing values · remove rows');
+        expect(rows.live[0].textContent).toContain('All 1 selected variables');
         const chip = rows.live[0].querySelector('.pipeline-subnode-status') as HTMLElement;
         expect(chip.getAttribute('data-tone')).toBe('default');
         expect(chip.textContent?.trim()).toBe('Default');
 
-        // Default is not user work: it is not counted as a configured stage, and rendering
-        // the card writes nothing.
         expect(component.activeStagesCount).toBe(0);
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
         expect(mockExpService.appliedPreprocessingConfig()).toBeNull();
@@ -266,7 +302,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStepOpen.missing).toBeFalse();
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeTruthy();
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
-        // Opening the editor is a read, so the outlier row leaves the rail it came from.
         expect(railRows(pipelineCard('analysis-preprocessing')).ghost).toEqual([]);
     });
 
@@ -283,7 +318,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (rail.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
-        // Nothing was configured, so the station footer's primary slot closes the station.
         expect(component.pendingChangeCount).toBe(0);
         component.commitOrClosePreprocessing();
         fixture.detectChanges();
@@ -294,7 +328,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(rows.live.length).toBe(1);
         expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add outlier clipping')]);
 
-        // The row is still the whole add flow, and reopens the station on that sub-step.
         (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
         expect(component.sectionOpen().setup).toBeTrue();
@@ -324,8 +357,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         const blankCards = () => component.transformationDrafts.filter((draft) => !draft.code.trim() && !draft.rules.length).length;
         expect(blankCards()).toBe(1);
 
-        // The stage keeps the hydrated applied card and one blank editor, so a second
-        // rail click reuses the blank card instead of stacking another one.
         component.addTransformationSubNode();
         expect(component.transformationDrafts.length).toBe(2);
         expect(blankCards()).toBe(1);
@@ -425,6 +456,23 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(clusterNode?.subtitle).toBe('2 clusters from a, b');
         expect(clusterNode?.statusLabel).toBe('Applied');
         expect(clusterNode?.statusTone).toBe('applied');
+    });
+
+    it('counts the cluster column as the stage status on its own', () => {
+        seedAppliedConfig({
+            kmeans_cluster_creator: {
+                code: 'kmeans_cluster',
+                reusable_preprocessing: {
+                    cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
+                    cluster_variables: ['a'],
+                },
+            },
+        });
+        fixture.detectChanges();
+
+        // No categorical card is configured, but the stage does hold a derived column.
+        expect(component.transformationStatusLabel).toBe('Applied');
+        expect(component.transformationBadgeLabel).toBe('1 Transformation active');
     });
 
     it('collapses the stage on Apply so every derived column shows in the overview', () => {
@@ -542,9 +590,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // Same surface as the Raw preview: overlay tabs, variable browser, statistics table.
         expect(snapshot?.querySelectorAll('.summary-tabs button').length).toBe(3);
         expect(snapshot?.querySelector('.statistics-browser')).toBeTruthy();
-        expect(snapshot?.querySelector('.statistics-panel h4')?.textContent).toContain('Age');
+        expect(snapshot?.querySelector('.summary-detail-toolbar h4')?.textContent).toContain('Age');
         expect(snapshot?.querySelector('.statistics-table')?.textContent).toContain('Dataset A');
-        expect(snapshot?.querySelector('.statistics-panel-kicker')?.textContent).toContain('Numerical');
+        expect(snapshot?.querySelector('.summary-detail-toolbar .statistics-panel-kicker')?.textContent).toContain('Numerical');
         // Step 0 is read-only: no rule editor, and the tour anchors stay on the raw surface.
         expect(snapshot?.querySelector('app-filter-config-modal')).toBeNull();
         expect(snapshot?.querySelector('[data-guide]')).toBeNull();

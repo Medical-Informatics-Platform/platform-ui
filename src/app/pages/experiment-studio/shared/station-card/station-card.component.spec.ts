@@ -24,7 +24,7 @@ import { StationCardComponent } from './station-card.component';
 })
 class HostComponent {
   readonly open = signal(false);
-  readonly label = signal('Pending');
+  readonly label = signal('1 change · not applied');
   readonly status = signal<'default' | 'pending' | 'applied'>('pending');
 }
 
@@ -76,7 +76,7 @@ describe('StationCardComponent', () => {
   });
 
   it('marks the chip with the matching state class', () => {
-    expect(render().querySelector('.preprocessing-state-chip.state-pending')?.textContent?.trim()).toBe('Pending');
+    expect(render().querySelector('.preprocessing-state-chip.state-pending')?.textContent?.trim()).toBe('1 change · not applied');
     expect(render({ label: 'Applied', status: 'applied' }).querySelector('.preprocessing-state-chip.state-applied')?.textContent?.trim()).toBe('Applied');
   });
 

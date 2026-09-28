@@ -4,10 +4,7 @@
       <header class="pipeline-canvas-header">
         <div class="pipeline-header-title-group">
           <h2>Data Handling Pipeline</h2>
-          <p>Preview the data as selected, then select stages to configure and add rules, or continue directly with raw data.</p>
-        </div>
-        <div class="pipeline-header-stats">
-          <span class="pipeline-stage-counter">{{ activeStagesCount }} of 3 stages configured</span>
+          <p>Preview the data as selected, add the stages you need, or continue with raw data. Stages run top to bottom.</p>
         </div>
       </header>
 
@@ -71,9 +68,10 @@
               <aside class="statistics-browser" [attr.aria-label]="summaryKindLabel(kind) + ' summary variables'">
                 <div class="statistics-browser-header">
                   <span>Variables</span>
-                  <small>{{ filteredStatisticBlocks(kind).length }} shown</small>
+                  <small>{{ filteredStatisticBlocks(kind).length }} shown · missing</small>
                 </div>
                 <div class="search-inline chart-search">
+                  <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                   <input class="preprocessing-search" type="search" placeholder="Search variables..." [attr.aria-label]="'Search ' + summaryKindLabel(kind).toLowerCase() + ' summary variables'" [(ngModel)]="statisticsSearch[kind]" />
                 </div>
 
@@ -88,6 +86,11 @@
                       <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
                       }
                     </span>
+                    @if (blockCoverage(block); as coverage) {
+                    <span class="statistics-variable-bar" [attr.data-severity]="coverageSeverity(coverage)" aria-hidden="true">
+                      <span [style.width.%]="barWidth(coverage.share, 1000)"></span>
+                    </span>
+                    }
                   </button>
                   }
                 </div>
@@ -104,6 +107,11 @@
                       <small class="statistics-variable-coverage" [attr.data-severity]="coverageSeverity(coverage)" [title]="coverageTitle(coverage)">{{ coveragePercent(coverage) }}</small>
                       }
                     </span>
+                    @if (blockCoverage(block); as coverage) {
+                    <span class="statistics-variable-bar" [attr.data-severity]="coverageSeverity(coverage)" aria-hidden="true">
+                      <span [style.width.%]="barWidth(coverage.share, 1000)"></span>
+                    </span>
+                    }
                   </button>
                   }
                 </div>
@@ -120,57 +128,84 @@
               </aside>
 
               <div class="summary-detail-column">
-                <div class="summary-tabs modal-tabs" role="group" [attr.aria-label]="summaryKindLabel(kind) + ' summary overlays'" [attr.data-guide]="summaryGuideAnchor(kind, 'charts')">
-                  <button
-                    type="button"
-                    [class.active]="summary.activeTab === 'Statistics'"
-                    [attr.aria-pressed]="summary.activeTab === 'Statistics'"
-                    (click)="setSummaryTab(kind, 'Statistics')">
-                    Table
-                  </button>
-                  <button
-                    type="button"
-                    [class.active]="summary.activeTab === 'Charts'"
-                    [attr.aria-pressed]="summary.activeTab === 'Charts'"
-                    (click)="setSummaryTab(kind, 'Charts')">
-                    Charts
-                  </button>
-                  <button
-                    type="button"
-                    [class.active]="summary.activeTab === 'Histogram'"
-                    [attr.aria-pressed]="summary.activeTab === 'Histogram'"
-                    (click)="setSummaryTab(kind, 'Histogram')">
-                    Histogram
-                  </button>
+                @if (selectedStatisticBlock(kind); as selectedBlock) {
+                <div class="summary-detail-toolbar">
+                  <div class="statistics-panel-heading">
+                    <span class="statistics-panel-kicker">{{ statisticBlockTypeLabel(kind, selectedBlock) }} variable</span>
+                    <h4>{{ selectedBlock.name }} @if (selectedBlock.code) {<code class="statistics-panel-code">{{ selectedBlock.code }}</code>}</h4>
+                  </div>
+                  <div class="summary-detail-actions">
+                    <div class="summary-tabs modal-tabs" role="group" [attr.aria-label]="summaryKindLabel(kind) + ' summary overlays'" [attr.data-guide]="summaryGuideAnchor(kind, 'charts')">
+                      <button
+                        type="button"
+                        [class.active]="summary.activeTab === 'Statistics'"
+                        [attr.aria-pressed]="summary.activeTab === 'Statistics'"
+                        (click)="setSummaryTab(kind, 'Statistics')">
+                        <i class="fas fa-table" aria-hidden="true"></i>
+                        Table
+                      </button>
+                      <button
+                        type="button"
+                        [class.active]="summary.activeTab === 'Charts'"
+                        [attr.aria-pressed]="summary.activeTab === 'Charts'"
+                        (click)="setSummaryTab(kind, 'Charts')">
+                        <i class="fas fa-chart-simple" aria-hidden="true"></i>
+                        Charts
+                      </button>
+                      <button
+                        type="button"
+                        [class.active]="summary.activeTab === 'Histogram'"
+                        [attr.aria-pressed]="summary.activeTab === 'Histogram'"
+                        (click)="setSummaryTab(kind, 'Histogram')">
+                        <i class="fas fa-chart-column" aria-hidden="true"></i>
+                        Histogram
+                      </button>
+                    </div>
+                    <div class="summary-export-group">
+                      <button
+                        type="button"
+                        class="studio-export-btn"
+                        [attr.data-guide]="summaryGuideAnchor(kind, 'export')"
+                        [attr.aria-expanded]="summaryExportMenuKind() === kind"
+                        aria-haspopup="menu"
+                        title="Export summary"
+                        (click)="toggleSummaryExportMenu(kind)">
+                        <i class="fa fa-download" aria-hidden="true"></i>
+                        <span>Export</span>
+                        <i class="fa fa-chevron-down summary-export-caret" [class.open]="summaryExportMenuKind() === kind" aria-hidden="true"></i>
+                      </button>
+                      @if (summaryExportMenuKind() === kind) {
+                      <div class="studio-export-menu" role="menu" aria-label="Export summary">
+                        <button type="button" class="studio-export-menu-item" role="menuitem" (click)="exportAllDescriptiveToPDF(kind)">
+                          <i class="fa fa-file-pdf" aria-hidden="true"></i>
+                          <span>PDF</span>
+                        </button>
+                        @if (summary.activeTab === 'Statistics') {
+                        <button type="button" class="studio-export-menu-item" role="menuitem" (click)="exportSummaryToCSV(kind)">
+                          <i class="fa fa-file-csv" aria-hidden="true"></i>
+                          <span>CSV</span>
+                        </button>
+                        }
+                      </div>
+                      }
+                    </div>
+                  </div>
                 </div>
 
                 <div class="statistics-panel" [attr.data-guide]="summaryGuideAnchor(kind, 'details')">
-                  @if (selectedStatisticBlock(kind); as selectedBlock) {
                   @if (summary.activeTab === 'Statistics') {
-                  <div class="statistics-panel-header">
-                    <div>
-                      <span class="statistics-panel-kicker">{{ statisticBlockTypeLabel(kind, selectedBlock) }} variable</span>
-                      <h4>{{ selectedBlock.name }}</h4>
-                    </div>
-                    <div class="summary-panel-actions">
-                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
-                        PDF
-                      </button>
-                      <button type="button" class="studio-export-btn" (click)="exportSummaryToCSV(kind)" title="Export CSV">
-                        <i class="fas fa-file-csv" aria-hidden="true"></i>
-                        CSV
-                      </button>
-                    </div>
-                  </div>
-
                   <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType(kind, selectedBlock) === 'numeric'">
                     <table class="data-table pivot-table statistics-table">
                       <thead>
                         <tr>
                           <th>Metric</th>
                           @for (ds of selectedBlock.columns; track ds) {
-                          <th [class.statistics-col-rollup]="isRollupColumn(ds)">{{ datasetLabel(ds) }}</th>
+                          <th [class.statistics-col-rollup]="isRollupColumn(ds)">
+                            {{ datasetLabel(ds) }}
+                            @if (datasetTotalLabel(selectedBlock, ds); as total) {
+                            <small>n = {{ total }}</small>
+                            }
+                          </th>
                           }
                         </tr>
                       </thead>
@@ -195,19 +230,6 @@
                   }
 
                   @if (summary.activeTab === 'Charts') {
-                  <div class="chart-panel-header">
-                    <div>
-                      <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
-                      <h4>{{ selectedBlock.name }}</h4>
-                    </div>
-                    <div class="summary-panel-actions">
-                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
-                        PDF
-                      </button>
-                    </div>
-                  </div>
-
                   @if (selectedSummaryChartOptions(kind, selectedBlock).length > 0) {
                   @if (selectedSummaryChartType(kind, selectedBlock) === 'numeric') {
                   <div class="federated-info-note chart-note">
@@ -229,19 +251,6 @@
                   }
 
                   @if (summary.activeTab === 'Histogram') {
-                  <div class="chart-panel-header">
-                    <div>
-                      <span class="chart-panel-kicker">{{ selectedSummaryChartTypeLabel(kind, selectedBlock) }} variable</span>
-                      <h4>{{ selectedBlock.name }}</h4>
-                    </div>
-                    <div class="summary-panel-actions">
-                      <button type="button" class="studio-export-btn" (click)="exportAllDescriptiveToPDF(kind)" title="Export PDF" [attr.data-guide]="summaryGuideAnchor(kind, 'export')">
-                        <i class="fas fa-file-pdf" aria-hidden="true"></i>
-                        PDF
-                      </button>
-                    </div>
-                  </div>
-
                   @if (summaryHistogramLoading(kind, selectedBlock)) {
                   <!-- A numerical histogram is not in the summary payload, so this is a live
                        federated run that waits on the slowest node. Two shimmer lines inside a
@@ -277,8 +286,8 @@
                   </div>
                   }
                   }
-                  }
                 </div>
+                }
               </div>
             </section>
             } @else {
@@ -323,10 +332,10 @@
               (click)="toggleSourcePreview()">
               @if (sectionOpen().source) {
               <i class="fas fa-times" aria-hidden="true"></i>
-              <span>Close</span>
+              <span>Close preview</span>
               } @else {
               <i class="fas fa-eye" aria-hidden="true"></i>
-              <span>Preview source data</span>
+              <span>Preview raw data</span>
               }
             </button>
           </div>
@@ -367,15 +376,15 @@
           <div class="dormant-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>1. Cohort Filtering</h3>
+              <h3>Cohort filtering</h3>
               <span class="pipeline-node-subtitle">Include or exclude patient records based on conditions</span>
             </div>
           </div>
           <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Optional</span>
+            <span class="pipeline-status-badge optional">Optional · not in run</span>
             <button type="button" class="btn-add-step" (click)="addStep('filters')">
               <i class="fas fa-plus" aria-hidden="true"></i>
-              <span>Add Filtering</span>
+              <span>Add filtering</span>
             </button>
           </div>
         </div>
@@ -385,7 +394,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>1. Cohort Filtering</h3>
+              <h3>Cohort filtering</h3>
               <span class="pipeline-node-subtitle">Include or exclude patient records based on rules</span>
             </div>
           </div>
@@ -428,7 +437,8 @@
               flush
               resetLabel="Clear"
               previewLabel="Preview data"
-              [applyLabel]="filterModal.activeRulesCount() > 0 ? 'Apply' : 'Close'"
+              [statusText]="filterPreviewStatus"
+              [applyLabel]="filterModal.activeRulesCount() > 0 ? 'Apply filters' : 'Close'"
               [applyIcon]="filterModal.activeRulesCount() > 0 ? 'fas fa-check' : 'fas fa-times'"
               [applyVariant]="filterModal.activeRulesCount() > 0 ? 'primary' : 'quiet'"
               (reset)="clearFilterRules(filterModal)"
@@ -469,7 +479,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>2. Preprocessing</h3>
+              <h3>Preprocessing</h3>
               <span class="pipeline-node-subtitle">{{ preprocessingSubtitle }}</span>
             </div>
           </div>
@@ -494,7 +504,7 @@
             } @else {
             <button type="button" class="btn-add-step" (click)="addStep('setup')">
               <i class="fas fa-sliders" aria-hidden="true"></i>
-              <span>Customize Preprocessing</span>
+              <span>Customize</span>
             </button>
             }
           </div>
@@ -513,6 +523,9 @@
                 <span class="pipeline-subnode-title">{{ node.title }}</span>
                 <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
               </span>
+              @if (node.impact) {
+              <span class="pipeline-subnode-impact">{{ node.impact }}</span>
+              }
               <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
             </button>
           </div>
@@ -566,20 +579,24 @@
               [open]="preprocessingStepOpen.missing"
               (openChange)="togglePreprocessingStep('missing')">
               @if (preprocessingStepDocumentation('missing_values_handler')) {
-              <details class="preprocessing-documentation-panel">
-                <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
-                  <span class="preprocessing-documentation-label">Documentation</span>
-                </summary>
+              <button stationAction type="button" class="preprocessing-doc-toggle"
+                [attr.aria-expanded]="preprocessingDocOpen().missing"
+                (click)="togglePreprocessingDoc('missing')">
+                <i class="fas fa-book-open" aria-hidden="true"></i>
+                <span>How this works</span>
+              </button>
+              }
+              @if (preprocessingStepDocumentation('missing_values_handler') && preprocessingDocOpen().missing) {
+              <div class="preprocessing-documentation-panel is-open">
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('missing_values_handler')"></div>
-              </details>
+              </div>
               }
 
               @if (preprocessingVariables.length > 0) {
               <section class="statistics-workspace preprocessing-workspace">
                 <aside class="statistics-browser preprocessing-browser" aria-label="Preprocessing variables">
                   <div class="statistics-browser-header">
-                    <span>Variables</span>
+                    <span>Variables · action</span>
                     <small>{{ filteredPrepVariables('missing').length }} shown</small>
                     <div class="batch-menu">
                       <button
@@ -588,7 +605,7 @@
                         [attr.aria-expanded]="batchMenuOpen() === 'missing'"
                         (click)="toggleBatchMenu('missing')">
                         <i class="fas fa-bolt" aria-hidden="true"></i>
-                        Batch
+                        Set all
                       </button>
                       @if (batchMenuOpen() === 'missing') {
                       <div class="batch-menu-list" role="menu">
@@ -600,6 +617,7 @@
                     </div>
                   </div>
                   <div class="search-inline chart-search">
+                    <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                     <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="prepSearch.missing" />
                   </div>
 
@@ -622,6 +640,9 @@
                           {{ prepVariableStateLabel('missing', variable) }}
                         </span>
                       </span>
+                      <span class="prep-rail-action" [attr.data-state]="prepVariableHasPendingChange('missing', variable) ? 'pending' : 'set'">
+                        {{ missingStrategyLabel(ruleFor(variable).action) }}{{ ruleFor(variable).action === 'drop' && prepVariableStateLabel('missing', variable) === 'Default' ? ' · default' : '' }}{{ prepVariableHasPendingChange('missing', variable) ? ' · not applied' : '' }}
+                      </span>
                     </button>
                     }
                   </div>
@@ -640,8 +661,11 @@
                   <div class="statistics-panel-header">
                     <div>
                       <span class="statistics-panel-kicker">{{ variableTypeLabel(variable) }} variable</span>
-                      <h4>{{ variableLabel(variable) }}</h4>
+                      <h4>{{ variableLabel(variable) }} @if (variable.code) {<code class="statistics-panel-code">{{ variable.code }}</code>}</h4>
                     </div>
+                    @if (coverageFor(variable); as headerCoverage) {
+                    <span class="preprocessing-header-coverage">{{ headerCoverage.missing.toLocaleString() }} of {{ headerCoverage.total.toLocaleString() }} values missing</span>
+                    }
                     <span
                       class="preprocessing-state-chip"
                       [class.state-pending]="prepVariableHasPendingChange('missing', variable)"
@@ -657,18 +681,23 @@
                       <i class="fa fa-wrench" aria-hidden="true"></i>
                       <span>Missing value handling</span>
                     </div>
-                    <div class="preprocessing-control-grid">
-                      <label class="preprocessing-control">
-                        <span>Selected action</span>
-                        <select class="table-select" [ngModel]="ruleFor(variable).action" (ngModelChange)="onMissingActionChange(variable, $event)">
-                          @for (action of missingActions; track action.value) {
-                          <option [ngValue]="action.value" [disabled]="isMissingActionDisabled(variable, action.value)">{{ action.label }}</option>
-                          }
-                        </select>
+                    <fieldset class="missing-choice-grid">
+                      <legend class="preprocessing-evidence-title">What to do with missing values</legend>
+                      @for (action of missingActions; track action.value) {
+                      <label class="missing-choice" [class.is-selected]="ruleFor(variable).action === action.value"
+                             [class.is-disabled]="isMissingActionDisabled(variable, action.value)">
+                        <input type="radio" [name]="'missing-' + variable.code" [value]="action.value"
+                               [checked]="ruleFor(variable).action === action.value"
+                               [disabled]="isMissingActionDisabled(variable, action.value)"
+                               (change)="onMissingActionChange(variable, action.value)" />
+                        <span class="missing-choice-label">{{ action.label }}</span>
+                        <span class="missing-choice-effect">{{ missingActionEffect(variable, action.value) }}</span>
                       </label>
-                      @if (ruleFor(variable).action === 'constant') {
+                      }
+                    </fieldset>
+                    @if (ruleFor(variable).action === 'constant') {
                       <label class="preprocessing-control">
-                        <span>Options / Value</span>
+                        <span>Fill with</span>
                         @if (ruleFor(variable).action === 'constant' && isCategoricalVariable(variable) && enumOptions(variable).length > 0) {
                         <select class="table-select" [ngModel]="ruleFor(variable).value" (ngModelChange)="onMissingValueChange(variable, $event)">
                           <option value="">Select category</option>
@@ -681,7 +710,6 @@
                         }
                       </label>
                       }
-                    </div>
                     @if (preprocessingValidationErrors[variable.code]) {
                     <div class="row-error">{{ preprocessingValidationErrors[variable.code] }}</div>
                     }
@@ -691,6 +719,28 @@
                   <aside class="preprocessing-evidence" [attr.data-severity]="coverageSeverity(coverage)">
                     <div class="preprocessing-evidence-group">
                       <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+                      @if (coverageByDataset(variable).length) {
+                      <div class="coverage-tiles">
+                        @for (tile of coverageByDataset(variable); track tile.label) {
+                        <div class="coverage-tile">
+                          <div class="coverage-tile-head">
+                            <strong>{{ tile.label }}</strong>
+                            <span>{{ tile.missing.toLocaleString() }} of {{ tile.total.toLocaleString() }}</span>
+                          </div>
+                          <span
+                            class="preprocessing-meter"
+                            role="img"
+                            [attr.aria-label]="tile.missing + ' of ' + tile.total + ' values missing (' + coveragePercent(tile) + ')'"
+                          >
+                            <span class="preprocessing-meter-fill" [style.width.%]="barWidth(tile.share, 800)"></span>
+                          </span>
+                          <div class="coverage-tile-head">
+                            <span>{{ coveragePercent(tile) }} missing</span>
+                          </div>
+                        </div>
+                        }
+                      </div>
+                      } @else {
                       <dl class="preprocessing-stat-grid">
                         <div class="preprocessing-stat">
                           <dt>Total rows</dt>
@@ -712,8 +762,6 @@
                       >
                         <span class="preprocessing-meter-fill" [style.width.%]="coverage.share * 100"></span>
                       </span>
-                      @if (missingActionConsequence(variable); as consequence) {
-                      <p class="preprocessing-consequence">{{ consequence }}</p>
                       }
                     </div>
 
@@ -801,13 +849,17 @@
               <span>Remove Step</span>
             </button>
               @if (preprocessingStepDocumentation('outlier_winsorizer')) {
-              <details class="preprocessing-documentation-panel">
-                <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
-                  <span class="preprocessing-documentation-label">Documentation</span>
-                </summary>
+              <button stationAction type="button" class="preprocessing-doc-toggle"
+                [attr.aria-expanded]="preprocessingDocOpen().outlier"
+                (click)="togglePreprocessingDoc('outlier')">
+                <i class="fas fa-book-open" aria-hidden="true"></i>
+                <span>How this works</span>
+              </button>
+              }
+              @if (preprocessingStepDocumentation('outlier_winsorizer') && preprocessingDocOpen().outlier) {
+              <div class="preprocessing-documentation-panel is-open">
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('outlier_winsorizer')"></div>
-              </details>
+              </div>
               }
 
               @if (outlierPreprocessingVariables.length > 0) {
@@ -834,6 +886,7 @@
                     </div>
                   </div>
                   <div class="search-inline chart-search">
+                    <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                     <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="prepSearch.outlier" />
                   </div>
 
@@ -851,6 +904,15 @@
                         >
                           {{ prepVariableStateLabel('outlier', variable) }}
                         </span>
+                        <label class="toggle-switch is-mini" title="Enable outlier clipping for this variable"
+                               (click)="$event.stopPropagation()">
+                          <input type="checkbox" [checked]="outlierRuleFor(variable).enabled"
+                                 (change)="onOutlierEnabledChange(variable, $any($event.target).checked)" />
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </span>
+                      <span class="prep-rail-action" [attr.data-state]="outlierRuleFor(variable).enabled ? (prepVariableHasPendingChange('outlier', variable) ? 'pending' : 'set') : 'off'">
+                        {{ outlierRuleSummary(variable) }}
                       </span>
                     </button>
                     }
@@ -887,39 +949,73 @@
                         <i class="fa fa-line-chart" aria-hidden="true"></i>
                         <span>Outlier winsorizer</span>
                       </div>
+                      @if (!outlierRuleFor(variable).enabled) {
+                      <p class="preprocessing-consequence">Turn on clipping for this variable in the list.</p>
+                      }
                       <div class="preprocessing-control-grid outlier-control-grid">
                         <div class="preprocessing-control">
-                          <span>Enabled</span>
-                          <div class="inline-toggle-container">
-                            <label class="toggle-switch">
-                              <input type="checkbox" [checked]="outlierRuleFor(variable).enabled" (change)="onOutlierEnabledChange(variable, $any($event.target).checked)" />
-                              <span class="toggle-slider"></span>
-                            </label>
+                          <span>Method</span>
+                          <div class="modal-tabs" role="radiogroup" aria-label="Outlier method">
+                            @for (strategy of outlierStrategies; track strategy.value) {
+                            <button type="button" role="radio"
+                                    [class.active]="outlierRuleFor(variable).strategy === strategy.value"
+                                    [attr.aria-checked]="outlierRuleFor(variable).strategy === strategy.value"
+                                    [disabled]="!outlierRuleFor(variable).enabled"
+                                    (click)="onOutlierStrategyChange(variable, strategy.value)">{{ strategy.label }}</button>
+                            }
+                          </div>
+                        </div>
+                        <div class="preprocessing-control">
+                          <span>Clip</span>
+                          <div class="modal-tabs" role="radiogroup" aria-label="Outlier clip">
+                            @for (tail of outlierTails; track tail.value) {
+                            <button type="button" role="radio"
+                                    [class.active]="outlierRuleFor(variable).tail === tail.value"
+                                    [attr.aria-checked]="outlierRuleFor(variable).tail === tail.value"
+                                    [disabled]="!outlierRuleFor(variable).enabled"
+                                    (click)="onOutlierTailChange(variable, tail.value)">{{ outlierTailDisplay(tail.value) }}</button>
+                            }
                           </div>
                         </div>
                         <label class="preprocessing-control">
-                          <span>Strategy</span>
-                          <select class="table-select" [ngModel]="outlierRuleFor(variable).strategy" (ngModelChange)="onOutlierStrategyChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled">
-                            @for (strategy of outlierStrategies; track strategy.value) {
-                            <option [ngValue]="strategy.value">{{ strategy.label }}</option>
-                            }
-                          </select>
-                        </label>
-                        <label class="preprocessing-control">
-                          <span>Tail</span>
-                          <select class="table-select" [ngModel]="outlierRuleFor(variable).tail" (ngModelChange)="onOutlierTailChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled">
-                            @for (tail of outlierTails; track tail.value) {
-                            <option [ngValue]="tail.value">{{ tail.label }}</option>
-                            }
-                          </select>
-                        </label>
-                        <label class="preprocessing-control">
-                          <span>Fold</span>
-                          <input class="table-input" type="number" step="any" [ngModel]="outlierRuleFor(variable).fold" (ngModelChange)="onOutlierFoldChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled" />
+                          <span>{{ outlierFoldDisplay(outlierRuleFor(variable).strategy) }}</span>
+                          <input class="table-input outlier-fold-input" type="number" step="any" [ngModel]="outlierRuleFor(variable).fold" (ngModelChange)="onOutlierFoldChange(variable, $event)" [disabled]="!outlierRuleFor(variable).enabled" />
                         </label>
                       </div>
                       @if (outlierRuleError(variable)) {
                       <div class="row-error">{{ outlierRuleError(variable) }}</div>
+                      }
+                      @if (outlierBoundsView(variable); as bounds) {
+                      <div class="bounds-strip">
+                        <div class="bounds-labels">
+                          @if (bounds.loLabel) {
+                          <span [style.left.%]="bounds.loPct"
+                                [style.transform]="(bounds.loPct ?? 0) < 12 ? 'translateX(0)' : ((bounds.loPct ?? 0) > 88 ? 'translateX(-100%)' : 'translateX(-50%)')">{{ bounds.loLabel }}</span>
+                          }
+                          @if (bounds.hiLabel) {
+                          <span [style.left.%]="bounds.hiPct"
+                                [style.transform]="(bounds.hiPct ?? 0) < 12 ? 'translateX(0)' : ((bounds.hiPct ?? 0) > 88 ? 'translateX(-100%)' : 'translateX(-50%)')">{{ bounds.hiLabel }}</span>
+                          }
+                        </div>
+                        <div class="bounds-track">
+                          <span class="bounds-iqr" [style.left.%]="bounds.iqrLeft" [style.width.%]="bounds.iqrWidth"></span>
+                          <span class="bounds-median" [style.left.%]="bounds.medianLeft"></span>
+                          @if (bounds.cappedLeft !== null) {
+                          <span class="bounds-capped" [style.left.%]="0" [style.width.%]="bounds.cappedLeft"></span>
+                          <span class="bounds-marker" [style.left.%]="bounds.loPct"></span>
+                          }
+                          @if (bounds.cappedRight !== null) {
+                          <span class="bounds-capped" [style.left.%]="bounds.hiPct" [style.width.%]="bounds.cappedRight"></span>
+                          <span class="bounds-marker" [style.left.%]="bounds.hiPct"></span>
+                          }
+                        </div>
+                        <div class="bounds-scale">
+                          <span class="is-min">{{ bounds.min.toLocaleString() }}</span>
+                          <span [style.left.%]="bounds.medianLeft">{{ distributionMapValue(variable, 'Median') }}</span>
+                          <span class="is-max">{{ distributionMapValue(variable, 'Max') }}</span>
+                        </div>
+                        <span class="preprocessing-consequence">{{ bounds.note }}</span>
+                      </div>
                       }
                     </div>
 
@@ -952,16 +1048,17 @@
                     }
                   </div>
 
-                  <div class="outlier-preview-section">
-                    <app-station-action-bar
-                      [pendingCount]="outlierPreviewRows.length"
-                      [statusText]="'preview ' + (outlierPreviewRows.length === 1 ? 'row' : 'rows')"
-                      [tone]="hasOutlierRulesForPreview ? 'pending' : 'default'"
-                      [applyLabel]="isLoadingOutlierPreview ? 'Previewing…' : 'Preview Outlier Report'"
-                      applyIcon="fa fa-eye"
-                      [applyDisabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
-                      (apply)="previewOutlierReport()"
-                    ></app-station-action-bar>
+                  <div class="outlier-report-section">
+                    @if (selectedPrepVariable('outlier'); as reportVariable) {
+                    <div class="outlier-report-header">
+                      <h5 class="preprocessing-evidence-title">Values that would be capped · per dataset</h5>
+                      <button type="button" class="station-action-preview"
+                              [disabled]="!hasOutlierRulesForPreview || isLoadingOutlierPreview"
+                              (click)="previewOutlierReport()">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        Refresh report
+                      </button>
+                    </div>
 
                     @if (isLoadingOutlierPreview) {
                     <div class="studio-skeleton-card outlier-preview-skeleton" role="status" aria-label="Outlier report preview loading">
@@ -971,7 +1068,7 @@
                         @for (_ of [1, 2, 3, 4]; track _) {
                         <span class="studio-skeleton-cell head"></span>
                         }
-                        @for (_ of [1, 2, 3, 4, 5, 6, 7, 8]; track _) {
+                        @for (_ of [1, 2, 3, 4, 5, 6]; track _) {
                         <span class="studio-skeleton-cell"></span>
                         }
                       </div>
@@ -982,50 +1079,41 @@
                     <div class="row-error">{{ outlierPreviewError }}</div>
                     }
 
-                    @if (!isLoadingOutlierPreview && outlierPreviewRows.length > 0) {
-                    <div class="preview-panel outlier-preview-panel" role="status">
-                      <div class="feedback-header">
-                        <i class="fa fa-eye" aria-hidden="true"></i>
-                        <h4>Outlier Report Preview</h4>
-                      </div>
-
-                      <div class="table-wrapper statistics-table-wrapper">
-                        <table class="data-table">
-                          <thead>
-                            <tr>
-                              <th>Variable</th>
-                              <th>Dataset</th>
-                              <th>Strategy</th>
-                              <th>Tail</th>
-                              <th>Fold</th>
-                              <th>Lower bound</th>
-                              <th>Upper bound</th>
-                              <th>Lower outliers</th>
-                              <th>Upper outliers</th>
-                              <th>Total outliers</th>
-                              <th>Outlier %</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            @for (row of outlierPreviewRows; track row.variable + '-' + row.dataset) {
-                            <tr>
-                              <td>{{ row.variable }}</td>
-                              <td>{{ row.dataset }}</td>
-                              <td>{{ row.strategy }}</td>
-                              <td>{{ row.tail }}</td>
-                              <td>{{ row.fold }}</td>
-                              <td>{{ row.lowerBound }}</td>
-                              <td>{{ row.upperBound }}</td>
-                              <td>{{ row.lowerOutliers }}</td>
-                              <td>{{ row.upperOutliers }}</td>
-                              <td>{{ row.totalOutliers }}</td>
-                              <td>{{ row.outlierPercentage }}</td>
-                            </tr>
-                            }
-                          </tbody>
-                        </table>
-                      </div>
+                    @if (!isLoadingOutlierPreview && outlierPreviewRowsFor(reportVariable).length > 0) {
+                    <div class="table-wrapper statistics-table-wrapper">
+                      <table class="data-table outlier-report-table">
+                        <thead>
+                          <tr>
+                            <th>Dataset</th>
+                            <th>Lower bound</th>
+                            <th>Upper bound</th>
+                            <th>Below</th>
+                            <th>Above</th>
+                            <th>Share capped</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of outlierPreviewRowsFor(reportVariable); track row.variable + '-' + row.dataset) {
+                          <tr>
+                            <td>{{ row.dataset }}</td>
+                            <td>{{ row.lowerBound }}</td>
+                            <td>{{ row.upperBound }}</td>
+                            <td>{{ row.lowerOutliers }}</td>
+                            <td>{{ row.upperOutliers }}</td>
+                            <td class="share-cell">
+                              <span class="share-bar"><span [style.width.%]="barWidth(row.outlierPercentage, 8)"></span></span>
+                              <strong>{{ row.outlierPercentage }}</strong>
+                            </td>
+                          </tr>
+                          }
+                        </tbody>
+                      </table>
                     </div>
+                    }
+
+                    @if (coverageFor(reportVariable); as reportCoverage) {
+                    <p class="preprocessing-consequence">Bounds are fitted per dataset. {{ reportCoverage.missing.toLocaleString() }} missing values ({{ coveragePercent(reportCoverage) }}) are skipped.</p>
+                    }
                     }
                   </div>
                 </div>
@@ -1051,13 +1139,17 @@
             [open]="preprocessingStepOpen.longitudinal"
             (openChange)="togglePreprocessingStep('longitudinal')">
               @if (preprocessingStepDocumentation('longitudinal_transformer')) {
-              <details class="preprocessing-documentation-panel">
-                <summary class="preprocessing-documentation-summary">
-                  <span class="preprocessing-documentation-chevron" aria-hidden="true"></span>
-                  <span class="preprocessing-documentation-label">Documentation</span>
-                </summary>
+              <button stationAction type="button" class="preprocessing-doc-toggle"
+                [attr.aria-expanded]="preprocessingDocOpen().longitudinal"
+                (click)="togglePreprocessingDoc('longitudinal')">
+                <i class="fas fa-book-open" aria-hidden="true"></i>
+                <span>How this works</span>
+              </button>
+              }
+              @if (preprocessingStepDocumentation('longitudinal_transformer') && preprocessingDocOpen().longitudinal) {
+              <div class="preprocessing-documentation-panel is-open">
                 <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('longitudinal_transformer')"></div>
-              </details>
+              </div>
               }
 
               <div class="longitudinal-controls">
@@ -1094,6 +1186,7 @@
                     <small>{{ filteredPrepVariables('longitudinal').length }} shown</small>
                   </div>
                   <div class="search-inline chart-search">
+                    <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                     <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="prepSearch.longitudinal" />
                   </div>
 
@@ -1187,12 +1280,12 @@
 
           <app-station-action-bar
             [pendingCount]="pendingChangeCount"
-            [statusText]="pendingChangeCount === 0 ? 'All set' : 'pending ' + (pendingChangeCount === 1 ? 'step' : 'steps')"
+            [statusText]="preprocessingActionSummary"
             [tone]="pendingChangeCount === 0 ? 'applied' : 'pending'"
-            resetLabel="Clear"
-            previewLabel="Preview data"
+            resetLabel="Discard"
+            previewLabel="Preview processed data"
             [applyLabel]="preprocessingApplyLabel"
-            [applyIcon]="pendingChangeCount > 0 ? 'fa fa-magic' : 'fas fa-times'"
+            [applyIcon]="pendingChangeCount > 0 ? 'fas fa-check' : 'fas fa-times'"
             [applyVariant]="pendingChangeCount > 0 ? 'primary' : 'quiet'"
             [resetDisabled]="pendingChangeCount === 0 || isApplyingPreprocessing"
             [applyDisabled]="isApplyingPreprocessing"
@@ -1233,15 +1326,15 @@
           <div class="dormant-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>3. Data Transformations</h3>
+              <h3>Data transformations</h3>
               <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
             </div>
           </div>
           <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Optional</span>
+            <span class="pipeline-status-badge optional">Optional · not in run</span>
             <button type="button" class="btn-add-step" (click)="addStep('transformation')">
               <i class="fas fa-plus" aria-hidden="true"></i>
-              <span>Add Transformation</span>
+              <span>Add transformation</span>
             </button>
           </div>
         </div>
@@ -1251,7 +1344,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-              <h3>3. Data Transformations</h3>
+              <h3>Data transformations</h3>
               <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
             </div>
           </div>
@@ -1321,8 +1414,8 @@
               <app-station-card
                 collapsible
                 icon="fas fa-square-plus"
-                [title]="transformationDrafts.length > 1 ? ('Create new categorical column · ' + (i + 1)) : 'Create new categorical column'"
-                description="Build a new nominal variable from record-level rules (exaflow categorical_column_creator)."
+                [title]="draft.code.trim() ? ('Categorical column · ' + draft.code.trim()) : 'Categorical column'"
+                description="Each record gets the first category whose rule it matches."
                 [statusLabel]="transformationDraftStatus(draft).label"
                 [status]="transformationDraftStatus(draft).tone"
                 [open]="draft.open"
@@ -1335,66 +1428,112 @@
                 </button>
                 }
                 <div class="transformation-create">
-                  <div class="transformation-fields-grid">
-                    <div class="transformation-field">
-                      <label [attr.for]="'transformation-code-' + draft.id">New column name</label>
-                      <input [id]="'transformation-code-' + draft.id" type="text" [ngModel]="draft.code" (ngModelChange)="draft.code = $event; onTransformationInput()" placeholder="e.g. mrs_good_outcome" />
-                    </div>
-                    <div class="transformation-field">
-                      <label [attr.for]="'transformation-default-enum-' + draft.id">Default enumeration (optional)</label>
-                      <input [id]="'transformation-default-enum-' + draft.id" type="text" [ngModel]="draft.defaultEnumeration" (ngModelChange)="draft.defaultEnumeration = $event; onTransformationInput()" placeholder="e.g. unknown" />
+                  <div class="transformation-field transformation-field--name">
+                    <label [attr.for]="'transformation-code-' + draft.id">Column name</label>
+                    <div class="transformation-name-row">
+                      <input [id]="'transformation-code-' + draft.id" class="transformation-code-input" type="text" [ngModel]="draft.code" (ngModelChange)="draft.code = $event; onTransformationInput()" placeholder="e.g. mrs_good_outcome" />
+                      <span class="transformation-hint">Lowercase letters, digits and _ only</span>
                     </div>
                   </div>
 
                   <div class="transformation-rules">
-                    <div class="transformation-rules-heading">
-                      <span class="transformation-rules-title">
-                        <i class="fas fa-layer-group" aria-hidden="true"></i>
-                        Category rules
-                        <span class="transformation-rules-count">{{ draft.rules.length }}</span>
-                      </span>
-                      <button type="button" class="btn-add-category" (click)="addTransformationRule(draft)">
-                        <i class="fas fa-plus" aria-hidden="true"></i>
-                        <span>Add category</span>
-                      </button>
+                    <div class="transformation-rule-head">
+                      <span></span>
+                      <span>Value</span>
+                      <span>Rule</span>
+                      <span>Records</span>
+                      <span></span>
                     </div>
-
-                    @for (rule of draft.rules; track $index; let ruleIndex = $index) {
-                    <app-station-list-row
-                      class="transformation-rule"
-                      [removeLabel]="'Remove category ' + (rule.value || ruleIndex + 1)"
-                      (remove)="removeTransformationRule(draft, ruleIndex)">
-                      <div class="transformation-rule-fields">
+                    <div class="transformation-rules-list">
+                      @for (rule of draft.rules; track $index; let ruleIndex = $index) {
+                      <div class="transformation-rule-row">
+                        <span class="transformation-rule-number">{{ ruleIndex + 1 }}</span>
                         <input
                           type="text"
                           [ngModel]="rule.value"
                           (ngModelChange)="rule.value = $event; onTransformationInput()"
                           placeholder="Enumeration value"
-                          class="transformation-rule-value"
+                          class="transformation-rule-value input"
                         />
-                        <app-filter-config-modal
-                          #ruleModal
-                          variableScope="selectedVariables"
-                          [filterLogic]="rule.filter"
-                        ></app-filter-config-modal>
+                        <span class="transformation-rule-summary">
+                          {{ transformationRuleSummary(rule) }}
+                          <button type="button" class="transformation-rule-edit-link"
+                                  (click)="toggleTransformationRule(draft, ruleIndex)">
+                            {{ draft.openRuleIndex === ruleIndex ? 'Close rule' : 'Edit rule' }}
+                          </button>
+                        </span>
+                        <span class="transformation-rule-record-count">{{ transformationCount(draft, rule.value) }}</span>
+                        <button type="button" class="transformation-rule-remove" title="Remove category"
+                                (click)="removeTransformationRule(draft, ruleIndex)">
+                          <i class="fas fa-xmark" aria-hidden="true"></i>
+                        </button>
+                        <div class="transformation-rule-editor" [class.is-open]="draft.openRuleIndex === ruleIndex">
+                          <app-filter-config-modal
+                            #ruleModal
+                            variableScope="selectedVariables"
+                            [filterLogic]="rule.filter"
+                          ></app-filter-config-modal>
+                        </div>
                       </div>
-                    </app-station-list-row>
-                    } @empty {
-                    <div class="transformation-empty-rules">
-                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
-                      <span>No category rules yet. Add a category, then define the record-level filter that selects it.</span>
+                      } @empty {
+                      <div class="transformation-empty-rules">
+                        <i class="fas fa-diagram-project" aria-hidden="true"></i>
+                        <span>No category rules yet. Add a category, then define the record-level filter that selects it.</span>
+                      </div>
+                      }
+                      <div class="transformation-rule-row transformation-rule-fallback">
+                        <span class="transformation-rule-number">↳</span>
+                        <input
+                          type="text"
+                          [ngModel]="draft.defaultEnumeration"
+                          (ngModelChange)="draft.defaultEnumeration = $event; onTransformationInput()"
+                          placeholder="unknown"
+                          class="transformation-rule-value input"
+                        />
+                        <span class="transformation-rule-summary">Otherwise — records that match no rule</span>
+                        <span class="transformation-rule-record-count">{{ transformationCount(draft, draft.defaultEnumeration) }}</span>
+                        <span></span>
+                      </div>
                     </div>
-                    }
+                    <p class="transformation-rules-foot">{{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }} + fallback ·
+                      {{ draft.defaultEnumeration ? 'covers every record' : 'records matching no rule get no value' }}
+                    </p>
+                    <button type="button" class="transformation-add-category" (click)="addTransformationRule(draft)">
+                      <i class="fas fa-plus" aria-hidden="true"></i>
+                      <span>Category</span>
+                    </button>
                   </div>
                 </div>
               </app-station-card>
               }
-              <button type="button" class="btn-add-dashed" (click)="addTransformationDraft()">
-                <i class="fas fa-plus" aria-hidden="true"></i>
-                <span>Add another categorical column</span>
-              </button>
-              <app-kmeans-cluster-source />
+              <div class="transformation-add-row">
+                <button type="button" class="btn-add-step" (click)="addTransformationDraft()">
+                  <i class="fas fa-plus" aria-hidden="true"></i>
+                  <span>Add categorical column</span>
+                </button>
+                @if (!kmeansClusterCardOpen() && !expStudioService.appliedKMeansClusterCreator()) {
+                <button type="button" class="btn-add-step" (click)="kmeansClusterCardOpen.set(true)">
+                  <i class="fas fa-plus" aria-hidden="true"></i>
+                  <span>Add K-means cluster column</span>
+                </button>
+                }
+              </div>
             </div>
+            <!-- Own station, not a `.transformation-cards` draft: it derives a column from a
+                 fitted K-means run instead of building categories. -->
+            @if (kmeansClusterCardOpen() || expStudioService.appliedKMeansClusterCreator()) {
+            <app-station-card
+              collapsible
+              icon="fas fa-diagram-project"
+              title="K-means cluster column"
+              description="Turn a finished K-means run into a categorical cluster column."
+              [statusLabel]="kmeansClusterStatusLabel"
+              [status]="kmeansClusterStatusLabel === 'Applied' ? 'applied' : 'default'"
+              [open]="kmeansClusterCardOpen()"
+              (openChange)="kmeansClusterCardOpen.set($event)">
+              <app-kmeans-cluster-source (runRequested)="previewTransformationData()" />
+            </app-station-card>
+            }
             } @else {
             <div class="transformation-statistics">
               @if (isTransformationStatsLoading) {
@@ -1404,7 +1543,7 @@
               <div class="empty-state-block compact-empty">
                 <i class="fa fa-bar-chart"></i>
                 <p>No categories configured yet.</p>
-                <span>Add category rules, then Preview data to load counts.</span>
+                <span>Add category rules or apply a K-means cluster column, then Preview data to load counts.</span>
               </div>
               } @else {
               @if (transformationStatisticsError) {
@@ -1440,12 +1579,12 @@
 
             <app-station-action-bar
               [statusText]="transformationStatusLabel"
-              [tone]="statusTone(transformationStatusLabel, transformationStatusLabel === 'Pending') === 'applied' ? 'applied' : 'default'"
+              [tone]="statusTone(transformationStatusLabel, transformationStatusLabel === 'Not applied') === 'applied' ? 'applied' : 'default'"
               resetLabel="Clear"
-              [previewLabel]="transformationActiveTab === 'Create' ? 'Preview data' : ''"
+              [previewLabel]="transformationActiveTab === 'Create' ? 'Preview counts' : ''"
               applyLabel="Apply"
               applyIcon="fas fa-check"
-              [resetDisabled]="transformationStatusLabel === 'Not defined'"
+              [resetDisabled]="transformationStatusLabel === 'Not set'"
               [applyDisabled]="!transformationCanApply"
               (reset)="resetTransformation()"
               (preview)="previewTransformationData()"
@@ -1486,11 +1625,14 @@
           </div>
         </div>
         }
-        <div class="pipeline-terminal-content">
-          <div class="pipeline-terminal-icon"><i class="fas fa-circle-check" aria-hidden="true"></i></div>
-          <div class="pipeline-terminal-info">
-            <h4>Data Handling Pipeline Ready</h4>
-            <p>Your filtering, preprocessing, and feature transformation steps are prepared for model fitting.</p>
+        <div class="pipeline-terminal-summary">
+          <span class="pipeline-terminal-kicker">The next run will use</span>
+          <div class="pipeline-terminal-facts">
+            @if (cohortRetention; as r) {
+            <span><strong>{{ r.processed.toLocaleString() }}</strong> of {{ r.raw.toLocaleString() }} records</span>
+            }
+            <span><strong>{{ preprocessingVariables.length }}</strong> variables · {{ expStudioService.selectedDatasets().length }} datasets</span>
+            <span>{{ terminalPreprocessingLine }}</span>
           </div>
         </div>
         <button type="button" class="btn-finish-pipeline" (click)="finishDataHandling()">

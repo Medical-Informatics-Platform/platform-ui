@@ -194,14 +194,14 @@ describe('FilterConfigModalComponent block builder', () => {
   });
 
   it('renders readable operator labels without changing stored operator values', () => {
-    expect(component.operatorDisplayLabel('=')).toBe('Equals');
-    expect(component.operatorDisplayLabel('!=')).toBe('Does not equal');
-    expect(component.operatorDisplayLabel('>')).toBe('Greater than');
-    expect(component.operatorDisplayLabel('>=')).toBe('Greater than or equal to');
-    expect(component.operatorDisplayLabel('<')).toBe('Less than');
-    expect(component.operatorDisplayLabel('<=')).toBe('Less than or equal to');
-    expect(component.operatorDisplayLabel('IS NULL')).toBe('Is null');
-    expect(component.operatorDisplayLabel('IS NOT NULL')).toBe('Is not null');
+    expect(component.operatorDisplayLabel('=')).toBe('is');
+    expect(component.operatorDisplayLabel('!=')).toBe('is not');
+    expect(component.operatorDisplayLabel('>')).toBe('is greater than');
+    expect(component.operatorDisplayLabel('>=')).toBe('is at least');
+    expect(component.operatorDisplayLabel('<')).toBe('is less than');
+    expect(component.operatorDisplayLabel('<=')).toBe('is at most');
+    expect(component.operatorDisplayLabel('IS NULL')).toBe('is empty');
+    expect(component.operatorDisplayLabel('IS NOT NULL')).toBe('is not empty');
   });
 
   it('saves null checks without requiring a value', () => {
@@ -295,7 +295,7 @@ describe('FilterConfigModalComponent block builder', () => {
 
     const nested = fixture.nativeElement.querySelector('.filter-block-group:not(.is-root)') as HTMLElement;
     expect(nested).toBeTruthy();
-    expect(nested.textContent).toContain('Nested group');
+    expect(nested.textContent).toContain('Group · match');
     expect(nested.querySelector('.empty-filter-group')).toBeTruthy();
   });
 
@@ -339,8 +339,8 @@ describe('FilterConfigModalComponent block builder', () => {
 
   describe('membership rules (In (any of) / Not in (none of))', () => {
     it('names the membership operators the way the builder shows them', () => {
-      expect(component.operatorDisplayLabel('IN')).toBe('In (any of)');
-      expect(component.operatorDisplayLabel('NOT IN')).toBe('Not in (none of)');
+      expect(component.operatorDisplayLabel('IN')).toBe('is any of');
+      expect(component.operatorDisplayLabel('NOT IN')).toBe('is none of');
     });
 
     it('reads a stored in-rule back with its operator and every value picked', () => {

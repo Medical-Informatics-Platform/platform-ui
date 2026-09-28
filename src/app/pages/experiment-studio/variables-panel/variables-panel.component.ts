@@ -601,16 +601,20 @@ export class VariablesPanelComponent implements OnDestroy {
             const enrichedHistogram = this.mapBinsToEnumLabels(hist, variableNode?.enumerations);
             const groupingVarCode = hist?.grouping_var;
             const groupingVarNode = groupingVarCode ? this.findNodeByCode(this.d3Data, groupingVarCode) : null;
-            const groupingVarLabel = groupingVarNode?.label ?? groupingVarCode;
+            const groupingVarLabel = groupingVarNode?.label ?? '';
             const groupingEnumLabel = this.mapEnumValueLabel(hist?.grouping_enum, groupingVarNode?.enumerations);
 
             const variantLabel = groupingVarCode
-              ? `${groupingVarLabel}: ${groupingEnumLabel ?? hist?.grouping_enum ?? 'N/A'}`
+              ? [groupingVarLabel, groupingEnumLabel ?? hist?.grouping_enum ?? 'N/A'].filter(Boolean).join(': ')
               : 'Overall';
 
+            const resolvedVariable = this.findNodeByCode(
+              this.d3Data,
+              String(enrichedHistogram.variable ?? variableCode ?? '')
+            );
             const dataWithName = {
               ...enrichedHistogram,
-              variableName: label ?? variableNode?.label ?? enrichedHistogram.variable ?? enrichedHistogram.variableName,
+              variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
               variableType: variableNode?.type
             };
 

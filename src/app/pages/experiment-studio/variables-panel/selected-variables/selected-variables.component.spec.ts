@@ -127,6 +127,64 @@ describe('SelectedVariablesComponent', () => {
     expect(experimentStudioService.setVariables).toHaveBeenCalledWith([]);
   });
 
+  it('renders the pool card inline instead of the count trigger', () => {
+    experimentStudioService.selectedVariables.set([
+      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'sex_value', label: 'Sex', type: 'string' },
+    ]);
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.pool-card')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.selected-variables-trigger')).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('.pool-chip').length).toBe(2);
+    const count = fixture.nativeElement.querySelector('.count-badge') as HTMLElement;
+    expect(count?.textContent).toBe('2');
+  });
+
+  it('guides the user to Add when the inline pool is empty', () => {
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.detectChanges();
+
+    const empty = fixture.nativeElement.querySelector('.parameter-empty') as HTMLElement;
+    expect(empty.textContent).toContain('No variables yet');
+    expect(fixture.nativeElement.querySelector('.pool-card .parameter-clear-btn')).toBeNull();
+  });
+
+  it('marks the selected node chip in the inline pool', () => {
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.componentRef.setInput('selectedNode', { code: 'age_value', label: 'Age', type: 'real' });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.pool-chip')?.classList).toContain('is-current');
+  });
+
+  it('emits the clicked inline chip and removes one from the pool', () => {
+    experimentStudioService.selectedVariables.set([
+      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'sex_value', label: 'Sex', type: 'string' },
+    ]);
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.detectChanges();
+
+    const clicks: any[] = [];
+    fixture.componentInstance.variableClicked.subscribe((node) => clicks.push(node));
+    (fixture.nativeElement.querySelector('.pool-chip') as HTMLElement).click();
+    expect(clicks[0]?.code).toBe('age_value');
+
+    const remove = fixture.nativeElement.querySelector('.pool-chip .parameter-remove-btn') as HTMLElement;
+    remove.click();
+    fixture.detectChanges();
+    expect(experimentStudioService.setVariables).toHaveBeenCalledWith([
+      { code: 'sex_value', label: 'Sex', type: 'string' },
+    ]);
+  });
+
   it('closes the popover on Escape', () => {
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();

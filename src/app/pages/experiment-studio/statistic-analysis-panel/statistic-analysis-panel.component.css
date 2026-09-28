@@ -25,59 +25,62 @@
   overflow: visible;
 }
 
-/* Segmented overlay switch. Mirrors the Datasets & Variables Chart/Details
-   control so both wizard steps read as one component family. */
-.modal-tabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px;
-  background: color-mix(in srgb, var(--primary-color) 5%, white);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: 999px;
-  margin: 0;
-}
-
-.modal-tabs button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  min-height: 30px;
-  padding: 6px 14px;
-  background: transparent;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 0.8rem;
-  cursor: pointer;
-  text-transform: none;
-  letter-spacing: 0.01em;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
 .stats-panel-shell i {
   transform: translateY(1px);
 }
 
-.modal-tabs button:hover {
-  background: color-mix(in srgb, var(--primary-color) 6%, white);
-  color: var(--text-main);
+/* One toolbar row over the results pane: variable identity on the left, the
+   Table / Charts / Histogram tray and one Export menu on the right. */
+.summary-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--studio-card-header-border);
 }
 
-.modal-tabs button.active {
-  background: var(--card-bg);
-  color: var(--primary-color);
-  box-shadow: var(--shadow-md, 0 1px 2px rgba(43, 51, 233, 0.06));
+.summary-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.modal-tabs button:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+.statistics-panel-heading h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 1rem;
+}
+
+.statistics-panel-code {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(43, 51, 233, 0.06);
+  color: var(--primary-dark);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.summary-export-group {
+  position: relative;
+  display: inline-flex;
+}
+
+.summary-export-group .summary-export-caret {
+  font-size: 0.58rem;
+  transition: transform 0.18s ease;
+}
+
+.summary-export-group .summary-export-caret.open {
+  transform: rotate(180deg);
+}
+
+.statistics-panel {
+  padding: 16px 20px 20px;
 }
 
 /* =========================================================================
@@ -115,34 +118,32 @@
   max-width: var(--studio-pipeline-overview-max, 860px);
 }
 
-/* The header titles the whole rail rather than one step, so it spans the shell
-   like an added node and borrows that node's frame (radius, border, shadow and
-   the `14px 18px` rhythm). There is no global `box-sizing` reset, so the header
-   declares it: `min-height: 75px` then reads as the rendered height, a hair over
-   the 68px station header row below it (14px + 38px icon tile + 14px + borders),
-   so the canvas header can never look shorter than the first node. */
+/* The header titles the whole rail rather than one step, so it is not a card:
+   one hairline under the title, no frame or shadow, and the stage chips sit on
+   that line instead of in a badge box. */
 .pipeline-canvas-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   box-sizing: border-box;
   width: 100%;
-  min-height: 75px;
-  margin-bottom: 20px;
-  padding: 14px 18px;
-  background: color-mix(in srgb, var(--primary-color) 4%, white);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 4px 16px rgba(43, 51, 233, 0.08);
+  min-height: 0;
+  margin-bottom: 18px;
+  padding: 4px 2px 18px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--studio-card-header-border);
+  border-radius: 0;
+  box-shadow: none;
   gap: 16px;
 }
 
 .pipeline-header-title-group h2 {
   font-size: 1.15rem;
-  font-weight: 750;
+  font-weight: 700;
   color: var(--text-main);
   margin: 0 0 4px 0;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .pipeline-header-title-group p {
@@ -150,49 +151,35 @@
   color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
-}
-
-.pipeline-header-stats {
-  flex-shrink: 0;
-}
-
-.pipeline-stage-counter {
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 20%, transparent);
-  padding: 5px 13px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
+  max-width: 62ch;
+  text-wrap: pretty;
 }
 
 /* Pipeline Node Card */
 .pipeline-node {
   background: var(--card-bg, #ffffff);
-  border: 1px solid var(--border-color, rgba(43, 51, 233, 0.12));
+  border: 1px solid var(--studio-card-border);
   border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.04);
+  box-shadow: var(--studio-card-shadow);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
   overflow: hidden;
 }
 
 .pipeline-node.is-active {
-  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
-  box-shadow: 0 4px 16px rgba(43, 51, 233, 0.08);
+  border-color: var(--studio-card-border);
+  box-shadow: var(--studio-card-shadow);
 }
 
 .pipeline-node.is-dormant {
   background: #ffffff;
-  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 25%, #cbd5e1);
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 25%, transparent);
   box-shadow: none;
 }
 
 .pipeline-node.is-dormant:hover {
-  border-color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 2%, white);
-  box-shadow: 0 2px 10px rgba(43, 51, 233, 0.06);
+  border-color: color-mix(in srgb, var(--primary-color) 55%, transparent);
+  background: var(--card-bg);
+  box-shadow: none;
 }
 
 /* Step 0 is permanent, so it borrows the compact width of the dormant rows
@@ -218,7 +205,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 12px 18px;
   gap: 14px;
 }
 
@@ -239,35 +226,47 @@
 .btn-add-step {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
-  color: var(--primary-color);
-  border: 1.5px solid var(--primary-color);
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  border: 1px solid rgba(127, 156, 232, 0.38);
   border-radius: 999px;
+  font-family: inherit;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background var(--motion-exit) var(--ease-standard),
+    border-color var(--motion-exit) var(--ease-standard),
+    color var(--motion-exit) var(--ease-standard);
   white-space: nowrap;
 }
 
-.btn-add-step:hover {
-  background: var(--primary-color);
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(43, 51, 233, 0.25);
+.btn-add-step i {
+  font-size: 0.76rem;
+  color: var(--primary-color);
 }
 
+.btn-add-step:hover {
+  background: rgba(43, 51, 233, 0.06);
+  border-color: rgba(43, 51, 233, 0.45);
+  color: var(--primary-color);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Remove: quiet text action, danger ink on hover only. */
 .btn-remove-step-node {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
+  padding: 6px 10px;
   background: transparent;
-  border: 1px solid #e2e8f0;
+  border: 0;
   color: var(--text-muted);
-  border-radius: var(--radius-sm, 4px);
+  border-radius: 999px;
+  font-family: inherit;
   font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
@@ -275,8 +274,7 @@
 }
 
 .btn-remove-step-node:hover {
-  color: var(--danger, #ef4444);
-  border-color: var(--danger, #ef4444);
+  color: #991b1b;
   background: color-mix(in srgb, var(--danger) 8%, white);
 }
 
@@ -285,7 +283,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: #ffffff;
+  background: var(--studio-card-header-bg);
   border-bottom: 1px solid rgba(43, 51, 233, 0.08);
   gap: 12px;
 }
@@ -301,14 +299,19 @@
   width: 38px;
   height: 38px;
   border-radius: var(--radius-md, 8px);
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  background: var(--card-bg);
   color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.95rem;
   flex-shrink: 0;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border: 0;
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+}
+
+.pipeline-node.is-dormant .pipeline-node-icon {
+  color: var(--text-muted);
 }
 
 .pipeline-node-title-group h3 {
@@ -320,7 +323,7 @@
 }
 
 .pipeline-node-subtitle {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -333,46 +336,51 @@
 }
 
 .pipeline-status-badge {
-  font-size: 0.72rem;
-  font-weight: 650;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: var(--text-muted);
-  border: 1px solid #e2e8f0;
-  letter-spacing: 0.02em;
-}
-
-.pipeline-status-badge.applied {
-  background: #ecfdf5;
-  color: #059669;
-  border-color: rgba(16, 185, 129, 0.3);
-}
-
-.pipeline-status-badge.pending {
-  background: #fffbeb;
-  color: #b45309;
-  border-color: rgba(245, 158, 11, 0.3);
-}
-
-.pipeline-status-badge.optional {
-  background: color-mix(in srgb, var(--primary-color) 6%, white);
-  color: var(--primary-color);
-  border-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
-}
-
-.pipeline-status-badge.default {
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
-  color: var(--primary-color);
-  border-color: color-mix(in srgb, var(--primary-color) 22%, transparent);
-}
-
-/* Step 0 is a read, not a stage to add, so its badge keeps the neutral ink of
-   the base rule rather than the Optional / Default / Applied stage tones. */
-.pipeline-status-badge.readonly {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 999px;
+  letter-spacing: var(--letter-spacing-config);
+  white-space: nowrap;
+}
+
+/* Not in the request: neutral outline. */
+.pipeline-status-badge.optional {
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-muted) 25%, transparent);
+}
+
+/* In the request: primary tint. */
+.pipeline-status-badge.default {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+}
+
+/* Dark inks per DESIGN.md "Text on a state fill". */
+.pipeline-status-badge.applied {
+  background: color-mix(in srgb, var(--success) 12%, white);
+  color: #065f46;
+}
+
+.pipeline-status-badge.pending {
+  background: color-mix(in srgb, var(--accent-color) 16%, white);
+  color: #78350f;
+}
+
+/* Read only: plain label, no pill. */
+.pipeline-status-badge.readonly {
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.pipeline-status-badge.readonly i {
+  font-size: 0.66rem;
 }
 
 .pipeline-node-body {
@@ -382,7 +390,7 @@
 /* Sub-node rail: compact connected tree of active sub-steps, shown while the
    stage header is collapsed. Rail line + milestone dot echo the pipeline spine. */
 .pipeline-subnodes-tree {
-  padding: 2px 18px 14px 26px;
+  padding: 12px 18px 14px;
 }
 
 .pipeline-subnode-item {
@@ -395,8 +403,7 @@
   position: relative;
   flex-shrink: 0;
   width: 14px;
-  display: flex;
-  justify-content: center;
+  display: none;
 }
 
 /* Continuous line through the rail column; dots punch through it. */
@@ -434,7 +441,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 12px;
+  padding: 10px 12px;
   margin-bottom: 6px;
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color, rgba(43, 51, 233, 0.12));
@@ -496,30 +503,42 @@
   white-space: nowrap;
 }
 
+.pipeline-subnode-impact {
+  margin-left: auto;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipeline-subnode-impact + .pipeline-subnode-status {
+  margin-left: 12px;
+}
+
 .pipeline-subnode-status[data-tone='applied'] {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: color-mix(in srgb, var(--success) 12%, white);
+  color: #065f46;
+  border: 0;
 }
 
 .pipeline-subnode-status[data-tone='default'] {
   background: color-mix(in srgb, var(--primary-color) 8%, white);
   color: var(--primary-color);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 22%, transparent);
+  border: 0;
 }
 
 .pipeline-subnode-status[data-tone='pending'] {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--accent-color) 16%, white);
+  color: #78350f;
+  border: 0;
 }
 
 /* Dashed rail row: a sub-step the stage can still create. It rides the same spine as
    the live rows, so "add" reads as the next node in the flow instead of a button glued
    under the card - and it stays reachable while the stage is collapsed. */
 .pipeline-subnode-item.is-ghost .pipeline-subnode-content {
-  background: color-mix(in srgb, var(--primary-color) 2.5%, white);
-  border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--primary-color) 25%, transparent);
   border-style: dashed;
   box-shadow: none;
 }
@@ -538,7 +557,7 @@
   color: var(--primary-color);
 }
 
-/* Beats `.pipeline-subnode-content > i`, which sizes the leading glyph. */
+/* Beats \`.pipeline-subnode-content > i\`, which sizes the leading glyph. */
 .pipeline-subnode-content > .pipeline-subnode-add {
   margin-left: auto;
   width: auto;
@@ -547,7 +566,7 @@
 
 /* Vertical Directional Connectors */
 .pipeline-connector {
-  height: 38px;
+  height: 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -570,6 +589,7 @@
 }
 
 .pipeline-connector-arrow {
+  display: none;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -622,49 +642,46 @@
 
 /* Terminal Card */
 .pipeline-terminal-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  padding: 18px 24px;
-  background: #ffffff;
+  padding: 16px 20px;
+  background: var(--studio-card-header-bg);
   border: 1px solid var(--border-color, rgba(43, 51, 233, 0.15));
   border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 4px 14px rgba(43, 51, 233, 0.05);
-  gap: 16px;
+  box-shadow: none;
+  gap: 20px;
   margin-top: 4px;
 }
 
-.pipeline-terminal-content {
+.pipeline-terminal-summary {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 
-.pipeline-terminal-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #ecfdf5;
-  color: var(--success, #10b981);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
-
-.pipeline-terminal-info h4 {
-  font-size: 0.95rem;
-  font-weight: 750;
-  color: var(--text-main);
-  margin: 0 0 2px 0;
-}
-
-.pipeline-terminal-info p {
-  font-size: 0.8rem;
+.pipeline-terminal-kicker {
   color: var(--text-muted);
-  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.pipeline-terminal-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 22px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.pipeline-terminal-facts strong {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
 }
 
 .btn-finish-pipeline {
@@ -676,16 +693,18 @@
   color: #ffffff;
   border: none;
   border-radius: 999px;
+  font-family: inherit;
   font-size: 0.86rem;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.25);
+  box-shadow: var(--shadow-sm);
   transition: all 0.2s ease;
   white-space: nowrap;
 }
 
 /* Unapplied-changes guard */
 .unapplied-warning-card {
+  grid-column: 1 / -1;
   flex: 1 1 100%;
   display: flex;
   align-items: center;
@@ -752,11 +771,14 @@
 
 .btn-finish-pipeline:hover {
   background: var(--primary-dark, #1b21a3);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(43, 51, 233, 0.35);
+  transform: none;
+  box-shadow: var(--shadow-md);
 }
 
 @media (max-width: 768px) {
+  .pipeline-canvas-header {
+    flex-wrap: wrap;
+  }
   .pipeline-node-header {
     flex-direction: column;
     align-items: flex-start;
@@ -766,7 +788,7 @@
     justify-content: space-between;
   }
   .pipeline-terminal-card {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
   }
   .btn-finish-pipeline {
@@ -794,6 +816,10 @@
    it sat flush on the node border and the two 1px lines vibrated as one. */
 .pipeline-node .workflow-section-body {
   padding-inline: 16px;
+}
+
+.pipeline-node.is-readonly .workflow-section-body {
+  padding: 0;
 }
 
 /* Summary workspaces nested inside a pipeline node inherit the node's frame;

@@ -124,11 +124,11 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
       case 'selected-sex':
         return this.replaceGuideTargets('Either use the search bar to find the Sex variable or click the green-highlighted variable through the bubble chart to continue.');
       case 'variable-sex':
-        return 'Click Add to put ' + this.guideCovariateLabel + ' into the experiment. Open the selected-variables count in the details header to review the list.';
+        return 'Click Add to put ' + this.guideCovariateLabel + ' into the experiment. The Variables in this experiment card below the details panel keeps the list visible.';
       case 'selected-age':
         return this.replaceGuideTargets('Either use the search bar to find the Age variable or click the green-highlighted variable through the bubble chart to continue. You can also explore the chart and details on the right.');
       case 'variable-age':
-        return 'Click Add to put ' + this.guideVariableLabel + ' into the experiment. Open the selected-variables count in the details header to review the list.';
+        return 'Click Add to put ' + this.guideVariableLabel + ' into the experiment. The Variables in this experiment card below the details panel keeps the list visible.';
       case 'roles-assigned':
         return 'Assign each added variable as an outcome (Variables / y) or a predictor (Covariates / x) on the algorithm panel to continue.';
       case 'algorithm-selected':

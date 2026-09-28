@@ -32,16 +32,17 @@
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin: 0 0 0 auto;
-  padding: 7px 14px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
-  border-radius: var(--radius-md, 8px);
-  background: var(--card-bg);
-  color: var(--primary-color);
+  padding: 8px 16px;
+  border: 1px solid rgba(127, 156, 232, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
@@ -52,12 +53,15 @@
 }
 
 .station-preview-toggle i {
-  font-size: 0.85em;
+  font-size: 0.76rem;
+  color: var(--primary-color);
   line-height: 1;
 }
 
 .station-preview-toggle:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  background: rgba(43, 51, 233, 0.06);
+  border-color: rgba(43, 51, 233, 0.45);
+  color: var(--primary-color);
 }
 
 .station-preview-toggle:disabled {
@@ -101,6 +105,8 @@
    state comes from [aria-expanded], which .studio-export-btn already paints. */
 .batch-menu-trigger {
   border-radius: 999px;
+  min-height: 26px;
+  height: 26px;
 }
 
 .batch-menu-list {
@@ -156,7 +162,6 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding-top: 14px;
 }
 
 .summary-detail-column .statistics-panel {
@@ -263,41 +268,6 @@
 
 /* The preview card reads as the informational feedback variant the same way its
    siblings do - through its own fill and edge, not a side stripe. */
-.preview-panel.glass-feedback {
-  background: color-mix(in srgb, var(--primary-color) 4%, var(--card-bg));
-  border-color: color-mix(in srgb, var(--primary-color) 24%, transparent);
-}
-
-.feedback-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.feedback-header i {
-  color: var(--primary-color);
-  font-size: 1rem;
-}
-
-.feedback-header h4 {
-  margin: 0;
-  color: var(--primary-color);
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.preview-panel ul {
-  margin: 0;
-  padding-left: 18px;
-  line-height: 1.7;
-}
-
-.preview-panel li {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
 .search-inline {
   position: relative;
   max-width: 280px;
@@ -331,71 +301,61 @@
   background: var(--card-bg);
 }
 
+/* Rail search: pill with a leading glyph, matching the tray/button vocabulary. */
+.search-inline .preprocessing-search {
+  border-radius: 999px;
+  padding-left: 30px;
+}
+
+.search-inline .search-inline-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+
 /* Documentation: the algorithm configuration panel's disclosure, copied. A plain
    label with a CSS chevron that turns, and the text carried by a left rule instead of
    a card. The prefix stays because these styles are component-scoped, so this file
    cannot reach the algorithm panel's classes. */
 .preprocessing-documentation-panel {
-  /* The workspace card body is flush, so this row keeps an 8px inset — which the
-     summary's own negative margin cancels back to a full-bleed hover area. */
   margin: 0 0 14px;
   padding: 0 8px;
 }
 
-.preprocessing-documentation-summary {
-  display: flex;
+/* "How this works" lives in the station header's action slot; the body is the
+   same documentation panel, toggled by the header link. */
+.preprocessing-doc-toggle {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  padding: 6px 8px;
-  margin: -6px -8px;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.78rem;
-  font-weight: 600;
-  user-select: none;
-}
-
-.preprocessing-documentation-summary:hover {
-  background: color-mix(in srgb, var(--primary-color) 6%, white);
-}
-
-.preprocessing-documentation-summary::-webkit-details-marker {
-  display: none;
-}
-
-.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary {
-  border-bottom: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.14));
-  border-radius: var(--radius-sm, 4px) var(--radius-sm, 4px) 0 0;
-}
-
-.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary .preprocessing-documentation-label {
-  color: var(--primary-dark);
-}
-
-/* Same chevron geometry as the catalog groups: right when collapsed, down when open. */
-.preprocessing-documentation-chevron {
-  flex: 0 0 auto;
-  width: 0.45rem;
-  height: 0.45rem;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  color: #64748b;
-  transform: rotate(-45deg);
-  transition: transform 0.2s ease;
-}
-
-.preprocessing-documentation-panel[open] > .preprocessing-documentation-summary .preprocessing-documentation-chevron {
-  transform: rotate(45deg);
-}
-
-.preprocessing-documentation-label {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: #334155;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.preprocessing-doc-toggle i {
+  color: var(--primary-color);
+  font-size: 0.72rem;
+}
+
+.preprocessing-doc-toggle:hover {
+  color: var(--primary-color);
+}
+
+.preprocessing-doc-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .preprocessing-documentation-content {
@@ -504,23 +464,6 @@
   margin: 0;
 }
 
-.outlier-preview-panel {
-  margin: 0;
-  padding: 14px 16px 16px;
-  background: var(--card-bg);
-  border: 1px solid rgba(127, 156, 232, 0.14);
-  border-radius: var(--radius-lg, 12px);
-  box-shadow: 0 4px 14px rgba(127, 156, 232, 0.05);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  animation: feedbackSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.outlier-preview-panel .table-wrapper {
-  margin-top: 4px;
-  overflow-x: auto;
-}
-
 /* Preprocessing stations are ONE card, not two. styles.css owns the card, the
    rail/panel split and the scroll contract; both summary panels use
    .statistics-browser as a left rail, so the pill toolbar that used to live here
@@ -576,12 +519,10 @@
    shadow here — the workspace is the card, and re-declaring them at this
    specificity is what drew a second frame inside the first. */
 .preprocessing-detail-panel {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
-  align-items: stretch;
-  gap: 14px 26px;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 18px;
 }
 
 /* The winsorizer carries four controls, so it needs the wider editor column. */
@@ -607,35 +548,44 @@
 
 .preprocessing-detail-panel h4 {
   margin: 2px 0 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   letter-spacing: -0.01em;
   line-height: 1.25;
   text-wrap: balance;
 }
 
-/* The rail is a horizontal band of real figures, not a stacked sidebar: two
-   groups across the width it actually has. It stays in the editor's row so it
-   cannot stretch the header (a full-height span inflated it to 169px), and
-   pulls up through the row gap so its tonal fill sits flush under the header. */
+.preprocessing-header-coverage {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The evidence now sits under the choices as one flat band, not a second pane. */
 .preprocessing-evidence {
-  grid-column: 2;
-  grid-row: 2;
-  display: grid;
-  /* auto-fit, not a fixed 2 columns: with only coverage present the group owns
-     the whole pane instead of wrapping its text at half width. */
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  /* Top-aligned, not centred: with the pane stretched by the rail this is what
-     puts DATASET COVERAGE on the same line as MISSING VALUE HANDLING across the
-     divider. Centring reads as a floating block. */
-  align-content: start;
-  gap: 12px 32px;
-  /* Negative margins match the panel's 16px padding exactly so the tonal pane
-     reaches the card edge; 2px short and it reads as a card inside a card. */
-  margin: -16px -16px -16px 0;
-  padding: 16px;
-  border-left: 1px solid var(--studio-card-header-border);
-  background: var(--bg-neutral);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 28px;
+  margin: 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--studio-card-header-border);
+  background: none;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.preprocessing-evidence-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
 }
 
 .preprocessing-evidence-title {
@@ -647,11 +597,14 @@
   text-transform: uppercase;
 }
 
-.preprocessing-stat-grid,
-.preprocessing-stat-strip {
+.preprocessing-stat-grid {
   display: grid;
   gap: 8px 14px;
   margin: 0;
+}
+
+.preprocessing-stat-strip {
+  display: contents;
 }
 
 .preprocessing-stat-grid {
@@ -673,26 +626,26 @@
 }
 
 .preprocessing-stat {
-  display: grid;
-  gap: 2px;
+  display: inline-flex;
+  gap: 4px;
   min-width: 0;
+  align-items: baseline;
 }
 
 .preprocessing-stat dt {
   color: var(--text-muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: var(--letter-spacing-config);
-  text-transform: uppercase;
+  font-size: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: lowercase;
 }
 
 .preprocessing-stat dd {
   margin: 0;
   color: var(--text-main);
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: inherit;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  /* A number must never break mid-digit; the strip wraps instead. */
   white-space: nowrap;
 }
 
@@ -856,15 +809,285 @@
   box-shadow: none;
 }
 
+.preprocessing-variable-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 1px;
+  column-gap: 8px;
+}
+
+.preprocessing-variable-btn::before {
+  display: none;
+}
+
 .preprocessing-variable-btn .statistics-variable-meta {
   align-items: flex-start;
   gap: 6px;
+}
+
+.prep-rail-action {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.prep-rail-action::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.prep-rail-action[data-state='pending'] {
+  color: #78350f;
+}
+
+.prep-rail-action[data-state='pending']::before {
+  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
 }
 .preprocessing-detail-section {
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+/* Missing-values choice cards (replaces the action select). */
+.missing-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.missing-choice-grid legend {
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.missing-choice {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 10px 34px;
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+  cursor: pointer;
+}
+
+.missing-choice:hover {
+  background: #f7f8fe;
+}
+
+.missing-choice.is-selected {
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  box-shadow: inset 0 0 0 1.5px var(--primary-color);
+}
+
+.missing-choice.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.missing-choice input[type='radio'] {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+}
+
+.missing-choice-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.missing-choice-effect {
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+/* Per-dataset coverage tiles. */
+.coverage-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.coverage-tile {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+}
+
+.coverage-tile-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+}
+
+.coverage-tile-head strong {
+  font-weight: 700;
+}
+
+.coverage-tile-head span {
+  color: var(--text-muted);
+}
+
+/* Mini variant of the studio switch, used in the outlier rail rows. */
+.toggle-switch.is-mini {
+  width: 30px;
+  height: 18px;
+}
+
+.toggle-switch.is-mini .toggle-slider:before {
+  width: 14px;
+  height: 14px;
+  left: 1px;
+  top: 1px;
+}
+
+.toggle-switch.is-mini input:checked + .toggle-slider:before {
+  transform: translateX(12px);
+}
+
+/* Outlier bounds strip. Pooled over all datasets; the report below is per dataset. */
+.bounds-strip {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+}
+
+.bounds-labels,
+.bounds-scale {
+  position: relative;
+  height: 18px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.bounds-labels span {
+  position: absolute;
+  top: 0;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.bounds-track {
+  position: relative;
+  height: 44px;
+}
+
+.bounds-track::before {
+  content: '';
+  position: absolute;
+  inset: 20px 0 auto;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.bounds-iqr {
+  position: absolute;
+  top: 12px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: rgba(43, 51, 233, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.35);
+}
+
+.bounds-median {
+  position: absolute;
+  top: 12px;
+  width: 2px;
+  height: 20px;
+  background: var(--primary-color);
+}
+
+.bounds-capped {
+  position: absolute;
+  top: 20px;
+  height: 4px;
+  background: color-mix(in srgb, var(--danger) 75%, var(--text-main));
+}
+
+.bounds-marker {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 36px;
+  background: var(--text-main);
+}
+
+.bounds-scale span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.bounds-scale .is-min {
+  left: 0;
+  transform: none;
+}
+
+.bounds-scale .is-max {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.outlier-report-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.outlier-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.outlier-report-table .share-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.share-bar {
+  display: inline-block;
+  width: 74px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(43, 51, 233, 0.08);
+  overflow: hidden;
+}
+
+.share-bar > span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--danger) 75%, var(--text-main));
 }
 
 .preprocessing-detail-heading {
@@ -893,15 +1116,23 @@
   justify-content: start;
 }
 
-.inline-toggle-container {
+.outlier-control-grid {
   display: flex;
-  align-items: center;
-  min-height: 34px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 22px;
 }
 
-.outlier-control-grid {
-  grid-template-columns: max-content repeat(3, minmax(120px, 180px));
-  justify-content: start;
+.preprocessing-control > span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.outlier-fold-input {
+  width: 84px;
 }
 
 /* Four tracks need ~420px; below that the Fold control was clipped out of the
@@ -909,6 +1140,10 @@
    base rule so it actually wins. */
 @media (max-width: 720px) {
   .outlier-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .missing-choice-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
