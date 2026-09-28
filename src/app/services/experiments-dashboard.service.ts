@@ -121,11 +121,15 @@ export class ExperimentsDashboardService {
     this.lastListRequest?.();
   }
 
-  /** Visible K-means experiments (newest first) that can provide cluster columns. */
+  /**
+   * The user's own K-means experiments (newest first) that can provide cluster columns.
+   * The picker replays the run's stored preprocessing, so it must not read the shared
+   * scope: another user's clusters are not a column this user may inject.
+   */
   listKMeansExperiments(): Observable<BackendExperiment[]> {
     return this.http
       .get<ExperimentsPage>(this.apiUrl, {
-        params: this.buildServerParams(0, 50, false, 'created-desc', {
+        params: this.buildServerParams(0, 50, true, 'created-desc', {
           ...DEFAULT_FILTERS,
           algorithm: 'kmeans',
         }),

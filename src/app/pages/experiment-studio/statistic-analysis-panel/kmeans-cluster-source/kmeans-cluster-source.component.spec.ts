@@ -51,11 +51,13 @@ describe('KMeansClusterSourceComponent', () => {
   let fixture: ComponentFixture<KMeansClusterSourceComponent>;
   let component: KMeansClusterSourceComponent;
   let studio: {
+    selectedVariables: jasmine.Spy;
     getActiveDataModelCode: jasmine.Spy;
     requestDatasets: jasmine.Spy;
     requestFilters: jasmine.Spy;
     appliedKMeansClusterCreator: jasmine.Spy;
     setKMeansClusterPreprocessing: jasmine.Spy;
+    loadKMeansReport: jasmine.Spy;
   };
   let dashboard: {
     listKMeansExperiments: jasmine.Spy;
@@ -68,11 +70,13 @@ describe('KMeansClusterSourceComponent', () => {
 
   beforeEach(async () => {
     studio = {
+      selectedVariables: jasmine.createSpy('selectedVariables').and.returnValue([]),
       getActiveDataModelCode: jasmine.createSpy('getActiveDataModelCode').and.returnValue(CONTEXT.dataModel),
       requestDatasets: jasmine.createSpy('requestDatasets').and.returnValue(CONTEXT.datasets),
       requestFilters: jasmine.createSpy('requestFilters').and.returnValue(CONTEXT.filters),
       appliedKMeansClusterCreator: jasmine.createSpy('appliedKMeansClusterCreator').and.returnValue(null),
       setKMeansClusterPreprocessing: jasmine.createSpy('setKMeansClusterPreprocessing'),
+      loadKMeansReport: jasmine.createSpy('loadKMeansReport').and.returnValue(of({})),
     };
     dashboard = {
       listKMeansExperiments: jasmine.createSpy('listKMeansExperiments').and.returnValue(of([])),
@@ -163,6 +167,19 @@ describe('KMeansClusterSourceComponent', () => {
     expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith(null);
   });
 
+  it('asks the stage to run the creator once the column is applied', () => {
+    dashboard.listKMeansExperiments.and.returnValue(of([kmeansExperiment('a')]));
+    fixture.detectChanges();
+    component.selectedUuid.set('a');
+    dashboard.getExperimentResult.and.returnValue(of({ result: { reusable_preprocessing: reusable() } }));
+    const runs: number[] = [];
+    component.runRequested.subscribe(() => runs.push(1));
+
+    component.apply();
+
+    expect(runs.length).toBe(1);
+  });
+
   it('reports a failed experiment list instead of an empty picker', () => {
     dashboard.listKMeansExperiments.and.returnValue(throwError(() => new Error('offline')));
 
@@ -170,5 +187,43 @@ describe('KMeansClusterSourceComponent', () => {
 
     expect(component.error()).toBe('Could not load K-means experiments.');
     expect(component.loading()).toBeFalse();
+  });
+
+  it('offers the in-place K-means report when the user has no finished run', () => {
+    dashboard.listKMeansExperiments.and.returnValue(of([]));
+
+    fixture.detectChanges();
+
+    expect(html().textContent).toContain('Run K-means here');
+    expect(html().textContent).toContain('Run K-means report');
+  });
+
+  it('runs the K-means report in place and stores its reusable preprocessing', () => {
+    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    const reusablePreprocessing = reusable();
+    studio.loadKMeansReport.and.returnValue(of({
+      result_type: 'privacy_safe_cluster_report',
+      selected_k: 2,
+      k_selection: 'manual',
+      n_obs_interval: '100–200',
+      clusters: [
+        { cluster_id: 'c1', label: 'Cluster 1', size_interval: '40–60', center: { age: 40 }, profile: [], interpretation: 'Younger', quality: { compactness: null } },
+      ],
+      elbow: null,
+      reusable_preprocessing: reusablePreprocessing,
+    }));
+
+    fixture.detectChanges();
+    component.runReport();
+
+    expect(studio.loadKMeansReport).toHaveBeenCalledWith(['age']);
+    expect(component.report()?.selected_k).toBe(2);
+    expect(component.reportReusable()).toBe(reusablePreprocessing);
+
+    component.useReport();
+    expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith({
+      code: 'kmeans_cluster',
+      reusable_preprocessing: reusablePreprocessing,
+    });
   });
 });

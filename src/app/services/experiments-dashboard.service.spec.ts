@@ -161,6 +161,9 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     expect(req.request.params.get('algorithm')).toBe('kmeans');
     expect(req.request.params.get('page')).toBe('0');
     expect(req.request.params.get('size')).toBe('50');
+    // Own scope only: the shared tab would hide the caller's own runs and expose others'.
+    expect(req.request.params.get('mine')).toBe('true');
+    expect(req.request.params.get('notMine')).toBe('false');
 
     req.flush({
       experiments: [{ uuid: 'u1' }],

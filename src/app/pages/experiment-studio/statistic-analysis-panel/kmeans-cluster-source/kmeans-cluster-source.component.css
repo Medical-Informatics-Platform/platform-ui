@@ -7,13 +7,6 @@
   gap: 10px;
 }
 
-.kmeans-cluster-source-title {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
 .kmeans-cluster-source-hint {
   margin: 0;
   font-size: 0.78rem;
@@ -97,4 +90,92 @@
   margin: 0;
   font-size: 0.74rem;
   color: var(--text-muted);
+}
+
+/* In-place K-means report run, for when there is no finished compatible run yet. */
+.kmeans-cluster-source-run {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+}
+
+.kmeans-cluster-source-run-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kmeans-cluster-source-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kmeans-cluster-source-var {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+  font-size: 0.76rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-var input {
+  margin: 0;
+}
+
+.kmeans-cluster-report {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+}
+
+.kmeans-cluster-report-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.kmeans-cluster-report-head span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.kmeans-cluster-report-list {
+  display: grid;
+  gap: 4px;
+}
+
+.kmeans-cluster-report-row {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) 72px minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.76rem;
+}
+
+.kmeans-cluster-report-size {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kmeans-cluster-report-profile {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

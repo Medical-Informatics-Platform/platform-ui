@@ -4,6 +4,9 @@ import { BackendFilter } from '../models/filters.model';
 /** Name the backend puts in reusable_preprocessing.preprocessing_name for K-means clusters. */
 export const KMEANS_CLUSTER_CREATOR = 'kmeans_cluster_creator';
 
+/** Result type of the K-means cluster report. Its reusable_preprocessing is the creator input. */
+export const KMEANS_RESULT_TYPE = 'privacy_safe_cluster_report';
+
 /** Preprocessing block stored in a K-means result that can be replayed as a cluster column. */
 export interface KMeansReusablePreprocessing {
   schema_version: string;
@@ -78,18 +81,51 @@ export function kmeansSourceIsReusable(
  * for results saved before the feature existed or with an unexpected shape.
  */
 export function extractReusablePreprocessing(result: unknown): KMeansReusablePreprocessing | null {
-  const candidate = (result as { reusable_preprocessing?: unknown } | null | undefined)
-    ?.reusable_preprocessing;
+  const record = result as { result_type?: unknown; reusable_preprocessing?: unknown } | null | undefined;
+  // The report contract is privacy_safe_cluster_report. Legacy results without the
+  // marker are still accepted; a different declared type is never reusable.
+  if (record?.result_type !== undefined && record.result_type !== KMEANS_RESULT_TYPE) {
+    return null;
+  }
+  const candidate = record?.reusable_preprocessing;
 
-  if (!isPlainObject(candidate) || candidate['preprocessing_name'] !== KMEANS_CLUSTER_CREATOR) {
+  if (!isPlainObject(candidate)) {
+    return null;
+  }
+  // The creator contract names the block; tolerate legacy blocks that lack the name.
+  if (candidate['preprocessing_name'] !== undefined
+    && candidate['preprocessing_name'] !== KMEANS_CLUSTER_CREATOR) {
     return null;
   }
   if (!Array.isArray(candidate['cluster_variables']) || !Array.isArray(candidate['cluster_choices'])
-    || !isPlainObject(candidate['centers']) || !isPlainObject(candidate['source_context'])) {
+    || !isPlainObject(candidate['centers'])) {
     return null;
   }
 
   return candidate as unknown as KMeansReusablePreprocessing;
+}
+
+/** Where a transient response can carry the report: the response itself, the backend's
+ *  `result`, or a stored `{ result }` nested inside it. */
+function reportCandidates(value: unknown): unknown[] {
+  const outer = (value as { result?: unknown } | null | undefined)?.result;
+  return [value, outer, (outer as { result?: unknown } | null | undefined)?.result];
+}
+
+/** The reusable block of a transient K-means response, or null. */
+export function findReusablePreprocessing(value: unknown): KMeansReusablePreprocessing | null {
+  for (const candidate of reportCandidates(value)) {
+    const found = extractReusablePreprocessing(candidate);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** The cluster report of a transient K-means response, for display. */
+export function findKMeansReport(value: unknown): Record<string, unknown> | null {
+  const found = reportCandidates(value).find((candidate) =>
+    isPlainObject(candidate) && Array.isArray(candidate['clusters']) && candidate['selected_k'] !== undefined);
+  return (found as Record<string, unknown> | undefined) ?? null;
 }
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {

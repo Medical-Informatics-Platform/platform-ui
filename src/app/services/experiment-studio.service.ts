@@ -889,8 +889,9 @@ export class ExperimentStudioService {
    * Exaflow rejects missing values in the variables a K-means cluster column is
    * built from, and the cluster step must run after missing value handling. Only
    * the request is adjusted — the stored config keeps the user's own choices.
+   * Describe previews call this too, so a previewed cluster column matches a run.
    */
-  private withKMeansClusterRequirements(
+  withKMeansClusterRequirements(
     config: PreprocessingConfig | null,
   ): PreprocessingConfig | null {
     const creator = this.appliedKMeansClusterCreator();
@@ -1778,6 +1779,32 @@ export class ExperimentStudioService {
   /** Accepts a rule tree or the bare condition a category rule can hold. */
   filterVariableCodes(logic: BackendFilter | BackendRule | null): string[] {
     return this.collectFilterVariableCodes(logic);
+  }
+
+  /** Run the K-means report on the current selection; its reusable_preprocessing is
+   *  the creator input. Uses the K-means parameters configured in the Algorithm step,
+   *  or the backend defaults when none were set. */
+  loadKMeansReport(
+    variableCodes: string[],
+    parameters: Record<string, unknown> = {}
+  ): Observable<any> | null {
+    try {
+      const requestBody = this.buildRequestBody('kmeans', variableCodes, null);
+      const algorithm = requestBody?.analysis?.algorithm ?? {};
+      requestBody.analysis = {
+        ...requestBody.analysis,
+        algorithm: {
+          ...algorithm,
+          parameters: { ...(algorithm.parameters ?? {}), ...parameters },
+        },
+      };
+      return this.submitTransientRequest(requestBody).pipe(
+        map((resp) => this.normalizeTransientResponse(resp)),
+      );
+    } catch (error) {
+      console.error('K-means report is not available:', error);
+      return null;
+    }
   }
 
   loadOutlierReportPreview(

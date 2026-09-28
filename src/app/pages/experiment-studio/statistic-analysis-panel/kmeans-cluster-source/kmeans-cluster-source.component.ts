@@ -1,9 +1,12 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   OnInit,
   computed,
+  effect,
   inject,
+  output,
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
@@ -11,10 +14,14 @@ import { FormsModule } from '@angular/forms';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
 import { BackendExperiment } from '../../../../models/backend-experiment.model';
+import { KMeansResult } from '../../../../models/algorithm-results.model';
+import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
 import {
   KMeansReusablePreprocessing,
   KMeansSourceContext,
-  extractReusablePreprocessing,
+  canonicalFilterKey,
+  findKMeansReport,
+  findReusablePreprocessing,
   kmeansSourceIsReusable,
 } from '../../../../core/kmeans-cluster-source.utils';
 
@@ -35,6 +42,7 @@ const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 })
 export class KMeansClusterSourceComponent implements OnInit {
   private readonly studio = inject(ExperimentStudioService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly dashboard = inject(ExperimentsDashboardService);
 
   readonly experiments = signal<BackendExperiment[]>([]);
@@ -43,6 +51,38 @@ export class KMeansClusterSourceComponent implements OnInit {
   readonly selectedUuid = signal<string | null>(null);
   readonly code = signal('kmeans_cluster');
   readonly applying = signal(false);
+
+  /** In-place report run: pick numerical variables, run `kmeans`, reuse its result.
+   *  Only opt-outs are stored, so the picks follow the variable pool: a removed variable
+   *  is never sent and a newly added one starts ticked. */
+  private readonly runExcludedCodes = signal<ReadonlySet<string>>(new Set());
+  readonly runLoading = signal(false);
+  readonly runError = signal<string | null>(null);
+  readonly report = signal<KMeansResult | null>(null);
+  readonly reportReusable = signal<KMeansReusablePreprocessing | null>(null);
+
+  readonly numericVariables = computed(() =>
+    (this.studio.selectedVariables() as any[]).filter((variable) => isOutlierEligibleVariable(variable))
+  );
+
+  readonly runSelectedCodes = computed(() => {
+    const excluded = this.runExcludedCodes();
+    return this.numericVariables()
+      .map((variable) => String(variable.code))
+      .filter((code) => !excluded.has(code));
+  });
+
+  /** Inputs a report was run on; a report from other inputs must not become a column. */
+  private readonly runContextKey = computed(() => {
+    const context = this.currentContext();
+    return canonicalFilterKey({
+      dataModel: context.dataModel,
+      datasets: [...context.datasets].map(String).sort(),
+      filters: context.filters ?? null,
+      codes: [...this.runSelectedCodes()].sort(),
+    });
+  });
+  private reportContextKey: string | null = null;
 
   /** What the next run would send — the context a past run must match to be reusable. */
   currentContext(): KMeansSourceContext {
@@ -61,6 +101,23 @@ export class KMeansClusterSourceComponent implements OnInit {
   readonly hiddenCount = computed(() => this.experiments().length - this.compatible().length);
 
   readonly applied = computed(() => this.studio.appliedKMeansClusterCreator());
+
+  /** Emitted after a creator is applied, so the stage runs it and shows the cluster column. */
+  readonly runRequested = output<void>();
+
+  constructor() {
+    // Steps stay mounted, so data model, datasets, filters or picks can change under a
+    // finished report; drop it rather than offer centers fitted on other data.
+    effect(() => {
+      const key = this.runContextKey();
+      if (this.reportContextKey !== null && key !== this.reportContextKey) {
+        this.reportContextKey = null;
+        this.report.set(null);
+        this.reportReusable.set(null);
+        this.runError.set(null);
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.loadExperiments();
@@ -103,7 +160,7 @@ export class KMeansClusterSourceComponent implements OnInit {
     this.applying.set(true);
     this.dashboard.getExperimentResult(this.selectedUuid()!).subscribe({
       next: (response) => {
-        const reusable = extractReusablePreprocessing(response?.result ?? response);
+        const reusable = findReusablePreprocessing(response);
         this.applying.set(false);
         if (!reusable) {
           this.error.set('This K-means result cannot be reused. Re-run the K-means experiment and try again.');
@@ -124,9 +181,86 @@ export class KMeansClusterSourceComponent implements OnInit {
     this.studio.setKMeansClusterPreprocessing(null);
   }
 
+  toggleRunVariable(code: string): void {
+    this.runExcludedCodes.update((excluded) => {
+      const next = new Set(excluded);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
+  /** Run the K-means report on the selected numerical variables. It uses the
+   *  parameters from the Algorithm step, or backend defaults when none are set. */
+  runReport(): void {
+    const codes = this.runSelectedCodes();
+    if (!codes.length) return;
+    const request$ = this.studio.loadKMeansReport(codes);
+    if (!request$) {
+      this.runError.set('K-means is not available for this workspace.');
+      return;
+    }
+
+    const requestKey = this.runContextKey();
+    this.runLoading.set(true);
+    this.runError.set(null);
+    this.report.set(null);
+    this.reportReusable.set(null);
+    this.reportContextKey = null;
+    request$.subscribe({
+      next: (response) => {
+        this.runLoading.set(false);
+        if (this.runContextKey() !== requestKey) {
+          this.runError.set('The selection changed while K-means was running. Run the report again.');
+          this.cdr.markForCheck();
+          return;
+        }
+        const status = (response as { status?: unknown } | null)?.status;
+        if (status === 'error') {
+          const payload = (response as { result?: any } | null)?.result ?? {};
+          this.runError.set(
+            String(payload?.data ?? payload?.message ?? 'The K-means report failed.'),
+          );
+          this.cdr.markForCheck();
+          return;
+        }
+
+        const reusable = findReusablePreprocessing(response);
+        this.report.set(findKMeansReport(response) as KMeansResult | null);
+        this.reportReusable.set(reusable);
+        this.reportContextKey = requestKey;
+        if (!reusable) {
+          // Keys only, never values: enough to see which envelope the backend used.
+          console.warn('[KMeans] report has no reusable_preprocessing; response keys:',
+            Object.keys((response as Record<string, unknown>) ?? {}));
+          this.runError.set('The K-means report did not include reusable cluster centers.');
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.runLoading.set(false);
+        this.runError.set('Could not run the K-means report.');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  useReport(): void {
+    const reusable = this.reportReusable();
+    const code = this.code().trim();
+    if (!reusable || !code) return;
+    if (!CODE_PATTERN.test(code)) {
+      this.runError.set('Use letters, digits and underscores, starting with a letter or underscore.');
+      return;
+    }
+    this.runError.set(null);
+    this.store(code, reusable);
+  }
+
   private store(code: string, reusablePreprocessing: KMeansReusablePreprocessing): void {
     this.error.set(null);
     this.selectedUuid.set(null);
     this.studio.setKMeansClusterPreprocessing({ code, reusable_preprocessing: reusablePreprocessing });
+    this.runRequested.emit();
   }
 }
