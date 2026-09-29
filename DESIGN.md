@@ -10,7 +10,7 @@ Do not invent a new palette, display serif, or animation library. Reuse CSS vari
 
 - Name: MIP (Medical Informatics Platform)
 - Logo type: Mark Pro Bold only (do not substitute, redraw, stretch, skew, rotate, outline, or rearrange)
-- Body/UI type: Alaska Regular (`'Alaska Regular', 'Alaska', system-ui, sans-serif`)
+- Body/UI type: Alaska Regular, then Inter (`--font-sans`: `'Alaska Regular', 'Alaska', 'Inter', system-ui, …`). Alaska is licensed and not shipped; Inter (400/500/600/700, Google Fonts via `index.html`) is what users actually see
 - Tabular numbers on data UI (`font-variant-numeric: tabular-nums`)
 - Line height ~1.6, letter-spacing ~0.01–0.015em
 
@@ -48,12 +48,14 @@ white on dark blue; blue on light blue; black on white; blue on orange; blue on 
 | `--studio-card-header-bg` | `#f8fbff` |
 | `--radius-sm` / `--radius-md` / `--radius-lg` | 4px / 8px / 12px |
 | `--header-height` | 64px (56px ≤768px) |
-| `--header-surface` / `--header-border` / `--header-shadow` | `--card-bg` / primary 14% / two-layer primary tint |
+| `--header-surface` / `--header-border` / `--header-shadow` | `--card-bg` / primary 14% (= `rgba(43, 51, 233, 0.14)`) / two-layer primary tint |
+| `--tint-nav-hover` | `primary-light` 20% over white (= `#e5ebfa`) |
+| `--ring-avatar` / `--avatar-bg` | `primary-light` 40% over white (= `#ccd7f6`) / `text-main` 30% over white (= `#b7b9bf`) |
 | `--chrome-inline-padding` | `24px` (floor inset, not a measure — see the chrome contract) |
 | `--font-mono` | `ui-monospace, SFMono-Regular, Menlo, monospace` — the only mono slot. Components use `font-family: var(--font-mono)`; no component writes its own mono stack (four of them used to, so one kind of cell rendered in three faces) |
 | `--letter-spacing-config` | `0.015em` |
 
-**Text on a state fill.** `--danger` and `--success` are fill/edge colours, not text colours (white on them is 3.76:1 and 2.54:1): reach for the dark inks `#991b1b` / `#065f46` / `#78350f` as values, not as tokens — no surface puts text on a state fill today.
+**Text on a state fill.** `--danger` and `--success` are fill/edge colours, not text colours (white on them is 3.76:1 and 2.54:1): reach for the dark inks `#991b1b` / `#065f46` / `#78350f` as values, not as tokens — no surface puts text on a state fill today. The status chip's pending ink is `#92400e`.
 
 ### Top chrome contract
 
@@ -71,7 +73,7 @@ The bar's height **is** `--header-height`. Never set a height in `header.compone
 
 Both rows own their responsive rules. `styles.css` has no global header overrides (the old `display: none !important` block hid the live `.user-icon` on phones).
 
-Charter brand hex (same blues/orange; extra green `#DFEFE4` for identity, not a default page fill). Semantic: `--covariate-color` `#bba66f`, `--filter-color` `#483300`, `--variable-color` `#ffba08`. `--glass-*` aliases solid card tokens (`--glass-blur: none`); do not reintroduce frost.
+Charter brand hex (same blues/orange; extra green `#DFEFE4` for identity, not a default page fill). Semantic: `--covariate-color` `#bba66f`, `--filter-color` `#483300`, `--variable-color` `#ffba08`. Only `--filter-color` (12:1 on white) is safe as text. `--variable-color` (1.71:1) and `--covariate-color` (2.39:1) are under the 3:1 a marker or icon needs, so a role colour always sits next to its text label and never carries the role alone. `--glass-*` aliases solid card tokens (`--glass-blur: none`); do not reintroduce frost.
 
 Chrome is Angular Material plus these tokens. Component CSS for feature layout; global styles only for app-wide concerns.
 
@@ -95,6 +97,18 @@ Experiment Studio is a dense product workspace, not a marketing site. No landing
 - Columns are `minmax(360px, 1fr)`: two or three fill the width evenly, past that the strip scrolls sideways instead of squeezing every result into a sliver. Headers are `position: sticky` inside the strip, so names stay visible while a tall result scrolls; a wide table scrolls sideways inside its column and nothing scales down.
 - Numbering runs once across the whole comparison, so "run 7" is one column whichever group it landed in; the set's name rides the header as a tag instead of a section heading.
 - ≤900px the strip stacks one column per run — side-by-side is unusable at that width.
+
+### Component recipes
+
+- Buttons: `.btn-create` is the one primary action per view (`--primary-color`, white 0.95rem/500, `--radius-md`, 10px 20px, hover `--primary-dark`); `.btn-cancel` sits beside it (`--border-color` fill, `--text-muted`, hover `#cbd5e1`).
+- Status: `.status-chip` is an uppercase 0.68rem/700 pill, 0.06em tracking, tinted fill + dark ink + faint edge per state (`.completed` `#065f46`, `.pending` `#92400e`, `.error` `#991b1b`, neutral `#475569`). `.status-chip--compact` for dense rows; `.status-dot` is the same three tones at 8px when the word does not fit, with a `title` or visible text nearby.
+- Studio panel: `.statistics-workspace` is one card with two panes — a 240–300px rail on `--studio-card-header-bg` with a right hairline, and the content at 20px padding — capped at `min(72vh, 760px)`. Never two separate boxes side by side.
+
+### Charts
+
+- Series in order: `#2b33e9`, `#7f9ce8`, `#ffba08`, `#dfefe4` (`grouped-bar-chart.ts`, `charts-renderer.component.ts`). Axis lines and labels `#475569`, split lines `#e2e8f0`, data labels `--chart-label-color`.
+- Only the first series reaches 3:1 on white, so every chart carries a legend or direct labels; colour alone never identifies a series. Orange and green bars get a 1px `#475569` edge.
+- Known issue: `#dfefe4` is 1.19:1 on white and a fourth series nearly vanishes. Avoid a fourth series until that slot gets a replacement colour.
 
 ## Adjacent-panel test
 
