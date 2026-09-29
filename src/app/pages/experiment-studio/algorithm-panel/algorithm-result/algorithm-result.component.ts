@@ -34,19 +34,14 @@ interface LinearCoefficientRow {
 interface LinearKeyFigure {
   label: string;
   value: string;
-  note: string;
-}
-
-interface LinearFitMetric {
-  label: string;
-  value: string;
+  note?: string;
 }
 
 interface LinearRegressionView {
   dependent: string;
   rows: LinearCoefficientRow[];
   figures: LinearKeyFigure[];
-  fitMetrics: LinearFitMetric[];
+  fitMetrics: LinearKeyFigure[];
   fitGlance: string;
 }
 
@@ -65,7 +60,7 @@ function formatSignedNumber(value: number): string {
 }
 
 function formatInteger(value: number): string {
-  return new Intl.NumberFormat('en-US').format(value);
+  return value.toLocaleString('en-US');
 }
 
 function formatSummaryNumber(value: number): string {
@@ -228,7 +223,7 @@ export class AlgorithmResultComponent {
       const number = toFiniteNumber(value);
       return number === null ? '' : formatSummaryNumber(number);
     };
-    const fitMetrics: LinearFitMetric[] = [
+    const fitMetrics: LinearKeyFigure[] = [
       ['Dependent variable', dependent],
       ['Observations', nObs === null ? '' : formatInteger(nObs)],
       ['df (model)', dfModel === null ? '' : formatInteger(dfModel)],

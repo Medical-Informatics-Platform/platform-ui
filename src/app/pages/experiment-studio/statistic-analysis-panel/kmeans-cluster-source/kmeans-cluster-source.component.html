@@ -62,8 +62,8 @@
         <select [id]="'kmeans-param-' + field.key"
                 [value]="parameterValue(field)"
                 (change)="setParameter(field.key, $any($event.target).value)">
-          @for (opt of field.options ?? []; track optionValue(opt)) {
-          <option [value]="optionValue(opt)">{{ optionLabel(opt) }}</option>
+          @for (opt of field.options ?? []; track optionBindingValue(opt)) {
+          <option [value]="optionBindingValue(opt)">{{ optionLabel(opt) }}</option>
           }
         </select>
         } @else if (field.type === 'number') {

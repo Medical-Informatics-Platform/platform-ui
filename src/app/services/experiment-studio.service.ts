@@ -906,35 +906,18 @@ export class ExperimentStudioService {
     }
 
     const clusterVariables = this.kmeansClusterVariables(creator);
-
-    if (clusterVariables.length) {
-      const missing = isPlainObject(next[MISSING_VALUES_HANDLER])
-        ? { ...(next[MISSING_VALUES_HANDLER] as Record<string, unknown>) }
-        : {};
-      const strategies = { ...((missing['strategies'] as Record<string, unknown>) ?? {}) };
-      for (const code of clusterVariables) {
-        if (strategies[code] === undefined) strategies[code] = 'drop';
-      }
-      next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
-    }
-
-    next[KMEANS_CLUSTER_CREATOR] = creator;
-
-    return next;
+    const withDrops = clusterVariables.length
+      ? this.withDropStrategies(next, clusterVariables)
+      : next;
+    withDrops[KMEANS_CLUSTER_CREATOR] = creator;
+    return withDrops;
   }
 
   /**
-   * K-means requires `missing_values_handler`. The shared applied config can be a
-   * transformation-only map, which `resolveRequestPreprocessing` would send as-is.
-   * Keep any strategy the user already set; drop is the report default.
+   * K-means requires `missing_values_handler`. Keep any strategy the user already
+   * set; drop is the default for codes that have none.
    */
-  private ensureMissingValuesHandler(
-    config: PreprocessingConfig | null,
-    variableCodes: string[],
-  ): PreprocessingConfig {
-    const codes = [...new Set(
-      variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
-    )];
+  private withDropStrategies(config: PreprocessingConfig | null, codes: string[]): PreprocessingConfig {
     const next: PreprocessingConfig = { ...(config ?? {}) };
     const missing = isPlainObject(next[MISSING_VALUES_HANDLER])
       ? { ...(next[MISSING_VALUES_HANDLER] as Record<string, unknown>) }
@@ -945,6 +928,20 @@ export class ExperimentStudioService {
     }
     next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
     return next;
+  }
+
+  /**
+   * The shared applied config can be a transformation-only map, which
+   * `resolveRequestPreprocessing` would send as-is.
+   */
+  private ensureMissingValuesHandler(
+    config: PreprocessingConfig | null,
+    variableCodes: string[],
+  ): PreprocessingConfig {
+    const codes = [...new Set(
+      variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
+    )];
+    return this.withDropStrategies(config, codes);
   }
 
   private preprocessingStepsToConfig(

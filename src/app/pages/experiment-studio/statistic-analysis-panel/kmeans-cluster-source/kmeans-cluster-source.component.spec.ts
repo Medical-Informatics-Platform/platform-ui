@@ -218,7 +218,7 @@ describe('KMeansClusterSourceComponent', () => {
     fixture.detectChanges();
     component.runReport();
 
-    expect(studio.loadKMeansReport).toHaveBeenCalledWith(['age']);
+    expect(studio.loadKMeansReport).toHaveBeenCalledWith(['age'], {});
     expect(component.report()?.selected_k).toBe(2);
     expect(component.reportReusable()).toBe(reusablePreprocessing);
 

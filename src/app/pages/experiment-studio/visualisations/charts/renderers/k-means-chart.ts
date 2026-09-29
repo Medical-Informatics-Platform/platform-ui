@@ -4,10 +4,7 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const clusters = output?.clusters;
   const title = 'K-Means Centers';
 
-  if (!Array.isArray(clusters) || clusters.length === 0) {
-    console.warn('[KMeans] No clusters provided.');
-    return [];
-  }
+  if (!Array.isArray(clusters) || clusters.length === 0) return [];
 
   const variables: string[] = output.variables ?? [];
   const names: string[] = clusters.map((c: any) => c.label);

@@ -47,5 +47,5 @@ export function formulaLine(y: string[], x: string[], xSeparator = ', '): string
 /** A result's `n_obs` as a grouped count, or '' when absent or not a positive number. */
 export function rowsUsedLabel(nObs: unknown): string {
   if (typeof nObs !== 'number' || !Number.isFinite(nObs) || nObs <= 0) return '';
-  return new Intl.NumberFormat('en-US').format(nObs);
+  return nObs.toLocaleString('en-US');
 }
