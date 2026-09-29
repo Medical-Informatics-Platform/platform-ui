@@ -1550,12 +1550,39 @@
               <div class="glass-feedback glass-feedback-warning">
                 {{ transformationStatisticsError }}
               </div>
-              } @else {
+              } @else if (showsRuleColumnCounts()) {
               <div class="glass-feedback">
                 Category counts from a describe run with your applied transformation.
               </div>
               }
               @for (block of transformationStatistics; track block.code) {
+              @if (kmeansColumnView(block.code); as column) {
+              <div class="transformation-stats-block transformation-create">
+                <h4 class="transformation-stats-title">Categorical column · {{ column.code }}</h4>
+                <p class="transformation-stats-lead">{{ column.lead }}</p>
+                <div class="transformation-rules">
+                  <div class="transformation-rule-head">
+                    <span></span>
+                    <span>Value</span>
+                    <span>Rule</span>
+                    <span>Records</span>
+                    <span></span>
+                  </div>
+                  <div class="transformation-rules-list">
+                    @for (row of block.rows; track row.value; let rowIndex = $index) {
+                    <div class="transformation-rule-row">
+                      <span class="transformation-rule-number">{{ rowIndex + 1 }}</span>
+                      <span class="transformation-rule-value transformation-rule-value--fixed">{{ row.value }}</span>
+                      <span class="transformation-rule-summary">{{ column.rules[row.value] || 'Nearest cluster' }}</span>
+                      <span class="transformation-rule-record-count">{{ row.count === null ? '—' : row.count }}</span>
+                      <span></span>
+                    </div>
+                    }
+                  </div>
+                  <p class="transformation-rules-foot">{{ column.foot }}</p>
+                </div>
+              </div>
+              } @else {
               <div class="transformation-stats-block">
                 <h4 class="transformation-stats-heading"><code>{{ block.code }}</code></h4>
                 <table class="transformation-stats-table">
@@ -1572,6 +1599,7 @@
                   </tbody>
                 </table>
               </div>
+              }
               }
               }
             </div>

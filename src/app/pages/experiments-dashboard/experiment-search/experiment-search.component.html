@@ -22,7 +22,9 @@
     <option value="30d">Last 30 days</option>
   </select>
 
-  <button type="button" class="clear-btn" (click)="onClear()" title="Clear">
-    <i class="fas fa-times"></i>
+  @if (filters().query || filters().datePreset !== 'any') {
+  <button type="button" class="clear-btn" (click)="onClear()" title="Clear" aria-label="Clear search">
+    <i class="fas fa-times" aria-hidden="true"></i>
   </button>
+  }
 </div>

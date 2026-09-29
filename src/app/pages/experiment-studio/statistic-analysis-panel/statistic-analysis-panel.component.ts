@@ -3494,6 +3494,55 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       : '';
   }
 
+  /**
+   * The counts note belongs to rule-built columns. A K-means column carries its own
+   * sentence, in the same shape as the categorical column card.
+   */
+  showsRuleColumnCounts(): boolean {
+    const clusterCode = this.expStudioService.appliedKMeansClusterCreator()?.code?.trim();
+    return this.transformationStatistics.some((block) => block.code !== clusterCode);
+  }
+
+  /**
+   * Present an applied K-means column as a categorical column: a name, one assignment
+   * rule per cluster, and the variables that placed each record. Null for any other column.
+   */
+  kmeansColumnView(code: string): {
+    code: string;
+    lead: string;
+    foot: string;
+    rules: Record<string, string>;
+  } | null {
+    const creator = this.expStudioService.appliedKMeansClusterCreator();
+    const columnCode = creator?.code?.trim() ?? '';
+    if (!creator || columnCode !== code.trim()) return null;
+
+    const sources = creator.reusable_preprocessing.cluster_variables ?? [];
+    const variables = sources
+      .map((variable) => this.variableLabelForCode(variable))
+      .filter((label, index, all) => !!label && label !== sources[index] && all.indexOf(label) === index);
+    const choices = creator.reusable_preprocessing.cluster_choices ?? [];
+    const rules: Record<string, string> = {};
+    for (const choice of choices) {
+      const label = choice.label?.trim() ?? '';
+      rules[choice.cluster_id] = label && label !== choice.cluster_id
+        ? `Nearest cluster — ${label}`
+        : 'Nearest cluster';
+    }
+    const count = choices.length;
+    const clusterWord = count === 1 ? 'cluster' : 'clusters';
+    return {
+      code: columnCode,
+      lead: variables.length
+        ? `Each record is assigned to the nearest of these clusters, using ${variables.join(', ')}.`
+        : 'Each record is assigned to the nearest of these clusters.',
+      foot: variables.length
+        ? `${count} ${clusterWord} from ${variables.join(', ')} · covers every record that has those variables`
+        : `${count} ${clusterWord} · covers every record`,
+      rules,
+    };
+  }
+
   refreshTransformationStatistics(): void {
     // One stats table per derived column (categorical cards and the applied K-means
     // cluster column); counts come from a single describe over all of them.

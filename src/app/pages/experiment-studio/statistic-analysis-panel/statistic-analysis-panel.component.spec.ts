@@ -3024,6 +3024,14 @@ describe('StatisticAnalysisPanelComponent', () => {
                     { value: 'cluster_1', count: 7 },
                 ],
             }]);
+
+            const preview = (fixture.nativeElement as HTMLElement).querySelector('.transformation-statistics');
+            expect(preview?.textContent).toContain('Categorical column · kmeans_cluster');
+            expect(preview?.textContent).toContain('Each record is assigned to the nearest of these clusters.');
+            expect(preview?.textContent).toContain('Nearest cluster — Cluster 0');
+            expect(preview?.textContent).toContain('2 clusters · covers every record');
+            expect(preview?.querySelector('.transformation-stats-table')).toBeNull();
+            expect(preview?.querySelectorAll('.transformation-rule-row').length).toBe(2);
         });
 
         it('previews while a category builder rejects its condition', () => {

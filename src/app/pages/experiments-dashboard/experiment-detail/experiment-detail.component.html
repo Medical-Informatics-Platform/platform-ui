@@ -38,15 +38,17 @@
         <p class="name-error">{{ nameError() }}</p>
         }
 
-        @if (questionLine()) {
-        <p class="detail-question">{{ questionLine() }}</p>
-        }
-
         <div class="detail-meta">
           <app-experiment-status [status]="selectedExperiment()?.status || 'unknown'" />
           <span>{{ selectedExperiment()?.dateCreated | date : "medium" }}</span>
+          <span class="detail-meta-sep" aria-hidden="true">·</span>
           <span>{{ authorLine() }}</span>
-          <span>{{ visibilityLine() }}</span>
+          <span class="detail-meta-sep" aria-hidden="true">·</span>
+          <span class="detail-meta-visibility">
+            <i class="fas" [class.fa-lock]="visibilityLine() === 'Private'"
+              [class.fa-users]="visibilityLine() !== 'Private'" aria-hidden="true"></i>
+            {{ visibilityLine() }}
+          </span>
         </div>
       </div>
 
@@ -54,20 +56,28 @@
         @if (isOwner()) {
         <button type="button" class="ghost-btn share-btn" [class.shared]="isShared()" (click)="onToggleShare()"
           [title]="isShared() ? 'Stop sharing' : 'Share with others'">
+          <i class="fas fa-user-plus" aria-hidden="true"></i>
           <span>{{ isShared() ? "Shared" : "Share" }}</span>
         </button>
         } @else {
-        <button type="button" class="ghost-btn" (click)="onCopyLink()">Copy link</button>
+        <button type="button" class="ghost-btn" (click)="onCopyLink()">
+          <i class="fas fa-link" aria-hidden="true"></i>
+          Copy link
+        </button>
         }
 
-        <button type="button" class="ghost-btn" (click)="onExportPdf()" title="Export to PDF">Export</button>
+        <button type="button" class="ghost-btn" (click)="onExportPdf()" title="Export to PDF">
+          <i class="fas fa-file-arrow-down" aria-hidden="true"></i>
+          Export PDF
+        </button>
 
-        <button type="button" class="primary-action-btn" (click)="runExperiment()" data-guide="dashboard-edit-studio">
+        <button type="button" class="detail-primary-btn" (click)="runExperiment()" data-guide="dashboard-edit-studio">
           Open in Studio
+          <i class="fas fa-arrow-right" aria-hidden="true"></i>
         </button>
 
         <details class="detail-more">
-          <summary aria-label="More actions">⋯</summary>
+          <summary aria-label="More actions"><i class="fas fa-ellipsis" aria-hidden="true"></i></summary>
           <div class="detail-more-menu">
             <button type="button" (click)="onCopyLink()">Copy link</button>
             <button type="button" (click)="startNameEdit()">Rename</button>
@@ -79,97 +89,96 @@
       </div>
     </header>
 
-    <div class="detail-columns">
-      <div class="detail-main">
-        @if (failedRun()) {
-        <section class="run-failed">
-          <h3>This run didn't finish</h3>
-          <p>{{ failureMessage() }}</p>
-          <div class="run-failed-actions">
-            <button type="button" class="primary-action-btn" (click)="runExperiment()">Fix in Studio</button>
-            <button type="button" class="ghost-btn" (click)="copyFailure()">Copy error</button>
-          </div>
-        </section>
-        } @else {
-        <section class="results-card" data-guide="dashboard-results">
-          @if (isLoading()) {
-          <app-spinner [overlay]="false"></app-spinner>
-          } @else if (loadError()) {
-          <div class="error-box">{{ loadError() }}</div>
-          } @else if (experimentResult()) {
-          <app-algorithm-result [result]="enrichedResult()" [schema]="outputSchema()"
-            [algorithm]="experimentalAlgorithmName()" [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()"
-            [labelMap]="labelMap()" />
-          } @else {
-          <p class="no-data-text">No results available for this experiment yet.</p>
+    <!-- The model band: the formula names the experiment, the rest is how it was run. It sits above
+         the results so they get the pane's full width. -->
+    <div class="model-band" aria-label="Setup">
+      <section class="model-band-cell model-band-cell--model">
+        <h4>Model</h4>
+        <div class="model-formula">
+          @for (item of variablesWithLabels(); track item.code) {
+          <span class="model-var model-var--y"><span class="role-marker role-marker--y" aria-label="Outcome">y</span>{{ item.label }}</span>
           }
-        </section>
+          @if (variablesWithLabels().length && covariatesWithLabels().length) {
+          <span class="model-tilde" aria-hidden="true">~</span>
+          }
+          @for (item of covariatesWithLabels(); track item.code) {
+          <span class="model-var"><span class="role-marker role-marker--x" aria-label="Covariate">x</span>{{ item.label }}</span>
+          }
+          @if (!variablesWithLabels().length && !covariatesWithLabels().length) {
+          <span class="model-band-text">—</span>
+          }
+        </div>
+      </section>
+
+      <section class="model-band-cell">
+        <h4>Data</h4>
+        <span class="model-band-value">{{ datasetCountLine() }}</span>
+        @if (datasetNames()) {
+        <span class="model-band-text">{{ datasetNames() }}</span>
+        }
+      </section>
+
+      <section class="model-band-cell">
+        <h4>Cohort</h4>
+        <span class="model-band-value">{{ rowsUsed() ? rowsUsed() + ' rows' : 'Rows pending' }}</span>
+        <span class="model-band-text">Filters: {{ filterPreview() || "None" }}</span>
+        @for (entry of preprocessingEntries(); track entry.label) {
+        <span class="model-band-text">{{ entry.label }}: {{ entry.value }}</span>
+        }
+      </section>
+
+      <section class="model-band-cell">
+        <h4>Run</h4>
+        <span class="model-band-run">{{ parameterSummary() }}</span>
+      </section>
+    </div>
+
+    @if (failedRun()) {
+    <section class="run-failed">
+      <span class="run-failed-icon" aria-hidden="true"><i class="fas fa-circle-exclamation"></i></span>
+      <div class="run-failed-body">
+        <h3>This run didn't finish</h3>
+        <p>{{ failureMessage() }}</p>
+        <div class="run-failed-actions">
+          <button type="button" class="detail-primary-btn" (click)="runExperiment()">Fix in Studio</button>
+          <button type="button" class="ghost-btn" (click)="copyFailure()">
+            <i class="far fa-copy" aria-hidden="true"></i>
+            Copy error
+          </button>
+        </div>
+      </div>
+    </section>
+    } @else if (pendingRun()) {
+    <section class="run-pending" aria-busy="true">
+      <div class="run-pending-head">
+        <h3>Running on {{ datasetCount() }}</h3>
+        <span>Results appear here when the run finishes</span>
+      </div>
+      <div class="run-pending-bar" role="progressbar" aria-label="Run in progress"><span></span></div>
+    </section>
+    } @else {
+    <section class="results-card" data-guide="dashboard-results">
+      <header class="results-card-head">
+        <h3>Results</h3>
+        @if (rowsUsed()) {
+        <span>n = {{ rowsUsed() }}</span>
+        }
+      </header>
+      <div class="results-card-body">
+        @if (isLoading()) {
+        <app-spinner [overlay]="false"></app-spinner>
+        } @else if (loadError()) {
+        <div class="error-box">{{ loadError() }}</div>
+        } @else if (experimentResult()) {
+        <app-algorithm-result [result]="enrichedResult()" [schema]="outputSchema()"
+          [algorithm]="experimentalAlgorithmName()" [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()"
+          [labelMap]="labelMap()" />
+        } @else {
+        <p class="no-data-text">No results available for this experiment yet.</p>
         }
       </div>
-
-      <aside class="setup-rail" aria-label="Setup">
-        <h3>Setup</h3>
-
-        <section>
-          <h4>Data</h4>
-          <p class="setup-rail-value">{{ datasetCountLine() }}</p>
-          @if (datasetNames()) {
-          <p class="setup-rail-text">{{ datasetNames() }}</p>
-          }
-        </section>
-
-        @if (variablesWithLabels().length || covariatesWithLabels().length) {
-        <section>
-          <h4>Variables</h4>
-          <div class="setup-role-matrix">
-            @if (variablesWithLabels().length) {
-            <span class="setup-role-marker setup-role-marker--y" aria-hidden="true">y</span>
-            <div class="setup-role-values">
-              @for (item of variablesWithLabels(); track item.code) {
-              <span class="setup-role-value">{{ item.label }}</span>
-              }
-            </div>
-            }
-            @if (covariatesWithLabels().length) {
-            <span class="setup-role-marker setup-role-marker--x" aria-hidden="true">x</span>
-            <div class="setup-role-values">
-              @for (item of covariatesWithLabels(); track item.code) {
-              <span class="setup-role-value">{{ item.label }}</span>
-              }
-            </div>
-            }
-          </div>
-        </section>
-        }
-
-        <section>
-          <h4>Cohort</h4>
-          <dl class="setup-rail-list">
-            <div>
-              <dt>Filters</dt>
-              <dd>{{ filterPreview() || "None" }}</dd>
-            </div>
-            @for (entry of preprocessingEntries(); track entry.label) {
-            <div>
-              <dt>{{ entry.label }}</dt>
-              <dd>{{ entry.value }}</dd>
-            </div>
-            }
-            @if (rowsUsed()) {
-            <div>
-              <dt>Rows used</dt>
-              <dd>{{ rowsUsed() }}</dd>
-            </div>
-            }
-          </dl>
-        </section>
-
-        <section>
-          <h4>Run</h4>
-          <p class="setup-rail-text">{{ parameterSummary() }}</p>
-        </section>
-      </aside>
-    </div>
+    </section>
+    }
   </div>
   }
 </div>

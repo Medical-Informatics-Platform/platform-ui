@@ -1,4 +1,5 @@
 <div class="experiments-list-root">
+  <div class="list-head">
   <!-- Row 1: the search the list answers to, and the panel that narrows it. -->
   <div class="list-toolbar" data-guide="dashboard-search">
     <app-experiment-search [filters]="filters()" (filtersChange)="patchFilters($event)"></app-experiment-search>
@@ -6,7 +7,6 @@
     <button type="button" class="filter-toggle-btn" [class.active]="filtersOpen() || hasActiveFilters()"
       (click)="toggleFilters()" [attr.aria-expanded]="filtersOpen()" title="Filter">
       <i class="fas fa-sliders-h" aria-hidden="true"></i>
-      <span class="filter-toggle-label">Filter</span>
       @if (activeFilterCount()) {
       <span class="count-badge">{{ activeFilterCount() }}</span>
       }
@@ -23,7 +23,7 @@
       </button>
       <button type="button" class="tab-btn" [class.active]="!onlyMine()" (click)="setTab(false)">
         <i class="fas fa-users" aria-hidden="true"></i>
-        <span class="tab-btn__label">Shared with me</span>
+        <span class="tab-btn__label">Shared</span>
       </button>
     </div>
 
@@ -47,9 +47,9 @@
         <button type="button" class="folder-chip-form-action cancel" (click)="cancelNewFolder()">Cancel</button>
       </span>
       } @else {
-      <button type="button" class="folder-chip folder-chip--new" title="New folder" (click)="startNewFolder()">
-        <i class="fas fa-plus" aria-hidden="true"></i>
-        New
+      <button type="button" class="folder-chip folder-chip--new" title="New folder" aria-label="New folder"
+        (click)="startNewFolder()">
+        <i class="fas fa-folder-plus" aria-hidden="true"></i>
       </button>
       }
     </div>
@@ -133,6 +133,7 @@
     </button>
   </div>
   }
+  </div>
 
   @if (isLoading() && !pagedExperiments().length) {
   <div class="list-skeleton" aria-label="Loading experiments" aria-busy="true">
@@ -174,11 +175,20 @@
     }
   </div>
   } @else {
-  <ul class="experiments-list" role="listbox" aria-label="Experiments">
-    @for (exp of pagedExperiments(); track exp.id) {
+  <div class="experiments-list" role="listbox" aria-label="Experiments">
+    <!-- Grouped by day while the list is in date order; the header pins while its rows scroll. -->
+    @for (group of experimentGroups(); track group.label) {
+    <div class="experiment-group" role="group" [attr.aria-label]="group.label || null">
+    @if (group.label) {
+    <div class="experiment-group-head" aria-hidden="true">
+      <span>{{ group.label }}</span>
+      <span class="experiment-group-count">{{ group.rows.length }}</span>
+    </div>
+    }
+    @for (exp of group.rows; track exp.id) {
     <!-- A row is selected when it is the one the detail pane shows. Compare membership is a
          separate check on the left of the row, so the two never borrow each other's highlight. -->
-    <li class="experiment-row" draggable="true" tabindex="0" role="option"
+    <div class="experiment-row" draggable="true" tabindex="0" role="option"
       [attr.aria-selected]="exp.id === selectedExperimentId()" [class.selected]="exp.id === selectedExperimentId()"
       [class.experiment-row--dragging]="draggingExperimentId() === exp.id"
       [attr.data-guide]="isGuideExperiment(exp) ? 'dashboard-experiment-card' : null" (click)="selectExperiment(exp)"
@@ -186,16 +196,19 @@
       (dragend)="onExperimentDragEnd()">
       <button type="button" class="row-check" [class.row-check--on]="isInCompare(exp.id)"
         [attr.aria-pressed]="isInCompare(exp.id)" aria-label="Select for compare"
-        [attr.data-guide]="$first ? 'dashboard-compare' : null"
+        [attr.data-guide]="exp.id === pagedExperiments()[0]?.id ? 'dashboard-compare' : null"
         [disabled]="!isInCompare(exp.id) && compareIds().length >= 3"
-        (click)="onCompareCheck(exp.id, $event)"></button>
+        (click)="onCompareCheck(exp.id, $event)"><i class="fas fa-check" aria-hidden="true"></i></button>
 
       <div class="row-main">
         <div class="row-title-line">
           <span class="exp-name" [title]="exp.name">
             {{ exp.name || "Untitled Investigation" }}
           </span>
-          <app-experiment-status [status]="exp.status" [dot]="true" />
+          <!-- Only runs that need attention are marked; completed is the quiet default. -->
+          @if (exp.status !== 'success') {
+          <app-experiment-status [status]="exp.status" [compact]="true" />
+          }
         </div>
 
         @if (modelLine(exp); as line) {
@@ -255,44 +268,48 @@
         }
       </div>
       }
-    </li>
+    </div>
     }
-  </ul>
+    </div>
+    }
+  </div>
 
+  <!-- While a compare set is being picked, its footer takes the pager's place. -->
   @if (compareIds().length > 0) {
   <div class="compare-selection-bar">
-    <span class="compare-selection-count">{{ compareIds().length }} selected</span>
+    <span class="compare-selection-count">{{ compareIds().length }} selected <span class="compare-selection-cap">· up to
+        3</span></span>
     <div class="compare-selection-actions">
       <button type="button" class="compare-selection-btn" (click)="clearCompareSelection.emit()">Clear</button>
-      <button type="button" class="compare-selection-btn"
+      <button type="button" class="compare-selection-btn compare-selection-btn--go"
         [disabled]="compareIds().length < 2" (click)="compareOpened.emit()">
         {{ compareIds().length >= 2 ? 'Compare ' + compareIds().length : 'Pick one more' }}
       </button>
     </div>
   </div>
-  }
-
+  } @else {
   <!-- Pagination: the only pager in the pane, and the range it pages through. -->
   <div class="list-pagination">
     <p class="list-summary">
-      Showing <strong>{{ rangeStart() }}–{{ rangeEnd() }}</strong> of <strong>{{ totalExperiments() }}</strong>
+      <strong>{{ rangeStart() }}–{{ rangeEnd() }}</strong> of {{ totalExperiments() }}
       @if (historyTruncated()) {
       <!-- The count above only covers the most recent runs a client-side filter could read. -->
       <span class="list-summary-note">searched your {{ historyCap() }} most recent experiments — narrow the filters to reach older ones</span>
       }
     </p>
 
-    <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage() === 1">
-      ‹ Prev
-    </button>
-
-    <div class="page-info">
-      <span>Page {{ currentPage() }} of {{ totalPages() }}</span>
+    <div class="page-controls">
+      <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage() === 1"
+        title="Previous page" aria-label="Previous page">
+        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+      </button>
+      <span class="page-info">{{ currentPage() }} / {{ totalPages() }}</span>
+      <button type="button" class="page-btn" (click)="nextPage()" [disabled]="currentPage() === totalPages()"
+        title="Next page" aria-label="Next page">
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+      </button>
     </div>
-
-    <button type="button" class="page-btn" (click)="nextPage()" [disabled]="currentPage() === totalPages()">
-      Next ›
-    </button>
   </div>
+  }
   }
 </div>

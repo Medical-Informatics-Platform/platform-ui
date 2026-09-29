@@ -54,11 +54,6 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   /** Sharing and ownership speak email; folders are keyed off the user the service was given. */
   currentUserEmail = computed(() => this.authService.authState().user?.email ?? null);
 
-  readonly experimentSummary = computed(() => {
-    const total = this.experimentsService.totalExperiments();
-    return total === 1 ? '1 experiment' : `${total} experiments`;
-  });
-
   readonly mobileDetailOpen = computed(() =>
     Boolean(this.selectedExperiment() || this.selectedFolderId() || this.compareMode()),
   );

@@ -20,6 +20,7 @@ import { AlgorithmRulesService } from './algorithm-rules.service';
 import { AlgorithmNames, HistogramBinningType, VariableTypes } from '../core/constants/algorithm.constants';
 import {
   omitEmptyOptionalParameters,
+  parameterDefaultsFromSchema,
   serializeAlgorithmParameterValue,
 } from '../core/algorithm-parameter.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
@@ -922,6 +923,30 @@ export class ExperimentStudioService {
     return next;
   }
 
+  /**
+   * K-means requires `missing_values_handler`. The shared applied config can be a
+   * transformation-only map, which `resolveRequestPreprocessing` would send as-is.
+   * Keep any strategy the user already set; drop is the report default.
+   */
+  private ensureMissingValuesHandler(
+    config: PreprocessingConfig | null,
+    variableCodes: string[],
+  ): PreprocessingConfig {
+    const codes = [...new Set(
+      variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
+    )];
+    const next: PreprocessingConfig = { ...(config ?? {}) };
+    const missing = isPlainObject(next[MISSING_VALUES_HANDLER])
+      ? { ...(next[MISSING_VALUES_HANDLER] as Record<string, unknown>) }
+      : {};
+    const strategies = { ...((missing['strategies'] as Record<string, unknown>) ?? {}) };
+    for (const code of codes) {
+      if (strategies[code] === undefined) strategies[code] = 'drop';
+    }
+    next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
+    return next;
+  }
+
   private preprocessingStepsToConfig(
     steps: AnalysisPreprocessingStep[] | null | undefined,
   ): PreprocessingConfig | null {
@@ -1783,19 +1808,34 @@ export class ExperimentStudioService {
 
   /** Run the K-means report on the current selection; its reusable_preprocessing is
    *  the creator input. Uses the K-means parameters configured in the Algorithm step,
-   *  or the backend defaults when none were set. */
+   *  or the spec defaults when none were set (Exaflow rejects an empty map). */
   loadKMeansReport(
     variableCodes: string[],
     parameters: Record<string, unknown> = {}
   ): Observable<any> | null {
     try {
       const requestBody = this.buildRequestBody('kmeans', variableCodes, null);
+      const algoConfig = this.resolveAlgorithmConfig('kmeans');
+      if (!algoConfig) {
+        throw new Error('No algorithm config found for kmeans');
+      }
       const algorithm = requestBody?.analysis?.algorithm ?? {};
       requestBody.analysis = {
         ...requestBody.analysis,
+        preprocessing: this.preprocessingConfigToSteps(
+          this.ensureMissingValuesHandler(
+            this.preprocessingStepsToConfig(requestBody?.analysis?.preprocessing),
+            variableCodes,
+          ),
+        ),
         algorithm: {
           ...algorithm,
-          parameters: { ...(algorithm.parameters ?? {}), ...parameters },
+          y: variableCodes,
+          parameters: this.normalizeParameterConfig(algoConfig, {
+            ...parameterDefaultsFromSchema(algoConfig.configSchema ?? []),
+            ...(algorithm.parameters ?? {}),
+            ...parameters,
+          }),
         },
       };
       return this.submitTransientRequest(requestBody).pipe(

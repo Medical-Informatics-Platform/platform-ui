@@ -41,7 +41,7 @@
     <header class="dashboard-toolbar">
       <div class="toolbar-heading">
         <h1>Experiments</h1>
-        <p>{{ experimentSummary() }}</p>
+        <span class="toolbar-count">{{ experimentsService.totalExperiments() }}</span>
       </div>
 
       <button class="btn-new-experiment primary" (click)="goToNewExperiment()" title="New Experiment"

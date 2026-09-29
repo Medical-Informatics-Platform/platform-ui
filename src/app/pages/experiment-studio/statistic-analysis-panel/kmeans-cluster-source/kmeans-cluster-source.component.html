@@ -51,6 +51,41 @@
     </div>
     }
 
+    @if (parameterFields().length) {
+    <button type="button" class="kmeans-cluster-source-advanced"
+            [attr.aria-expanded]="advancedOpen()"
+            (click)="advancedOpen.set(!advancedOpen())">
+      Advanced
+    </button>
+    @if (advancedOpen()) {
+    <div class="kmeans-cluster-source-params">
+      @for (field of parameterFields(); track field.key) {
+      <div class="kmeans-cluster-source-field">
+        <label [attr.for]="'kmeans-param-' + field.key">{{ field.label || field.key }}</label>
+        @if (field.type === 'select') {
+        <select [id]="'kmeans-param-' + field.key"
+                [value]="parameterValue(field)"
+                (change)="setParameter(field.key, $any($event.target).value)">
+          @for (opt of field.options ?? []; track optionValue(opt)) {
+          <option [value]="optionValue(opt)">{{ optionLabel(opt) }}</option>
+          }
+        </select>
+        } @else if (field.type === 'number') {
+        <input [id]="'kmeans-param-' + field.key" type="number"
+               [step]="field.types?.includes('real') ? 'any' : 1"
+               [value]="parameterValue(field)"
+               (input)="setParameter(field.key, $any($event.target).value)" />
+        } @else {
+        <input [id]="'kmeans-param-' + field.key" type="text"
+               [value]="parameterValue(field)"
+               (input)="setParameter(field.key, $any($event.target).value)" />
+        }
+      </div>
+      }
+    </div>
+    }
+    }
+
     <button type="button" class="kmeans-cluster-source-apply"
             [disabled]="runLoading() || runSelectedCodes().length === 0"
             (click)="runReport()">

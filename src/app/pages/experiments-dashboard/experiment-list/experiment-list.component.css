@@ -4,11 +4,20 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   /* The dashboard rail this pane lives in is a ~290–370px column at every desktop width — the
      viewport says nothing about that, so the fit is asked of the pane itself. */
   container-type: inline-size;
   container-name: list-pane;
+}
+
+/* The controls above the list: search, whose runs, which folder, and the open filter panel. */
+.list-head {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
 }
 
 /* TOOLBAR (search + date) */
@@ -29,7 +38,6 @@
 
 /* TABS + VIEW CONTROLS */
 .filter-row.experiments-tabs-row {
-  margin-top: 2px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -40,39 +48,41 @@
 }
 
 .experiments-tabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--glass-bg);
-  padding: 4px;
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--glass-border);
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: #f8fafc;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(43, 51, 233, 0.08);
   min-width: 0;
-  overflow: hidden;
 }
 
 .tab-btn {
   /* A tight rail shortens the label rather than pushing the second tab out of the row. */
   min-width: 0;
   border: none;
-  border-radius: var(--radius-md, 8px);
-  padding: 8px 16px;
+  border-radius: 7px;
+  height: 28px;
+  padding: 0 10px;
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   white-space: nowrap;
   transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .tab-btn i {
-  font-size: 0.95rem;
+  font-size: 0.75rem;
   flex-shrink: 0;
 }
 
@@ -83,14 +93,13 @@
 }
 
 .tab-btn:hover {
-  background: rgba(148, 163, 184, 0.1);
   color: var(--text-main);
 }
 
 .tab-btn.active {
   background: #ffffff;
   color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 2px rgba(43, 51, 233, 0.12), 0 0 0 1px rgba(43, 51, 233, 0.1);
 }
 
 .list-view-controls {
@@ -128,13 +137,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 7px 12px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-muted);
+  gap: 6px;
+  min-width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid rgba(43, 51, 233, 0.16);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--primary-color);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 600;
@@ -150,12 +161,7 @@
 
 .filter-toggle-btn:hover,
 .filter-toggle-btn.active {
-  background: rgba(127, 156, 232, 0.14);
-  color: var(--primary-color);
-}
-
-.filter-toggle-label {
-  white-space: nowrap;
+  background: #e5ebfa;
 }
 
 /* COUNT LINE */
@@ -181,18 +187,24 @@
 
 /* COMPARE SELECTION */
 .compare-selection-bar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg, 12px);
-  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  gap: 8px;
+  padding: 10px 12px 10px 14px;
+  border-top: 1px solid rgba(43, 51, 233, 0.14);
+  border-radius: 0 0 var(--radius-lg, 12px) var(--radius-lg, 12px);
+  background: #f4f5fe;
+}
+
+.compare-selection-cap {
+  font-weight: 500;
+  color: var(--text-muted);
 }
 
 .compare-selection-count {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--primary-color);
   font-variant-numeric: tabular-nums;
@@ -208,26 +220,36 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 5px 11px;
-  border: 1px solid rgba(127, 156, 232, 0.38);
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(43, 51, 233, 0.16);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .compare-selection-btn:hover:not(:disabled) {
-  border-color: rgba(43, 51, 233, 0.45);
-  background: rgba(43, 51, 233, 0.06);
-  color: var(--primary-color);
+  background: #e5ebfa;
 }
 
-.compare-selection-btn:disabled {
-  opacity: 0.45;
+.compare-selection-btn--go {
+  padding: 0 14px;
+  border: none;
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.compare-selection-btn--go:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.compare-selection-btn--go:disabled {
+  background: #94a3b8;
   cursor: not-allowed;
 }
 
@@ -364,6 +386,26 @@
   color: var(--text-main);
 }
 
+.folder-chip--new {
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(43, 51, 233, 0.16);
+  background: #ffffff;
+  color: var(--primary-color);
+}
+
+.folder-chip--new i {
+  font-size: 0.8rem;
+}
+
+.folder-chip--new:hover {
+  background: #e5ebfa;
+  color: var(--primary-color);
+}
+
 .folder-chip.selected {
   background: #ffffff;
   color: var(--primary-color);
@@ -448,14 +490,40 @@
 .experiments-list {
   flex: 1 1 auto;
   min-height: 0;
-  list-style: none;
   margin: 0;
-  padding: 2px 2px 8px;
+  padding: 0 6px 6px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
   overflow-y: auto;
-  overflow-x: visible;
+  overflow-x: hidden;
+}
+
+.experiment-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Pins while its rows scroll; the next group's header pushes it out. */
+.experiment-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 4px;
+  background: var(--card-bg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.experiment-group-count {
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .experiments-list::-webkit-scrollbar-track {
@@ -472,26 +540,23 @@
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg, 12px);
-  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 10px 10px 8px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
   text-align: left;
-  box-shadow: var(--studio-card-shadow);
   z-index: 1;
   overflow: visible;
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .experiment-row:hover {
-  background: color-mix(in srgb, var(--primary-color) 3%, white);
-  border-color: rgba(43, 51, 233, 0.28);
-  box-shadow: var(--shadow-md);
+  background: #f7f8fe;
   z-index: 10;
 }
 
@@ -501,13 +566,12 @@
 }
 
 .experiment-row.selected {
-  background: color-mix(in srgb, var(--primary-color) 5%, white);
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
+  background: #f4f5fe;
+  box-shadow: inset 0 0 0 1px var(--primary-color);
 }
 
-.experiment-row.selected:hover {
-  background: color-mix(in srgb, var(--primary-color) 7%, white);
+.experiment-row.selected .exp-name {
+  color: var(--primary-dark);
 }
 
 .experiment-row.experiment-row--dragging,
@@ -515,28 +579,38 @@
   transform: none;
   opacity: 0.55;
   background: var(--card-bg);
-  border-color: var(--primary-color);
-  border-style: dashed;
-  box-shadow: var(--studio-card-shadow);
+  box-shadow: inset 0 0 0 1px var(--primary-color);
   z-index: 1;
 }
 
 .row-check {
   flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  margin: 0;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  margin: 2px 0 0;
   padding: 0;
-  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
   border: 1px solid #94a3b8;
   background: #fff;
+  color: #fff;
+  font-size: 0.625rem;
   cursor: pointer;
+}
+
+.row-check i {
+  opacity: 0;
 }
 
 .row-check--on {
   background: var(--primary-color);
   border-color: var(--primary-color);
-  box-shadow: inset 0 0 0 2px #fff;
+}
+
+.row-check--on i {
+  opacity: 1;
 }
 
 .row-check:disabled {
@@ -547,9 +621,10 @@
 .folder-select {
   max-width: 11rem;
   min-width: 0;
-  height: 32px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
+  height: 36px;
+  border: 1px solid rgba(43, 51, 233, 0.16);
+  border-radius: 8px;
+  font-weight: 600;
   background: var(--card-bg);
   color: var(--text-main);
   font: inherit;
@@ -561,6 +636,9 @@
 .row-main {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .row-title-line {
@@ -574,9 +652,10 @@
 .exp-name {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #020617;
+  line-height: 1.4;
+  color: var(--text-main);
   letter-spacing: 0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -584,28 +663,30 @@
 }
 
 .row-model-line {
-  margin-top: 2px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.78rem;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--text-main);
 }
 
 .row-meta-line {
-  margin-top: 2px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.74rem;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--text-muted);
 }
 
-/* ROW ACTIONS */
+/* ROW ACTIONS: the add-to-folder action stays out of sight until the row is pointed at. */
+.experiment-row:not(:hover):not(:focus-within):not(.selected) .row-actions .icon-btn:not(.active) {
+  opacity: 0;
+}
+
 .row-actions {
   position: relative;
   display: inline-flex;
@@ -713,7 +794,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 2px;
+  padding: 14px;
 }
 
 .skeleton-row {
@@ -814,51 +895,65 @@
 
 /* PAGINATION */
 .list-pagination {
+  flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin: 2px 0;
-  font-size: 0.72rem;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(43, 51, 233, 0.08);
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
 .list-pagination .list-summary {
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+.list-pagination .list-summary strong {
+  font-weight: 600;
+}
+
+.page-controls {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .page-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-width: 44px;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .page-btn {
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(127, 156, 232, 0.38);
-  background: rgba(255, 255, 255, 0.96);
-  padding: 6px 13px;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 600;
+  border: 1px solid rgba(43, 51, 233, 0.16);
+  background: #ffffff;
+  font-size: 0.69rem;
   cursor: pointer;
-  color: var(--text-muted);
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  color: var(--primary-color);
+  transition: background-color 0.15s ease;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: rgba(43, 51, 233, 0.06);
-  color: var(--primary-color);
-  border-color: rgba(43, 51, 233, 0.45);
+  background: #e5ebfa;
 }
 
 .page-btn:disabled {
-  opacity: 0.35;
+  color: var(--text-muted);
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -969,44 +1064,9 @@
   color: var(--text-muted);
 }
 
-/* The rail, not the viewport: below ~420px of pane the segmented recipe goes compact, the same
-   treatment on both trays, and the Filters control keeps its icon and count badge without its
-   word — the row has room for the tabs, the sort icon and the sliders, not for the word. */
-@container list-pane (max-width: 420px) {
-  .experiments-tabs {
-    gap: 6px;
-    padding: 3px;
-  }
-
-  .tab-btn,
-  .folder-chip {
-    gap: 6px;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-  }
-
-  .tab-btn i,
-  .folder-chip i {
-    font-size: 0.85rem;
-  }
-
-  .filter-toggle-label {
-    display: none;
-  }
-}
-
 /* The tightest the rail ever gets (a short window at ~1100px): the tab labels keep their words
-   and the glyphs give up their 20px, rather than both tabs arriving as three letters. */
+   and the glyphs give up their room. */
 @container list-pane (max-width: 330px) {
-  .experiments-tabs {
-    gap: 5px;
-    padding: 2px;
-  }
-
-  .tab-btn {
-    padding: 8px 10px;
-  }
-
   .tab-btn i {
     display: none;
   }
@@ -1032,11 +1092,6 @@
     width: 100%;
   }
 
-  .tab-btn {
-    flex: 1;
-    justify-content: center;
-  }
-
   .list-view-controls {
     width: 100%;
     margin-left: 0;
@@ -1046,10 +1101,6 @@
     flex: 1;
     max-width: none;
     justify-content: center;
-  }
-
-  .filter-toggle-label {
-    display: inline;
   }
 
   .advanced-filters {

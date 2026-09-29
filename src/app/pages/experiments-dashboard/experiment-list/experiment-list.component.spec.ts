@@ -9,7 +9,7 @@ import { ExperimentsDashboardService } from '../../../services/experiments-dashb
 import { ExperimentFoldersService } from '../../../services/experiment-folders.service';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { FakeExperimentFoldersService } from '../experiment-folders.testing';
-import { ExperimentsListComponent } from './experiment-list.component';
+import { ExperimentsListComponent, dayBucket } from './experiment-list.component';
 
 const experiment = (id: string, overrides: Partial<Experiment> = {}): Experiment => ({
   id,
@@ -429,7 +429,19 @@ describe('ExperimentsListComponent list pane', () => {
 
       expect(root().querySelectorAll('.list-pagination').length).toBe(1);
       expect(root().querySelector('.list-pagination small')).toBeNull();
-      expect(root().querySelector('.list-summary')!.textContent).toContain('Showing 1–2 of 2');
+      expect(root().querySelector('.list-summary')!.textContent).toContain('1–2 of 2');
     });
+  });
+});
+
+describe('dayBucket', () => {
+  const now = new Date(2026, 8, 28, 10, 0);
+
+  it('splits by local calendar day: today, the six days before, then earlier', () => {
+    expect(dayBucket(new Date(2026, 8, 28, 0, 5), now)).toBe('Today');
+    expect(dayBucket(new Date(2026, 8, 27, 23, 59), now)).toBe('This week');
+    expect(dayBucket(new Date(2026, 8, 22, 0, 0), now)).toBe('This week');
+    expect(dayBucket(new Date(2026, 8, 21, 23, 59), now)).toBe('Earlier');
+    expect(dayBucket('not a date', now)).toBe('Earlier');
   });
 });

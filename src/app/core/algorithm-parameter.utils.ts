@@ -103,6 +103,19 @@ function isEmptyParameterValue(value: unknown): boolean {
   return false;
 }
 
+/** Schema `default` values, keyed by field. Used when a request has no stored parameters. */
+export function parameterDefaultsFromSchema(
+  schema: Array<{ key?: string; default?: unknown }> = []
+): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  for (const field of schema) {
+    const key = field?.key;
+    if (!key || field.default === undefined) continue;
+    defaults[key] = field.default;
+  }
+  return defaults;
+}
+
 /** Drops unset optional parameters so they are not sent to Exaflow. */
 export function omitEmptyOptionalParameters(
   config: Record<string, unknown>,
