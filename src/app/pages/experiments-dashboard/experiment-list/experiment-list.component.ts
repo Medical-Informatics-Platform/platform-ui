@@ -29,6 +29,16 @@ const SHARED = ['any', 'shared', 'private'] as const;
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' });
 
+/** Today, the six days before it, or earlier — by local calendar day. */
+export function dayBucket(value: Date | string, now = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const time = date.getTime();
+  if (time >= startOfToday) return 'Today';
+  if (time >= startOfToday - 6 * 86_400_000) return 'This week';
+  return 'Earlier';
+}
+
 @Component({
   selector: 'app-experiments-list',
   imports: [CommonModule, FormsModule, RouterModule, ExperimentSearchComponent, ExperimentStatusComponent, CdkMenu, CdkMenuItem],
@@ -483,6 +493,20 @@ export class ExperimentsListComponent implements OnInit, OnDestroy {
 
   readonly pagedExperiments = computed<Experiment[]>(() => {
     return this.experimentsService.experiments();
+  });
+
+  /** Day buckets in list order. Only a date sort is bucketed; any other order is one unlabelled group. */
+  readonly experimentGroups = computed(() => {
+    const rows = this.pagedExperiments();
+    if (!this.sort().startsWith('created')) return [{ label: '', rows }];
+    const groups: { label: string; rows: Experiment[] }[] = [];
+    for (const exp of rows) {
+      const label = dayBucket(exp.dateCreated);
+      const last = groups.at(-1);
+      if (last?.label === label) last.rows.push(exp);
+      else groups.push({ label, rows: [exp] });
+    }
+    return groups;
   });
 
   readonly rangeStart = computed(() =>

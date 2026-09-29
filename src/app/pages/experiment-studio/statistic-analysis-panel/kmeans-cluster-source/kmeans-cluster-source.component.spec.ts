@@ -1,4 +1,4 @@
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
@@ -58,6 +58,7 @@ describe('KMeansClusterSourceComponent', () => {
     appliedKMeansClusterCreator: jasmine.Spy;
     setKMeansClusterPreprocessing: jasmine.Spy;
     loadKMeansReport: jasmine.Spy;
+    backendAlgorithms: ReturnType<typeof signal<Record<string, { configSchema?: unknown[] }>>>;
   };
   let dashboard: {
     listKMeansExperiments: jasmine.Spy;
@@ -77,6 +78,7 @@ describe('KMeansClusterSourceComponent', () => {
       appliedKMeansClusterCreator: jasmine.createSpy('appliedKMeansClusterCreator').and.returnValue(null),
       setKMeansClusterPreprocessing: jasmine.createSpy('setKMeansClusterPreprocessing'),
       loadKMeansReport: jasmine.createSpy('loadKMeansReport').and.returnValue(of({})),
+      backendAlgorithms: signal({}),
     };
     dashboard = {
       listKMeansExperiments: jasmine.createSpy('listKMeansExperiments').and.returnValue(of([])),
@@ -225,5 +227,35 @@ describe('KMeansClusterSourceComponent', () => {
       code: 'kmeans_cluster',
       reusable_preprocessing: reusablePreprocessing,
     });
+  });
+
+  it('keeps catalog defaults until Advanced changes one', () => {
+    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.backendAlgorithms.set({
+      kmeans: {
+        configSchema: [
+          { key: 'k_selection', label: 'K selection', type: 'select', required: true, default: 'manual', options: ['manual', 'elbow'] },
+          { key: 'k', label: 'Number of clusters', type: 'number', types: ['int'], required: false, default: 4 },
+        ],
+      },
+    });
+
+    fixture.detectChanges();
+
+    const advanced = html().querySelector('.kmeans-cluster-source-advanced') as HTMLButtonElement;
+    expect(advanced.textContent?.trim()).toBe('Advanced');
+    expect(html().querySelector('.kmeans-cluster-source-params')).toBeNull();
+
+    advanced.click();
+    fixture.detectChanges();
+
+    const k = html().querySelector<HTMLInputElement>('#kmeans-param-k');
+    expect(k?.value).toBe('4');
+    k!.value = '3';
+    k!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    component.runReport();
+    expect(studio.loadKMeansReport).toHaveBeenCalledWith(['age'], { k: 3 });
   });
 });

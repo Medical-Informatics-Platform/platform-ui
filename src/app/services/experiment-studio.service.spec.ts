@@ -103,6 +103,31 @@ describe('ExperimentStudioService', () => {
     parameters: {},
   };
 
+  const mockKmeansAlgo = {
+    name: 'kmeans',
+    label: 'K-means',
+    desc: '',
+    enabled: true,
+    inputdata: {
+      data_model: { label: '', desc: '', types: [] },
+      datasets: { label: '', desc: '', types: [] },
+      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      filter: { label: '', desc: '', types: [] },
+    },
+    parameters: {
+      k_selection: {
+        label: 'K selection',
+        types: ['text'],
+        required: true,
+        default: 'manual',
+        enums: { type: 'list', source: ['manual', 'elbow'] },
+      },
+      k: { label: 'Number of clusters', types: ['int'], required: false, default: 4 },
+      maxiter: { label: 'Maximum iterations', types: ['int'], required: true, default: 100 },
+      tol: { label: 'Convergence tolerance', types: ['real'], required: true, default: 0.0001 },
+    },
+  };
+
   const mockInputdataSpec = {
     data_model: { label: '', desc: '', types: ['text'], required: true },
     datasets: { label: '', desc: '', types: ['text'], required: true },
@@ -170,6 +195,7 @@ describe('ExperimentStudioService', () => {
       toAlgorithmSpec(mockDescribeAlgo),
       toAlgorithmSpec(mockOutlierReportAlgo),
       toAlgorithmSpec(mockLinearSvmAlgo),
+      toAlgorithmSpec(mockKmeansAlgo),
     ]);
   });
 
@@ -1587,6 +1613,90 @@ describe('ExperimentStudioService', () => {
 
       expect((service as any).withKMeansClusterRequirements(config)).toBe(config);
       expect((service as any).withKMeansClusterRequirements(null)).toBeNull();
+    });
+  });
+
+  describe('loadKMeansReport', () => {
+    beforeEach(() => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'age', label: 'Age' }]);
+    });
+
+    it('sends spec defaults when the Algorithm step has no kmeans parameters', () => {
+      const request$ = service.loadKMeansReport(['age']);
+      expect(request$).toBeTruthy();
+      request$!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/transient');
+      expect(req.request.body.analysis.algorithm.name).toBe('kmeans');
+      expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
+      expect(req.request.body.analysis.algorithm.parameters).toEqual(jasmine.objectContaining({
+        k_selection: 'manual',
+        k: 4,
+        maxiter: 100,
+        tol: 0.0001,
+      }));
+      expect(req.request.body.analysis.preprocessing).toEqual([
+        { name: 'missing_values_handler', parameters: { strategies: { age: 'drop' } } },
+      ]);
+      req.flush({ status: 'success', result: {} });
+    });
+
+    it('adds missing_values_handler when the applied config is a transformation only', () => {
+      service.setAppliedDescriptivePreprocessing({
+        categorical_column_creator: [{ code: 'grp' }],
+      });
+      service.loadKMeansReport(['age'])!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/transient');
+      const steps = req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      expect(steps.map((step) => step.name)).toContain('missing_values_handler');
+      expect(steps.find((step) => step.name === 'missing_values_handler')?.parameters['strategies'])
+        .toEqual({ age: 'drop' });
+      expect(steps.find((step) => step.name === 'categorical_column_creator')?.parameters['code'])
+        .toBe('grp');
+      req.flush({ status: 'success', result: {} });
+    });
+
+    it('keeps an applied missing-value strategy for a clustering variable', () => {
+      service.setAppliedDescriptivePreprocessing({
+        missing_values_handler: { strategies: { age: 'mean' } },
+      });
+      service.loadKMeansReport(['age'])!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/transient');
+      const missing = (req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[])
+        .find((step) => step.name === 'missing_values_handler');
+      expect(missing?.parameters['strategies']).toEqual({ age: 'mean' });
+      req.flush({ status: 'success', result: {} });
+    });
+
+    it('lets an explicit parameter override the spec default', () => {
+      service.loadKMeansReport(['age'], { k: 3 })!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/transient');
+      expect(req.request.body.analysis.algorithm.parameters.k).toBe(3);
+      expect(req.request.body.analysis.algorithm.parameters.k_selection).toBe('manual');
+      req.flush({ status: 'success', result: {} });
+    });
+
+    it('prefers Algorithm-step kmeans parameters over spec defaults', () => {
+      service.algorithmConfigurations.set({
+        kmeans: { k_selection: 'elbow', k_min: 2, k_max: 5, maxiter: 50, tol: 0.01 },
+      });
+      service.loadKMeansReport(['age'])!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/transient');
+      expect(req.request.body.analysis.algorithm.parameters).toEqual(jasmine.objectContaining({
+        k_selection: 'elbow',
+        k_min: 2,
+        k_max: 5,
+        maxiter: 50,
+        tol: 0.01,
+        k: 4,
+      }));
+      req.flush({ status: 'success', result: {} });
     });
   });
 });

@@ -49,6 +49,27 @@
   color: var(--text-muted);
 }
 
+.kmeans-cluster-source-advanced {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-params {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+}
+
 .kmeans-cluster-source-apply {
   justify-self: start;
   padding: 7px 14px;

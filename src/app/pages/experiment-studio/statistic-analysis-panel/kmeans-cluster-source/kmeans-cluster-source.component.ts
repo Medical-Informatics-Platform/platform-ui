@@ -28,6 +28,16 @@ import {
 /** Exaflow column codes: an identifier, not free text. */
 const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+interface KMeansParameterField {
+  key: string;
+  label?: string;
+  type?: string;
+  types?: string[];
+  required?: boolean;
+  default?: unknown;
+  options?: unknown[];
+}
+
 /**
  * Reuses a finished K-means run as a categorical cluster column: the picker lists the
  * experiments whose source context (data model, datasets, filters) still matches the
@@ -58,6 +68,9 @@ export class KMeansClusterSourceComponent implements OnInit {
   private readonly runExcludedCodes = signal<ReadonlySet<string>>(new Set());
   readonly runLoading = signal(false);
   readonly runError = signal<string | null>(null);
+  readonly advancedOpen = signal(false);
+  /** Edited parameter values. An absent key still means the schema default. */
+  private readonly parameterDraft = signal<Record<string, string>>({});
   readonly report = signal<KMeansResult | null>(null);
   readonly reportReusable = signal<KMeansReusablePreprocessing | null>(null);
 
@@ -72,6 +85,14 @@ export class KMeansClusterSourceComponent implements OnInit {
       .filter((code) => !excluded.has(code));
   });
 
+  /** K-means parameters from the algorithm catalog. Closed until Advanced is opened. */
+  readonly parameterFields = computed((): KMeansParameterField[] => {
+    const schema = this.studio.backendAlgorithms()?.['kmeans']?.configSchema ?? [];
+    return schema.filter((field): field is KMeansParameterField =>
+      !!field?.key && ['number', 'select', 'text'].includes(field.type)
+    );
+  });
+
   /** Inputs a report was run on; a report from other inputs must not become a column. */
   private readonly runContextKey = computed(() => {
     const context = this.currentContext();
@@ -80,6 +101,7 @@ export class KMeansClusterSourceComponent implements OnInit {
       datasets: [...context.datasets].map(String).sort(),
       filters: context.filters ?? null,
       codes: [...this.runSelectedCodes()].sort(),
+      parameters: this.parameterOverrides(),
     });
   });
   private reportContextKey: string | null = null;
@@ -190,12 +212,15 @@ export class KMeansClusterSourceComponent implements OnInit {
     });
   }
 
-  /** Run the K-means report on the selected numerical variables. It uses the
-   *  parameters from the Algorithm step, or backend defaults when none are set. */
+  /** Run the K-means report on the selected numerical variables. Unchanged
+   *  parameters stay on the catalog default; Advanced sends only what changed. */
   runReport(): void {
     const codes = this.runSelectedCodes();
     if (!codes.length) return;
-    const request$ = this.studio.loadKMeansReport(codes);
+    const overrides = this.parameterOverrides();
+    const request$ = Object.keys(overrides).length
+      ? this.studio.loadKMeansReport(codes, overrides)
+      : this.studio.loadKMeansReport(codes);
     if (!request$) {
       this.runError.set('K-means is not available for this workspace.');
       return;
@@ -255,6 +280,53 @@ export class KMeansClusterSourceComponent implements OnInit {
     }
     this.runError.set(null);
     this.store(code, reusable);
+  }
+
+  parameterValue(field: KMeansParameterField): string {
+    const edited = this.parameterDraft()[field.key];
+    if (edited !== undefined) return edited;
+    return field.default === undefined || field.default === null ? '' : String(field.default);
+  }
+
+  setParameter(key: string, value: string | number | null): void {
+    this.parameterDraft.update((current) => ({
+      ...current,
+      [key]: value === null || value === undefined ? '' : String(value),
+    }));
+  }
+
+  optionValue(option: unknown): string {
+    if (option && typeof option === 'object') {
+      const record = option as Record<string, unknown>;
+      return String(record['code'] ?? record['value'] ?? record['label'] ?? '');
+    }
+    return String(option);
+  }
+
+  optionLabel(option: unknown): string {
+    if (option && typeof option === 'object') {
+      const record = option as Record<string, unknown>;
+      return String(record['label'] ?? record['name'] ?? record['code'] ?? '');
+    }
+    return String(option);
+  }
+
+  /** Values the user changed. Unchanged fields stay on the catalog default. */
+  private parameterOverrides(): Record<string, unknown> {
+    const overrides: Record<string, unknown> = {};
+    for (const field of this.parameterFields()) {
+      const raw = this.parameterValue(field).trim();
+      const fallback = field.default === undefined || field.default === null ? '' : String(field.default);
+      if (raw === fallback || (raw === '' && !field.required)) continue;
+      if (field.type === 'number') {
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) continue;
+        overrides[field.key] = field.types?.includes('int') ? Math.trunc(numeric) : numeric;
+        continue;
+      }
+      overrides[field.key] = raw;
+    }
+    return overrides;
   }
 
   private store(code: string, reusablePreprocessing: KMeansReusablePreprocessing): void {
