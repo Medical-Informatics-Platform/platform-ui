@@ -15,6 +15,10 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
 import { BackendExperiment } from '../../../../models/backend-experiment.model';
 import { KMeansResult } from '../../../../models/algorithm-results.model';
+import {
+  formatAlgorithmParameterValue,
+  optionBindingValue,
+} from '../../../../core/algorithm-parameter.utils';
 import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
 import {
   KMeansReusablePreprocessing,
@@ -99,9 +103,8 @@ export class KMeansClusterSourceComponent implements OnInit {
     const changed = this.parameterFields()
       .filter((field) => field.key in overrides)
       .map((field) => {
-        const value = String(overrides[field.key]);
-        const option = (field.options ?? []).find((opt) => this.optionValue(opt) === value);
-        return `${field.label || field.key} ${option === undefined ? value || '—' : this.optionLabel(option)}`;
+        const label = formatAlgorithmParameterValue(overrides[field.key], field) || '—';
+        return `${field.label || field.key} ${label}`;
       });
     return changed.length ? changed.join(' · ') : 'All defaults';
   });
@@ -243,9 +246,7 @@ export class KMeansClusterSourceComponent implements OnInit {
     const codes = this.runSelectedCodes();
     if (!codes.length) return;
     const overrides = this.parameterOverrides();
-    const request$ = Object.keys(overrides).length
-      ? this.studio.loadKMeansReport(codes, overrides)
-      : this.studio.loadKMeansReport(codes);
+    const request$ = this.studio.loadKMeansReport(codes, overrides);
     if (!request$) {
       this.runError.set('K-means is not available for this workspace.');
       return;
@@ -280,9 +281,6 @@ export class KMeansClusterSourceComponent implements OnInit {
         this.reportReusable.set(reusable);
         this.reportContextKey = requestKey;
         if (!reusable) {
-          // Keys only, never values: enough to see which envelope the backend used.
-          console.warn('[KMeans] report has no reusable_preprocessing; response keys:',
-            Object.keys((response as Record<string, unknown>) ?? {}));
           this.runError.set('The K-means report did not include reusable cluster centers.');
         }
         this.cdr.markForCheck();
@@ -320,13 +318,7 @@ export class KMeansClusterSourceComponent implements OnInit {
     }));
   }
 
-  optionValue(option: unknown): string {
-    if (option && typeof option === 'object') {
-      const record = option as Record<string, unknown>;
-      return String(record['code'] ?? record['value'] ?? record['label'] ?? '');
-    }
-    return String(option);
-  }
+  protected readonly optionBindingValue = optionBindingValue;
 
   optionLabel(option: unknown): string {
     if (option && typeof option === 'object') {
