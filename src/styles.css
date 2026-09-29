@@ -1157,10 +1157,6 @@ select:required:valid {
   color: var(--primary-color, #2B33E9);
 }
 
-.preprocessing-shell .success-message.glass-feedback {
-  margin: 0;
-}
-
 .preprocessing-workspace {
   margin-top: 0;
   /* Only the column width is local — the shared .statistics-workspace rule now

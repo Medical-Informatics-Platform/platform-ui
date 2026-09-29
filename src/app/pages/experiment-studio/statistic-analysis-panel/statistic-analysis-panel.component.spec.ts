@@ -177,7 +177,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.sectionOpen().raw).toBeFalse();
 
         const preview = filtering.querySelector('.station-action-preview') as HTMLButtonElement;
-        expect(preview.textContent?.trim()).toBe('Preview data');
+        expect(preview.textContent?.trim()).toBe('Preview matching records');
         preview.click();
         fixture.detectChanges();
 
@@ -242,12 +242,13 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.isStepAdded('filters')).toBeTrue();
     });
 
-    it('closes the preprocessing editor from Close without writing anything', () => {
+    it('closes the Missing Values card from Close without writing anything', () => {
         configureRawSummary();
         const preprocessing = openStation('setup');
 
-        const apply = preprocessing.querySelector('.station-action-apply') as HTMLButtonElement;
-        expect(component.pendingChangeCount).toBe(0);
+        // The card's own footer owns the action: no stage-level bar any more.
+        const apply = preprocessing.querySelector('.station-card-footer .station-action-apply') as HTMLButtonElement;
+        expect(component.stepPendingCount('missing')).toBe(0);
         expect(apply.textContent?.trim()).toBe('Close');
         expect(apply.disabled).toBeFalse();
 
@@ -255,11 +256,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         apply.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(component.sectionOpen().processed).toBeFalse();
+        // Close folds its own card and leaves the stage exactly as it was.
+        expect(component.preprocessingStepOpen.missing).toBeFalse();
+        expect(component.sectionOpen().setup).toBeTrue();
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
-        // Nothing was reverted: the collapsed rail of applied steps is the way back in.
-        expect(preprocessing.querySelector('.pipeline-subnode-item')).toBeTruthy();
     });
 
     it('closes the preprocessing Batch menu when the click is outside it', () => {
@@ -276,16 +276,18 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.batchMenuOpen()).toBeNull();
     });
 
-    it('places Preview data above the Preprocessing cards, exclusive of processed summary', () => {
+    it('previews processed data from the preprocessing card footer, exclusive of processed summary', () => {
         configureRawSummary();
         component.goToSection('setup');
         fixture.detectChanges();
 
         const preprocessing = workflowSection('Preprocessing');
-        const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
+        const preview = preprocessing.querySelector(
+            '.station-card-footer .station-action-preview') as HTMLButtonElement;
         expect(preview.textContent?.trim()).toBe('Preview processed data');
-        expect(preprocessing.querySelector('.station-card-description')?.textContent?.trim()).toContain('Default: NA removal');
-        // The shared action bar owns the station's only preview control.
+        expect(preprocessing.querySelector('.station-card-description')?.textContent?.trim()).toContain('Choose what happens to missing values');
+        // One footer bar per open card: the open Missing Values card owns the station's only
+        // preview control, and nothing sits outside a card footer.
         expect(preprocessing.querySelectorAll('.station-action-bar .station-action-preview').length).toBe(1);
 
         preview.click();
@@ -419,24 +421,27 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
     });
 
-    it('replaces Transformation Statistics tab with Preview data', () => {
+    it('replaces the column editor with counts inside its own card', () => {
         configureRawSummary();
         component.goToSection('transformation');
+        // The stage opens on its type chooser: the editor, and its preview, live in the card.
+        component.chooseTransformation('categorical');
         fixture.detectChanges();
 
         const transformation = workflowSection('Transformation');
         expect(transformation.querySelector('.transformation-tabs')).toBeNull();
-        const preview = transformation.querySelector('.station-action-preview') as HTMLButtonElement;
-        expect(preview.textContent?.trim()).toBe('Preview counts');
+        const preview = transformation.querySelector(
+            '.station-card-footer .station-action-preview') as HTMLButtonElement;
+        expect(preview.textContent?.trim()).toBe('Preview category counts');
 
         preview.click();
         fixture.detectChanges();
 
-        expect(component.transformationActiveTab).toBe('Statistics');
-        const close = transformation.querySelector('.station-preview-toggle') as HTMLButtonElement;
-        expect(close.textContent?.trim()).toBe('Close');
-        expect(transformation.querySelector('.transformation-create')).toBeNull();
+        expect(component.previewDraftId).toBe(component.transformationDrafts[0].id);
+        // The editor is hidden rather than destroyed, so its rule builders keep their state.
+        expect(transformation.querySelector('.transformation-create.is-previewing')).toBeTruthy();
         expect(transformation.querySelector('.transformation-statistics')).toBeTruthy();
+        expect(preview.textContent?.trim()).toBe('Back to editor');
     });
 
     it('renders preprocessing step documentation from backend algorithm metadata', () => {
@@ -665,6 +670,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         openStation('filters');
         openStation('setup');
         openStation('transformation');
+        // The stage opens on its type chooser, so a column card exists only once a type is chosen.
+        component.chooseTransformation('categorical');
+        fixture.detectChanges();
 
         // Every node carries its own heading, at least one station card, and one shared
         // Preview data action on its apply surface.
@@ -675,9 +683,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(node.querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
         }
 
-        // The K-means station is opened from its pill, like the categorical drafts.
+        // The K-means station is opened from the chooser's dashed row, like the categorical draft.
         const addKmeans = Array.from(
-            workflowSection('Transformation').querySelectorAll('.transformation-add-row .btn-add-step')
+            workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
         ).find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
         addKmeans.click();
         fixture.detectChanges();
@@ -704,7 +712,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         openStation('setup');
         openStation('transformation');
         component.enableOutlierHandling();
-        component.kmeansClusterCardOpen.set(true);
+        component.chooseTransformation('kmeans');
+        // The column card joins the graph only after its type is chosen.
+        component.chooseTransformation('categorical');
         fixture.detectChanges();
 
         const headers = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.pipeline-node .station-card-header'));
@@ -2175,7 +2185,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
         component.transformationRuleModals = modals;
 
-        component.applyTransformation();
+        component.commitTransformationDraft(draft);
         expect(draft.rules.map((rule) => (rule.filter as any)?.rules.length)).toEqual([1, 1]);
     });
 
@@ -2218,32 +2228,52 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('adds and removes extra categorical column cards, keeping at least one', () => {
-        // Scoped to the card list: the stage header carries its own Remove Step.
-        const cards = () => workflowSection('Transformation').querySelectorAll('.transformation-cards app-station-card');
+        // Scoped to the stage's graph: the stage header carries its own Remove Step.
+        const cards = () => workflowSection('Transformation').querySelectorAll('.transformation-graph app-station-card');
         const cardActions = () =>
             Array.from(
-                workflowSection('Transformation').querySelectorAll('.transformation-cards .btn-remove-step-node')
+                workflowSection('Transformation').querySelectorAll('.transformation-graph .btn-remove-step-node')
             ) as HTMLButtonElement[];
-        openStation('transformation');
-        expect(cards().length).toBe(1);
-        // The primary card has no Remove Step: Clear already covers it.
-        expect(cardActions().length).toBe(0);
+        const chooserRows = () =>
+            Array.from(
+                workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
+            ) as HTMLButtonElement[];
 
-        (workflowSection('Transformation').querySelector('.transformation-add-row .btn-add-step') as HTMLButtonElement)
-            .click();
+        openStation('transformation');
+        // Nothing chosen yet: the stage is the type chooser, with no column card.
+        expect(cards().length).toBe(0);
+        expect(chooserRows().length).toBe(2);
+
+        chooserRows()[0].click();
+        fixture.detectChanges();
+
+        expect(component.transformationDrafts.length).toBe(1);
+        expect(cards().length).toBe(1);
+        // Every card offers its own remove action.
+        expect(cardActions().length).toBe(1);
+        expect(cardActions()[0].textContent).toContain('Remove column');
+
+        chooserRows()[0].click();
         fixture.detectChanges();
 
         expect(component.transformationDrafts.length).toBe(2);
         expect(cards().length).toBe(2);
-        // Only the extra card offers Remove Step.
-        expect(cardActions().length).toBe(1);
-        expect(cardActions()[0].textContent).toContain('Remove Step');
+        expect(cardActions().length).toBe(2);
 
+        cardActions()[1].click();
+        fixture.detectChanges();
+
+        expect(component.transformationDrafts.length).toBe(1);
+        expect(cards().length).toBe(1);
+        expect(cardActions().length).toBe(1);
+
+        // The last card is cleared back to the blank, unchosen draft, so the chooser is alone.
         cardActions()[0].click();
         fixture.detectChanges();
 
         expect(component.transformationDrafts.length).toBe(1);
-        expect(cardActions().length).toBe(0);
+        expect(cards().length).toBe(0);
+        expect(component.transformationChooserOnly).toBeTrue();
     });
 
     it('clears the primary card instead of removing the last one', () => {
@@ -2258,7 +2288,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDrafts[0].rules).toEqual([]);
     });
 
-    it('applies the transformation without leaving the pipeline', () => {
+    it('commits a column card without leaving the pipeline', () => {
         const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
         const filter = categoryFilter();
         openStation('transformation');
@@ -2268,36 +2298,39 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.transformationRuleModals = {
             toArray: () => [{ exportFilterLogic: () => filter, filterError: () => null }],
         } as any;
-        component.transformationActiveTab = 'Statistics';
+        // The card was previewing its own counts before its Apply is clicked.
+        component.previewDraftId = draft.id;
         expect(component.sectionOpen().transformation).toBeTrue();
 
-        component.applyTransformation();
+        component.commitTransformationDraft(draft);
         fixture.detectChanges();
 
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
 
-        // A successful Apply folds the stage to its sub-node overview instead of
-        // jumping ahead, and the next visit opens the editor, not the preview tab.
-        expect(component.sectionOpen().transformation).toBeFalse();
-        expect(component.transformationActiveTab).toBe('Create');
+        // The card's own Apply folds just that card: the stage stays open for the next
+        // derived column, and the card's preview goes back to its editor.
+        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.previewDraftId).toBeNull();
         expect(component.transformationDrafts.every((card) => !card.open)).toBeTrue();
         const body = workflowSection('Transformation').querySelector('.workflow-section-body');
-        expect(body?.classList.contains('open')).toBeFalse();
+        expect(body?.classList.contains('open')).toBeTrue();
 
         // The terminal card is the only control that advances to Algorithm.
         component.finishDataHandling();
         expect(navigate).toHaveBeenCalledWith('algorithm-section');
     });
 
-    it('leaves the stage open when a stage with no derived column is applied', () => {
-        // Collapsing would reveal an empty overview, so an untouched stage stays put.
+    it('leaves the stage open when a card holding no derived column is closed', () => {
+        // Collapsing the stage would reveal an empty overview, and a card Close never folds
+        // the stage around it any more.
         openStation('transformation');
         component.transformationRuleModals = { toArray: () => [] } as any;
 
-        component.applyTransformation();
+        component.commitTransformationDraft(component.transformationDrafts[0]);
 
         expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.transformationDrafts[0].open).toBeFalse();
     });
 
     it('applies the first card when two derived columns share a name', () => {
@@ -2317,7 +2350,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         } as any;
         fixture.detectChanges();
 
-        component.applyTransformation();
+        component.commitTransformationDraft(component.transformationDrafts[0]);
+        component.commitTransformationDraft(component.transformationDrafts[1]);
         fixture.detectChanges();
 
         // Apply no longer refuses. The duplicate is named by the card's own chip and by
@@ -2325,8 +2359,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Duplicate name');
         expect(component.transformationStatusLabel).toBe('Not applied');
         expect(navigate).not.toHaveBeenCalled();
-        // Apply no longer refuses, and the stage does not fold over the problem: the two
-        // Duplicate name chips are what name it, and they live in the station body.
+        // Each card answers for itself: the clash names both cards 'Duplicate name', so both
+        // keep their editor open with 'Apply' in the primary slot, and the stage stays open.
+        expect(component.transformationDrafts[0].open).toBeTrue();
+        expect(component.transformationDrafts[1].open).toBeTrue();
         expect(component.sectionOpen().transformation).toBeTrue();
         const persisted = mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0];
         expect(persisted).toEqual([jasmine.objectContaining({ code: 'group' })]);
@@ -2965,12 +3001,12 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.transformationStatusLabel).toBe('Not applied');
 
             mockExpService.loadDescriptiveOverview.calls.reset();
-            component.previewTransformationData();
+            component.previewTransformationCard(component.transformationDrafts[0].id);
             fixture.detectChanges();
 
             // An incomplete card simply drops out of the describe; the complete ones
-            // still get their counts.
-            expect(component.transformationActiveTab).toBe('Statistics');
+            // still get their counts, which the previewing card renders for its column.
+            expect(component.previewDraftId).toBe(component.transformationDrafts[0].id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledTimes(1);
             expect(component.transformationStatistics).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 3 }] },
@@ -3006,7 +3042,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             openStation('transformation');
             fixture.detectChanges();
 
-            component.previewTransformationData();
+            component.previewTransformationCard('kmeans');
             fixture.detectChanges();
 
             // The creator goes into the describe as a preprocessing step, read over its own
@@ -3036,6 +3072,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('previews while a category builder rejects its condition', () => {
             openStation('transformation');
+            // The card is on screen only once its type is chosen; its own footer owns Preview.
+            component.chooseTransformation('categorical');
             const draft = component.transformationDrafts[0];
             draft.code = 'group_a';
             draft.rules = [{ value: 'a', filter: null }];
@@ -3046,17 +3084,37 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationData();
+            component.previewTransformationCard(draft.id);
             fixture.detectChanges();
 
-            // A half-typed condition no longer strands the stage on Create. It does keep
-            // its previous filter rather than committing an empty one, and the Statistics
-            // tab says why the table has no counts.
-            expect(component.transformationActiveTab).toBe('Statistics');
+            // A half-typed condition no longer strands the card on its editor. It does keep
+            // its previous filter rather than committing an empty one, and the card's own
+            // counts say why the table has no counts.
+            expect(component.previewDraftId).toBe(draft.id);
             expect(draft.rules[0].filter).toBeNull();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
             expect(component.transformationStatisticsError)
                 .toBe('Each derived column needs a filter on each one before counts can be loaded.');
+            const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
+            expect(statistics?.querySelector('.glass-feedback-warning')?.textContent?.trim())
+                .toBe('Each derived column needs a filter on each one before counts can be loaded.');
+            expect(statistics?.querySelector('.empty-state-block')).toBeNull();
+        });
+
+        it('shows a preview error when the K-means card has no counts', () => {
+            openStation('transformation');
+            component.chooseTransformation('kmeans');
+            component.transformationDrafts[0].code = 'pro';
+            component.transformationRuleModals = { toArray: () => [] } as any;
+            fixture.detectChanges();
+
+            component.previewTransformationCard('kmeans');
+            fixture.detectChanges();
+
+            const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
+            expect(statistics?.querySelector('.glass-feedback-warning')?.textContent?.trim())
+                .toBe('Each derived column needs a named category before counts can be loaded.');
+            expect(statistics?.textContent).not.toContain('give at least one category a rule');
         });
 
         it('explains a named card instead of claiming counts that never ran', () => {
@@ -3066,7 +3124,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationData();
+            component.previewTransformationCard(component.transformationDrafts[0].id);
             fixture.detectChanges();
 
             // A bare column name owns a heading above this table, so it has to own a reason
@@ -3090,7 +3148,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.transformationRuleModals = { toArray: () => [ruleModal(null), ruleModal(null)] } as any;
             fixture.detectChanges();
 
-            component.previewTransformationData();
+            component.previewTransformationCard(component.transformationDrafts[0].id);
 
             // One line for the whole stage, covering each card's own shortcoming.
             expect(component.transformationStatisticsError).toBe(
@@ -3098,7 +3156,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             );
         });
 
-        it('dims Apply only while no card can form a column', () => {
+        it('keeps the card primary slot live while no column can be formed', () => {
             openStation('transformation');
             const draft = component.transformationDrafts[0];
             draft.code = 'pro';
@@ -3106,21 +3164,29 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.onTransformationInput();
             fixture.detectChanges();
 
-            // Apply has nothing to write, so it stays dim instead of answering the click with
-            // silence. Preview stays live: the read is what names the gap.
-            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeTrue();
+            // A card that cannot form a column yet still answers the click: its own primary
+            // slot is an enabled Apply, never a dimmed one, and Preview stays live too — the
+            // read is what names the gap.
+            const apply = stationButton('Transformation', '.station-action-apply');
+            expect(apply.disabled).toBeFalse();
+            expect(apply.textContent?.trim()).toBe('Apply');
+            expect(apply.classList.contains('is-quiet')).toBeFalse();
             expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
 
+            // Once the category holds a rule the card is Applied, and its primary slot
+            // becomes the quiet Close.
             const filter = categoryFilter();
             draft.rules = [{ value: 'old', filter }];
             component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
             component.onTransformationInput();
             fixture.detectChanges();
 
-            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
+            expect(apply.textContent?.trim()).toBe('Close');
+            expect(apply.classList.contains('is-quiet')).toBeTrue();
+            expect(apply.disabled).toBeFalse();
         });
 
-        it('keeps the stage open after Apply while a card is unfinished', () => {
+        it('keeps the unfinished card open while its own Apply folds the complete one', () => {
             const filter = categoryFilter();
             openStation('transformation');
             component.addTransformationDraft();
@@ -3134,12 +3200,15 @@ describe('StatisticAnalysisPanelComponent', () => {
             } as any;
             fixture.detectChanges();
 
-            component.applyTransformation();
+            component.commitTransformationDraft(complete);
+            component.commitTransformationDraft(unfinished);
             fixture.detectChanges();
 
-            // The complete card is committed. The stage does not fold over the card whose
-            // Pending chip is the only thing left saying that work remains.
+            // The complete card is committed and folds itself. The card whose Pending chip is
+            // the only thing left saying that work remains keeps its editor — and its Apply.
             expect(component.transformationStatusLabel).toBe('Not applied');
+            expect(complete.open).toBeFalse();
+            expect(unfinished.open).toBeTrue();
             expect(component.sectionOpen().transformation).toBeTrue();
             const body = workflowSection('Transformation').querySelector('.workflow-section-body');
             expect(body?.classList.contains('open')).toBeTrue();
@@ -3164,10 +3233,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationData();
+            component.previewTransformationCard(draft.id);
             fixture.detectChanges();
 
-            expect(component.transformationActiveTab).toBe('Statistics');
+            expect(component.previewDraftId).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
                 jasmine.objectContaining({

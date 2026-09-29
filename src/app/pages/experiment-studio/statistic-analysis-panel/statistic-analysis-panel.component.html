@@ -4,7 +4,7 @@
       <header class="pipeline-canvas-header">
         <div class="pipeline-header-title-group">
           <h2>Data Handling Pipeline</h2>
-          <p>Preview the data as selected, add the stages you need, or continue with raw data. Stages run top to bottom.</p>
+          <p>Get your records ready for analysis. Stages run top to bottom — Raw data and Preprocessing are always on; Filtering and Transformations are optional.</p>
         </div>
       </header>
 
@@ -309,6 +309,124 @@
           }
       </ng-template>
 
+      <!-- "How to use" strip under an expanded stage header: numbered steps plus one note.
+           Folded by default so it never pushes the editor down; the summary line opens it. -->
+      <ng-template #howToStrip let-guide>
+        <details class="how-to-strip">
+          <summary class="how-to-summary">
+            <span class="how-to-label">How to use</span>
+            <span class="how-to-peek">{{ guide.steps.length }} steps</span>
+            <i class="fas fa-chevron-down how-to-chevron" aria-hidden="true"></i>
+          </summary>
+          <div class="how-to-body">
+            @for (step of guide.steps; track step; let i = $index) {
+            <span class="how-to-step"><span class="how-to-number">{{ i + 1 }}</span>{{ step }}</span>
+            }
+            <span class="how-to-note">{{ guide.note }}</span>
+          </div>
+        </details>
+      </ng-template>
+
+      <!-- One preprocessing card's own footer: Discard · Preview processed data · Apply/Close,
+           all scoped to that card's pending edits. -->
+      <ng-template #prepFooter let-step>
+        @if (preprocessingApplyError[step]) {
+        <div class="glass-feedback glass-feedback-warning" role="alert">{{ preprocessingApplyError[step] }}</div>
+        }
+        <app-station-action-bar
+          flush
+          [pendingCount]="stepPendingCount(step)"
+          [statusText]="stepPendingCount(step) ? 'change not applied yet — the run still uses your last applied rules.' : ''"
+          [tone]="stepPendingCount(step) ? 'pending' : 'applied'"
+          resetLabel="Discard"
+          previewLabel="Preview processed data"
+          [applyLabel]="stepApplyLabel(step)"
+          [applyIcon]="stepPendingCount(step) ? 'fas fa-check' : 'fas fa-times'"
+          [applyVariant]="stepPendingCount(step) ? 'primary' : 'quiet'"
+          [resetDisabled]="!stepPendingCount(step) || isApplyingPreprocessing"
+          [applyDisabled]="isApplyingPreprocessing"
+          (reset)="resetChanges(step)"
+          (preview)="previewProcessedData(step)"
+          (apply)="commitOrCloseStep(step)"
+        ></app-station-action-bar>
+      </ng-template>
+
+      <!-- One derived column's category counts: shown inside its card in place of the editor. -->
+      <ng-template #transformationStats let-code>
+            <div class="transformation-statistics">
+              @if (isTransformationStatsLoading) {
+              <div class="studio-skeleton-line"></div>
+              <div class="studio-skeleton-line short"></div>
+              } @else if (transformationStatisticsError && transformationStatsFor(code).length === 0) {
+              <div class="glass-feedback glass-feedback-warning">
+                {{ transformationStatisticsError }}
+              </div>
+              } @else if (transformationStatsFor(code).length === 0) {
+              <div class="empty-state-block compact-empty">
+                <i class="fa fa-bar-chart"></i>
+                <p>No counts for this column yet.</p>
+                <span>{{ previewDraftId === 'kmeans' ? 'Run the report and name the column, then preview again.' : 'Name the column and give at least one category a rule, then preview again.' }}</span>
+              </div>
+              } @else {
+              @if (transformationStatisticsError) {
+              <div class="glass-feedback glass-feedback-warning">
+                {{ transformationStatisticsError }}
+              </div>
+              } @else if (showsRuleColumnCounts()) {
+              <div class="glass-feedback">
+                Category counts from a describe run with your applied transformation.
+              </div>
+              }
+              @for (block of transformationStatsFor(code); track block.code) {
+              @if (kmeansColumnView(block.code); as column) {
+              <div class="transformation-stats-block transformation-create">
+                <h4 class="transformation-stats-title">Categorical column · {{ column.code }}</h4>
+                <p class="transformation-stats-lead">{{ column.lead }}</p>
+                <div class="transformation-rules">
+                  <div class="transformation-rule-head">
+                    <span></span>
+                    <span>Value</span>
+                    <span>Rule</span>
+                    <span>Records</span>
+                    <span></span>
+                  </div>
+                  <div class="transformation-rules-list">
+                    @for (row of block.rows; track row.value; let rowIndex = $index) {
+                    <div class="transformation-rule-row">
+                      <span class="transformation-rule-number">{{ rowIndex + 1 }}</span>
+                      <span class="transformation-rule-value transformation-rule-value--fixed">{{ row.value }}</span>
+                      <span class="transformation-rule-summary">{{ column.rules[row.value] || 'Nearest cluster' }}</span>
+                      <span class="transformation-rule-record-count">{{ row.count === null ? '—' : row.count }}</span>
+                      <span></span>
+                    </div>
+                    }
+                  </div>
+                  <p class="transformation-rules-foot">{{ column.foot }}</p>
+                </div>
+              </div>
+              } @else {
+              <div class="transformation-stats-block">
+                <h4 class="transformation-stats-heading"><code>{{ block.code }}</code></h4>
+                <table class="transformation-stats-table">
+                  <thead>
+                    <tr><th>Category</th><th>Count</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (row of block.rows; track row.value) {
+                    <tr>
+                      <td>{{ row.value }}</td>
+                      <td>{{ row.count === null ? '—' : row.count }}</td>
+                    </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              }
+              }
+              }
+            </div>
+      </ng-template>
+
       <!-- NODE 0: SOURCE DATA - read-only snapshot, never part of the request -->
       <section
         class="pipeline-node is-readonly"
@@ -319,11 +437,15 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 1 · Always on</span>
               <h3>Raw data</h3>
-              <span class="pipeline-node-subtitle">The selected variables as stored, before any rule is applied</span>
+              <span class="pipeline-node-subtitle">Look at your selected variables exactly as stored. Nothing is changed here.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
+            @if (recordsOut.source !== null) {
+            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.source!.toLocaleString() }}</span></span>
+            }
             <span class="pipeline-status-badge readonly"><i class="fas fa-lock" aria-hidden="true"></i> Read only</span>
             <button
               type="button"
@@ -331,8 +453,8 @@
               [attr.aria-expanded]="sectionOpen().source"
               (click)="toggleSourcePreview()">
               @if (sectionOpen().source) {
-              <i class="fas fa-times" aria-hidden="true"></i>
-              <span>Close preview</span>
+              <i class="fas fa-chevron-up" aria-hidden="true"></i>
+              <span>Collapse</span>
               } @else {
               <i class="fas fa-eye" aria-hidden="true"></i>
               <span>Preview raw data</span>
@@ -347,6 +469,7 @@
               <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
                    and hand the tour or a shared toggle the wrong surface. -->
               @if (sectionOpen().source) {
+              <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.source }"></ng-container>
               <ng-template
                 [ngTemplateOutlet]="summaryWorkspace"
                 [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
@@ -368,6 +491,7 @@
         class="pipeline-node filter-workflow-section"
         [class.is-active]="isStepAdded('filters')"
         [class.is-dormant]="!isStepAdded('filters')"
+        [class.is-compact]="isStepAdded('filters') && !sectionOpen().filters && !sectionOpen().raw"
         data-guide="analysis-filtering"
       >
         @if (!isStepAdded('filters')) {
@@ -376,12 +500,13 @@
           <div class="dormant-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 2 · Optional</span>
               <h3>Cohort filtering</h3>
-              <span class="pipeline-node-subtitle">Include or exclude patient records based on conditions</span>
+              <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
             </div>
           </div>
           <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Optional · not in run</span>
+            <span class="pipeline-status-badge optional">Skipped · not in run</span>
             <button type="button" class="btn-add-step" (click)="addStep('filters')">
               <i class="fas fa-plus" aria-hidden="true"></i>
               <span>Add filtering</span>
@@ -394,22 +519,31 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 2 · Optional</span>
               <h3>Cohort filtering</h3>
-              <span class="pipeline-node-subtitle">Include or exclude patient records based on rules</span>
+              <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
-            <span class="pipeline-status-badge applied">
+            @if (filterRuleCount() > 0 && recordsOut.filtered !== null) {
+            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.filtered!.toLocaleString() }}@if (recordsOut.source !== null) { <span>of {{ recordsOut.source!.toLocaleString() }}</span>}</span></span>
+            }
+            <span class="pipeline-status-badge" [class.applied]="filterRuleCount() > 0" [class.optional]="filterRuleCount() === 0">
               {{ filteringStatusLabel }}
             </span>
             @if (!sectionOpen().filters && !sectionOpen().raw) {
             <button
               type="button"
               class="station-preview-toggle"
-              title="Edit filters"
+              title="Edit rules"
               (click)="goToSection('filters')">
               <i class="fas fa-pencil-alt" aria-hidden="true"></i>
-              <span>Edit filters</span>
+              <span>Edit rules</span>
+            </button>
+            } @else {
+            <button type="button" class="station-preview-toggle" (click)="collapseStep('filters')">
+              <i class="fas fa-chevron-up" aria-hidden="true"></i>
+              <span>Collapse</span>
             </button>
             }
             <button
@@ -423,7 +557,46 @@
           </div>
         </header>
 
+        <!-- Collapsed overview: the stored rules, each a way back into the builder. -->
+        @if (!sectionOpen().filters && !sectionOpen().raw) {
+        <div class="pipeline-subnodes-tree">
+          @if (cohortRuleRows.length) {
+          <p class="pipeline-subnodes-caption">Records are kept only if they match {{ cohortMatchesAny ? 'any of these rules' : 'these rules' }}. Click a rule to edit it.</p>
+          }
+          <div role="list" aria-label="Cohort filtering rules">
+            @for (row of cohortRuleRows; track $index) {
+            <div class="pipeline-subnode-item" role="listitem">
+              <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+              <button type="button" class="pipeline-subnode-content" (click)="goToSection('filters')" title="Edit this rule">
+                <i class="fas fa-filter" aria-hidden="true"></i>
+                <span class="pipeline-subnode-text">
+                  <span class="pipeline-subnode-title">{{ row.title }}</span>
+                  <span class="pipeline-subnode-subtitle">{{ row.subtitle }}</span>
+                </span>
+                <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+              </button>
+            </div>
+            }
+            <div class="pipeline-subnode-item is-ghost" role="listitem">
+              <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+              <button type="button" class="pipeline-subnode-content" (click)="goToSection('filters')" title="Open the rule builder">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span class="pipeline-subnode-text">
+                  <span class="pipeline-subnode-title">Add condition</span>
+                  <span class="pipeline-subnode-subtitle">Narrow the cohort further</span>
+                </span>
+                <span class="pipeline-subnode-cta">Add <i class="fas fa-plus" aria-hidden="true"></i></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        }
+
         <div class="pipeline-node-body">
+          <!-- Outside the padded body so the strip spans the node right under its header. -->
+          @if (sectionOpen().filters) {
+          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.filters }"></ng-container>
+          }
           <div class="workflow-section-body" [class.open]="sectionOpen().filters">
             <app-station-card>
             <!-- Apply saves and folds the editor. Preview data opens the Raw tables. -->
@@ -432,12 +605,17 @@
               [filterLogic]="expStudioService.filterLogic()"
               (filtersApplied)="onCohortFiltersApplied()"
             ></app-filter-config-modal>
+            @if (filterPreviewStatus) {
+            <div class="filter-match-row">
+              <span class="filter-match-chip"><i class="fas fa-users" aria-hidden="true"></i>{{ filterPreviewStatus }}</span>
+            </div>
+            }
             <app-station-action-bar
               stationFooter
               flush
               resetLabel="Clear"
-              previewLabel="Preview data"
-              [statusText]="filterPreviewStatus"
+              previewLabel="Preview matching records"
+              statusText="Rules take effect only when applied."
               [applyLabel]="filterModal.activeRulesCount() > 0 ? 'Apply filters' : 'Close'"
               [applyIcon]="filterModal.activeRulesCount() > 0 ? 'fas fa-check' : 'fas fa-times'"
               [applyVariant]="filterModal.activeRulesCount() > 0 ? 'primary' : 'quiet'"
@@ -473,17 +651,22 @@
         #setupSection
         class="pipeline-node preprocessing-section"
         [class.is-active]="isStepAdded('setup')"
+        [class.is-compact]="!sectionOpen().setup && !sectionOpen().processed"
         data-guide="analysis-preprocessing"
       >
         <header class="pipeline-node-header">
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 3 · Always on</span>
               <h3>Preprocessing</h3>
-              <span class="pipeline-node-subtitle">{{ preprocessingSubtitle }}</span>
+              <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
+            @if (recordsOut.processed !== null) {
+            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.processed!.toLocaleString() }}@if (recordsOut.filtered !== null) { <span>of {{ recordsOut.filtered!.toLocaleString() }}</span>}</span></span>
+            }
             <span
               class="pipeline-status-badge"
               [class.applied]="preprocessingBadgeTone === 'applied'"
@@ -492,6 +675,12 @@
             >
               {{ preprocessingStatusLabel }}
             </span>
+            @if (sectionOpen().setup || sectionOpen().processed) {
+            <button type="button" class="station-preview-toggle" (click)="collapseStep('setup')">
+              <i class="fas fa-chevron-up" aria-hidden="true"></i>
+              <span>Collapse</span>
+            </button>
+            }
             @if (isStepAdded('setup')) {
             <button
               type="button"
@@ -504,7 +693,7 @@
             } @else {
             <button type="button" class="btn-add-step" (click)="addStep('setup')">
               <i class="fas fa-sliders" aria-hidden="true"></i>
-              <span>Customize</span>
+              <span>Customize rules</span>
             </button>
             }
           </div>
@@ -514,6 +703,7 @@
              by the dashed rows that create the ones it does not hold yet. -->
         @if (!sectionOpen().setup && !sectionOpen().processed) {
         <div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
+          <p class="pipeline-subnodes-caption">Everything below runs in this order. Click a step to edit it; dashed rows add optional steps.</p>
           @for (node of appliedPreprocessingSubNodes; track node.id) {
           <div class="pipeline-subnode-item" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
@@ -527,6 +717,7 @@
               <span class="pipeline-subnode-impact">{{ node.impact }}</span>
               }
               <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+              <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
             </button>
           </div>
           }
@@ -541,7 +732,7 @@
               <i class="fas fa-line-chart" aria-hidden="true"></i>
               <span class="pipeline-subnode-text">
                 <span class="pipeline-subnode-title">Add outlier clipping</span>
-                <span class="pipeline-subnode-subtitle">Cap extreme values on numerical variables (optional)</span>
+                <span class="pipeline-subnode-subtitle">Cap extreme values so a few outliers don’t skew results — numerical variables only</span>
               </span>
               <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
             </button>
@@ -567,13 +758,16 @@
              the untouched default, the rail above is the whole card. -->
         @if (isStepAdded('setup')) {
         <div class="pipeline-node-body">
+          @if (sectionOpen().setup) {
+          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.setup }"></ng-container>
+          }
           <div class="workflow-section-body" [class.open]="sectionOpen().setup">
             <div class="preprocessing-shell">
             <app-station-card
               collapsible
               icon="fas fa-eraser"
               title="Missing Values"
-              description="Default: NA removal (rows with missing values are removed)."
+              description="Choose what happens to missing values, one variable at a time."
               [statusLabel]="missingPreprocessingStatusLabel"
               [status]="statusTone(missingPreprocessingStatusLabel, hasPendingMissingChanges)"
               [open]="preprocessingStepOpen.missing"
@@ -826,12 +1020,13 @@
                 <span>Select variables before configuring preprocessing.</span>
               </div>
               }
+            <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'missing' }"></ng-container>
           </app-station-card>
 
           @if (!showOutliersSection) {
           <button type="button" class="btn-add-dashed" (click)="enableOutlierHandling()">
             <i class="fas fa-plus" aria-hidden="true"></i>
-            <span>Add Outlier Handling (Optional)</span>
+            <span>Add outlier handling — cap extreme values (optional)</span>
           </button>
           } @else {
           <app-station-card
@@ -1125,6 +1320,7 @@
                 <span>Outlier handling is available for selected numerical variables.</span>
               </div>
               }
+            <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'outlier' }"></ng-container>
           </app-station-card>
           }
 
@@ -1268,31 +1464,10 @@
                 <span>Select variables before configuring longitudinal transformation.</span>
               </div>
               }
+            <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'longitudinal' }"></ng-container>
           </app-station-card>
           }
 
-          @if (successMessage) {
-          <div class="success-message glass-feedback" role="status">
-            <i class="fa fa-check-circle" aria-hidden="true"></i>
-            <span>{{ successMessage }}</span>
-          </div>
-          }
-
-          <app-station-action-bar
-            [pendingCount]="pendingChangeCount"
-            [statusText]="preprocessingActionSummary"
-            [tone]="pendingChangeCount === 0 ? 'applied' : 'pending'"
-            resetLabel="Discard"
-            previewLabel="Preview processed data"
-            [applyLabel]="preprocessingApplyLabel"
-            [applyIcon]="pendingChangeCount > 0 ? 'fas fa-check' : 'fas fa-times'"
-            [applyVariant]="pendingChangeCount > 0 ? 'primary' : 'quiet'"
-            [resetDisabled]="pendingChangeCount === 0 || isApplyingPreprocessing"
-            [applyDisabled]="isApplyingPreprocessing"
-            (reset)="resetChanges()"
-            (preview)="previewProcessedData()"
-            (apply)="commitOrClosePreprocessing()"
-          ></app-station-action-bar>
           </div>
           </div>
           <div #processedSection class="workflow-section" data-guide="analysis-processed-summary">
@@ -1318,6 +1493,7 @@
         class="pipeline-node preprocessing-section"
         [class.is-active]="isStepAdded('transformation')"
         [class.is-dormant]="!isStepAdded('transformation')"
+        [class.is-compact]="isStepAdded('transformation') && !sectionOpen().transformation"
         data-guide="analysis-transformation"
       >
         @if (!isStepAdded('transformation')) {
@@ -1326,12 +1502,13 @@
           <div class="dormant-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 4 · Optional</span>
               <h3>Data transformations</h3>
-              <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
+              <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
             </div>
           </div>
           <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Optional · not in run</span>
+            <span class="pipeline-status-badge optional">Skipped · not in run</span>
             <button type="button" class="btn-add-step" (click)="addStep('transformation')">
               <i class="fas fa-plus" aria-hidden="true"></i>
               <span>Add transformation</span>
@@ -1344,14 +1521,21 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 4 · Optional</span>
               <h3>Data transformations</h3>
-              <span class="pipeline-node-subtitle">Derive new categorical or numeric features</span>
+              <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
             <span class="pipeline-status-badge" [class.applied]="transformationStatusLabel === 'Applied'" [class.optional]="transformationStatusLabel !== 'Applied'">
               {{ transformationBadgeLabel }}
             </span>
+            @if (sectionOpen().transformation) {
+            <button type="button" class="station-preview-toggle" (click)="collapseStep('transformation')">
+              <i class="fas fa-chevron-up" aria-hidden="true"></i>
+              <span>Collapse</span>
+            </button>
+            }
             <button
               type="button"
               class="btn-remove-step-node"
@@ -1376,6 +1560,7 @@
                 <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
               </span>
               <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+              <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
             </button>
           </div>
           }
@@ -1394,23 +1579,17 @@
         }
 
         <div class="pipeline-node-body">
+          @if (sectionOpen().transformation) {
+          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.transformation }"></ng-container>
+          }
           <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
             <div class="preprocessing-shell">
-            @if (transformationActiveTab !== 'Create') {
-            <div class="station-preview-bar">
-              <button
-                type="button"
-                class="station-preview-toggle station-preview-close"
-                title="Close the preview"
-                (click)="setTransformationActiveTab('Create')">
-                <i class="fas fa-times" aria-hidden="true"></i>
-                <span>Close</span>
-              </button>
-            </div>
-            }
-            @if (transformationActiveTab === 'Create') {
-            <div class="transformation-cards">
-              @for (draft of transformationDrafts; track draft.id; let i = $index; let isFirst = $first) {
+            <!-- The stage's own vertical graph: one node per derived column, joined by the
+                 pipeline connector, ending in the type chooser. Unchosen blank drafts stay
+                 off screen; they hold no rules, so the #ruleModal order is unaffected. -->
+            <div class="transformation-graph">
+              @for (draft of transformationDrafts; track draft.id) {
+              @if (isDraftShown(draft)) {
               <app-station-card
                 collapsible
                 icon="fas fa-square-plus"
@@ -1420,33 +1599,52 @@
                 [status]="transformationDraftStatus(draft).tone"
                 [open]="draft.open"
                 (openChange)="toggleTransformationDraft(draft)">
-                @if (!isFirst) {
                 <!-- Projected next to the status chip, matching the optional Outlier Handling card. -->
                 <button type="button" class="btn-remove-step-node" stationAction (click)="removeTransformationDraft(draft.id)">
                   <i class="fas fa-trash-can" aria-hidden="true"></i>
-                  <span>Remove Step</span>
+                  <span>Remove column</span>
                 </button>
+                @if (previewDraftId === draft.id) {
+                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: draft.code }"></ng-container>
                 }
-                <div class="transformation-create">
-                  <div class="transformation-field transformation-field--name">
-                    <label [attr.for]="'transformation-code-' + draft.id">Column name</label>
+                <!-- Numbered like the stage's "How to use" strip: name, categories, preview + apply.
+                     Hidden, never destroyed, while previewing: its rule builders keep their state. -->
+                <div class="transformation-create" [class.is-previewing]="previewDraftId === draft.id">
+                  <section class="column-step">
+                    <label class="column-step-head" [attr.for]="'transformation-code-' + draft.id">
+                      <span class="column-step-number">1</span>Name the new column
+                    </label>
                     <div class="transformation-name-row">
                       <input [id]="'transformation-code-' + draft.id" class="transformation-code-input" type="text" [ngModel]="draft.code" (ngModelChange)="draft.code = $event; onTransformationInput()" placeholder="e.g. mrs_good_outcome" />
                       <span class="transformation-hint">Lowercase letters, digits and _ only</span>
                     </div>
-                  </div>
+                  </section>
 
-                  <div class="transformation-rules">
+                  <section class="column-step">
+                    <div class="column-step-head">
+                      <span class="column-step-number">2</span>Add categories, each with a rule
+                      <span class="column-step-meta">
+                        @if (draft.openRuleIndex != null) {
+                        Editing category {{ draft.openRuleIndex + 1 }} of {{ draft.rules.length }}
+                        } @else {
+                        {{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }} + fallback
+                        }
+                      </span>
+                    </div>
+                  <!-- Collapsed rows by default. Editing one rule focuses the table on it: the other
+                       rows fold away (hidden, never destroyed — #ruleModal order is positional) and
+                       Done brings the whole list back. -->
+                  <div class="transformation-rules" [class.is-focused]="draft.openRuleIndex != null">
                     <div class="transformation-rule-head">
                       <span></span>
                       <span>Value</span>
-                      <span>Rule</span>
+                      <span>Rule — records that…</span>
                       <span>Records</span>
                       <span></span>
                     </div>
                     <div class="transformation-rules-list">
                       @for (rule of draft.rules; track $index; let ruleIndex = $index) {
-                      <div class="transformation-rule-row">
+                      <div class="transformation-rule-row" [class.is-editing]="draft.openRuleIndex === ruleIndex">
                         <span class="transformation-rule-number">{{ ruleIndex + 1 }}</span>
                         <input
                           type="text"
@@ -1456,11 +1654,14 @@
                           class="transformation-rule-value input"
                         />
                         <span class="transformation-rule-summary">
-                          {{ transformationRuleSummary(rule) }}
+                          <span class="transformation-rule-sentence" [class.is-empty]="!rule.filter">{{ transformationRuleSummary(rule) }}</span>
+                          @if (draft.openRuleIndex !== ruleIndex) {
                           <button type="button" class="transformation-rule-edit-link"
                                   (click)="toggleTransformationRule(draft, ruleIndex)">
-                            {{ draft.openRuleIndex === ruleIndex ? 'Close rule' : 'Edit rule' }}
+                            <i class="fas" [class.fa-pen]="rule.filter" [class.fa-plus]="!rule.filter" aria-hidden="true"></i>
+                            {{ rule.filter ? 'Edit rule' : 'Set rule' }}
                           </button>
+                          }
                         </span>
                         <span class="transformation-rule-record-count">{{ transformationCount(draft, rule.value) }}</span>
                         <button type="button" class="transformation-rule-remove" title="Remove category"
@@ -1468,19 +1669,31 @@
                           <i class="fas fa-xmark" aria-hidden="true"></i>
                         </button>
                         <div class="transformation-rule-editor" [class.is-open]="draft.openRuleIndex === ruleIndex">
+                          <p class="transformation-rule-editor-lead">
+                            Records that match get
+                            <strong>{{ rule.value.trim() || 'this category' }}</strong>@if (ruleIndex > 0) {, unless an earlier category already took them}.
+                          </p>
                           <app-filter-config-modal
                             #ruleModal
                             variableScope="selectedVariables"
                             [filterLogic]="rule.filter"
                           ></app-filter-config-modal>
+                          <div class="transformation-rule-editor-foot">
+                            <button type="button" class="transformation-rule-done"
+                                    (click)="finishTransformationRule(draft, ruleIndex)">
+                              <i class="fas fa-check" aria-hidden="true"></i>
+                              Done
+                            </button>
+                            <span>Saves this rule and returns to all categories.</span>
+                          </div>
                         </div>
                       </div>
-                      } @empty {
-                      <div class="transformation-empty-rules">
-                        <i class="fas fa-diagram-project" aria-hidden="true"></i>
-                        <span>No category rules yet. Add a category, then define the record-level filter that selects it.</span>
-                      </div>
                       }
+                      <!-- Ghost row: the next category slots in above the fallback. -->
+                      <button type="button" class="transformation-add-category" (click)="addTransformationRule(draft)">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>{{ draft.rules.length ? 'Add category' : 'Add the first category, then define the rule that selects its records' }}</span>
+                      </button>
                       <div class="transformation-rule-row transformation-rule-fallback">
                         <span class="transformation-rule-number">↳</span>
                         <input
@@ -1495,129 +1708,108 @@
                         <span></span>
                       </div>
                     </div>
-                    <p class="transformation-rules-foot">{{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }} + fallback ·
-                      {{ draft.defaultEnumeration ? 'covers every record' : 'records matching no rule get no value' }}
+                    <p class="transformation-rules-foot">
+                      Rules are checked top to bottom; the first match wins ·
+                      {{ draft.defaultEnumeration ? 'the fallback covers every other record' : 'records matching no rule get no value' }}
                     </p>
-                    <button type="button" class="transformation-add-category" (click)="addTransformationRule(draft)">
-                      <i class="fas fa-plus" aria-hidden="true"></i>
-                      <span>Category</span>
+                  </div>
+                  </section>
+
+                  <section class="column-step">
+                    <div class="column-step-head"><span class="column-step-number">3</span>Preview counts, then Apply</div>
+                    <p class="column-step-note">
+                      <strong>Preview category counts</strong> below shows how many records land in each category;
+                      <strong>Apply</strong> adds <code>{{ draft.code.trim() || 'the column' }}</code> to the run.
+                    </p>
+                  </section>
+                </div>
+                <app-station-action-bar
+                  stationFooter
+                  flush
+                  [statusText]="draftHasNewWork(draft) ? 'Not applied — finish the column to add it to the run.' : ''"
+                  [tone]="transformationDraftStatus(draft).tone"
+                  [previewLabel]="previewDraftId === draft.id ? 'Back to editor' : 'Preview category counts'"
+                  [applyLabel]="draftHasNewWork(draft) ? 'Apply' : 'Close'"
+                  [applyIcon]="draftHasNewWork(draft) ? 'fas fa-check' : 'fas fa-times'"
+                  [applyVariant]="draftHasNewWork(draft) ? 'primary' : 'quiet'"
+                  (preview)="toggleTransformationPreview(draft.id)"
+                  (apply)="commitTransformationDraft(draft)"
+                ></app-station-action-bar>
+              </app-station-card>
+              <div class="pipeline-connector" aria-hidden="true">
+                <div class="pipeline-connector-line"></div>
+                <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+              </div>
+              }
+              }
+              <!-- Own station, not a categorical draft: it derives a column from a fitted
+                   K-means run instead of building categories. -->
+              @if (kmeansCardShown) {
+              <app-station-card
+                collapsible
+                icon="fas fa-diagram-project"
+                title="K-means cluster column"
+                description="Group records by similarity, then use the cluster as a categorical variable."
+                [statusLabel]="kmeansClusterStatusLabel"
+                [status]="kmeansClusterStatusLabel === 'Applied' ? 'applied' : 'default'"
+                [open]="kmeansClusterCardOpen()"
+                (openChange)="kmeansClusterCardOpen.set($event)">
+                @if (!expStudioService.appliedKMeansClusterCreator()) {
+                <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.kmeans }"></ng-container>
+                }
+                @if (previewDraftId === 'kmeans') {
+                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.code ?? '' }"></ng-container>
+                }
+                <app-kmeans-cluster-source [class.is-previewing]="previewDraftId === 'kmeans'" (runRequested)="previewTransformationCard('kmeans')" />
+                @if (expStudioService.appliedKMeansClusterCreator()) {
+                <app-station-action-bar
+                  stationFooter
+                  flush
+                  tone="applied"
+                  [previewLabel]="previewDraftId === 'kmeans' ? 'Back to column' : 'Preview cluster counts'"
+                  applyLabel="Close"
+                  applyIcon="fas fa-times"
+                  applyVariant="quiet"
+                  (preview)="toggleTransformationPreview('kmeans')"
+                  (apply)="closeTransformationPreview(); kmeansClusterCardOpen.set(false)"
+                ></app-station-action-bar>
+                }
+              </app-station-card>
+              <div class="pipeline-connector" aria-hidden="true">
+                <div class="pipeline-connector-line"></div>
+                <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+              </div>
+              }
+              <div class="transformation-chooser">
+                @if (transformationChooserOnly) {
+                <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
+                }
+                <div role="list" aria-label="Kinds of derived column">
+                  <div class="pipeline-subnode-item is-ghost" role="listitem">
+                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('categorical')">
+                      <i class="fas fa-tags" aria-hidden="true"></i>
+                      <span class="pipeline-subnode-text">
+                        <span class="pipeline-subnode-title">Categorical column from rules</span>
+                        <span class="pipeline-subnode-subtitle">Name categories and pick each one's records with a filter — e.g. MMSE below 24 → ‘impaired’</span>
+                      </span>
+                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
                     </button>
                   </div>
-                </div>
-              </app-station-card>
-              }
-              <div class="transformation-add-row">
-                <button type="button" class="btn-add-step" (click)="addTransformationDraft()">
-                  <i class="fas fa-plus" aria-hidden="true"></i>
-                  <span>Add categorical column</span>
-                </button>
-                @if (!kmeansClusterCardOpen() && !expStudioService.appliedKMeansClusterCreator()) {
-                <button type="button" class="btn-add-step" (click)="kmeansClusterCardOpen.set(true)">
-                  <i class="fas fa-plus" aria-hidden="true"></i>
-                  <span>Add K-means cluster column</span>
-                </button>
-                }
-              </div>
-            </div>
-            <!-- Own station, not a `.transformation-cards` draft: it derives a column from a
-                 fitted K-means run instead of building categories. -->
-            @if (kmeansClusterCardOpen() || expStudioService.appliedKMeansClusterCreator()) {
-            <app-station-card
-              collapsible
-              icon="fas fa-diagram-project"
-              title="K-means cluster column"
-              description="Turn a finished K-means run into a categorical cluster column."
-              [statusLabel]="kmeansClusterStatusLabel"
-              [status]="kmeansClusterStatusLabel === 'Applied' ? 'applied' : 'default'"
-              [open]="kmeansClusterCardOpen()"
-              (openChange)="kmeansClusterCardOpen.set($event)">
-              <app-kmeans-cluster-source (runRequested)="previewTransformationData()" />
-            </app-station-card>
-            }
-            } @else {
-            <div class="transformation-statistics">
-              @if (isTransformationStatsLoading) {
-              <div class="studio-skeleton-line"></div>
-              <div class="studio-skeleton-line short"></div>
-              } @else if (transformationStatistics.length === 0) {
-              <div class="empty-state-block compact-empty">
-                <i class="fa fa-bar-chart"></i>
-                <p>No categories configured yet.</p>
-                <span>Add category rules or apply a K-means cluster column, then Preview data to load counts.</span>
-              </div>
-              } @else {
-              @if (transformationStatisticsError) {
-              <div class="glass-feedback glass-feedback-warning">
-                {{ transformationStatisticsError }}
-              </div>
-              } @else if (showsRuleColumnCounts()) {
-              <div class="glass-feedback">
-                Category counts from a describe run with your applied transformation.
-              </div>
-              }
-              @for (block of transformationStatistics; track block.code) {
-              @if (kmeansColumnView(block.code); as column) {
-              <div class="transformation-stats-block transformation-create">
-                <h4 class="transformation-stats-title">Categorical column · {{ column.code }}</h4>
-                <p class="transformation-stats-lead">{{ column.lead }}</p>
-                <div class="transformation-rules">
-                  <div class="transformation-rule-head">
-                    <span></span>
-                    <span>Value</span>
-                    <span>Rule</span>
-                    <span>Records</span>
-                    <span></span>
+                  @if (!kmeansCardShown) {
+                  <div class="pipeline-subnode-item is-ghost" role="listitem">
+                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('kmeans')">
+                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
+                      <span class="pipeline-subnode-text">
+                        <span class="pipeline-subnode-title">K-means cluster column</span>
+                        <span class="pipeline-subnode-subtitle">Group records by similarity and use the cluster as a categorical variable</span>
+                      </span>
+                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+                    </button>
                   </div>
-                  <div class="transformation-rules-list">
-                    @for (row of block.rows; track row.value; let rowIndex = $index) {
-                    <div class="transformation-rule-row">
-                      <span class="transformation-rule-number">{{ rowIndex + 1 }}</span>
-                      <span class="transformation-rule-value transformation-rule-value--fixed">{{ row.value }}</span>
-                      <span class="transformation-rule-summary">{{ column.rules[row.value] || 'Nearest cluster' }}</span>
-                      <span class="transformation-rule-record-count">{{ row.count === null ? '—' : row.count }}</span>
-                      <span></span>
-                    </div>
-                    }
-                  </div>
-                  <p class="transformation-rules-foot">{{ column.foot }}</p>
+                  }
                 </div>
               </div>
-              } @else {
-              <div class="transformation-stats-block">
-                <h4 class="transformation-stats-heading"><code>{{ block.code }}</code></h4>
-                <table class="transformation-stats-table">
-                  <thead>
-                    <tr><th>Category</th><th>Count</th></tr>
-                  </thead>
-                  <tbody>
-                    @for (row of block.rows; track row.value) {
-                    <tr>
-                      <td>{{ row.value }}</td>
-                      <td>{{ row.count === null ? '—' : row.count }}</td>
-                    </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-              }
-              }
-              }
             </div>
-            }
-
-            <app-station-action-bar
-              [statusText]="transformationStatusLabel"
-              [tone]="statusTone(transformationStatusLabel, transformationStatusLabel === 'Not applied') === 'applied' ? 'applied' : 'default'"
-              resetLabel="Clear"
-              [previewLabel]="transformationActiveTab === 'Create' ? 'Preview counts' : ''"
-              applyLabel="Apply"
-              applyIcon="fas fa-check"
-              [resetDisabled]="transformationStatusLabel === 'Not set'"
-              [applyDisabled]="!transformationCanApply"
-              (reset)="resetTransformation()"
-              (preview)="previewTransformationData()"
-              (apply)="applyTransformation()"
-            ></app-station-action-bar>
             </div>
           </div>
         </div>

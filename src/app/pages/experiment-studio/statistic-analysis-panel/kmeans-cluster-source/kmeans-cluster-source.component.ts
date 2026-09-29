@@ -85,12 +85,37 @@ export class KMeansClusterSourceComponent implements OnInit {
       .filter((code) => !excluded.has(code));
   });
 
-  /** K-means parameters from the algorithm catalog. Closed until Advanced is opened. */
+  /** K-means parameters from the algorithm catalog. Closed until Parameters is opened. */
   readonly parameterFields = computed((): KMeansParameterField[] => {
     const schema = this.studio.backendAlgorithms()?.['kmeans']?.configSchema ?? [];
     return schema.filter((field): field is KMeansParameterField =>
       !!field?.key && ['number', 'select', 'text'].includes(field.type)
     );
+  });
+
+  /** Closed Parameters row. Same values `parameterOverrides()` will send, so a trimmed or invalid draft is not listed. */
+  readonly parameterSummary = computed(() => {
+    const overrides = this.parameterOverrides();
+    const changed = this.parameterFields()
+      .filter((field) => field.key in overrides)
+      .map((field) => {
+        const value = String(overrides[field.key]);
+        const option = (field.options ?? []).find((opt) => this.optionValue(opt) === value);
+        return `${field.label || field.key} ${option === undefined ? value || '—' : this.optionLabel(option)}`;
+      });
+    return changed.length ? changed.join(' · ') : 'All defaults';
+  });
+
+  /** Share-bar width (%) per cluster id. Sizes arrive as privacy intervals ("40–60"),
+   *  so each bar uses the midpoint of the numbers it holds: a "0–10" cluster is not empty. */
+  readonly clusterShares = computed((): Record<string, number> => {
+    const clusters = this.report()?.clusters ?? [];
+    const sizes = clusters.map((cluster) => {
+      const bounds = (String(cluster.size_interval).replace(/,/g, '').match(/\d+(?:\.\d+)?/g) ?? []).map(Number);
+      return bounds.length ? bounds.reduce((sum, bound) => sum + bound, 0) / bounds.length : 0;
+    });
+    const total = sizes.reduce((sum, size) => sum + size, 0);
+    return Object.fromEntries(clusters.map((cluster, i) => [cluster.cluster_id, total ? (sizes[i] / total) * 100 : 0]));
   });
 
   /** Inputs a report was run on; a report from other inputs must not become a column. */

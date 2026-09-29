@@ -69,6 +69,7 @@ import {
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
 type SectionKey = 'source' | 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
+type PrepStep = 'missing' | 'outlier' | 'longitudinal';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
 type PreprocessingStatus = 'none' | 'pending' | 'applied';
@@ -116,6 +117,9 @@ interface TransformationColumnDraft {
   open: boolean;
   /** Rule index whose filter editor is expanded; at most one open per card. */
   openRuleIndex?: number | null;
+  /** Picked from the type chooser (or restored from the store). The stage keeps one blank
+   *  draft as its model; until it is chosen it stays off screen and the chooser shows. */
+  chosen?: boolean;
 }
 
 /** A summary cell as a number: tolerates grouping commas and a trailing %; null when not numeric. */
@@ -298,6 +302,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   outlierValidationErrors: Record<string, string> = {};
   outlierPreviewRows: OutlierPreviewRow[] = [];
   outlierPreviewError = '';
+  /** A card's own Apply that failed: its message, shown in that card's footer. */
+  preprocessingApplyError: Record<string, string | undefined> = {};
   isLoadingOutlierPreview = false;
   prepSearch: Record<PrepKind, string> = {
     missing: '',
@@ -315,7 +321,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     raw: '',
     processed: '',
   };
-  successMessage = '';
   isExporting = false;
   isLoading = true;
   readonly sectionOpen = signal<Record<SectionKey, boolean>>({
@@ -407,6 +412,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     this.removeStep('filters');
     this.requestSectionScroll('filters');
+  }
+
+  /** Header Collapse: folds the stage's editor and preview; nothing is removed or discarded. */
+  collapseStep(step: 'filters' | 'setup' | 'transformation'): void {
+    if (step === 'filters') return this.foldFilterStation();
+    if (step === 'setup') return this.foldPreprocessingStation();
+    this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('transformation');
   }
 
   /** Apply saved the rules; fold the editor. Preview data is what opens the tables. */
@@ -513,16 +527,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.studioNavigation.navigateToSection('algorithm-section');
   }
 
-  /**
-   * The untouched stage still ships default NaN removal, so the card never claims to be
-   * empty; it says what is in effect and what clicking it would change.
-   */
-  get preprocessingSubtitle(): string {
-    return this.isStepAdded('setup')
-      ? 'Handle missing values and optional outlier clipping'
-      : 'Default NaN removal is already in effect - customize imputation or add outlier clipping';
-  }
-
   /** Header chip tone; the label reads off it so copy and colour cannot drift. */
   get preprocessingBadgeTone(): 'applied' | 'pending' | 'default' {
     if (this.pendingChangeCount > 0) return 'pending';
@@ -532,19 +536,19 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   get preprocessingStatusLabel(): string {
     switch (this.preprocessingBadgeTone) {
       case 'pending':
-        return 'Pending changes';
+        return `In run · ${pluralize(this.pendingChangeCount, 'change')} not applied`;
       case 'applied': {
         const count = this.appliedPreprocessingCount;
         return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
       }
       default:
-        return 'Default · in run';
+        return 'In run · Default';
     }
   }
 
   /** Terminal card's preprocessing fact: default drop-NaN, or the applied step count. */
   get terminalPreprocessingLine(): string {
-    if (this.preprocessingBadgeTone === 'default') return 'Preprocessing: default drop NaN';
+    if (this.preprocessingBadgeTone === 'default') return 'Missing values: remove rows (default)';
     return `Preprocessing: ${pluralize(this.appliedPreprocessingCount, 'step')}`;
   }
 
@@ -665,14 +669,39 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.jumpToSubNode('setup', subNode);
   }
 
-  /** Same for the Transformation stage: opens the editor on a fresh derived column. */
+  /** Same for the Transformation stage: opens it on the type chooser at the end of its graph. */
   addTransformationSubNode(): void {
-    // An added stage always keeps one editor, so reuse the blank card it may already hold
-    // rather than stacking a second empty one on top of it.
-    if (!this.transformationDrafts.some((draft) => !this.draftHasWork(draft))) {
-      this.addTransformationDraft();
-    }
     this.addStep('transformation');
+  }
+
+  isDraftShown(draft: TransformationColumnDraft): boolean {
+    return !!draft.chosen || this.draftHasWork(draft);
+  }
+
+  get kmeansCardShown(): boolean {
+    return this.kmeansClusterCardChosen() || !!this.expStudioService.appliedKMeansClusterCreator();
+  }
+
+  /** Nothing picked yet: the chooser is the whole stage, so it asks instead of offering. */
+  get transformationChooserOnly(): boolean {
+    return !this.kmeansCardShown && !this.transformationDrafts.some((draft) => this.isDraftShown(draft));
+  }
+
+  /** Type chooser row: the blank model draft is reused before a second one is stacked. */
+  chooseTransformation(kind: 'categorical' | 'kmeans'): void {
+    if (kind === 'kmeans') {
+      this.kmeansClusterCardChosen.set(true);
+      this.kmeansClusterCardOpen.set(true);
+    } else {
+      const blank = this.transformationDrafts.find((draft) => !this.isDraftShown(draft));
+      if (blank) {
+        blank.chosen = true;
+        blank.open = true;
+      } else {
+        this.addTransformationDraft();
+      }
+    }
+    this.cdr.markForCheck();
   }
 
   private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
@@ -684,7 +713,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const pending = this.hasPendingMissingChanges ? 'pending' : 'applied';
     const droppedByDefault = this.rowsDroppedByDefault;
     const impact = droppedByDefault != null
-      ? `${droppedByDefault.toLocaleString()} rows would be removed`
+      ? `−${droppedByDefault.toLocaleString()} records`
       : undefined;
 
     if (imputed.length) {
@@ -717,9 +746,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return {
       id: 'missing',
       icon: 'fas fa-eraser',
-      title: 'Missing values · remove rows',
-      subtitle: `All ${this.preprocessingVariables.length} selected variables`,
-      statusLabel: 'Default',
+      title: 'Missing values',
+      subtitle: `All ${pluralize(this.preprocessingVariables.length, 'variable')}: remove rows with a missing value (default)`,
+      statusLabel: 'In run · Default',
       statusTone: 'default',
       impact,
     };
@@ -736,19 +765,78 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   get filteringStatusLabel(): string {
     const count = this.filterRuleCount();
-    if (count > 0) return `Applied ✓ (${count} ${count === 1 ? 'rule' : 'rules'})`;
-    return 'No filters applied';
+    if (count > 0) return `In run · ${pluralize(count, 'rule')}`;
+    return 'Not in run yet';
   }
 
-  /** Footer fact after Preview data: filtered rows (raw summary) out of the unfiltered
+  /** Builder match chip after Preview: filtered rows (raw summary) out of the unfiltered
    *  source snapshot. The processed summary is excluded: its drop is preprocessing, not the filter. */
   get filterPreviewStatus(): string {
     const matched = this.getSummaryTotalRows(this.rawSummary);
     const source = this.getSummaryTotalRows(this.sourceSummary);
-    return matched !== null && source !== null
-      ? `${matched.toLocaleString()} of ${source.toLocaleString()} records match · last preview`
-      : '';
+    if (matched === null || source === null) return '';
+    // Never round a partial match to 0% or 100%: those read as "none" and "the filter does nothing".
+    const share = matched === source ? 100
+      : matched === 0 || source === 0 ? 0
+      : Math.min(99, Math.max(1, Math.round((matched / source) * 100)));
+    return `Matches ${matched.toLocaleString()} of ${source.toLocaleString()} records · ${share}%`;
   }
+
+  /** Header "Records out" per stage, read off the summaries already loaded; null hides it.
+   *  With no stored rule the Raw summary is the unfiltered cohort, so it stands in for the
+   *  source snapshot, which is only fetched when Raw data is previewed. A Raw summary
+   *  pinned to an unapplied preview stands in for neither. */
+  get recordsOut(): { source: number | null; filtered: number | null; processed: number | null } {
+    // A Raw summary pinned to unsaved preview rules does not describe the stored cohort.
+    const rawIsStoredCohort = this.rawSummaryKey === this.rawSummaryKeyFor();
+    const filtered = rawIsStoredCohort ? this.getSummaryTotalRows(this.rawSummary) : null;
+    const source = this.getSummaryTotalRows(this.sourceSummary)
+      ?? (this.filterRuleCount() === 0 ? filtered : null);
+    return { source, filtered, processed: this.getSummaryTotalRows(this.processedSummary) };
+  }
+
+  /** Collapsed Cohort filtering: one row per top-level rule of the stored filter. */
+  get cohortRuleRows(): Array<{ title: string; subtitle: string }> {
+    return (this.expStudioService.filterLogic()?.rules ?? []).map((node) => {
+      if ('rules' in node) {
+        const joiner = node.condition === 'OR' ? ' or ' : ' and ';
+        const title = node.rules
+          .map((child) => ('rules' in child ? '(…)' : this.filterConditionSentence(child)))
+          .join(joiner);
+        const scope = node.condition === 'OR' ? 'any' : 'all';
+        return { title, subtitle: `Group · matches ${scope} of ${pluralize(countFilterRules(node), 'condition')}` };
+      }
+      return { title: this.filterConditionSentence(node), subtitle: node.type === 'string' ? 'Categorical' : 'Numerical' };
+    });
+  }
+
+  get cohortMatchesAny(): boolean {
+    return this.expStudioService.filterLogic()?.condition === 'OR';
+  }
+
+  /** "How to use" strip copy per expanded stage; K-means is projected into its card. */
+  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans', { steps: string[]; note: string }> = {
+    source: {
+      steps: ['Pick a variable on the left', 'Switch between Table, Charts and Histogram', 'Note gaps or odd ranges — fix them in the steps below'],
+      note: 'Read only — this preview never changes the data or the run.',
+    },
+    filters: {
+      steps: ['Add a condition: variable, operator, value', 'Preview to see who matches', 'Apply to use the filter in the run'],
+      note: 'Records that match stay in the run. Everything else is left out — the raw data itself is never changed.',
+    },
+    setup: {
+      steps: ['Pick a variable', 'Choose what happens to its missing values', 'Apply — the run uses your rules'],
+      note: "Variables you don't touch keep the default: rows with a missing value are removed.",
+    },
+    transformation: {
+      steps: ['Choose the kind of column to add', 'Define it — category rules or a K-means run', 'Preview counts, then Apply'],
+      note: 'The new column joins your variable list, so you can pick it as an outcome or predictor in Algorithm Selection.',
+    },
+    kmeans: {
+      steps: ['Choose the variables to group by', 'Run the K-means report and check the clusters', 'Name the column and use it'],
+      note: 'Rows missing any chosen variable are left out. A finished K-means run can be reused if it used the same data model, datasets and filters.',
+    },
+  };
 
   readonly missingActions: Array<{ value: MissingAction; label: string }> = [
     { value: 'drop', label: 'Remove rows' },
@@ -757,7 +845,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     { value: 'constant', label: 'Constant value' },
   ];
 
-  transformationActiveTab: 'Create' | 'Statistics' = 'Create';
+  /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
+  previewDraftId: number | 'kmeans' | null = null;
   /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
   transformationDrafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
@@ -800,6 +889,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   };
 
   private selectionKey = '';
+  /** Cohort half of `selectionKey`, so a preprocessing write can be ignored on its own. */
+  private cohortSelectionKey = '';
+  /**
+   * JSON of the applied config written by this component. The selection effect
+   * rehydrates every card from that signal; this write must not, or a card Apply
+   * wipes the other cards' pending edits.
+   */
+  private appliedConfigWrite = '';
+  /** Card preview describes that card's pending rules over the applied rest. */
+  private processedPreviewScope: PrepStep | 'all' = 'all';
   private rawSummaryKey = '';
   /**
    * The cohort rules the Raw surface was last fetched with when they are unsaved
@@ -861,9 +960,22 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       const filters = this.expStudioService.selectedFilters();
       const filterLogic = this.expStudioService.filterLogic();
       const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
+      const cohortKey = this.buildSelectionKey(variables, filters, filterLogic);
       const nextSelectionKey = this.buildSelectionKey(variables, filters, filterLogic, appliedPreprocessing);
+      const echoed = this.appliedConfigWrite;
+      if (
+        echoed
+        && echoed === JSON.stringify(appliedPreprocessing ?? null)
+        && cohortKey === this.cohortSelectionKey
+      ) {
+        this.appliedConfigWrite = '';
+        this.selectionKey = nextSelectionKey;
+        return;
+      }
+      this.appliedConfigWrite = '';
 
       if (nextSelectionKey === this.selectionKey) return;
+      this.cohortSelectionKey = cohortKey;
       this.selectionKey = nextSelectionKey;
       this.reconcilePreprocessingForSelection();
 
@@ -978,23 +1090,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return 'Not set';
   }
 
-  /**
-   * Whether Apply has anything to write. This is the one thing that dims Apply, and it is
-   * never about what a loaded rule says: a stored rule the builder cannot read still forms a
-   * config, so an experiment imported from elsewhere never loses its Apply button.
-   */
-  get transformationCanApply(): boolean {
-    return this.transformationConfigs().length > 0;
-  }
-
   /** Pipeline-header badge: shows the derived-column count once applied. */
   get transformationBadgeLabel(): string {
     const count = this.appliedTransformationCount;
     if (this.transformationStatusLabel === 'Applied' && count > 0) {
       return `${count} ${count === 1 ? 'Transformation' : 'Transformations'} active`;
     }
-    return this.transformationStatusLabel;
+    return this.transformationStatusLabel === 'Applied' ? 'Applied' : 'Not in run yet';
   }
+
 
   /** Status chip for the K-means cluster column card on the Transformation step. */
   get kmeansClusterStatusLabel(): string {
@@ -1003,6 +1107,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Collapsible body state of the K-means cluster column card. */
   readonly kmeansClusterCardOpen = signal(false);
+  /** Picked from the type chooser: the card stays in the graph while folded, like a chosen draft. */
+  readonly kmeansClusterCardChosen = signal(false);
 
   /** True when a named category on any card is still missing an applied filter. */
   get transformationRulesNeedFilters(): boolean {
@@ -1419,9 +1525,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       processed: previewSetup,
       transformation: section === 'transformation',
     });
-    if (section === 'transformation') {
-      this.transformationActiveTab = 'Create';
-    }
     if (section === 'raw') {
       // The Raw summary must show the cohort it claims to: the stored rules, or the
       // unsaved ones a Cohort Filtering preview pinned to it.
@@ -1579,14 +1682,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return label === 'Applied' ? 'applied' : 'default';
   }
 
-  setTransformationActiveTab(tab: 'Create' | 'Statistics'): void {
-    this.transformationActiveTab = tab;
-    if (tab === 'Statistics') {
-      this.refreshTransformationStatistics();
-    }
-    this.cdr.markForCheck();
-  }
-
   /**
    * Persist live category-filter builders onto every rule (across all cards) without
    * touching cohort filters. `#ruleModal` renders one modal per rule in DOM order, so a
@@ -1595,13 +1690,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * own half-typed condition, or that could not read what the store holds, leaves that rule
    * as it is rather than exporting an empty filter and erasing a configured category.
    */
-  commitTransformationRuleFilters(): void {
+  commitTransformationRuleFilters(only?: TransformationColumnDraft): void {
     const modals = this.transformationRuleModals?.toArray() ?? [];
     let modalIndex = 0;
     for (const draft of this.transformationDrafts) {
       for (const rule of draft.rules) {
         const modal = modals[modalIndex++];
-        if (!modal) {
+        if (!modal || (only && draft !== only)) {
           continue;
         }
         const logic = modal.exportFilterLogic();
@@ -1616,14 +1711,55 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.onTransformationChange();
   }
 
-  previewTransformationData(): void {
-    this.commitTransformationRuleFilters();
-    this.setTransformationActiveTab('Statistics');
+  /** A card's own Preview: counts for its column, shown in place of its editor. The
+   *  editor stays mounted underneath, so its rule builders keep their state. */
+  previewTransformationCard(id: number | 'kmeans'): void {
+    // Only a categorical card has rule builders to commit; the K-means card has none.
+    const draft = this.transformationDrafts.find((item) => item.id === id);
+    if (draft) this.commitTransformationRuleFilters(draft);
+    this.previewDraftId = id;
+    this.refreshTransformationStatistics();
+    this.cdr.markForCheck();
+  }
+
+  closeTransformationPreview(): void {
+    this.previewDraftId = null;
+    this.cdr.markForCheck();
+  }
+
+  toggleTransformationPreview(id: number | 'kmeans'): void {
+    if (this.previewDraftId === id) this.closeTransformationPreview();
+    else this.previewTransformationCard(id);
+  }
+
+  transformationStatsFor(code: string): Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> {
+    const target = code.trim();
+    return this.transformationStatistics.filter((block) => block.code === target);
+  }
+
+  /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
+  draftHasNewWork(draft: TransformationColumnDraft): boolean {
+    const { label } = this.transformationDraftStatus(draft);
+    return label === 'Not applied' || label === 'Duplicate name';
+  }
+
+  /** A card's own Apply/Close: commit its rule builders, then fold it once it is settled.
+   *  Valid cards are persisted as they are typed, so this never writes other cards. */
+  commitTransformationDraft(draft: TransformationColumnDraft): void {
+    this.commitTransformationRuleFilters(draft);
+    if (!this.draftHasNewWork(draft)) {
+      draft.open = false;
+      if (this.previewDraftId === draft.id) this.previewDraftId = null;
+    }
+    this.cdr.markForCheck();
   }
 
   /** Clear the transformation station: pending edits and the committed config alike. */
   resetTransformation(): void {
     this.transformationDrafts = [emptyTransformationDraft()];
+    this.previewDraftId = null;
+    this.kmeansClusterCardChosen.set(false);
+    this.kmeansClusterCardOpen.set(false);
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
     // The K-means cluster column is a derived column of this stage too.
@@ -1631,38 +1767,31 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.onTransformationChange();
   }
 
-  /**
-   * Transformation is optional, and Apply commits what the cards can express: it refuses
-   * nothing, so an unfinished card contributes nothing. Apply keeps the user on the pipeline. A stage whose every card is
-   * settled folds back to its sub-node overview, so the rail can be reviewed before
-   * Continue to Algorithm Selection. A stage that still holds unfinished work stays open:
-   * the Pending / Duplicate name chips are the whole warning, and folding would hide them.
-   */
-  applyTransformation(): void {
-    this.commitTransformationRuleFilters();
-    if (!this.transformationCanApply) {
-      // Nothing to write: the stage keeps its editor open, and Apply is dimmed for exactly
-      // this case rather than answering the click with silence.
-      this.cdr.markForCheck();
-      return;
-    }
-    // Accepted: fold the cards, then the stage. The drafts keep their values, so reopening
-    // resumes where the user left off, on the editor and not on whatever preview tab they
-    // happened to be on. A folded card still shows its status chip, so the cards can fold
-    // whether or not the stage does.
-    this.transformationActiveTab = 'Create';
-    this.transformationDrafts.forEach((draft) => {
-      draft.open = false;
-    });
-    if (!this.transformationHasPendingChange) {
-      this.sectionOpen.update((open) => ({ ...open, transformation: false }));
-    }
-    this.cdr.markForCheck();
-  }
-
+  /** A new category lands collapsed, like every other row: its rule opens on Set rule. */
   addTransformationRule(draft: TransformationColumnDraft): void {
     draft.rules.push({ value: '', filter: null });
-    draft.openRuleIndex = draft.rules.length - 1;
+    this.onTransformationChange();
+  }
+
+  /**
+   * Done on the rule being edited: save what its builder holds and fold back to the
+   * category list. A builder with an error stays open and shows its own message.
+   */
+  finishTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    // `#ruleModal` renders one builder per rule in card order, so earlier cards' rules come first.
+    const offset = this.transformationDrafts
+      .slice(0, this.transformationDrafts.indexOf(draft))
+      .reduce((count, earlier) => count + earlier.rules.length, 0);
+    const modal = this.transformationRuleModals?.toArray()[offset + index];
+    if (modal) {
+      const logic = modal.exportFilterLogic();
+      if (modal.filterError()) {
+        this.cdr.markForCheck();
+        return;
+      }
+      draft.rules[index].filter = logic;
+    }
+    draft.openRuleIndex = null;
     this.onTransformationChange();
   }
 
@@ -1694,7 +1823,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** A one-line rule summary for the collapsed row. */
   transformationRuleSummary(rule: TransformationRule): string {
     const condition = this.firstFilterCondition(rule.filter);
-    if (!condition) return 'No rule yet';
+    return condition ? this.filterConditionSentence(condition) : 'No rule yet';
+  }
+
+  /** `Age is at least 60`: one condition in words, labelled from the selected variables. */
+  private filterConditionSentence(condition: { field: string; operator: string; value: unknown }): string {
     const variable = this.expStudioService.selectedVariables()
       .find((item) => String(item?.code ?? '') === condition.field);
     const label = String(variable?.label ?? variable?.name ?? condition.field);
@@ -1732,13 +1865,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   addTransformationDraft(): void {
     // Opening another editor is a read: an empty card has no config to persist, so
     // leave the stored transformation untouched until the user types/commits.
-    this.transformationDrafts.push(emptyTransformationDraft());
+    this.transformationDrafts.push({ ...emptyTransformationDraft(), chosen: true });
     this.cdr.markForCheck();
   }
 
   /**
-   * Remove a card. The first card is the primary one: it is cleared, not removed,
-   * so the stage always keeps at least one editor (same behavior as shared Clear).
+   * Remove a card. The last one is reset to the blank, unchosen model draft rather than
+   * removed, so the stage falls back to its type chooser (same as shared Clear).
    */
   removeTransformationDraft(id: number): void {
     const index = this.transformationDrafts.findIndex((draft) => draft.id === id);
@@ -2025,17 +2158,88 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return `Fills ${missing} of ${total} values (${share}) with ${fill}. Rows kept.`;
   }
 
-  /** Footer summary for the preprocessing action bar: what changed and how. */
-  get preprocessingActionSummary(): string {
-    if (this.pendingChangeCount === 0) return 'No changes — every variable uses the default';
-    const missingVariable = this.preprocessingVariables.find((variable) =>
-      this.prepVariableHasPendingChange('missing', variable)
-    );
-    if (missingVariable) {
-      const action = this.ruleFor(missingVariable).action;
-      return `${pluralize(this.pendingChangeCount, 'change')}: ${this.variableLabel(missingVariable)} → ${this.missingStrategyLabel(action).toLowerCase()}`;
+  /**
+   * What each preprocessing card does for a scoped Apply / Discard. A scope of 'all' runs
+   * every card's op in this order, so a new card is added here and nowhere else.
+   */
+  private readonly prepStepOps: Record<PrepStep, {
+    pending: () => number;
+    validate: () => Record<string, string>;
+    commit: () => void;
+    reset: () => void;
+  }> = {
+    missing: {
+      pending: () => this.pendingMissingChangeCount,
+      validate: () => this.validatePendingMissingRules(),
+      commit: () => {
+        this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
+          this.appliedPreprocessingRules,
+          this.pendingPreprocessingRules
+        );
+      },
+      reset: () => {
+        this.pendingPreprocessingRules = this.mergeRulesForCurrentSelection(
+          this.pendingPreprocessingRules,
+          this.appliedPreprocessingRules
+        );
+      },
+    },
+    outlier: {
+      pending: () => this.pendingOutlierChangeCount,
+      validate: () => this.validatePendingOutlierRules(),
+      commit: () => {
+        this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+          this.appliedOutlierRules,
+          this.pendingOutlierRules
+        );
+      },
+      reset: () => {
+        this.pendingOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+          this.pendingOutlierRules,
+          this.appliedOutlierRules
+        );
+      },
+    },
+    longitudinal: {
+      pending: () => this.pendingLongitudinalChangeCount,
+      validate: () => this.validatePendingLongitudinalRules(),
+      commit: () => {
+        this.appliedLongitudinalEnabled = this.isLongitudinalModel;
+        this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
+        this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
+        this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+      },
+      reset: () => {
+        this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
+        this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
+        this.pendingLongitudinalStrategies = { ...this.appliedLongitudinalStrategies };
+        this.ensureLongitudinalDefaults();
+      },
+    },
+  };
+
+  private stepsIn(scope: PrepStep | 'all'): PrepStep[] {
+    return scope === 'all' ? ['missing', 'outlier', 'longitudinal'] : [scope];
+  }
+
+  /** Pending edits of one preprocessing card; the stage count sums these. */
+  stepPendingCount(step: PrepStep): number {
+    return this.prepStepOps[step].pending();
+  }
+
+  stepApplyLabel(step: PrepStep): string {
+    if (this.isApplyingPreprocessing) return 'Applying…';
+    return this.stepPendingCount(step) > 0 ? 'Apply' : 'Close';
+  }
+
+  /** Card footer primary: apply only this card's edits, or fold the card when it has none. */
+  commitOrCloseStep(step: PrepStep): void {
+    if (this.stepPendingCount(step) > 0) {
+      this.applyPreprocessing(step);
+      return;
     }
-    return `${pluralize(this.pendingChangeCount, 'change')} pending`;
+    this.preprocessingStepOpen[step] = false;
+    this.cdr.markForCheck();
   }
 
   /** Choice-card effect line. Empty when the summary has not loaded: the label alone
@@ -2405,25 +2609,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return strategy === 'diff' && !this.isNumericVariable(variable);
   }
 
-  resetChanges(): void {
-    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
-    this.currentPreprocessingCodeSet().forEach((code) => {
-      nextPending[code] = this.appliedPreprocessingRules[code]
-        ? { ...this.appliedPreprocessingRules[code] }
-        : this.defaultRule(code);
-    });
-    this.pendingPreprocessingRules = nextPending;
-    const nextOutlierPending = cloneOutlierRules(this.pendingOutlierRules);
-    this.currentOutlierPreprocessingCodeSet().forEach((code) => {
-      nextOutlierPending[code] = this.appliedOutlierRules[code]
-        ? { ...this.appliedOutlierRules[code] }
-        : this.defaultOutlierRule(code);
-    });
-    this.pendingOutlierRules = nextOutlierPending;
-    this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
-    this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
-    this.pendingLongitudinalStrategies = { ...this.appliedLongitudinalStrategies };
-    this.ensureLongitudinalDefaults();
+  /** Discard pending edits: one card's (its footer) or every card's (leaving the stage). */
+  resetChanges(scope: PrepStep | 'all' = 'all'): void {
+    this.stepsIn(scope).forEach((step) => this.prepStepOps[step].reset());
+    this.preprocessingApplyError = {};
     this.preprocessingValidationErrors = {};
     this.outlierValidationErrors = {};
     this.updatePreprocessingStatus();
@@ -2488,26 +2677,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     });
   }
 
-  /** Primary slot label: a pending change is applied; an "All set" station is only closed. */
-  get preprocessingApplyLabel(): string {
-    if (this.isApplyingPreprocessing) return 'Applying…';
-    return this.pendingChangeCount > 0 ? 'Apply' : 'Close';
-  }
-
-  commitOrClosePreprocessing(): void {
-    if (this.pendingChangeCount > 0) {
-      this.applyPreprocessing();
-      return;
-    }
-    this.foldPreprocessingStation();
-  }
-
   /**
    * Fold the station: editor and processed workspace both close, nothing is reverted.
-   * Used by Close (nothing to commit) and by Apply once the describe has landed — the
-   * applied-config write already invalidates that workspace through the selection effect,
-   * so folding here is what really happens, not a guess. The node keeps its rail of
-   * applied sub-steps, and that rail is the way back into the editor.
+   * Used by Close (nothing to commit) and by Apply once the describe has landed.
+   * The node keeps its rail of applied sub-steps, and that rail is the way back into the editor.
    */
   private foldPreprocessingStation(): void {
     this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
@@ -2521,11 +2694,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * the shared processed SummaryView, so the preview shows data instead of an empty
    * card; Apply remains the only path that persists the config.
    */
-  previewProcessedData(): void {
+  previewProcessedData(scope: PrepStep | 'all' = 'all'): void {
     this.ensureDefaultRulesForCurrentSelection();
     this.ensureOutlierDefaultsForCurrentSelection();
     this.ensureLongitudinalDefaults();
-    if (this.reportPendingValidationErrors(this.validatePendingRules())) return;
+    if (this.reportPendingValidationErrors(this.validatePendingRulesFor(scope), scope)) return;
+    this.processedPreviewScope = scope;
     // Navigating to the processed section performs the transient describe;
     // it must not run twice for one click.
     this.goToSection('processed');
@@ -2537,7 +2711,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * with identical inputs reuses the data instead of refetching.
    */
   private fetchProcessedPreview(): void {
-    if (Object.keys(this.validatePendingRules()).length > 0) return;
+    const scope = this.processedPreviewScope;
+    this.processedPreviewScope = 'all';
+    if (Object.keys(this.validatePendingRulesFor(scope)).length > 0) return;
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
     const hasScope =
       !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
@@ -2548,8 +2724,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-    const preprocessing =
-      this.buildPreprocessingConfig(this.pendingPreprocessingRules, this.currentPreprocessingCodeSet());
+    const preprocessing = scope === 'all'
+      ? this.buildPreprocessingConfig(this.pendingPreprocessingRules, this.currentPreprocessingCodeSet())
+      : this.buildScopedPreprocessingConfig(scope);
     const nextKey = this.buildProcessedSummaryKey(variableCodes, preprocessing ?? {});
     // The key is claimed before the request goes out, so an in-flight or already
     // settled fetch for the same config answers this call; re-requesting it would
@@ -2591,34 +2768,35 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       });
   }
 
-  applyPreprocessing(): void {
+  /**
+   * Apply pending edits: every card's (Apply & Continue) or one card's (its footer). A
+   * scoped apply writes that card's pending rules over the applied rest, leaves the other
+   * cards' edits pending, and folds only its own card.
+   */
+  applyPreprocessing(scope: PrepStep | 'all' = 'all'): void {
     this.ensureDefaultRulesForCurrentSelection();
     this.ensureOutlierDefaultsForCurrentSelection();
     this.ensureLongitudinalDefaults();
-    if (this.pendingChangeCount === 0) return;
-    if (this.reportPendingValidationErrors(this.validatePendingRules())) return;
+    if (this.stepsIn(scope).every((step) => this.stepPendingCount(step) === 0)) return;
+    this.preprocessingApplyError = {};
+    if (this.reportPendingValidationErrors(this.validatePendingRulesFor(scope))) return;
     this.clearOutlierPreview();
 
     const currentCodes = this.currentPreprocessingCodeSet();
-    const preprocessing = this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes);
+    const preprocessing = scope === 'all'
+      ? this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes)
+      : this.buildScopedPreprocessingConfig(scope);
     if (!preprocessing) {
-      this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
-        this.appliedPreprocessingRules,
-        this.pendingPreprocessingRules
-      );
-      this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
-        this.appliedOutlierRules,
-        this.pendingOutlierRules
-      );
-      this.appliedLongitudinalEnabled = this.isLongitudinalModel;
-      this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
-      this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
-      this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+      this.commitPendingToApplied(scope);
       this.processedSummary = this.createEmptySummary(false);
-      this.persistAppliedDescriptivePreprocessing(null);
-      this.preprocessingStatus = 'none';
+      this.persistAppliedDescriptivePreprocessing(
+        this.buildPreprocessingConfig(this.appliedPreprocessingRules)
+      );
+      this.preprocessingStatus = this.pendingChangeCount > 0
+        ? 'pending'
+        : this.buildPreprocessingConfig(this.appliedPreprocessingRules) ? 'applied' : 'none';
+      if (scope !== 'all') this.preprocessingStepOpen[scope] = false;
       this.sectionOpen.update((open) => ({ ...open, processed: false }));
-      this.successMessage = '';
       this.emitProgressState();
       this.cdr.markForCheck();
       return;
@@ -2633,8 +2811,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     // Claim the summary key up front so the navigate-to-preview fetch is
     // deduped against the apply request below (identical payload).
     this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
-    this.summaryExpanded.update((expanded) => ({ ...expanded, setup: true }));
-    this.goToSection('processed');
+    if (scope === 'all') {
+      this.summaryExpanded.update((expanded) => ({ ...expanded, setup: true }));
+      this.goToSection('processed');
+    }
     this.preprocessingValidationErrors = {};
     this.outlierValidationErrors = {};
     this.cdr.markForCheck();
@@ -2648,29 +2828,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           this.clearProcessedPreviewSubscription();
           this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
           this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
-          this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
-            this.appliedPreprocessingRules,
-            this.pendingPreprocessingRules
+          this.commitPendingToApplied(scope);
+          // The describe above included the other cards' applied rules (and implicit
+          // defaults). Save only what is actually applied, so those defaults are not
+          // stored as an explicit missing-values handler.
+          this.persistAppliedDescriptivePreprocessing(
+            this.buildPreprocessingConfig(this.appliedPreprocessingRules)
           );
-          this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
-            this.appliedOutlierRules,
-            this.pendingOutlierRules
-          );
-          this.appliedLongitudinalEnabled = this.isLongitudinalModel;
-          this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
-          this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
-          this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
-          this.persistAppliedDescriptivePreprocessing(preprocessing);
           this.userPreprocessingApplied = true;
-          this.preprocessingStatus = 'applied';
+          this.preprocessingStatus = this.pendingChangeCount > 0 ? 'pending' : 'applied';
           this.isApplyingPreprocessing = false;
-          this.successMessage = '';
           this.refreshActiveHistogramPreview('processed');
           this.emitProgressState();
-          // Apply saves and closes: fold this station, and do not open the next one.
-          // The summary just computed stays reachable through Preview data; moving on
-          // belongs to "Continue to Algorithm Selection".
-          this.foldPreprocessingStation();
+          // Apply saves and closes: fold the card (or, for Apply & Continue, the station),
+          // and do not open the next one. The summary just computed stays reachable
+          // through Preview; moving on belongs to "Continue to Algorithm Selection".
+          if (scope === 'all') this.foldPreprocessingStation();
+          else this.preprocessingStepOpen[scope] = false;
           if (this.continueAfterApply) {
             this.continueAfterApply = false;
               this.studioNavigation.navigateToSection('algorithm-section');
@@ -2686,7 +2860,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           // clear it so the next preview or apply refetches.
           this.processedSummaryKey = '';
           this.processedSummary = this.createEmptySummary(false);
-          this.sectionOpen.update((open) => ({ ...open, processed: true }));
+          if (scope === 'all') {
+            this.sectionOpen.update((open) => ({ ...open, processed: true }));
+          } else {
+            // A card's own Apply never left the card: keep it open and say why nothing changed.
+            this.preprocessingApplyError = { [scope]: 'Could not apply these changes. They are still pending — try Apply again.' };
+          }
           this.cdr.markForCheck();
       },
     });
@@ -3395,6 +3574,28 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.formatPercent(num, 2);
   }
 
+  /** Copy pending → applied for one card or all of them. */
+  private commitPendingToApplied(scope: PrepStep | 'all'): void {
+    this.stepsIn(scope).forEach((step) => this.prepStepOps[step].commit());
+  }
+
+  /** The run config one card's Apply writes: its pending rules over the applied rest
+   *  (untouched variables on their defaults, exactly as a full apply would send them). */
+  private buildScopedPreprocessingConfig(step: PrepStep): PreprocessingConfig | null {
+    const config: PreprocessingConfig = {};
+    const missing = this.buildMissingPreprocessingConfig(step === 'missing'
+      ? this.pendingPreprocessingRules
+      : this.mergeRulesForCurrentSelection({}, this.appliedPreprocessingRules));
+    if (missing) config['missing_values_handler'] = missing;
+    const outlier = this.buildOutlierPreprocessingConfig(step === 'outlier'
+      ? this.pendingOutlierRules
+      : this.mergeOutlierRulesForCurrentSelection({}, this.appliedOutlierRules));
+    if (outlier) config['outlier_winsorizer'] = outlier;
+    const longitudinal = this.buildLongitudinalPreprocessingConfig(step !== 'longitudinal');
+    if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+    return Object.keys(config).length ? config : null;
+  }
+
   private buildPreprocessingConfig(
     rules: Record<string, PreprocessingRule>,
     allowedCodes = this.currentPreprocessingCodeSet()
@@ -3730,12 +3931,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return serialized ? { ...serialized } : null;
   }
 
+  private validatePendingRulesFor(scope: PrepStep | 'all'): Record<string, string> {
+    return Object.assign({}, ...this.stepsIn(scope).map((step) => this.prepStepOps[step].validate()));
+  }
+
   private validatePendingRules(): Record<string, string> {
-    return {
-      ...this.validatePendingMissingRules(),
-      ...this.validatePendingOutlierRules(),
-      ...this.validatePendingLongitudinalRules(),
-    };
+    return this.validatePendingRulesFor('all');
   }
 
   /**
@@ -3743,17 +3944,31 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * whether the caller has to stop. Clears both maps when the rules are valid, so a
    * fixed rule never leaves stale red text behind.
    */
-  private reportPendingValidationErrors(validationErrors: Record<string, string>): boolean {
+  private reportPendingValidationErrors(
+    validationErrors: Record<string, string>,
+    scope: PrepStep | 'all' = 'all',
+  ): boolean {
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    const inScope = (code: string): boolean => {
+      if (scope === 'all') return true;
+      if (scope === 'outlier') return outlierCodes.has(code);
+      if (scope === 'longitudinal') return code === '__longitudinal__';
+      return !outlierCodes.has(code) && code !== '__longitudinal__';
+    };
+    const kept = Object.fromEntries(
+      Object.entries(this.preprocessingValidationErrors).filter(([code]) => !inScope(code))
+    );
     if (Object.keys(validationErrors).length === 0) {
-      this.preprocessingValidationErrors = {};
-      this.outlierValidationErrors = {};
+      this.preprocessingValidationErrors = kept;
+      if (scope === 'all' || scope === 'outlier') this.outlierValidationErrors = {};
       return false;
     }
-    this.preprocessingValidationErrors = validationErrors;
-    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
-    this.outlierValidationErrors = Object.fromEntries(
-      Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
-    );
+    this.preprocessingValidationErrors = { ...kept, ...validationErrors };
+    if (scope === 'all' || scope === 'outlier') {
+      this.outlierValidationErrors = Object.fromEntries(
+        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
+      );
+    }
     this.cdr.markForCheck();
     return true;
   }
@@ -3818,7 +4033,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (this.pendingChangeCount > 0) this.preprocessingStatus = 'pending';
     else if (this.buildPreprocessingConfig(this.appliedPreprocessingRules)) this.preprocessingStatus = 'applied';
     else this.preprocessingStatus = 'none';
-    this.successMessage = '';
     this.clearOutlierPreview();
     if (this.sectionOpen().processed) this.fetchProcessedPreview();
   }
@@ -3855,7 +4069,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       Object.entries(this.outlierValidationErrors).filter(([code]) => outlierCodes.has(code))
     );
     this.sectionOpen.update((open) => ({ ...open, processed: false }));
-    this.successMessage = '';
     this.ensureLongitudinalDefaults();
     if (!this.isApplyingPreprocessing) {
       this.clearProcessedPreviewSubscription();
@@ -3957,7 +4170,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         )
       );
     if (drafts.length) {
-      this.transformationDrafts = drafts;
+      this.transformationDrafts = drafts.map((draft) => ({ ...draft, chosen: true }));
     }
   }
 
@@ -4031,6 +4244,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
     this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
     this.expStudioService.setKMeansClusterPreprocessing(clusterCreator);
+    this.appliedConfigWrite = JSON.stringify(this.expStudioService.appliedPreprocessingConfig() ?? null);
   }
 
   private syncAppliedPreprocessingForCurrentSelection(): void {
