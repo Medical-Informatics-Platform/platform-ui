@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
@@ -33,7 +33,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
     /** The collapsed rail rows, split into what runs and what the rail offers to add. */
     function railRows(card: HTMLElement): { live: HTMLElement[]; ghost: HTMLElement[] } {
-        const rows = Array.from(card.querySelectorAll('.pipeline-subnode-item')) as HTMLElement[];
+        // Scoped to the rail: the opened Transformation stage keeps its own ghost rows in the
+        // type chooser, which is part of the stage graph rather than of the overview.
+        const rows = Array.from(card.querySelectorAll('.pipeline-subnodes-tree .pipeline-subnode-item')) as HTMLElement[];
         return {
             live: rows.filter((row) => !row.classList.contains('is-ghost')),
             ghost: rows.filter((row) => row.classList.contains('is-ghost')),
@@ -233,7 +235,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(text).toContain('17 of 20 records');
         expect(text).toContain('1 variables');
         expect(text).toContain('1 datasets');
-        expect(text).toContain('Preprocessing: default drop NaN');
+        expect(text).toContain('Missing values: remove rows (default)');
         expect(terminal.querySelector('.unapplied-warning-card')).toBeTruthy();
     });
 
@@ -242,7 +244,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         expect(nodes.length).toBe(1);
         expect(nodes[0].id).toBe('missing');
-        expect(nodes[0].statusLabel).toBe('Default');
+        expect(nodes[0].statusLabel).toBe('In run · Default');
         expect(component.appliedPreprocessingCount).toBe(0);
         expect(component.appliedTransformationSubNodes).toEqual([]);
     });
@@ -260,20 +262,20 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         const preprocessing = pipelineCard('analysis-preprocessing');
         expect(preprocessing.classList.contains('is-dormant')).toBeFalse();
         expect(preprocessing.querySelector('.pipeline-node-header h3')?.textContent?.trim()).toBe('Preprocessing');
-        expect(preprocessing.querySelector('.pipeline-node-subtitle')?.textContent).toContain('Default NaN removal is already in effect');
+        expect(preprocessing.querySelector('.pipeline-node-subtitle')?.textContent).toContain('Decide what happens to missing values');
 
         const badge = preprocessing.querySelector('.pipeline-status-badge') as HTMLElement;
-        expect(badge.textContent?.trim()).toBe('Default · in run');
+        expect(badge.textContent?.trim()).toBe('In run · Default');
         expect(badge.classList.contains('default')).toBeTrue();
         expect(badge.classList.contains('applied')).toBeFalse();
 
         const rows = railRows(preprocessing);
         expect(rows.live.length).toBe(1);
-        expect(rows.live[0].textContent).toContain('Missing values · remove rows');
-        expect(rows.live[0].textContent).toContain('All 1 selected variables');
+        expect(rows.live[0].textContent).toContain('Missing values');
+        expect(rows.live[0].textContent).toContain('All 1 variable: remove rows with a missing value (default)');
         const chip = rows.live[0].querySelector('.pipeline-subnode-status') as HTMLElement;
         expect(chip.getAttribute('data-tone')).toBe('default');
-        expect(chip.textContent?.trim()).toBe('Default');
+        expect(chip.textContent?.trim()).toBe('In run · Default');
 
         expect(component.activeStagesCount).toBe(0);
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
@@ -319,11 +321,18 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         expect(component.pendingChangeCount).toBe(0);
-        component.commitOrClosePreprocessing();
+        // The card's own footer primary folds just that card; the stage keeps its shape.
+        component.commitOrCloseStep('outlier');
         fixture.detectChanges();
 
-        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.preprocessingStepOpen.outlier).toBeFalse();
+        expect(component.sectionOpen().setup).toBeTrue();
         expect(mockExpService.appliedPreprocessingConfig()).toBeNull();
+
+        // Collapsed, the stage hands the step back to its rail: closing an untouched card
+        // never consumed the one control that adds the step back.
+        component.collapseStep('setup');
+        fixture.detectChanges();
         const rows = railRows(pipelineCard('analysis-preprocessing'));
         expect(rows.live.length).toBe(1);
         expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add outlier clipping')]);
@@ -334,7 +343,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStepOpen.outlier).toBeTrue();
     });
 
-    it('opens the transformation stage on a blank column from the collapsed rail', () => {
+    it('opens the transformation stage from the collapsed rail without inventing a column', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
                 code: 'mrs_good_outcome',
@@ -354,12 +363,19 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         expect(component.sectionOpen().transformation).toBeTrue();
+        // The dashed row only opens the stage now: the graph holds the stored column, and the
+        // stage's own blank draft stays off screen until a type is chosen.
+        const graphCards = () => (fixture.nativeElement as HTMLElement)
+            .querySelectorAll('[data-guide="analysis-transformation"] .transformation-graph app-station-card');
         const blankCards = () => component.transformationDrafts.filter((draft) => !draft.code.trim() && !draft.rules.length).length;
-        expect(blankCards()).toBe(1);
+        expect(graphCards().length).toBe(1);
+        expect(blankCards()).toBe(0);
 
         component.addTransformationSubNode();
-        expect(component.transformationDrafts.length).toBe(2);
-        expect(blankCards()).toBe(1);
+        fixture.detectChanges();
+        expect(component.transformationDrafts.length).toBe(1);
+        expect(graphCards().length).toBe(1);
+        expect(blankCards()).toBe(0);
         expect(mockExpService.setTransformationPreprocessing).not.toHaveBeenCalled();
     });
 
@@ -475,7 +491,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.transformationBadgeLabel).toBe('1 Transformation active');
     });
 
-    it('collapses the stage on Apply so every derived column shows in the overview', () => {
+    it('folds every derived column card on Apply so the overview can list them', () => {
         seedAppliedConfig({
             categorical_column_creator: [
                 { code: 'mrs_good_outcome', strategy: 'filter_rules', rules: { good: { field: 'age', operator: '<', value: 50 } } },
@@ -495,12 +511,19 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             toArray: () => committed.map((filter) => ({ exportFilterLogic: () => filter, filterError: () => null })),
         } as any;
 
-        component.applyTransformation();
+        // Every card answers for itself: its own Apply commits it and folds it, and the
+        // stage stays open until its header Collapse folds it to the overview.
+        component.transformationDrafts.forEach((draft) => component.commitTransformationDraft(draft));
+        fixture.detectChanges();
+        expect(component.transformationDrafts.every((draft) => !draft.open)).toBeTrue();
+        expect(component.sectionOpen().transformation).toBeTrue();
+
+        component.collapseStep('transformation');
         fixture.detectChanges();
 
         expect(component.sectionOpen().transformation).toBeFalse();
         const overview = Array.from(
-            fixture.nativeElement.querySelectorAll('[data-guide="analysis-transformation"] .pipeline-subnode-item')
+            fixture.nativeElement.querySelectorAll('[data-guide="analysis-transformation"] .pipeline-subnodes-tree .pipeline-subnode-item')
         ) as HTMLElement[];
         expect(overview.map((item) => item.textContent)).toEqual([
             jasmine.stringMatching('mrs_good_outcome'),
@@ -596,5 +619,416 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // Step 0 is read-only: no rule editor, and the tour anchors stay on the raw surface.
         expect(snapshot?.querySelector('app-filter-config-modal')).toBeNull();
         expect(snapshot?.querySelector('[data-guide]')).toBeNull();
+    });
+
+    /**
+     * The collapsed stage header is the only copy the overview shows, so it must read the
+     * stored request rather than the editor, and Collapse must fold a stage without ever
+     * taking it out of the run.
+     */
+    describe('stage header copy and collapse', () => {
+        it('lists one collapsed row per top-level cohort rule', () => {
+            (mockExpService.filterLogic as any).set({
+                condition: 'AND',
+                rules: [
+                    { id: 'age', field: 'age', type: 'integer', input: 'number', operator: 'greater_or_equal', value: 60 },
+                    {
+                        condition: 'OR',
+                        rules: [
+                            { id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: 'F' },
+                            { id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: 'M' },
+                        ],
+                    },
+                ],
+            });
+            fixture.detectChanges();
+
+            const rows = component.cohortRuleRows;
+            expect(rows.length).toBe(2);
+            expect(rows[0].subtitle).toBe('Numerical');
+            expect(rows[0].title).toContain('60');
+            expect(rows[1].subtitle).toBe('Group · matches any of 2 conditions');
+            expect(rows[1].title).toContain(' or ');
+            expect(component.cohortMatchesAny).toBeFalse();
+            expect(component.filteringStatusLabel).toBe('In run · 3 rules');
+        });
+
+        it('reads Not in run yet without stored rules', () => {
+            (mockExpService.filterLogic as any).set(null);
+            fixture.detectChanges();
+
+            expect(component.filteringStatusLabel).toBe('Not in run yet');
+        });
+
+        it('collapses the filter station without removing the step', () => {
+            component.goToSection('filters');
+            component.collapseStep('filters');
+
+            expect(component.sectionOpen().filters).toBeFalse();
+            expect(component.sectionOpen().raw).toBeFalse();
+            expect(component.isStepAdded('filters')).toBeTrue();
+        });
+
+        it('collapses transformations without removing the step', () => {
+            component.goToSection('transformation');
+            component.collapseStep('transformation');
+
+            expect(component.sectionOpen().transformation).toBeFalse();
+            expect(component.isStepAdded('transformation')).toBeTrue();
+        });
+
+        it('closes a settled column card from its own footer without removing the step', () => {
+            component.addStep('transformation');
+            // The stage opens on its type chooser; the footer bar belongs to the column card.
+            component.chooseTransformation('categorical');
+            fixture.detectChanges();
+
+            const apply = (fixture.nativeElement as HTMLElement).querySelector(
+                '[data-guide="analysis-transformation"] .station-card-footer .station-action-apply') as HTMLButtonElement;
+
+            expect(apply.textContent?.trim()).toBe('Close');
+            expect(apply.disabled).toBeFalse();
+            expect(apply.classList.contains('is-quiet')).toBeTrue();
+
+            apply.click();
+            fixture.detectChanges();
+
+            // Close folds its own card and leaves the stage exactly where it was.
+            expect(component.transformationDrafts[0].open).toBeFalse();
+            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(component.isStepAdded('transformation')).toBeTrue();
+        });
+
+        it('opens a new transformation stage on the type chooser', () => {
+            component.addStep('transformation');
+            fixture.detectChanges();
+
+            const graphCards = () => (fixture.nativeElement as HTMLElement).querySelectorAll(
+                '[data-guide="analysis-transformation"] .transformation-graph app-station-card');
+            const chooserRows = () => Array.from(
+                (fixture.nativeElement as HTMLElement).querySelectorAll(
+                    '[data-guide="analysis-transformation"] .transformation-chooser .pipeline-subnode-content')
+            ) as HTMLButtonElement[];
+
+            expect(component.transformationChooserOnly).toBeTrue();
+            expect(graphCards().length).toBe(0);
+            expect(chooserRows().length).toBe(2);
+
+            chooserRows()[0].click();
+            fixture.detectChanges();
+
+            expect(graphCards().length).toBe(1);
+            expect(component.transformationChooserOnly).toBeFalse();
+
+            const kmeansRow = chooserRows().find((row) => row.textContent?.includes('K-means')) as HTMLButtonElement;
+            kmeansRow.click();
+            fixture.detectChanges();
+
+            expect(graphCards().length).toBe(2);
+            expect(chooserRows().length).toBe(1);
+        });
+
+        it('counts pending preprocessing changes in the badge and apply label', () => {
+            const pending = spyOnProperty(component, 'pendingChangeCount', 'get').and.returnValue(2);
+            const missingPending = spyOnProperty(component, 'pendingMissingChangeCount', 'get').and.returnValue(2);
+
+            expect(component.preprocessingStatusLabel).toBe('In run · 2 changes not applied');
+            expect(component.stepApplyLabel('missing')).toBe('Apply');
+
+            pending.and.returnValue(1);
+            missingPending.and.returnValue(0);
+            expect(component.preprocessingStatusLabel).toBe('In run · 1 change not applied');
+            // A card with nothing pending offers Close in its own footer instead of an Apply.
+            expect(component.stepApplyLabel('missing')).toBe('Close');
+        });
+
+        /**
+         * Every preprocessing card owns its Discard / Preview / Apply footer: the stage no
+         * longer carries a bar of its own, so an action can never reach across cards.
+         */
+        it('gives each preprocessing card its own footer actions', () => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.addStep('setup');
+            component.enableOutlierHandling();
+            fixture.detectChanges();
+
+            const openCards = (Array.from(
+                (fixture.nativeElement as HTMLElement).querySelectorAll(
+                    '[data-guide="analysis-preprocessing"] app-station-card')
+            ) as HTMLElement[])
+                .filter((card) => card.querySelector('.station-card')?.classList.contains('is-open'));
+
+            // Missing Values plus the optional Outlier Handling card, each with one primary.
+            expect(openCards.length).toBe(2);
+            for (const card of openCards) {
+                expect(card.querySelectorAll('.station-card-footer .station-action-apply').length).toBe(1);
+            }
+
+            // Nothing floats outside a card footer: no stage-level action bar in the station.
+            const shell = (fixture.nativeElement as HTMLElement).querySelector(
+                '[data-guide="analysis-preprocessing"] .preprocessing-shell') as HTMLElement;
+            const strayBars = (Array.from(shell.querySelectorAll('.station-action-bar')) as HTMLElement[])
+                .filter((bar) => !bar.closest('.station-card-footer'));
+            expect(strayBars).toEqual([]);
+        });
+
+        /**
+         * A column card previews its own counts in place: the editor is hidden, not
+         * destroyed, and the same footer button walks back to it.
+         */
+        it('previews one transformation column inside its own card', () => {
+            component.addStep('transformation');
+            component.chooseTransformation('categorical');
+            fixture.detectChanges();
+
+            const refresh = spyOn(component, 'refreshTransformationStatistics');
+            const draft = component.transformationDrafts[0];
+            const preview = (fixture.nativeElement as HTMLElement).querySelector(
+                '[data-guide="analysis-transformation"] .station-card-footer .station-action-preview') as HTMLButtonElement;
+
+            preview.click();
+            fixture.detectChanges();
+
+            expect(component.previewDraftId).toBe(draft.id);
+            expect(refresh).toHaveBeenCalledTimes(1);
+            expect((fixture.nativeElement as HTMLElement).querySelector('.transformation-create.is-previewing')).toBeTruthy();
+            expect(preview.textContent?.trim()).toBe('Back to editor');
+
+            preview.click();
+            fixture.detectChanges();
+
+            expect(component.previewDraftId).toBeNull();
+        });
+
+        it('folds the How to use strip by default', () => {
+            component.goToSection('transformation');
+            fixture.detectChanges();
+
+            const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-transformation"]');
+            const strip = section?.querySelector('details.how-to-strip') as HTMLDetailsElement | null;
+            expect(strip).toBeTruthy();
+            expect(strip?.open).toBeFalse();
+            expect(strip?.querySelector('summary .how-to-label')?.textContent?.trim()).toBe('How to use');
+
+            (strip as HTMLDetailsElement).open = true;
+            expect(strip?.querySelectorAll('.how-to-number').length).toBe(3);
+        });
+
+        it('numbers the column editor and adds categories from the ghost row', () => {
+            component.goToSection('transformation');
+            // The stage opens on the type chooser; the editor belongs to the column card.
+            component.chooseTransformation('categorical');
+            fixture.detectChanges();
+
+            const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-transformation"]');
+            const create = section?.querySelector('.transformation-create');
+            expect(create?.querySelectorAll('.column-step').length).toBe(3);
+            expect(Array.from(create?.querySelectorAll('.column-step-number') ?? [])
+                .map((number) => number.textContent?.trim()))
+                .toEqual(['1', '2', '3']);
+
+            const ghost = section?.querySelector('.transformation-rules-list .transformation-add-category') as HTMLButtonElement | null;
+            expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBeTrue();
+
+            const before = (component as any).transformationDrafts[0].rules.length as number;
+            (ghost as HTMLButtonElement).click();
+            fixture.detectChanges();
+
+            expect((component as any).transformationDrafts[0].rules.length).toBe(before + 1);
+            expect((ghost as HTMLButtonElement).textContent).toContain('Add category');
+        });
+    });
+
+    describe('category rule focus', () => {
+        function rulesBlock(): HTMLElement {
+            return (fixture.nativeElement as HTMLElement).querySelector(
+                '[data-guide="analysis-transformation"] .transformation-rules') as HTMLElement;
+        }
+
+        function openCardWithTwoCategories() {
+            component.goToSection('transformation');
+            component.chooseTransformation('categorical');
+            const draft = component.transformationDrafts[0];
+            component.addTransformationRule(draft);
+            component.addTransformationRule(draft);
+            fixture.detectChanges();
+            return draft;
+        }
+
+        it('adds categories collapsed, each offering Set rule', () => {
+            const draft = openCardWithTwoCategories();
+
+            expect(draft.openRuleIndex ?? null).toBeNull();
+            expect(rulesBlock().classList.contains('is-focused')).toBeFalse();
+            expect(rulesBlock().querySelector('.transformation-rule-editor.is-open')).toBeNull();
+            expect(Array.from(rulesBlock().querySelectorAll('.transformation-rule-edit-link'))
+                .map((link) => link.textContent?.trim())).toEqual(['Set rule', 'Set rule']);
+        });
+
+        it('focuses the table on the rule being edited, and Done folds back to the list', () => {
+            const draft = openCardWithTwoCategories();
+
+            (rulesBlock().querySelectorAll('.transformation-rule-edit-link')[1] as HTMLButtonElement).click();
+            fixture.detectChanges();
+
+            expect(rulesBlock().classList.contains('is-focused')).toBeTrue();
+            const editing = rulesBlock().querySelectorAll('.transformation-rule-row.is-editing');
+            expect(editing.length).toBe(1);
+            expect(editing[0].querySelector('.transformation-rule-number')?.textContent?.trim()).toBe('2');
+            // Its own Edit button gives way to Done inside the editor.
+            expect(editing[0].querySelector('.transformation-rule-edit-link')).toBeNull();
+            expect(rulesBlock().closest('.column-step')?.querySelector('.column-step-meta')?.textContent?.trim())
+                .toBe('Editing category 2 of 2');
+
+            const filter = { condition: 'AND', rules: [{ id: 'age', field: 'age', operator: 'greater', value: 60 }] };
+            const modal = component.transformationRuleModals!.toArray()[1];
+            spyOn(modal, 'exportFilterLogic').and.returnValue(filter as any);
+            (editing[0].querySelector('.transformation-rule-done') as HTMLButtonElement).click();
+            fixture.detectChanges();
+
+            expect(draft.rules[1].filter).toEqual(filter as any);
+            expect(draft.openRuleIndex).toBeNull();
+            expect(rulesBlock().classList.contains('is-focused')).toBeFalse();
+            expect(rulesBlock().querySelectorAll('.transformation-rule-edit-link')[1].textContent?.trim()).toBe('Edit rule');
+        });
+
+        it('keeps a rule open when its builder reports an error on Done', () => {
+            const draft = openCardWithTwoCategories();
+            component.toggleTransformationRule(draft, 0);
+            fixture.detectChanges();
+
+            const modal = component.transformationRuleModals!.toArray()[0];
+            spyOn(modal, 'exportFilterLogic').and.returnValue(null);
+            spyOn(modal, 'filterError').and.returnValue('Pick a value');
+            component.finishTransformationRule(draft, 0);
+
+            expect(draft.openRuleIndex).toBe(0);
+            expect(draft.rules[0].filter).toBeNull();
+        });
+    });
+
+    describe('review regressions', () => {
+        // Built on the component's own empty summary so teardown finds its histogram maps.
+        const summaryOf = (total: number) => ({
+            ...(component as any).createEmptySummary(false),
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: total } }],
+        });
+
+        it('keeps a chosen K-means card in the graph when it is folded', () => {
+            component.addStep('transformation');
+            component.chooseTransformation('kmeans');
+            component.kmeansClusterCardOpen.set(false);
+
+            expect(component.kmeansCardShown).toBeTrue();
+            expect(component.transformationChooserOnly).toBeFalse();
+        });
+
+        it('Clear drops the K-means card and its preview, back to the chooser', () => {
+            component.addStep('transformation');
+            component.chooseTransformation('kmeans');
+            mockExpService.setKMeansClusterPreprocessing({ code: 'cluster', reusable_preprocessing: {} } as any);
+            component.previewTransformationCard('kmeans');
+
+            component.resetTransformation();
+
+            expect(component.previewDraftId).toBeNull();
+            expect(component.kmeansCardShown).toBeFalse();
+            expect(component.transformationChooserOnly).toBeTrue();
+        });
+
+        it('previewing the K-means card commits no categorical card', () => {
+            component.addStep('transformation');
+            const commit = spyOn(component, 'commitTransformationRuleFilters');
+            spyOn(component, 'refreshTransformationStatistics');
+
+            component.previewTransformationCard('kmeans');
+
+            expect(commit).not.toHaveBeenCalled();
+            expect(component.previewDraftId).toBe('kmeans');
+        });
+
+        it('hides Records out while the Raw summary is pinned to an unapplied preview', () => {
+            (mockExpService.filterLogic as any).set(null);
+            (component as any).rawSummaryKey = (component as any).rawSummaryKeyFor();
+            (component as any).rawSummary = summaryOf(400);
+            expect(component.recordsOut.source).toBe(400);
+            expect(component.recordsOut.filtered).toBe(400);
+
+            // Pinned to unsaved "age >= 60": 120 rows are not the source cohort.
+            const pinned = { condition: 'AND', rules: [{ id: 'age', field: 'age', operator: 'greater_or_equal', value: 60 }] } as any;
+            (component as any).rawSummaryKey = (component as any).rawSummaryKeyFor(pinned);
+            (component as any).rawSummary = summaryOf(120);
+            expect(component.recordsOut.source).toBeNull();
+            expect(component.recordsOut.filtered).toBeNull();
+        });
+
+        it('never rounds a partial filter match to 0% or 100%', () => {
+            (component as any).sourceSummary = summaryOf(1000);
+            (component as any).rawSummary = summaryOf(998);
+            expect(component.filterPreviewStatus).toContain('· 99%');
+            (component as any).rawSummary = summaryOf(2);
+            expect(component.filterPreviewStatus).toContain('· 1%');
+            (component as any).rawSummary = summaryOf(1000);
+            expect(component.filterPreviewStatus).toContain('· 100%');
+        });
+
+        it('keeps a card open with a message when its own Apply fails', () => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.addStep('setup');
+            fixture.detectChanges();
+            component.pendingPreprocessingRules = {
+                age: { variableCode: 'age', action: 'mean', value: '', enabled: true },
+            } as any;
+            mockExpService.loadDescriptiveOverview.and.returnValue(throwError(() => new Error('boom')));
+            spyOn(console, 'error');
+
+            component.commitOrCloseStep('missing');
+
+            expect(component.preprocessingStepOpen.missing).toBeTrue();
+            expect(component.sectionOpen().processed).toBeFalse();
+            expect(component.preprocessingApplyError['missing']).toContain('Could not apply');
+            expect(component.stepPendingCount('missing')).toBe(1);
+
+            component.resetChanges('missing');
+            expect(component.preprocessingApplyError['missing']).toBeUndefined();
+        });
+
+        it('applying one card leaves the other card pending and unsaved', () => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.addStep('setup');
+            fixture.detectChanges();
+            component.onMissingActionChange(age, 'mean');
+            component.pendingOutlierRules = {
+                age: { variableCode: 'age', enabled: true, strategy: 'iqr', tail: 'both', fold: 1.5 },
+            };
+
+            component.commitOrCloseStep('missing');
+            TestBed.flushEffects();
+
+            expect(component.pendingOutlierRules['age'].enabled).toBeTrue();
+            expect(component.stepPendingCount('outlier')).toBe(1);
+            expect(component.stepPendingCount('missing')).toBe(0);
+            const saved = mockExpService.setAppliedDescriptivePreprocessing.calls.mostRecent().args[0] as Record<string, unknown>;
+            expect(saved['missing_values_handler']).toEqual(jasmine.objectContaining({ strategies: { age: 'mean' } }));
+            expect(saved['outlier_winsorizer']).toBeUndefined();
+        });
+
+        it('previews one card while another card is invalid', () => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.addStep('setup');
+            fixture.detectChanges();
+            component.onMissingActionChange(age, 'mean');
+            component.pendingOutlierRules = {
+                age: { variableCode: 'age', enabled: true, strategy: 'iqr', tail: 'both', fold: null },
+            };
+            mockExpService.loadDescriptiveOverview.calls.reset();
+
+            component.previewProcessedData('missing');
+
+            expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
+            const config = mockExpService.loadDescriptiveOverview.calls.mostRecent().args[1] as Record<string, unknown>;
+            expect(config['missing_values_handler']).toEqual(jasmine.objectContaining({ strategies: { age: 'mean' } }));
+            expect(config['outlier_winsorizer']).toBeUndefined();
+        });
     });
 });

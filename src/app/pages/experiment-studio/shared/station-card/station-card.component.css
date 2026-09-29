@@ -140,6 +140,11 @@ button.station-card-header:focus-visible {
   display: block;
 }
 
+/* A folded card shows only its header; its own actions come back with the body. */
+.station-card:not(.is-open) > .station-card-footer {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .station-card-header,
   .station-card-body {

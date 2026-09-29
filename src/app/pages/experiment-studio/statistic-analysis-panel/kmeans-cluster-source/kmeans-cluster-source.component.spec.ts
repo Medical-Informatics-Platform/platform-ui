@@ -196,7 +196,7 @@ describe('KMeansClusterSourceComponent', () => {
 
     fixture.detectChanges();
 
-    expect(html().textContent).toContain('Run K-means here');
+    expect(html().textContent).toContain('Choose the numerical variables to group by');
     expect(html().textContent).toContain('Run K-means report');
   });
 
@@ -229,7 +229,7 @@ describe('KMeansClusterSourceComponent', () => {
     });
   });
 
-  it('keeps catalog defaults until Advanced changes one', () => {
+  it('keeps catalog defaults until Parameters changes one', () => {
     studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
     studio.backendAlgorithms.set({
       kmeans: {
@@ -243,7 +243,9 @@ describe('KMeansClusterSourceComponent', () => {
     fixture.detectChanges();
 
     const advanced = html().querySelector('.kmeans-cluster-source-advanced') as HTMLButtonElement;
-    expect(advanced.textContent?.trim()).toBe('Advanced');
+    expect(advanced.querySelector('.kmeans-params-label')?.textContent?.trim()).toBe('Parameters');
+    // Closed, the row says whether the run departs from the catalog.
+    expect(advanced.querySelector('.kmeans-params-summary')?.textContent?.trim()).toBe('All defaults');
     expect(html().querySelector('.kmeans-cluster-source-params')).toBeNull();
 
     advanced.click();
@@ -254,8 +256,45 @@ describe('KMeansClusterSourceComponent', () => {
     k!.value = '3';
     k!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
+    expect(component.parameterSummary()).toBe('Number of clusters 3');
 
     component.runReport();
     expect(studio.loadKMeansReport).toHaveBeenCalledWith(['age'], { k: 3 });
+
+    k!.value = ' 4 ';
+    k!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(component.parameterSummary()).toBe('All defaults');
+
+    k!.value = 'nope';
+    k!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(component.parameterSummary()).toBe('All defaults');
+  });
+
+  it('sizes each cluster share bar from the interval midpoint', () => {
+    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.loadKMeansReport.and.returnValue(of({
+      result_type: 'privacy_safe_cluster_report',
+      selected_k: 2,
+      k_selection: 'manual',
+      n_obs_interval: '100–200',
+      clusters: [
+        { cluster_id: 'c1', label: 'Cluster 1', size_interval: '40–60', center: { age: 40 }, profile: [], interpretation: 'Younger', quality: { compactness: null } },
+        { cluster_id: 'c2', label: 'Cluster 2', size_interval: '120–140', center: { age: 60 }, profile: [], interpretation: 'Older', quality: { compactness: null } },
+      ],
+      elbow: null,
+      reusable_preprocessing: reusable(),
+    }));
+
+    fixture.detectChanges();
+    component.runReport();
+
+    // Privacy intervals arrive as "40–60", so the bar is sized off the midpoint: 50 of 180.
+    expect(component.clusterShares()['c1']).toBeCloseTo((50 / 180) * 100, 5);
+    expect(component.clusterShares()['c2']).toBeCloseTo((130 / 180) * 100, 5);
+
+    fixture.detectChanges();
+    expect(html().querySelectorAll('.kmeans-cluster-report-bar > span').length).toBe(2);
   });
 });

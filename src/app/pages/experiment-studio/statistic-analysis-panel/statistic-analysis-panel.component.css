@@ -110,8 +110,11 @@
    Overview rows carry a single line of copy plus one action, so they read as a
    compact flowchart at `--studio-pipeline-overview-max`. An added node re-expands
    to the full rail width, which is what the QueryBuilder, summary tables and
-   charts need. `align-self` opts the row out of the shell's cross-axis stretch. */
+   charts need. `align-self` opts the row out of the shell's cross-axis stretch.
+   A collapsed added step (`is-compact`) shows only its overview rail, so it takes
+   the same compact width. */
 .pipeline-node.is-dormant,
+.pipeline-node.is-compact,
 .pipeline-terminal-card {
   align-self: center;
   width: 100%;
@@ -389,7 +392,13 @@
 
 /* Sub-node rail: compact connected tree of active sub-steps, shown while the
    stage header is collapsed. Rail line + milestone dot echo the pipeline spine. */
+/* Collapsed stage contents are inset (~64px a side on the 860px compact card, which
+   lines their edge up under the stage title), so they read as children of the stage
+   while the rows keep room for title, subtitle, impact and status on one line. */
 .pipeline-subnodes-tree {
+  box-sizing: border-box;
+  max-width: 85%;
+  margin: 0 auto;
   padding: 12px 18px 14px;
 }
 
@@ -828,4 +837,206 @@
   border: none;
   border-radius: 0;
   box-shadow: none;
+}
+
+/* Stage header extras: the step kicker above the title and the "Records out" figure
+   before the status badge. */
+.pipeline-node-kicker {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.pipeline-records-out {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.25;
+  padding-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipeline-records-out-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pipeline-records-out-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.pipeline-records-out-value span {
+  margin-left: 0.25em;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.pipeline-subnodes-caption {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* "Edit ›" / "Add +" cue at the end of a rail row. */
+.pipeline-subnode-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  white-space: nowrap;
+}
+
+.pipeline-subnode-text + .pipeline-subnode-cta {
+  margin-left: auto;
+}
+
+.pipeline-subnode-content > .pipeline-subnode-cta i {
+  font-size: 0.62rem;
+}
+
+/* "How to use" strip directly under an expanded stage header; a <details> folded by
+   default, so only the summary line shows until someone asks for the steps. */
+.how-to-strip {
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
+}
+
+.how-to-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.how-to-summary::-webkit-details-marker {
+  display: none;
+}
+
+.how-to-summary:hover .how-to-peek {
+  color: var(--primary-color);
+}
+
+.how-to-summary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.how-to-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-color);
+}
+
+.how-to-peek {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.how-to-chevron {
+  font-size: 0.6rem;
+  color: var(--primary-color);
+  transition: transform 0.15s ease;
+}
+
+.how-to-strip[open] .how-to-chevron {
+  transform: rotate(180deg);
+}
+
+.how-to-strip[open] .how-to-peek {
+  display: none;
+}
+
+.how-to-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 0 18px 10px;
+}
+
+.how-to-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.how-to-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.how-to-note {
+  flex-basis: 100%;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* Projected into a station card, the strip spans the card body edge to edge.
+   `app-station-card` is the host this template owns, so emulated styles reach it. */
+app-station-card .how-to-strip {
+  margin: -14px -14px 14px;
+}
+
+/* Live match chip under the cohort builder, filled by Preview. */
+.filter-match-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 14px 10px;
+}
+
+.filter-match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #065f46;
+  background: color-mix(in srgb, var(--success) 12%, white);
+}
+
+@media (max-width: 768px) {
+  app-station-card .how-to-strip {
+    margin: -14px -12px 14px;
+  }
+}
+
+@media (max-width: 720px) {
+  .pipeline-records-out {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .pipeline-subnodes-tree {
+    max-width: none;
+  }
 }

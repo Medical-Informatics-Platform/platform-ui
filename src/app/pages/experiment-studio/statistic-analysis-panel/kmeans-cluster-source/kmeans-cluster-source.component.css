@@ -7,12 +7,6 @@
   gap: 10px;
 }
 
-.kmeans-cluster-source-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--text-muted);
-}
 
 .kmeans-cluster-source-field {
   display: grid;
@@ -49,38 +43,81 @@
   color: var(--text-muted);
 }
 
+/* Parameters disclosure: a quiet full-width row between the variables and Run. Closed,
+   it says "All defaults" or lists what changed; open, the fields grid hangs off it. */
 .kmeans-cluster-source-advanced {
-  justify-self: start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+  color: var(--text-muted);
   font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  text-align: left;
   cursor: pointer;
+}
+
+.kmeans-cluster-source-advanced:hover {
+  border-color: rgba(43, 51, 233, 0.3);
+}
+
+.kmeans-cluster-source-advanced[aria-expanded='true'] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.kmeans-params-label {
+  flex: none;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.kmeans-params-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kmeans-params-chevron {
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: var(--primary-color);
 }
 
 .kmeans-cluster-source-params {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px 12px;
+  margin-top: -8px;
   padding: 10px 12px;
   border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: var(--radius-md, 8px);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
   background: var(--bg-neutral, #f8fafc);
 }
 
 .kmeans-cluster-source-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   justify-self: start;
-  padding: 7px 14px;
+  height: 34px;
+  padding: 0 18px;
   border: 0;
-  border-radius: var(--radius-md, 8px);
+  border-radius: 999px;
   background: var(--primary-color);
   color: #ffffff;
   font-family: inherit;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(43, 51, 233, 0.05);
 }
 
 .kmeans-cluster-source-apply:disabled {
@@ -113,22 +150,69 @@
   color: var(--text-muted);
 }
 
-/* In-place K-means report run, for when there is no finished compatible run yet. */
-.kmeans-cluster-source-run {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border-radius: var(--radius-md, 8px);
-  background: var(--bg-neutral);
-  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+/* In-place K-means report run, for when there is no finished compatible run yet:
+   three numbered steps (choose variables, check clusters, name the column). */
+.kmeans-cluster-source {
+  gap: 16px;
 }
 
-.kmeans-cluster-source-run-title {
-  margin: 0;
-  font-size: 0.82rem;
+.kmeans-step {
+  display: grid;
+  gap: 8px;
+}
+
+.kmeans-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
   font-weight: 700;
   color: var(--text-main);
 }
+
+.kmeans-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #ffffff;
+  font-size: 0.68rem;
+}
+
+.kmeans-step-meta {
+  margin-left: auto;
+}
+
+.kmeans-step-meta {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.kmeans-step-run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.kmeans-step-code {
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.84rem;
+}
+
+.kmeans-cluster-source-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--primary-dark, #1b21a3);
+}
+
 
 .kmeans-cluster-source-vars {
   display: flex;
@@ -140,63 +224,111 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 9px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
   border-radius: 999px;
-  background: var(--card-bg);
-  box-shadow: inset 0 0 0 1px var(--studio-card-border);
-  font-size: 0.76rem;
+  background: var(--card-bg, #ffffff);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.18);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--text-main);
   cursor: pointer;
 }
 
-.kmeans-cluster-source-var input {
-  margin: 0;
+
+.kmeans-cluster-source-var i {
+  font-size: 0.66rem;
+}
+
+/* Tonal, not solid: Run is the one filled primary in the step, so a chosen variable
+   must not read as a second button to press. */
+.kmeans-cluster-source-var.is-selected {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 55%, transparent);
+  color: var(--primary-dark, #1b21a3);
+}
+
+.kmeans-cluster-source-var:hover:not(.is-selected) {
+  background: rgba(43, 51, 233, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.45);
 }
 
 .kmeans-cluster-report {
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
   border-radius: var(--radius-md, 8px);
+  overflow: hidden;
   background: var(--card-bg);
-  box-shadow: inset 0 0 0 1px var(--studio-card-border);
 }
 
-.kmeans-cluster-report-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 0.8rem;
-}
 
-.kmeans-cluster-report-head span {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-}
 
-.kmeans-cluster-report-list {
-  display: grid;
-  gap: 4px;
-}
 
 .kmeans-cluster-report-row {
   display: grid;
-  grid-template-columns: minmax(70px, auto) 72px minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
-  font-size: 0.76rem;
+  grid-template-columns: 110px 190px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(43, 51, 233, 0.06);
+  font-size: 0.8rem;
 }
 
 .kmeans-cluster-report-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--text-muted);
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
 }
 
 .kmeans-cluster-report-profile {
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.kmeans-cluster-report-header {
+  border-top: 0;
+  padding: 8px 12px;
+  background: var(--studio-card-header-bg, #f8fbff);
   color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+}
+
+.kmeans-cluster-report-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.kmeans-cluster-report-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.kmeans-cluster-report-size > span:last-child {
+  min-width: 64px;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .kmeans-cluster-report-row {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+
+  .kmeans-cluster-report-profile,
+  .kmeans-cluster-report-header > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
 }
