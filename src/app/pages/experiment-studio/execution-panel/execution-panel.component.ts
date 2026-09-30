@@ -180,13 +180,17 @@ export class ExecutionPanelComponent {
     this.exportPdf.emit(section);
   }
 
-  /** Quiet fallback export: one CSV, each result table as a titled block. */
+  /** Quiet fallback export: one CSV, each result table as a titled block, then the chart readings. */
   onExportAllCsv(section: HTMLElement): void {
     this.exportOpen.set(false);
     const tables = Array.from(section.querySelectorAll<HTMLTableElement>('table'));
-    if (!tables.length) return;
-
     const cell = (text: string | null | undefined) => `"${(text ?? '').replace(/\s+/g, ' ').trim().replace(/"/g, '""')}"`;
+    const readings = Array.from(section.querySelectorAll('.chart-caption')).map((caption) => {
+      const title = caption.closest('.chart-container')?.querySelector('.chart-title')?.textContent;
+      return [cell(title || 'Chart'), cell(caption.textContent)].join(',');
+    });
+    if (!tables.length && !readings.length) return;
+
     const blocks = tables.map((table, index) => {
       const title =
         table.closest('.ar-card')?.querySelector('.ar-title')?.textContent ||
@@ -197,6 +201,7 @@ export class ExecutionPanelComponent {
       );
       return [cell(title), ...rows].join('\n');
     });
+    if (readings.length) blocks.push([cell('Chart readings'), ...readings].join('\n'));
     this.csvExport.downloadCsv(blocks.join('\n\n'), 'experiment_tables.csv');
   }
 

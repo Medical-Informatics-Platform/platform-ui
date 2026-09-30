@@ -23,6 +23,29 @@
   margin-bottom: 0.65rem;
 }
 
+/* Section header with the significance control on the right; also the toolbar above the LR forest. */
+.chart-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.alpha-control button {
+  min-height: 26px;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.alpha-label {
+  padding: 0 6px 0 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .results-section-intro--compact {
   margin-bottom: 0.35rem;
 }
@@ -294,7 +317,7 @@ tr:hover td {
 
 .coef-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) 0.7fr 1.1fr 1.3fr 0.6fr;
+  grid-template-columns: minmax(0, 1.5fr) 0.8fr 1.2fr 0.6fr;
   column-gap: 16px;
   align-items: center;
   padding: 11px 16px;
@@ -305,7 +328,7 @@ tr:hover td {
 }
 
 .coef-table.is-all-columns .coef-row {
-  grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
+  grid-template-columns: minmax(0, 1.5fr) 0.8fr 0.8fr 0.6fr 1.2fr 0.6fr;
 }
 
 .coef-row--head {
@@ -349,10 +372,6 @@ tr:hover td {
   font-variant-numeric: tabular-nums;
 }
 
-.is-center {
-  text-align: center;
-}
-
 .coef-muted {
   color: var(--text-muted);
 }
@@ -364,56 +383,6 @@ tr:hover td {
 .coef-p.is-significant {
   color: #0f172a;
   font-weight: 700;
-}
-
-.coef-plot-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-}
-
-.coef-plot {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 18px;
-}
-
-.coef-plot-zero {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 50%;
-  width: 1px;
-  background: rgba(148, 163, 184, 0.75);
-}
-
-.coef-plot-interval {
-  position: absolute;
-  top: 7px;
-  height: 4px;
-  border-radius: 999px;
-  background: #cbd5e1;
-}
-
-.coef-plot-interval.is-significant {
-  background: color-mix(in srgb, var(--primary-color) 62%, white);
-}
-
-.coef-plot-marker {
-  position: absolute;
-  top: 4px;
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  border-radius: 50%;
-  background: #94a3b8;
-  box-shadow: 0 0 0 2px #ffffff;
-}
-
-.coef-plot-marker.is-significant {
-  background: var(--primary-color);
 }
 
 .coef-note {

@@ -1,78 +1,70 @@
-import { Component, ChangeDetectionStrategy, OnChanges, input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy, computed, input, signal } from '@angular/core';
 import { EChartsOption } from 'echarts';
 import { NgxEchartsModule } from 'ngx-echarts';
-import { SimpleChanges } from '@angular/core';
+import { MipChart } from '../chart-theme';
+
+interface ChartVariant {
+  label: string;
+  option: EChartsOption;
+  height: number;
+  caption?: string;
+  meta?: string;
+}
+
+interface ChartCard {
+  title?: string;
+  variants: ChartVariant[];
+}
+
+const BRAND_COLORS = ['#2B33E9', '#7F9CE8', '#FFBA08', '#DFEFE4'];
+
+function toVariant(chart: MipChart): ChartVariant {
+  const { mipTitle: _t, mipMeta, mipCaption, mipChartHeight, mipVariant, ...option } = chart;
+  return {
+    label: mipVariant ?? '',
+    option: { color: BRAND_COLORS, ...option },
+    height: typeof mipChartHeight === 'number' && mipChartHeight > 0 ? mipChartHeight : 500,
+    caption: mipCaption,
+    meta: mipMeta,
+  };
+}
+
+/** Consecutive charts with a variant label and the same title share one card with a switcher. */
+function toCards(charts: MipChart[]): ChartCard[] {
+  const cards: ChartCard[] = [];
+  for (const chart of charts) {
+    const last = cards[cards.length - 1];
+    if (chart.mipVariant && last?.variants[0].label && last.title === chart.mipTitle) {
+      last.variants.push(toVariant(chart));
+    } else {
+      cards.push({ title: chart.mipTitle, variants: [toVariant(chart)] });
+    }
+  }
+  return cards;
+}
 
 @Component({
   selector: 'app-chart-renderer',
-  imports: [CommonModule, NgxEchartsModule],
+  imports: [NgxEchartsModule],
   templateUrl: './charts-renderer.component.html',
   styleUrl: './charts-renderer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ChartRendererComponent implements OnChanges {
-  private readonly brandChartColors = ['#2B33E9', '#7F9CE8', '#FFBA08', '#DFEFE4'];
-  readonly charts = input<EChartsOption[]>([]);
-  themedCharts: EChartsOption[] = [];
+export class ChartRendererComponent {
+  readonly charts = input<MipChart[]>([]);
+  readonly cards = computed(() => toCards(this.charts()));
+  /** Active variant per card index; a missing entry means the first variant. */
+  private readonly picked = signal<Record<number, number>>({});
 
-  constructor() { }
-
-  ngOnChanges(_changes: SimpleChanges): void {
-    this.themedCharts = this.charts().map((chart) => this.applyBrandChartDefaults(chart));
+  active(card: ChartCard, i: number): ChartVariant {
+    return card.variants[this.picked()[i] ?? 0] ?? card.variants[0];
   }
 
-  private applyBrandChartDefaults(chart: EChartsOption): EChartsOption {
-    return {
-      ...chart,
-      color: this.brandChartColors,
-      series: this.softenSeries(chart.series),
-    };
+  isActive(i: number, v: number): boolean {
+    return (this.picked()[i] ?? 0) === v;
   }
 
-  private softenSeries(series: EChartsOption['series']): EChartsOption['series'] {
-    if (!series) return series;
-    if (Array.isArray(series)) {
-      return series.map((entry) => this.softenSingleSeries(entry)) as EChartsOption['series'];
-    }
-
-    return this.softenSingleSeries(series) as EChartsOption['series'];
+  pick(i: number, v: number): void {
+    this.picked.update((p) => ({ ...p, [i]: v }));
   }
-
-  private softenSingleSeries(series: unknown): unknown {
-    if (!series || typeof series !== 'object') return series;
-
-    const next = { ...(series as Record<string, unknown>) };
-    const type = next['type'];
-
-    if (type === 'bar') {
-      next['itemStyle'] = {
-        borderRadius: [5, 5, 0, 0],
-        ...this.objectValue(next['itemStyle']),
-      };
-    }
-
-    if (type === 'line') {
-      next['smooth'] = next['smooth'] ?? true;
-      next['lineStyle'] = {
-        width: 2.5,
-        color: this.brandChartColors[0],
-        ...this.objectValue(next['lineStyle']),
-      };
-      next['areaStyle'] = next['areaStyle'] ?? { color: 'rgba(127, 156, 232, 0.12)' };
-    }
-
-    return next;
-  }
-
-  private objectValue(value: unknown): Record<string, unknown> {
-    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-  }
-
-
-  chartHeight(chart: EChartsOption): number {
-    const custom = (chart as EChartsOption & { mipChartHeight?: number }).mipChartHeight;
-    return typeof custom === 'number' && custom > 0 ? custom : 500;
-  }
-
 }

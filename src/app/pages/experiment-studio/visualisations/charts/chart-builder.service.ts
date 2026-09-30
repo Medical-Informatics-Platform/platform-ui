@@ -1,6 +1,6 @@
-import { Injectable, inject } from '@angular/core';
-import { EChartsOption } from 'echarts';
+import { Injectable, inject, signal } from '@angular/core';
 import { AlgorithmChartRegistry } from './chart-registry';
+import { ALPHA, MipChart } from './chart-theme';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 // @ts-expect-error echarts-gl ships no types for its CommonJS dist bundle
 import * as echartsGl from 'echarts-gl/dist/echarts-gl.js';
@@ -22,8 +22,11 @@ function ensureEchartsGlRegistered(): void {
 export class ChartBuilderService {
   private experimentService = inject(ExperimentStudioService);
 
+  /** App-level significance level (0.05 / 0.01 / 0.001); charts rebuild when it changes. */
+  readonly alpha = signal(ALPHA);
 
-  getChartsForAlgorithm(algorithm: string, result: any, _fallbackTitle?: string | null): EChartsOption[] {
+
+  getChartsForAlgorithm(algorithm: string, result: any, _fallbackTitle?: string | null): MipChart[] {
     ensureEchartsGlRegistered();
     const config = AlgorithmChartRegistry[algorithm] || AlgorithmChartRegistry['default'];
 
@@ -43,12 +46,17 @@ export class ChartBuilderService {
       }
     }
 
+    // SVM weights carry no names; they line up with the x covariates when the counts match.
+    if (algorithm === 'linear_svm' && enrichedInput && typeof enrichedInput === 'object') {
+      (enrichedInput as any).variable_names = this.experimentService.algorithmX().map(v => v.label || v.name || v.code);
+    }
+
     if (algorithm === 'describe') {
       this.attachDescribeDatasetLabels(enrichedInput);
     }
 
     // Keep chart titles chart-specific. Experiment-level title is rendered in the result header.
-    return config.build(enrichedInput);
+    return config.build(enrichedInput, this.alpha());
   }
 
   private attachDescribeDatasetLabels(target: any): void {
@@ -69,11 +77,9 @@ export class ChartBuilderService {
     const variables = this.experimentService.algorithmAssignableVariables();
     const filters = this.experimentService.selectedFilters();
 
+    const findCode = (raw: string) => variables.find(v => v.code === raw) || filters.find(f => f.code === raw);
     const replaceLabel = (raw: string) => {
-      const match =
-        variables.find(v => v.code === raw) ||
-        filters.find(f => f.code === raw);
-
+      const match = findCode(raw);
       return match?.name || match?.label || raw;
     };
 
@@ -84,18 +90,14 @@ export class ChartBuilderService {
 
     // If it's an object (but not null/array), process its entries
     if (typeof input === 'object' && !Array.isArray(input)) {
-      // Special case: if we are in anova_table, we specifically want to replace x_label and y_label
-      // but we should also check other fields. The recursive approach below handles this 
-      // by checking if keys or values match codes.
-
+      // Keys are mapped only where variable codes are expected: a matrix keyed by the codes in its
+      // `variables` array (Pearson), or an object keyed by codes alone (K-Means centres). Field names
+      // elsewhere stay untouched even if a variable code happens to match one.
+      const keys = Object.keys(input);
+      const mapKeys = Array.isArray(input.variables) || (keys.length > 0 && keys.every(k => !!findCode(k)));
       const newObj: any = {};
       for (const [k, v] of Object.entries(input)) {
-        // If the key is 'variable' or ends with '_label', its value is likely a code
-        if (k === 'variable' || k.endsWith('_label')) {
-          newObj[k] = typeof v === 'string' ? replaceLabel(v) : this.enrichLabels(v);
-        } else {
-          newObj[k] = this.enrichLabels(v);
-        }
+        newObj[mapKeys ? replaceLabel(k) : k] = this.enrichLabels(v);
       }
       return newObj;
     }

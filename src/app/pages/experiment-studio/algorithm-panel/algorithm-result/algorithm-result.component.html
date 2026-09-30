@@ -21,6 +21,13 @@
     </div>
     }
 
+    @if (renderedCharts().length > 0) {
+    <div class="chart-toolbar">
+      <ng-container *ngTemplateOutlet="alphaControl" />
+    </div>
+    <app-chart-renderer [charts]="renderedCharts()" />
+    }
+
     <section class="coefficients-card" aria-labelledby="coef-heading">
       <header class="coefficients-head">
         <div class="coefficients-copy">
@@ -54,7 +61,6 @@
           <span class="is-numeric">t</span>
           }
           <span class="is-numeric">95% CI</span>
-          <span class="is-center">Interval vs 0</span>
           <span class="is-numeric">p</span>
         </div>
 
@@ -67,25 +73,13 @@
           <span class="is-numeric coef-muted">{{ row.tText }}</span>
           }
           <span class="is-numeric coef-muted">{{ row.ciText }}</span>
-          <span class="coef-plot-cell">
-            @if (!row.isIntercept) {
-            <span class="coef-plot" aria-hidden="true">
-              <span class="coef-plot-zero"></span>
-              <span class="coef-plot-interval" [class.is-significant]="row.significant"
-                [style.left.%]="row.plotLeft" [style.width.%]="row.plotWidth"></span>
-              <span class="coef-plot-marker" [class.is-significant]="row.significant"
-                [style.left.%]="row.markerLeft"></span>
-            </span>
-            }
-          </span>
           <span class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
         </div>
         }
       </div>
 
       <p class="coef-note">
-        Bold p-values are below 0.05. Each interval is drawn on its own scale around zero, so
-        compare direction and whether it crosses zero, not size between rows.
+        Bold p-values are below {{ alpha() }}. The forest plot above draws every interval on one scale.
       </p>
     </section>
 
@@ -115,9 +109,12 @@
   } @else {
   @if (renderedCharts().length > 0) {
   <section class="results-primary-visual gen-charts" aria-labelledby="results-chart-heading">
-    <header class="results-section-intro">
-      <h3 id="results-chart-heading" class="results-section-heading">Effect estimates</h3>
-      <p class="results-section-lead">Primary view for comparing factors. Tables below list the same estimates with exact values.</p>
+    <header class="results-section-intro chart-toolbar">
+      <div>
+        <h3 id="results-chart-heading" class="results-section-heading">Charts</h3>
+        <p class="results-section-lead">Each chart has a plain-language reading underneath. Tables below list the exact values.</p>
+      </div>
+      <ng-container *ngTemplateOutlet="alphaControl" />
     </header>
     <app-chart-renderer [charts]="renderedCharts()" />
   </section>
@@ -137,3 +134,14 @@
   }
   }
 </div>
+
+<ng-template #alphaControl>
+  <div class="modal-tabs alpha-control" role="group" aria-label="Significance level">
+    <span class="alpha-label">Significance α</span>
+    @for (level of alphaLevels; track level) {
+    <button type="button" [class.active]="alpha() === level" [attr.aria-pressed]="alpha() === level" (click)="alpha.set(level)">
+      {{ level }}
+    </button>
+    }
+  </div>
+</ng-template>

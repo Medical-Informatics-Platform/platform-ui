@@ -1,12 +1,4 @@
-import { EChartsOption } from 'echarts';
-
-// Color palette for bar chart segments - MIP brand colors
-const BAR_COLORS = [
-    '#2b33e9',  // MIP Dark Blue
-    '#7f9ce8',  // MIP Light Blue
-    '#ffba08',  // MIP Orange
-    '#dfefe4',  // MIP Light Green
-];
+import { CLS, FONT, INK, MUT, MipChart, ax, base, esc, tip } from '../chart-theme';
 
 /**
  * Builds a grouped bar chart for nominal variable distributions.
@@ -18,7 +10,7 @@ export function buildGroupedBarChart(
     variableData: any[],
     variableLabel: string,
     enumMap?: Map<string, string>
-): EChartsOption[] {
+): MipChart[] {
     if (!Array.isArray(variableData) || variableData.length === 0) return [];
 
     // Get all unique category keys across all datasets
@@ -66,7 +58,7 @@ export function buildGroupedBarChart(
                 return { value: parseFloat(percentage.toFixed(1)), count, total };
             }),
             itemStyle: {
-                color: BAR_COLORS[catIdx % BAR_COLORS.length],
+                color: CLS[catIdx % CLS.length],
             },
             label: {
                 show: true,
@@ -76,7 +68,7 @@ export function buildGroupedBarChart(
                     return pct >= 5 ? `${pct}%` : '';
                 },
                 fontSize: 10,
-                color: '#fff',
+                color: catIdx % CLS.length === 0 || catIdx % CLS.length === 3 ? '#fff' : INK,
             },
             emphasis: {
                 itemStyle: {
@@ -87,87 +79,45 @@ export function buildGroupedBarChart(
         };
     });
 
-    const isDark = false;
-    const textColor = isDark ? '#f1f5f9' : '#0f172a';
-    const axisColor = isDark ? 'rgba(255, 255, 255, 0.3)' : '#475569';
-    const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0';
-
-    const chart: EChartsOption = {
-        title: {
-            text: variableLabel,
-            left: 'center',
-            top: 10,
-            textStyle: {
-                fontSize: 14,
-                fontWeight: 600,
-                color: textColor
-            },
-        },
+    const chart: MipChart = base({
         tooltip: {
+            ...tip,
             trigger: 'axis',
-            backgroundColor: isDark ? '#1c253d' : '#fff',
-            borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#ccc',
-            textStyle: { color: textColor },
-            axisPointer: {
-                type: 'shadow',
-            },
+            axisPointer: { type: 'shadow' },
             formatter: (params: any) => {
                 const dataset = params[0]?.axisValue ?? '';
-                let html = `<b>${dataset}</b><br/>`;
+                let html = `<b>${esc(dataset)}</b><br/>`;
                 for (const p of params) {
                     const pct = p.data?.value ?? p.value;
                     const cnt = p.data?.count ?? 0;
-                    html += `${p.marker} ${p.seriesName}: ${pct}% (n=${cnt})<br/>`;
+                    html += `${p.marker} ${esc(p.seriesName)}: ${pct}% (n=${cnt})<br/>`;
                 }
                 return html;
             },
-        },
-        legend: {
-            bottom: 0,
-            type: 'scroll',
-            textStyle: {
-                fontSize: 11,
-                color: textColor
-            },
-            pageTextStyle: { color: textColor }
-        },
-        grid: {
-            left: '10%',
-            right: '10%',
-            bottom: '18%',
-            top: '18%',
-            containLabel: true,
-        },
-        xAxis: {
+        } as any,
+        legend: { bottom: 0, type: 'scroll', itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 11, color: INK } },
+        grid: { left: 64, right: 24, top: 16, bottom: 72 },
+        xAxis: ax({
             type: 'category',
             data: datasets,
-            axisLabel: {
-                rotate: datasets.length > 4 ? 20 : 0,
-                fontSize: 11,
-                color: textColor
-            },
-            axisLine: { lineStyle: { color: axisColor } },
+            splitLine: { show: false },
+            axisLabel: { rotate: datasets.length > 4 ? 20 : 0, fontSize: 11, color: INK, fontFamily: FONT },
             name: 'Dataset',
             nameLocation: 'middle',
-            nameGap: 35,
-            nameTextStyle: { color: textColor }
-        },
-        yAxis: {
+            nameGap: datasets.length > 4 ? 44 : 30,
+        }),
+        yAxis: ax({
             type: 'value',
             name: 'Percentage (%)',
             nameLocation: 'middle',
-            nameGap: 45,
+            nameGap: 44,
             max: 100,
-            axisLabel: {
-                formatter: '{value}%',
-                color: textColor
-            },
-            axisLine: { lineStyle: { color: axisColor } },
-            splitLine: { lineStyle: { color: splitLineColor } },
-            nameTextStyle: { color: textColor }
-        },
+            axisLabel: { formatter: '{value}%', color: MUT, fontSize: 11, fontFamily: FONT },
+        }),
         series,
-    };
+        mipTitle: variableLabel,
+        mipChartHeight: 360,
+    });
 
     return [chart];
 }

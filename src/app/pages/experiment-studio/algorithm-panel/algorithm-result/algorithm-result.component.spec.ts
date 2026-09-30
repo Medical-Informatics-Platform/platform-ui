@@ -1,5 +1,6 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideEchartsCore } from 'ngx-echarts';
 import { AlgorithmResultComponent } from './algorithm-result.component';
 
 describe('AlgorithmResultComponent linear-regression review layout', () => {
@@ -30,7 +31,7 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AlgorithmResultComponent],
-      providers: [provideZonelessChangeDetection()],
+      providers: [provideZonelessChangeDetection(), provideEchartsCore({ echarts: () => import('echarts') })],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AlgorithmResultComponent);
@@ -43,20 +44,20 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('renders key figures, sorted coefficients and interval plots for linear regression', () => {
+  it('renders key figures, the coefficient forest and sorted coefficients for linear regression', () => {
     const html = render(linearResult);
 
     expect(html.querySelector('.lr-result')).toBeTruthy();
     expect(html.querySelectorAll('.key-figure').length).toBe(5);
     expect(html.querySelector('.coefficients-title')?.textContent?.trim()).toBe('Coefficients');
-    expect(html.querySelector('.coef-row--head')?.textContent).toContain('Interval vs 0');
+    // The forest plot draws every interval on one scale, so the table no longer repeats them.
+    expect(html.querySelector('.chart-title')?.textContent).toBe('Coefficient forest plot');
+    expect(html.querySelector('.coef-row--head')?.textContent).not.toContain('Interval vs 0');
     expect(html.querySelectorAll('.coef-row').length).toBe(4); // header + 3 rows
 
     const variables = Array.from(html.querySelectorAll('.coef-row:not(.coef-row--head) .coef-variable'))
       .map((el) => el.textContent?.trim());
     expect(variables).toEqual(['Left hippocampus', 'Age', 'Intercept']);
-    // Only the two non-intercept rows draw the interval-vs-zero plot.
-    expect(html.querySelectorAll('.coef-plot').length).toBe(2);
     expect(html.querySelector('.coef-row.is-intercept')?.textContent).toContain('Intercept');
   });
 
@@ -84,4 +85,20 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     expect(html.querySelector('.lr-result')).toBeFalsy();
     expect(html.querySelector('app-auto-renderer')).toBeTruthy();
   });
+
+  it('bolds p-values against the chosen significance level', () => {
+    const html = render(linearResult);
+    const pBold = () => html.querySelectorAll('.coef-row:not(.coef-row--head):not(.is-intercept) .coef-p.is-significant').length;
+    expect(pBold()).toBe(2);
+
+    const strict = Array.from(html.querySelectorAll<HTMLButtonElement>('.alpha-control button'))
+      .find((button) => button.textContent?.trim() === '0.01')!;
+    strict.click();
+    fixture.detectChanges();
+
+    expect(pBold()).toBe(1); // Age, p = 0.0403, is no longer below α
+    expect(html.querySelector('.coef-note')?.textContent).toContain('below 0.01');
+    fixture.componentInstance.alpha.set(0.05);
+  });
 });
+

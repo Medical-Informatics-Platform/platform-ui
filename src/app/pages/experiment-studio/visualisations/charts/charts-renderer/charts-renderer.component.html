@@ -1,14 +1,28 @@
-@if(charts().length) {
-<div>
-  @for(chart of themedCharts; track chart) {
+@if (cards().length) {
+<div class="chart-cards">
+  @for (card of cards(); track $index; let i = $index) {
+  @let v = active(card, i);
   <div class="chart-container">
-    <div echarts [options]="chart" [initOpts]="{ renderer: 'canvas' }" class="chart"
-      [style.height.px]="chartHeight(chart)"></div>
+    @if (card.title) {
+    <h4 class="chart-title">{{ card.title }}</h4>
+    }
+    @if (card.variants.length > 1) {
+    <div class="chart-switcher" role="group" [attr.aria-label]="(card.title || 'Chart') + ': choose variable'">
+      @for (variant of card.variants; track $index; let j = $index) {
+      <button type="button" [class.active]="isActive(i, j)" [attr.aria-pressed]="isActive(i, j)" (click)="pick(i, j)">
+        {{ variant.label }}
+      </button>
+      }
+    </div>
+    }
+    @if (v.meta) {
+    <p class="chart-meta">{{ v.meta }}</p>
+    }
+    <div echarts [options]="v.option" [initOpts]="{ renderer: 'canvas' }" class="chart" [style.height.px]="v.height"></div>
+    @if (v.caption) {
+    <p class="chart-caption"><span class="chart-caption-lead">In plain words · </span>{{ v.caption }}</p>
+    }
   </div>
   }
 </div>
-} @else {
-<ng-template #noCharts>
-  <p>No charts to display.</p>
-</ng-template>
 }

@@ -5,6 +5,7 @@ import { provideRouter } from '@angular/router';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { CsvExportService } from '../../../services/csv-export.service';
 import { AlgorithmResultComponent } from '../algorithm-panel/algorithm-result/algorithm-result.component';
 import { ExecutionPanelComponent } from './execution-panel.component';
 
@@ -147,4 +148,20 @@ describe('ExecutionPanelComponent', () => {
   function htmlOf(): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }
+
+  it('appends the chart readings to the CSV export', () => {
+    const download = spyOn(TestBed.inject(CsvExportService), 'downloadCsv');
+    const section = document.createElement('section');
+    section.innerHTML = `
+      <table><tr><th>term</th><th>p</th></tr><tr><td>age</td><td>0.01</td></tr></table>
+      <div class="chart-container"><h4 class="chart-title">Odds ratios</h4>
+        <p class="chart-caption"><span>In plain words · </span>Age raises the odds, "clearly".</p></div>`;
+
+    fixture.componentInstance.onExportAllCsv(section);
+
+    const csv = download.calls.mostRecent().args[0] as string;
+    expect(csv).toContain('"Chart readings"');
+    expect(csv).toContain('"Odds ratios","In plain words · Age raises the odds, ""clearly""."');
+  });
 });
+

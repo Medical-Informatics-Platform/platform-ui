@@ -79,3 +79,5 @@ experiment-studio-review/
 .agents/
 .codex/
 .impeccable/
+
+.claude/

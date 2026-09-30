@@ -26,9 +26,6 @@ interface LinearCoefficientRow {
   upper: number | null;
   significant: boolean;
   isIntercept: boolean;
-  plotLeft: number;
-  plotWidth: number;
-  markerLeft: number;
 }
 
 interface LinearKeyFigure {
@@ -100,6 +97,9 @@ export class AlgorithmResultComponent {
 
   readonly coefficientColumns = signal<CoefficientColumnMode>('key');
   readonly fitOpen = signal(false);
+  /** Shared with every result card: the chart builder owns the app-level significance level. */
+  readonly alpha = this.chartBuilder.alpha;
+  readonly alphaLevels = [0.05, 0.01, 0.001];
 
   readonly linearRegression = computed<LinearRegressionView | null>(() => {
     const algorithm = String(this.algorithm() ?? '');
@@ -118,6 +118,7 @@ export class AlgorithmResultComponent {
 
     if (!indepVars.length || !coefficients.length) return null;
 
+    const alpha = this.alpha();
     const dependent = String(result.dependent_var ?? this.yVar() ?? 'outcome');
     const rawRows = indepVars.map((variable, index) => {
       const estimate = toFiniteNumber(coefficients[index]);
@@ -127,16 +128,6 @@ export class AlgorithmResultComponent {
       const stdErrValue = toFiniteNumber(stdErr[index]);
       const tValue = toFiniteNumber(tStats[index]);
       const isIntercept = /^intercept$/i.test(variable);
-      const scale =
-        Math.max(
-          Math.abs(estimate ?? 0),
-          Math.abs(lower ?? 0),
-          Math.abs(upper ?? 0)
-        ) * 1.15 || 1;
-      const position = (value: number) => Math.max(0, Math.min(100, 50 + (value / scale) * 50));
-      const left = lower === null ? 50 : position(lower);
-      const right = upper === null ? 50 : position(upper);
-      const marker = estimate === null ? 50 : position(estimate);
 
       return {
         variable,
@@ -154,11 +145,8 @@ export class AlgorithmResultComponent {
         t: tValue,
         lower,
         upper,
-        significant: pValue !== null && pValue < 0.05,
+        significant: pValue !== null && pValue < alpha,
         isIntercept,
-        plotLeft: left,
-        plotWidth: Math.max(1, right - left),
-        markerLeft: marker,
       };
     });
 
