@@ -154,7 +154,7 @@
 
             <fieldset class="algorithm-readonly-fieldset" [disabled]="selectedAlgorithmUnavailable()" [style.pointer-events]="selectedAlgorithmUnavailable() ? 'none' : null">
 
-            @if (visibleConfigSchema().length || isOutlierReportSelected()) {
+            @if (hasAlgorithmParameterControls()) {
             <h3 class="algorithm-params__title">Parameters</h3>
             }
 
@@ -234,7 +234,7 @@
             }
 
 
-            @if (visibleConfigSchema().length) {
+            @if (primaryConfigSchema().length || advancedConfigSchema().length) {
             <form [formGroup]="configForm()" class="config-form flex flex-col gap-4">
               @for (field of primaryConfigSchema(); track field.key) {
               <ng-container *ngTemplateOutlet="configField; context: { $implicit: field }"></ng-container>
@@ -259,7 +259,7 @@
             @if (canToggleCrossValidation() || isCrossValidationOnly()) {
             <div class="config-option-row" [class.is-locked]="isCrossValidationOnly()">
               <div class="config-option-copy">
-                <span class="config-option-label">{{ crossValidationLabel() }}</span>
+                <span class="config-option-label">Cross-validation</span>
                 <span class="config-option-hint">
                   {{ isCrossValidationOnly() ? 'Always on for this method' : 'Runs the cross-validation variant and reports fold metrics' }}
                 </span>
@@ -271,6 +271,14 @@
                 <span class="sr-only">Cross-validation</span>
               </label>
             </div>
+
+            @if (crossValidationConfigSchema().length) {
+            <div class="config-option-detail">
+              @for (field of crossValidationConfigSchema(); track field.key) {
+              <ng-container *ngTemplateOutlet="configField; context: { $implicit: field }"></ng-container>
+              }
+            </div>
+            }
             }
 
             @if (canToggleTransformation()) {
@@ -340,7 +348,7 @@
               <div class="config-field" [formGroup]="configForm()">
                 <label>
                   {{ prettyFieldLabel(field) }}
-                  @if (!field.required) {
+                  @if (!field.required && !isCrossValidationField(field)) {
                   <span class="optional-tag">optional</span>
                   }
                 </label>

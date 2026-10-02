@@ -780,8 +780,8 @@ export class AlgorithmPanelComponent {
       if (!hasSplits) {
         enriched.push({
           key: 'n_splits',
-          label: 'Cross-validation folds (n_splits)',
-          desc: 'Number of folds to use for cross-validation.',
+          label: 'Folds',
+          desc: 'Number of parts the data is split into; each part is held out once.',
           type: 'number',
           min: 2,
           default: 5,
@@ -803,19 +803,26 @@ export class AlgorithmPanelComponent {
     return field?.advanced ?? (field?.default !== undefined && !field?.required);
   }
 
+  /** n_splits belongs to the cross-validation row, so it renders under that switch, not in the main form. */
+  isCrossValidationField(field: any): boolean {
+    return field?.key === 'n_splits' && (this.canToggleCrossValidation() || this.isCrossValidationOnly());
+  }
+
   readonly primaryConfigSchema = computed(() =>
-    this.visibleConfigSchema().filter((field) => !this.isAdvancedField(field) && this.configForm().get(field.key))
+    this.visibleConfigSchema().filter((field) =>
+      !this.isCrossValidationField(field) && !this.isAdvancedField(field) && this.configForm().get(field.key))
   );
 
   readonly advancedConfigSchema = computed(() =>
-    this.visibleConfigSchema().filter((field) => this.isAdvancedField(field) && this.configForm().get(field.key))
+    this.visibleConfigSchema().filter((field) =>
+      !this.isCrossValidationField(field) && this.isAdvancedField(field) && this.configForm().get(field.key))
   );
 
-  readonly crossValidationLabel = computed(() => {
-    const field = this.enrichedConfigSchema().find((entry) => entry.key === 'n_splits');
-    const folds = field?.default;
-    return `Cross-validation · ${folds !== undefined && folds !== null && folds !== '' ? folds : 5} folds`;
-  });
+  readonly crossValidationConfigSchema = computed(() =>
+    this.crossValidationEnabled()
+      ? this.visibleConfigSchema().filter((field) => this.isCrossValidationField(field) && this.configForm().get(field.key))
+      : []
+  );
 
   readonly transformationOptions = [
     { value: 'none', label: 'None' },
