@@ -3,7 +3,7 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 import { ExperimentStudioNavigationService } from '../../../../services/experiment-studio-navigation.service';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { LabeledItem, observationCount, pluralize, withLabels } from '../../../../core/result-label.utils';
-import { formatAlgorithmParameterValue } from '../../../../core/algorithm-parameter.utils';
+import { formatAlgorithmParameterValue, parameterDefaultsFromSchema } from '../../../../core/algorithm-parameter.utils';
 import { countFilterRules, formatFilterExpression } from '../../../../core/filter-display.utils';
 
 interface SetupDetailRow {
@@ -98,6 +98,7 @@ export class ExperimentSetupSummaryComponent {
 
   /**
    * Parameters as they were configured for this run, labelled from the algorithm schema.
+   * A parameter left unset runs with its schema default, so that value is listed.
    * `data_transformation` is reported under Data handling instead, where the rule belongs.
    */
   readonly parameters = computed<SetupDetailRow[]>(() => {
@@ -105,7 +106,9 @@ export class ExperimentSetupSummaryComponent {
     if (!setup?.algorithmKey) return [];
     const schema = this.studio.backendAlgorithms()[setup.algorithmKey]?.configSchema ?? [];
 
-    return Object.entries(setup.parameters)
+    const configured = Object.entries(setup.parameters)
+      .filter(([, value]) => formatAlgorithmParameterValue(value) !== '');
+    return Object.entries({ ...parameterDefaultsFromSchema(schema), ...Object.fromEntries(configured) })
       .filter(([key]) => key !== 'data_transformation')
       .map(([key, value]) => {
         const field = schema.find((entry: any) => String(entry?.key) === key);
