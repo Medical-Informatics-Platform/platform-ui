@@ -16,11 +16,7 @@
           (click)="onStepClick(step.id)"
         >
           <span class="stepper-node" [class.is-complete]="stepState(step.id) === 'complete'" [class.is-active]="activeSection() === step.id">
-            @if (stepState(step.id) === 'complete') {
-              <i class="fas fa-check stepper-check-icon" aria-hidden="true"></i>
-            } @else {
-              <span class="stepper-node-index">{{ step.index }}</span>
-            }
+            <span class="stepper-node-index">{{ step.index }}</span>
           </span>
           <span class="stepper-step-label">{{ step.label }}</span>
         </button>

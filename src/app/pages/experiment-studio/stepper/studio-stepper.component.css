@@ -127,10 +127,6 @@
   color: var(--primary-color);
 }
 
-.stepper-check-icon {
-  font-size: 0.7rem;
-}
-
 /* Responsive adjustments */
 @media (max-width: 1100px) {
   /* Four long labels cannot share this bar with the CTA. Keep the step you are on

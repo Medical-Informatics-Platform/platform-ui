@@ -71,7 +71,7 @@ describe('StudioStepperComponent', () => {
 
     const nodes = (fixture.nativeElement as HTMLElement).querySelectorAll('.stepper-node');
     expect(nodes[0].classList.contains('is-complete')).toBeTrue();
-    expect(nodes[0].querySelector('.stepper-check-icon')).toBeTruthy();
+    expect(nodes[0].textContent?.trim()).toBe('1');
     expect(nodes[2].classList.contains('is-active')).toBeTrue();
 
     const connectors = (fixture.nativeElement as HTMLElement).querySelectorAll('.stepper-connector');
