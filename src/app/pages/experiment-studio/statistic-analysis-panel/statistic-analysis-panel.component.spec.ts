@@ -421,7 +421,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
     });
 
-    it('replaces the column editor with counts inside its own card', () => {
+    it('keeps category counts on the rule rows and has no preview button', () => {
         configureRawSummary();
         component.goToSection('transformation');
         // The stage opens on its type chooser: the editor, and its preview, live in the card.
@@ -430,18 +430,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const transformation = workflowSection('Transformation');
         expect(transformation.querySelector('.transformation-tabs')).toBeNull();
-        const preview = transformation.querySelector(
-            '.station-card-footer .station-action-preview') as HTMLButtonElement;
-        expect(preview.textContent?.trim()).toBe('Preview category counts');
-
-        preview.click();
-        fixture.detectChanges();
-
-        expect(component.previewDraftId).toBe(component.transformationDrafts[0].id);
-        // The editor is hidden rather than destroyed, so its rule builders keep their state.
-        expect(transformation.querySelector('.transformation-create.is-previewing')).toBeTruthy();
-        expect(transformation.querySelector('.transformation-statistics')).toBeTruthy();
-        expect(preview.textContent?.trim()).toBe('Back to editor');
+        expect(transformation.querySelector('.station-card-footer .station-action-preview')).toBeNull();
+        expect(transformation.querySelector('.station-card-footer .station-action-apply')).toBeTruthy();
     });
 
     it('renders preprocessing step documentation from backend algorithm metadata', () => {
@@ -674,14 +664,16 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.chooseTransformation('categorical');
         fixture.detectChanges();
 
-        // Every node carries its own heading, at least one station card, and one shared
-        // Preview data action on its apply surface.
+        // Filtering and Preprocessing keep a preview action. A categorical column does not:
+        // its counts already sit on each rule row.
         for (const title of ['Filtering', 'Preprocessing', 'Transformation']) {
             const node = workflowSection(title);
             expect(node.querySelector('h3')?.textContent?.trim()).toBeTruthy();
             expect(node.querySelector('.station-card')).toBeTruthy();
-            expect(node.querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
         }
+        expect(workflowSection('Filtering').querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
+        expect(workflowSection('Preprocessing').querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
+        expect(workflowSection('Transformation').querySelector('.station-card-footer .station-action-preview')).toBeNull();
 
         // The K-means station is opened from the chooser's dashed row, like the categorical draft.
         const addKmeans = Array.from(
@@ -2189,6 +2181,41 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(draft.rules.map((rule) => (rule.filter as any)?.rules.length)).toEqual([1, 1]);
     });
 
+    it('drops an untouched category on Apply and keeps the stage pending while one is half-filled', () => {
+        const filter = { condition: 'AND' as const, rules: [{ field: 'age', operator: 'greater', value: 65 }] } as any;
+        const draft = component.transformationDrafts[0];
+        draft.code = 'elderly';
+        draft.rules = [{ value: 'old', filter }, { value: '', filter: null }];
+        component.transformationRuleModals = new QueryList() as any;
+
+        expect(component.transformationDraftStatus(draft).label).toBe('Not applied');
+        expect(component.transformationHasPendingChange).toBeTrue();
+
+        component.commitTransformationDraft(draft);
+        expect(draft.rules.map((rule) => rule.value)).toEqual(['old']);
+        expect(component.transformationDraftStatus(draft).label).toBe('Applied');
+        expect(component.transformationHasPendingChange).toBeFalse();
+
+        draft.rules.push({ value: 'named-only', filter: null });
+        component.commitTransformationDraft(draft);
+        expect(draft.rules.length).toBe(2);
+        expect(component.transformationHasPendingChange).toBeTrue();
+    });
+
+    it('drops loaded category counts once the column is edited', () => {
+        const draft = component.transformationDrafts[0];
+        draft.code = 'elderly';
+        component.countsDraftId = draft.id;
+        component.transformationStatistics = [{ code: 'elderly', rows: [{ value: 'old', count: 12 }] }];
+        component.transformationStatisticsError = 'Failed to load category counts.';
+
+        component.removeTransformationRule(draft, 0);
+
+        expect(component.countsDraftId).toBeNull();
+        expect(component.transformationStatistics).toEqual([]);
+        expect(component.transformationStatisticsError).toBe('');
+    });
+
     it('hydrates every saved categorical creator into its own card', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const filter = {
@@ -2298,8 +2325,6 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.transformationRuleModals = {
             toArray: () => [{ exportFilterLogic: () => filter, filterError: () => null }],
         } as any;
-        // The card was previewing its own counts before its Apply is clicked.
-        component.previewDraftId = draft.id;
         expect(component.sectionOpen().transformation).toBeTrue();
 
         component.commitTransformationDraft(draft);
@@ -2309,9 +2334,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(navigate).not.toHaveBeenCalled();
 
         // The card's own Apply folds just that card: the stage stays open for the next
-        // derived column, and the card's preview goes back to its editor.
+        // derived column.
         expect(component.sectionOpen().transformation).toBeTrue();
-        expect(component.previewDraftId).toBeNull();
         expect(component.transformationDrafts.every((card) => !card.open)).toBeTrue();
         const body = workflowSection('Transformation').querySelector('.workflow-section-body');
         expect(body?.classList.contains('open')).toBeTrue();
@@ -2963,7 +2987,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(cohorts).not.toContain(stored);
         });
 
-        it('previews the complete cards and drops the unfinished ones', () => {
+        it('loads counts for the complete cards on Done and drops the unfinished ones', () => {
             const filter = categoryFilter();
             openStation('transformation');
             component.addTransformationDraft();
@@ -2995,18 +3019,17 @@ describe('StatisticAnalysisPanelComponent', () => {
             const transformation = workflowSection('Transformation');
             expect(transformation.querySelector('.row-error')).toBeNull();
             expect(transformation.querySelector('.glass-feedback-warning')).toBeNull();
-            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
             expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
             expect(component.transformationDraftStatus(unfiltered).label).toBe('Not applied');
             expect(component.transformationStatusLabel).toBe('Not applied');
 
             mockExpService.loadDescriptiveOverview.calls.reset();
-            component.previewTransformationCard(component.transformationDrafts[0].id);
+            component.finishTransformationRule(first, 0);
             fixture.detectChanges();
 
             // An incomplete card simply drops out of the describe; the complete ones
-            // still get their counts, which the previewing card renders for its column.
-            expect(component.previewDraftId).toBe(component.transformationDrafts[0].id);
+            // still get their counts, which each card charts for its own column.
+            expect(component.countsDraftId).toBe(first.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledTimes(1);
             expect(component.transformationStatistics).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 3 }] },
@@ -3042,7 +3065,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             openStation('transformation');
             fixture.detectChanges();
 
-            component.previewTransformationCard('kmeans');
+            component.previewTransformationCard();
             fixture.detectChanges();
 
             // The creator goes into the describe as a preprocessing step, read over its own
@@ -3070,7 +3093,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(preview?.querySelectorAll('.transformation-rule-row').length).toBe(2);
         });
 
-        it('previews while a category builder rejects its condition', () => {
+        it('keeps a rejected category open on Done without loading counts', () => {
             openStation('transformation');
             // The card is on screen only once its type is chosen; its own footer owns Preview.
             component.chooseTransformation('categorical');
@@ -3081,24 +3104,22 @@ describe('StatisticAnalysisPanelComponent', () => {
                 toArray: () => [ruleModal(null, 'A filter value is required')],
             } as any;
             fixture.detectChanges();
-            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationCard(draft.id);
+            draft.openRuleIndex = 0;
+            // detectChanges refreshes the @ViewChildren query; re-stub the rejecting builder.
+            component.transformationRuleModals = {
+                toArray: () => [ruleModal(null, 'A filter value is required')],
+            } as any;
+            component.finishTransformationRule(draft, 0);
             fixture.detectChanges();
 
-            // A half-typed condition no longer strands the card on its editor. It does keep
-            // its previous filter rather than committing an empty one, and the card's own
-            // counts say why the table has no counts.
-            expect(component.previewDraftId).toBe(draft.id);
+            // The builder shows its own error; the rule stays open with its previous filter
+            // and no describe runs for a half-typed condition.
+            expect(draft.openRuleIndex).toBe(0);
             expect(draft.rules[0].filter).toBeNull();
+            expect(component.countsDraftId).toBeNull();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
-            expect(component.transformationStatisticsError)
-                .toBe('Each derived column needs a filter on each one before counts can be loaded.');
-            const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
-            expect(statistics?.querySelector('.glass-feedback-warning')?.textContent?.trim())
-                .toBe('Each derived column needs a filter on each one before counts can be loaded.');
-            expect(statistics?.querySelector('.empty-state-block')).toBeNull();
         });
 
         it('shows a preview error when the K-means card has no counts', () => {
@@ -3108,7 +3129,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.transformationRuleModals = { toArray: () => [] } as any;
             fixture.detectChanges();
 
-            component.previewTransformationCard('kmeans');
+            component.previewTransformationCard();
             fixture.detectChanges();
 
             const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
@@ -3124,7 +3145,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationCard(component.transformationDrafts[0].id);
+            component.finishTransformationRule(component.transformationDrafts[0], 0);
             fixture.detectChanges();
 
             // A bare column name owns a heading above this table, so it has to own a reason
@@ -3138,6 +3159,53 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(statistics?.textContent).not.toContain('Category counts from a describe run');
         });
 
+        it('turns category counts into a bar chart and skips a chart when every count is missing', () => {
+            expect(component.transformationCountChart({
+                code: 'aaa',
+                rows: [
+                    { value: 'a', count: 88426 },
+                    { value: 'b', count: 187902 },
+                ],
+            })).toEqual({
+                bins: ['a', 'b'],
+                counts: [88426, 187902],
+                variableName: 'aaa',
+                variableType: 'nominal',
+            });
+            expect(component.transformationCountChart({
+                code: 'aaa',
+                rows: [{ value: 'a', count: null }],
+            })).toBeNull();
+        });
+
+        it('shows a load error when describe fails, and insufficient data only when it succeeds with no counts', () => {
+            (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'real' }]);
+            const draft = component.transformationDrafts[0];
+            draft.code = 'cohort';
+            draft.rules = [{ value: 'ACS', filter: categoryFilter() }];
+
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                status: 'error',
+                result: {
+                    data: 'Something went wrong. Please inform the system administrator or try again later.',
+                    type: 'text/plain+error',
+                },
+            }));
+            component.refreshTransformationStatistics();
+            expect(component.transformationStatisticsError).toBe('Failed to load category counts.');
+            expect(component.transformationStatisticsError).not.toContain('insufficient data');
+
+            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+                status: 'success',
+                result: {
+                    featurewise: [{ variable: 'cohort', dataset: 'all datasets', data: null }],
+                },
+            }));
+            component.refreshTransformationStatistics();
+            expect(component.transformationStatisticsError)
+                .toBe('No counts were returned (privacy threshold or insufficient data after preprocessing).');
+        });
+
         it('names every gap when no card can be described', () => {
             openStation('transformation');
             component.addTransformationDraft();
@@ -3148,7 +3216,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.transformationRuleModals = { toArray: () => [ruleModal(null), ruleModal(null)] } as any;
             fixture.detectChanges();
 
-            component.previewTransformationCard(component.transformationDrafts[0].id);
+            component.finishTransformationRule(unfiltered, 0);
 
             // One line for the whole stage, covering each card's own shortcoming.
             expect(component.transformationStatisticsError).toBe(
@@ -3171,7 +3239,6 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(apply.disabled).toBeFalse();
             expect(apply.textContent?.trim()).toBe('Apply');
             expect(apply.classList.contains('is-quiet')).toBeFalse();
-            expect(stationButton('Transformation', '.station-action-preview').disabled).toBeFalse();
 
             // Once the category holds a rule the card is Applied, and its primary slot
             // becomes the quiet Close.
@@ -3233,10 +3300,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.calls.reset();
 
-            component.previewTransformationCard(draft.id);
+            component.finishTransformationRule(draft, 0);
             fixture.detectChanges();
 
-            expect(component.previewDraftId).toBe(draft.id);
+            expect(component.countsDraftId).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
                 jasmine.objectContaining({

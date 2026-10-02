@@ -365,7 +365,7 @@
               <div class="empty-state-block compact-empty">
                 <i class="fa fa-bar-chart"></i>
                 <p>No counts for this column yet.</p>
-                <span>{{ previewDraftId === 'kmeans' ? 'Run the report and name the column, then preview again.' : 'Name the column and give at least one category a rule, then preview again.' }}</span>
+                <span>Run the report and name the column, then preview again.</span>
               </div>
               } @else {
               @if (transformationStatisticsError) {
@@ -378,6 +378,11 @@
               </div>
               }
               @for (block of transformationStatsFor(code); track block.code) {
+              @if (transformationCountChart(block); as chart) {
+              <div class="transformation-count-chart">
+                <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
+              </div>
+              }
               @if (kmeansColumnView(block.code); as column) {
               <div class="transformation-stats-block transformation-create">
                 <h4 class="transformation-stats-title">Categorical column · {{ column.code }}</h4>
@@ -1604,12 +1609,26 @@
                   <i class="fas fa-trash-can" aria-hidden="true"></i>
                   <span>Remove column</span>
                 </button>
-                @if (previewDraftId === draft.id) {
-                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: draft.code }"></ng-container>
+                @if (countsDraftId === draft.id && (isTransformationStatsLoading || transformationStatisticsError)) {
+                <div class="transformation-statistics">
+                  @if (isTransformationStatsLoading) {
+                  <div class="studio-skeleton-line"></div>
+                  <div class="studio-skeleton-line short"></div>
+                  } @else {
+                  <div class="glass-feedback glass-feedback-warning">{{ transformationStatisticsError }}</div>
+                  }
+                </div>
+                }
+                @for (block of transformationStatsFor(draft.code); track block.code) {
+                @if (transformationCountChart(block); as chart) {
+                <div class="transformation-count-chart">
+                  <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
+                </div>
+                }
                 }
                 <!-- Numbered like the stage's "How to use" strip: name, categories, preview + apply.
                      Hidden, never destroyed, while previewing: its rule builders keep their state. -->
-                <div class="transformation-create" [class.is-previewing]="previewDraftId === draft.id">
+                <div class="transformation-create">
                   <section class="column-step">
                     <label class="column-step-head" [attr.for]="'transformation-code-' + draft.id">
                       <span class="column-step-number">1</span>Name the new column
@@ -1714,25 +1733,15 @@
                     </p>
                   </div>
                   </section>
-
-                  <section class="column-step">
-                    <div class="column-step-head"><span class="column-step-number">3</span>Preview counts, then Apply</div>
-                    <p class="column-step-note">
-                      <strong>Preview category counts</strong> below shows how many records land in each category;
-                      <strong>Apply</strong> adds <code>{{ draft.code.trim() || 'the column' }}</code> to the run.
-                    </p>
-                  </section>
                 </div>
                 <app-station-action-bar
                   stationFooter
                   flush
                   [statusText]="draftHasNewWork(draft) ? 'Not applied — finish the column to add it to the run.' : ''"
                   [tone]="transformationDraftStatus(draft).tone"
-                  [previewLabel]="previewDraftId === draft.id ? 'Back to editor' : 'Preview category counts'"
                   [applyLabel]="draftHasNewWork(draft) ? 'Apply' : 'Close'"
                   [applyIcon]="draftHasNewWork(draft) ? 'fas fa-check' : 'fas fa-times'"
                   [applyVariant]="draftHasNewWork(draft) ? 'primary' : 'quiet'"
-                  (preview)="toggleTransformationPreview(draft.id)"
                   (apply)="commitTransformationDraft(draft)"
                 ></app-station-action-bar>
               </app-station-card>
@@ -1760,7 +1769,7 @@
                 @if (previewDraftId === 'kmeans') {
                 <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.code ?? '' }"></ng-container>
                 }
-                <app-kmeans-cluster-source [class.is-previewing]="previewDraftId === 'kmeans'" (runRequested)="previewTransformationCard('kmeans')" />
+                <app-kmeans-cluster-source [class.is-previewing]="previewDraftId === 'kmeans'" (runRequested)="previewTransformationCard()" />
                 @if (expStudioService.appliedKMeansClusterCreator()) {
                 <app-station-action-bar
                   stationFooter
@@ -1770,7 +1779,7 @@
                   applyLabel="Close"
                   applyIcon="fas fa-times"
                   applyVariant="quiet"
-                  (preview)="toggleTransformationPreview('kmeans')"
+                  (preview)="toggleTransformationPreview()"
                   (apply)="closeTransformationPreview(); kmeansClusterCardOpen.set(false)"
                 ></app-station-action-bar>
                 }
