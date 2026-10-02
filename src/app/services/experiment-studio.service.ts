@@ -352,7 +352,7 @@ export class ExperimentStudioService {
       code,
       label: code,
       name: code,
-      type: 'text',
+      type: 'nominal',
       enumerations: [],
       isCreatedColumn: true,
     };
@@ -1427,7 +1427,7 @@ export class ExperimentStudioService {
         }
         if (key === 'categorical_column_creator') {
           const lines = this.categoricalCreatorLines(preprocessing[key], labelMap);
-          entries.push({ label: 'Categorical column', value: lines.join('; ') || 'configured', lines });
+          entries.push({ label: 'Nominal column', value: lines.join('; ') || 'configured', lines });
           return;
         }
         entries.push({ label: key.replace(/_/g, ' '), value: 'configured' });

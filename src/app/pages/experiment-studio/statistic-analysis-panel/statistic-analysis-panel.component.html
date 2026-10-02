@@ -385,7 +385,7 @@
               }
               @if (kmeansColumnView(block.code); as column) {
               <div class="transformation-stats-block transformation-create">
-                <h4 class="transformation-stats-title">Categorical column · {{ column.code }}</h4>
+                <h4 class="transformation-stats-title">Nominal column · {{ column.code }}</h4>
                 <p class="transformation-stats-lead">{{ column.lead }}</p>
                 <div class="transformation-rules">
                   <div class="transformation-rule-head">
@@ -1575,7 +1575,7 @@
               <i class="fas fa-tag" aria-hidden="true"></i>
               <span class="pipeline-subnode-text">
                 <span class="pipeline-subnode-title">Add derived column</span>
-                <span class="pipeline-subnode-subtitle">Create another categorical or numeric feature</span>
+                <span class="pipeline-subnode-subtitle">Create another nominal or numeric feature</span>
               </span>
               <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
             </button>
@@ -1598,7 +1598,7 @@
               <app-station-card
                 collapsible
                 icon="fas fa-square-plus"
-                [title]="draft.code.trim() ? ('Categorical column · ' + draft.code.trim()) : 'Categorical column'"
+                [title]="draft.code.trim() ? ('Nominal column · ' + draft.code.trim()) : 'Nominal column'"
                 description="Each record gets the first category whose rule it matches."
                 [statusLabel]="transformationDraftStatus(draft).label"
                 [status]="transformationDraftStatus(draft).tone"
@@ -1751,14 +1751,49 @@
               </div>
               }
               }
+              <!-- Above the K-means station: a new nominal draft renders right here, in view,
+                   instead of appearing above a tall K-means card the user is looking past. -->
+              <div class="transformation-chooser">
+                @if (transformationChooserOnly) {
+                <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
+                }
+                <div role="list" aria-label="Kinds of derived column">
+                  <div class="pipeline-subnode-item is-ghost" role="listitem">
+                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('categorical')">
+                      <i class="fas fa-tags" aria-hidden="true"></i>
+                      <span class="pipeline-subnode-text">
+                        <span class="pipeline-subnode-title">Nominal column from rules</span>
+                        <span class="pipeline-subnode-subtitle">Name categories and pick each one's records with a filter — e.g. MMSE below 24 → ‘impaired’</span>
+                      </span>
+                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                  @if (!kmeansCardShown) {
+                  <div class="pipeline-subnode-item is-ghost" role="listitem">
+                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('kmeans')">
+                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
+                      <span class="pipeline-subnode-text">
+                        <span class="pipeline-subnode-title">K-means cluster column</span>
+                        <span class="pipeline-subnode-subtitle">Group records by similarity and use the cluster as a nominal variable</span>
+                      </span>
+                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                  }
+                </div>
+              </div>
               <!-- Own station, not a categorical draft: it derives a column from a fitted
                    K-means run instead of building categories. -->
               @if (kmeansCardShown) {
+              <div class="pipeline-connector" aria-hidden="true">
+                <div class="pipeline-connector-line"></div>
+                <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+              </div>
               <app-station-card
                 collapsible
                 icon="fas fa-diagram-project"
                 title="K-means cluster column"
-                description="Group records by similarity, then use the cluster as a categorical variable."
+                description="Group records by similarity, then use the cluster as a nominal variable."
                 [statusLabel]="kmeansClusterStatusLabel"
                 [status]="kmeansClusterStatusLabel === 'Applied' ? 'applied' : 'default'"
                 [open]="kmeansClusterCardOpen()"
@@ -1784,40 +1819,7 @@
                 ></app-station-action-bar>
                 }
               </app-station-card>
-              <div class="pipeline-connector" aria-hidden="true">
-                <div class="pipeline-connector-line"></div>
-                <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
-              </div>
               }
-              <div class="transformation-chooser">
-                @if (transformationChooserOnly) {
-                <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
-                }
-                <div role="list" aria-label="Kinds of derived column">
-                  <div class="pipeline-subnode-item is-ghost" role="listitem">
-                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('categorical')">
-                      <i class="fas fa-tags" aria-hidden="true"></i>
-                      <span class="pipeline-subnode-text">
-                        <span class="pipeline-subnode-title">Categorical column from rules</span>
-                        <span class="pipeline-subnode-subtitle">Name categories and pick each one's records with a filter — e.g. MMSE below 24 → ‘impaired’</span>
-                      </span>
-                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  @if (!kmeansCardShown) {
-                  <div class="pipeline-subnode-item is-ghost" role="listitem">
-                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('kmeans')">
-                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
-                      <span class="pipeline-subnode-text">
-                        <span class="pipeline-subnode-title">K-means cluster column</span>
-                        <span class="pipeline-subnode-subtitle">Group records by similarity and use the cluster as a categorical variable</span>
-                      </span>
-                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  }
-                </div>
-              </div>
             </div>
             </div>
           </div>
