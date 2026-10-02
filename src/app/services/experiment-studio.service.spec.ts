@@ -627,6 +627,24 @@ describe('ExperimentStudioService', () => {
     expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
+  it('keeps the drop default ahead of a created column when no missing-value step was applied', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const creator = {
+      code: 'sex_group',
+      strategy: 'filter_rules',
+      rules: { m: { condition: 'AND', rules: [{ id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: '1' }] } },
+    };
+    service.setTransformationPreprocessing([creator]);
+
+    const body = service.buildRequestBody('mock_algo', ['sex_group'], ['age']);
+    const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+
+    // The created column is not a CDE, so only the real covariate gets a strategy.
+    expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'categorical_column_creator']);
+    expect(steps[0].parameters).toEqual({ strategies: { age: 'drop' } });
+  });
+
   it('uses applied descriptive preprocessing with multiple preprocessing steps for later algorithm requests', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);

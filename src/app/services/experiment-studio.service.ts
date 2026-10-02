@@ -941,8 +941,8 @@ export class ExperimentStudioService {
   }
 
   /**
-   * The shared applied config can be a transformation-only map, which
-   * `resolveRequestPreprocessing` would send as-is.
+   * The user's own missing-value step may not cover every given code; add the
+   * drop default for the codes it leaves out.
    */
   private ensureMissingValuesHandler(
     config: PreprocessingConfig | null,
@@ -1213,24 +1213,29 @@ export class ExperimentStudioService {
       return null;
     }
 
-    const explicit = this.normalizePreprocessingConfig(explicitPreprocessing);
-    if (explicit) return explicit;
-
+    // Created columns are not CDEs: Exaflow rejects missing-value strategies for them.
+    const derived = this.derivedVariableCodes();
     const variables = Array.from(
       new Set(
         [...this.toArray(yPayload), ...this.toArray(xPayload)]
           .map((code) => String(code).trim())
-          .filter((code) => code && code !== 'dataset')
+          .filter((code) => code && code !== 'dataset' && !derived.has(code))
       )
     );
-
-    if (!variables.length) return null;
-
-    return {
+    const dropDefault = {
       [MISSING_VALUES_HANDLER]: {
         strategies: Object.fromEntries(variables.map((code) => [code, 'drop'])),
       },
     };
+
+    const explicit = this.normalizePreprocessingConfig(explicitPreprocessing);
+    if (explicit) {
+      // A config holding only created-column steps has no missing-value step, and
+      // algorithms such as logistic_regression require one. Keep the drop default, run first.
+      return explicit[MISSING_VALUES_HANDLER] ? explicit : { ...dropDefault, ...explicit };
+    }
+
+    return variables.length ? dropDefault : null;
   }
 
   private normalizePreprocessingConfig(value: unknown): PreprocessingConfig | null {
