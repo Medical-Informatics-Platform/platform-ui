@@ -2099,12 +2099,7 @@ export class ExperimentStudioService {
 
         const model = findDataModelByCodeVersion(input.data_model, models);
         if (!model) {
-          console.warn(
-            'No matching data model found for',
-            input.data_model,
-            'in',
-            models
-          );
+          this.openFreshStudioForMissingDataModel(input.data_model);
           return;
         }
 
@@ -2175,6 +2170,26 @@ export class ExperimentStudioService {
 
         this.setAlgorithm(algoConfig);
       });
+  }
+
+  /**
+   * The saved pathology is not served to this user any more, so the experiment
+   * cannot be rebuilt. Drop the half-loaded edit state and start on the first available pathology.
+   */
+  private openFreshStudioForMissingDataModel(dataModel: string | undefined): void {
+    this.resetStudioState();
+    const fallback = this.getDefaultDataModel();
+    if (fallback) {
+      this.selectedDataModel.set(fallback);
+      this.preselectAllDatasetsForModel(fallback);
+    }
+    const name = String(dataModel ?? '').replace(':', ' ');
+    const lost = `You no longer have access to the data this experiment uses${name ? ` (${name})` : ''}.`;
+    this.errorService.setError(
+      fallback
+        ? `${lost} Selected ${fallback.label || fallback.code}, the first available pathology. You can change it from the pathology menu.`
+        : `${lost} Select another pathology to continue.`
+    );
   }
 
   onToggleShare(): void {

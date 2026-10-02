@@ -200,20 +200,20 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  left: 16px;
+  /* Sticky in the flow: clears the fixed header and sub-header (it used to sit behind them)
+     and pushes the studio down instead of covering the pathology picker. */
+  position: sticky;
+  top: calc(var(--header-height) + var(--studio-sub-header-height) + 12px);
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 12px auto;
+  box-sizing: border-box;
   z-index: 2000;
   background: color-mix(in srgb, var(--danger) 12%, white);
   border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   color: #7f1d1d;
   border-radius: var(--radius-lg);
   padding: 10px 14px;
-  margin-top: 3%;
-  box-shadow: none;
+  box-shadow: var(--shadow-md);
 }
 
 .pathology-warning-banner {
