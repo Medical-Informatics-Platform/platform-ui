@@ -696,7 +696,7 @@ describe('ExperimentStudioService', () => {
         strategies: { gender: 'drop' },
       },
     }, { gender: 'Gender' })).toEqual([
-      { label: 'Missing values', value: 'Gender: remove rows' },
+      { label: 'Missing values', value: 'Gender: remove rows', lines: ['Gender: remove rows'] },
     ]);
   });
 
@@ -1156,6 +1156,17 @@ describe('ExperimentStudioService', () => {
     expect(service.algorithmConfigurations()['mock_algo']).toEqual({ alpha: 0.01 });
     expect(service.appliedPreprocessingConfig()).toEqual(preprocessing);
     expect(service.isShared()).toBeTrue();
+
+    // A column created after loading must reach the run: the saved preprocessing
+    // must not shadow the shared applied config.
+    const creator = {
+      code: 'sex_group',
+      strategy: 'filter_rules',
+      rules: { m: { condition: 'AND', rules: [{ id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: '1' }] } },
+    };
+    service.setTransformationPreprocessing([creator]);
+    const steps = service.buildRequestBody('mock_algo').analysis.preprocessing as AnalysisPreprocessingStep[];
+    expect(steps.find((step) => step.name === 'categorical_column_creator')?.parameters).toEqual(creator);
   });
 
   it('keeps y/x roles separated from the pool when a variable is added to the pool', () => {
@@ -1462,6 +1473,47 @@ describe('ExperimentStudioService', () => {
     expect(service.algorithmAssignableVariables().map((v) => v.code)).toEqual(['age', 'sex', 'derived_col']);
   });
 
+  it('gives a hydrated created-column role the categories of its live creator', () => {
+    const rule = (operator: string) => ({
+      condition: 'AND', rules: [{ id: 'age', field: 'age', type: 'integer', input: 'number', operator, value: 60 }],
+    });
+    service.hydrateFromBackendExperiment({
+      uuid: 'exp-created',
+      name: 'Saved experiment',
+      created: '',
+      finished: '',
+      shared: false,
+      viewed: false,
+      status: 'success',
+      analysis: {
+        inputdata: { data_model: 'dm:1', datasets: ['ds1'], variables: ['age'] },
+        preprocessing: preprocessingSteps({
+          categorical_column_creator: {
+            code: 'old', strategy: 'filter_rules', rules: { '0': rule('less'), '1': rule('greater_or_equal') },
+          },
+        }),
+        algorithm: { name: 'mock_algo', y: ['old'], x: ['age'], parameters: {} },
+      },
+      createdBy: {
+        username: 'user',
+        fullname: 'User',
+        email: 'user@example.org',
+        subjectId: 'subject',
+        agreeNDA: true,
+      },
+    });
+    httpMock.expectOne('/services/data-models').flush([mockDataModel]);
+
+    // The saved y code carries no categories; they come from the creator config.
+    expect(service.algorithmY()[0].enumerations.map((e: any) => e.code)).toEqual(['0', '1']);
+
+    // Renaming a category later is reflected in the assigned role too.
+    service.setTransformationPreprocessing([{
+      code: 'old', strategy: 'filter_rules', rules: { young: rule('less'), older: rule('greater_or_equal') }, default_enumeration: 'na',
+    }]);
+    expect(service.algorithmY()[0].enumerations.map((e: any) => e.code)).toEqual(['young', 'older', 'na']);
+  });
+
   it('removes an item from the pool and prunes it from assigned y/x roles', () => {
     service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
     service.setAlgorithmX([{ code: 'sex', label: 'Sex' }]);
@@ -1597,6 +1649,24 @@ describe('ExperimentStudioService', () => {
       expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'kmeans_cluster_creator']);
       expect(steps[0].parameters['strategies']).toEqual({ a: 'drop', b: 'drop' });
       expect(steps[1].parameters['code']).toBe('kmeans_cluster');
+    });
+
+    it('summarizes a categorical column as its categories and default', () => {
+      expect(service.formatPreprocessingEntries({
+        categorical_column_creator: {
+          code: 'age_band',
+          rules: {
+            under_60: {
+              condition: 'AND',
+              rules: [{ id: 'age', field: 'age', type: 'integer', input: 'number', operator: 'less', value: 60 }],
+            },
+          },
+          default_enumeration: '60_plus',
+        },
+      }, { age: 'Age' })).toContain(jasmine.objectContaining({
+        label: 'Categorical column',
+        value: 'age_band; under_60: Age < 60; else 60_plus',
+      }));
     });
 
     it('summarizes an applied cluster creator as the cluster column it writes', () => {

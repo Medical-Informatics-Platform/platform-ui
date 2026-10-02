@@ -96,7 +96,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
       'variables-top': 'Data Exploration',
       'statistics-section': 'Data Handling',
       'algorithm-section': 'Algorithm Selection',
-      'execution-section': 'Experiment Execution',
+      'execution-section': 'Execution Results',
     };
     return `Back to ${labels[prev]}`;
   });

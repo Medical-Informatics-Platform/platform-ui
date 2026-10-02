@@ -60,7 +60,7 @@ describe('StudioStepperComponent', () => {
       'Data Exploration',
       'Data Handling',
       'Algorithm Selection',
-      'Experiment Execution',
+      'Execution Results',
     ]);
     expect((fixture.nativeElement as HTMLElement).querySelector('.stepper-substep-group')).toBeNull();
     expect(component.parentSteps.length).toBe(4);

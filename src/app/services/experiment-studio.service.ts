@@ -23,6 +23,7 @@ import {
   parameterDefaultsFromSchema,
   serializeAlgorithmParameterValue,
 } from '../core/algorithm-parameter.utils';
+import { formatFilterExpression } from '../core/filter-display.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
 import {
@@ -76,9 +77,18 @@ export class ExperimentStudioService {
   readonly selectedVariables = computed(() => this.selectedVariablesSignal());
   readonly selectedFilters = computed(() => this.selectedFiltersSignal());
   /** Variables assigned to the y role on the Algorithm panel. */
-  readonly algorithmY = computed(() => this.algorithmYSignal());
+  readonly algorithmY = computed(() => this.withLiveCreatedColumns(this.algorithmYSignal()));
   /** Covariates assigned to the x role on the Algorithm panel. */
-  readonly algorithmX = computed(() => this.algorithmXSignal());
+  readonly algorithmX = computed(() => this.withLiveCreatedColumns(this.algorithmXSignal()));
+
+  /**
+   * A created-column role node is a snapshot (a saved experiment hydrates it with no
+   * categories); swap in the live node so its categories follow the creator config.
+   */
+  private withLiveCreatedColumns(nodes: any[]): any[] {
+    const live = new Map(this.transformationColumnNodes().map((node) => [node.code, node]));
+    return nodes.map((node) => (node?.isCreatedColumn && live.get(node.code)) || node);
+  }
 
   /**
    * Assignable pool for the Algorithm role UI: the data-model variable pool, the
@@ -148,7 +158,7 @@ export class ExperimentStudioService {
   readonly isRunning = this._isRunning.asReadonly();
 
   /**
-   * Run outcome for the Experiment Execution step. Lives here (not on the algorithm panel)
+   * Run outcome for the Execution Results step. Lives here (not on the algorithm panel)
    * because the result outlives the parameters view and is read from another step.
    */
   readonly runResult = signal<any | null>(null);
@@ -626,7 +636,7 @@ export class ExperimentStudioService {
   /**
    * Merge the Transformation step (exaflow `categorical_column_creator`) into the shared
    * APPLIED_DESCRIPTIVE_PREPROCESSING config so it reaches every experiment run via
-   * getStoredPreprocessingConfig -> resolveRequestPreprocessing -> preprocessingConfigToSteps.
+   * resolveRequestPreprocessing -> preprocessingConfigToSteps.
    * Statistics for the derived column can also call describe with this config present,
    * using source CDEs in inputdata.variables and the new column code in algorithm.y.
    */
@@ -1099,7 +1109,7 @@ export class ExperimentStudioService {
         requestAlgorithmName,
         yPayload,
         xPayload,
-        this.getStoredPreprocessingConfig(algoConfig.name, requestAlgorithmName)
+        this.appliedPreprocessingConfig()
       )
     );
     return this.buildExperimentRequest(
@@ -1162,23 +1172,6 @@ export class ExperimentStudioService {
       normalized,
       algoConfig.configSchema ?? []
     ) as Record<string, any>;
-  }
-
-  private getStoredPreprocessingConfig(...algorithmNames: Array<string | null | undefined>): PreprocessingConfig | null {
-    const configs = this.algorithmPreprocessingConfigurations();
-    for (const name of algorithmNames) {
-      if (!name) continue;
-      const config = configs[name];
-      if (config && Object.keys(config).length > 0) return config;
-    }
-    const appliedDescriptivePreprocessing = configs[APPLIED_DESCRIPTIVE_PREPROCESSING];
-    if (
-      appliedDescriptivePreprocessing &&
-      Object.keys(appliedDescriptivePreprocessing).length > 0
-    ) {
-      return appliedDescriptivePreprocessing;
-    }
-    return null;
   }
 
   private resolveHistogramPreprocessing(
@@ -1339,7 +1332,7 @@ export class ExperimentStudioService {
       algorithmName,
       poolCodes,
       [],
-      this.getStoredPreprocessingConfig(algorithmName)
+      this.appliedPreprocessingConfig()
     );
     return this.formatPreprocessingEntries(preprocessing, labelMap);
   }
@@ -1380,7 +1373,7 @@ export class ExperimentStudioService {
       const labels = strategyEntries.map(([code, strategy]) =>
         `${this.preprocessingVariableLabel(code, labelMap)}: ${this.humanizePreprocessingValue(String(strategy))}`
       );
-      entries.push({ label: 'Missing values', value: labels.join(', ') });
+      entries.push({ label: 'Missing values', value: labels.join(', '), lines: labels });
     }
 
     const outlier = preprocessing[OUTLIER_WINSORIZER] as {
@@ -1397,7 +1390,7 @@ export class ExperimentStudioService {
         const foldText = fold === undefined || fold === null || fold === '' ? 'fold unavailable' : `fold ${fold}`;
         return `${this.preprocessingVariableLabel(code, labelMap)}: ${outlierStrategyLabel(String(strategy))}, ${outlierTailLabel(tail)} ${tail === 'both' ? 'tails' : 'tail'}, ${foldText}`;
       });
-      entries.push({ label: 'Outlier winsorizer', value: labels.join('; ') });
+      entries.push({ label: 'Outlier winsorizer', value: labels.join('; '), lines: labels });
     }
 
     const longitudinal = preprocessing['longitudinal_transformer'] as Record<string, unknown> | undefined;
@@ -1427,10 +1420,37 @@ export class ExperimentStudioService {
           entries.push({ label: 'K-means cluster column', value: code || 'configured' });
           return;
         }
+        if (key === 'categorical_column_creator') {
+          const lines = this.categoricalCreatorLines(preprocessing[key], labelMap);
+          entries.push({ label: 'Categorical column', value: lines.join('; ') || 'configured', lines });
+          return;
+        }
         entries.push({ label: key.replace(/_/g, ' '), value: 'configured' });
       });
 
     return entries;
+  }
+
+  private categoricalCreatorLines(value: unknown, labelMap: Record<string, string>): string[] {
+    const creators = Array.isArray(value) ? value : [value];
+    return creators.flatMap((creator) => {
+      if (!creator || typeof creator !== 'object') return [];
+      const config = creator as {
+        code?: unknown;
+        rules?: Record<string, BackendFilter>;
+        default_enumeration?: unknown;
+      };
+      const lines: string[] = [];
+      const code = String(config.code ?? '').trim();
+      if (code) lines.push(this.preprocessingVariableLabel(code, labelMap));
+      for (const [category, filter] of Object.entries(config.rules ?? {})) {
+        const expression = formatFilterExpression(filter, { labelMap });
+        lines.push(expression ? `${category}: ${expression}` : category);
+      }
+      const fallback = String(config.default_enumeration ?? '').trim();
+      if (fallback) lines.push(`else ${fallback}`);
+      return lines;
+    });
   }
 
   private preprocessingVariableLabel(code: string, labelMap: Record<string, string>): string {
@@ -2145,7 +2165,6 @@ export class ExperimentStudioService {
         });
         this.algorithmPreprocessingConfigurations.set({
           ...this.algorithmPreprocessingConfigurations(),
-          [algoName]: preprocessing,
           [APPLIED_DESCRIPTIVE_PREPROCESSING]: preprocessing,
         });
 

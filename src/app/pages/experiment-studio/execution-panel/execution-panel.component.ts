@@ -11,7 +11,7 @@ import { AlgorithmResultComponent } from '../algorithm-panel/algorithm-result/al
 import { ExperimentSetupSummaryComponent } from './experiment-setup-summary/experiment-setup-summary.component';
 
 /**
- * Experiment Execution step: the run skeleton, its error state, and the result view with
+ * Execution Results step: the run skeleton, its error state, and the result view with
  * its docked setup summary.
  * It owns no run configuration — Save As / Export stay on the algorithm panel, which owns
  * the parameter form, and are emitted back to it by the studio shell.
