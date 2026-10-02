@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { ExperimentStudioNavigationService } from '../../../../services/experiment-studio-navigation.service';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
-import { LabeledItem, pluralize, rowsUsedLabel, withLabels } from '../../../../core/result-label.utils';
+import { LabeledItem, observationCount, pluralize, withLabels } from '../../../../core/result-label.utils';
 import { formatAlgorithmParameterValue } from '../../../../core/algorithm-parameter.utils';
 import { countFilterRules, formatFilterExpression } from '../../../../core/filter-display.utils';
 
@@ -13,7 +13,7 @@ interface SetupDetailRow {
 }
 
 /**
- * The setup behind the result on the Experiment Execution step: data model, datasets,
+ * The setup behind the result on the Execution Results step: data model, datasets,
  * variable roles, cohort filters, data handling and algorithm parameters in one column.
  *
  * Every field comes from `ExperimentStudioService.runSetup`, the snapshot taken when the run
@@ -87,7 +87,7 @@ export class ExperimentSetupSummaryComponent {
   );
 
   /** Result metadata the snapshot does not carry: show what is known, skip when absent. */
-  readonly rowsUsedSummary = computed(() => rowsUsedLabel(this.studio.runResult()?.n_obs));
+  readonly rowsUsedSummary = computed(() => observationCount(this.studio.runResult()));
 
   readonly algorithmKey = computed(() => this.setup()?.algorithmKey ?? '');
   readonly algorithmLabel = computed(() => {

@@ -312,12 +312,35 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
 
     const target = step.selector ? this.findTarget(step.selector) : null;
     if (target) {
-      const headerOffset = this.getHeaderOffset();
-      const top = Math.max(window.scrollY + target.getBoundingClientRect().top - headerOffset, 0);
-      window.scrollTo({ top, behavior: 'smooth' });
+      this.scrollTargetIntoView(target);
     }
 
     this.scheduleLayoutUpdate(target ? 260 : 0);
+  }
+
+  /** The workbench scrolls inside `.main-pane`, not the window. */
+  private scrollTargetIntoView(target: HTMLElement): void {
+    const scroller = this.scrollParent(target);
+    if (!scroller) {
+      const top = Math.max(window.scrollY + target.getBoundingClientRect().top - this.getHeaderOffset(), 0);
+      window.scrollTo({ top, behavior: 'auto' });
+      return;
+    }
+
+    const delta = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: Math.max(scroller.scrollTop + delta - 8, 0), behavior: 'auto' });
+  }
+
+  private scrollParent(element: HTMLElement): HTMLElement | null {
+    let parent = element.parentElement;
+    while (parent) {
+      const style = getComputedStyle(parent);
+      if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 1) {
+        return parent;
+      }
+      parent = parent.parentElement;
+    }
+    return null;
   }
 
   private getHeaderOffset(): number {
@@ -421,10 +444,18 @@ export class ExperimentsDashboardGuideComponent implements OnInit, AfterViewInit
   }
 
   private expandRect(rect: DOMRect, padding = 10): GuideRect {
-    const left = rect.left - padding;
-    const top = rect.top - padding;
-    const right = rect.right + padding;
-    const bottom = rect.bottom + padding;
+    let left = rect.left - padding;
+    let top = rect.top - padding;
+    let right = rect.right + padding;
+    let bottom = rect.bottom + padding;
+
+    // A target taller than the screen (the workbench) must not draw its ring off the top.
+    if (rect.height > window.innerHeight) {
+      top = Math.max(top, 8);
+      bottom = Math.min(bottom, window.innerHeight - 8);
+      // Scrolled mostly off screen: the two clamps can cross, so keep the ring non-inverted.
+      bottom = Math.max(bottom, top);
+    }
 
     return {
       top,

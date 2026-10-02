@@ -17,11 +17,13 @@
        a select because it is a choice of one, not a chip to press: "All folders" is the clear. -->
   <div class="filter-row experiments-tabs-row" data-guide="dashboard-tabs">
     <div class="experiments-tabs">
-      <button type="button" class="tab-btn" [class.active]="onlyMine()" (click)="setTab(true)">
+      <button type="button" class="tab-btn" [class.active]="onlyMine()" (click)="setTab(true)"
+        aria-label="Mine" title="Mine">
         <i class="far fa-user" aria-hidden="true"></i>
         <span class="tab-btn__label">Mine</span>
       </button>
-      <button type="button" class="tab-btn" [class.active]="!onlyMine()" (click)="setTab(false)">
+      <button type="button" class="tab-btn" [class.active]="!onlyMine()" (click)="setTab(false)"
+        aria-label="Shared" title="Shared">
         <i class="fas fa-users" aria-hidden="true"></i>
         <span class="tab-btn__label">Shared</span>
       </button>

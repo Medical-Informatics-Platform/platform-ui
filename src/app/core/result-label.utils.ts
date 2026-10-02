@@ -49,3 +49,13 @@ export function rowsUsedLabel(nObs: unknown): string {
   if (typeof nObs !== 'number' || !Number.isFinite(nObs) || nObs <= 0) return '';
   return nObs.toLocaleString('en-US');
 }
+
+/** Top-level `n_obs`, or the first nested one (one-way ANOVA keeps it on `anova_table`). */
+export function observationCount(result: unknown): string {
+  if (!result || typeof result !== 'object') return '';
+  for (const value of [result, ...Object.values(result)]) {
+    const label = value && typeof value === 'object' ? rowsUsedLabel((value as { n_obs?: unknown }).n_obs) : '';
+    if (label) return label;
+  }
+  return '';
+}
