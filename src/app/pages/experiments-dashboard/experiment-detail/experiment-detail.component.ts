@@ -239,7 +239,7 @@ export class ExperimentDetailsComponent {
       preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
-    const summary = this.expStudioService.formatPreprocessingConfig(preprocessing, this.labelMap());
+    const summary = this.expStudioService.formatPreprocessingConfig(preprocessing, this.labelMap(), this.enumMaps());
     return summary === 'none' ? '' : summary;
   });
 
@@ -248,7 +248,7 @@ export class ExperimentDetailsComponent {
       preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
-    return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap());
+    return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap(), this.enumMaps());
   });
 
   readonly authorLine = computed(() =>

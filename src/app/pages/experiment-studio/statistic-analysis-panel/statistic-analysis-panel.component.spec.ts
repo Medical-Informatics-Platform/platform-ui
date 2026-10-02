@@ -167,6 +167,19 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component).toBeTruthy();
     });
 
+    it('labels enumeration values in a derived-column rule summary', () => {
+        (mockExpService.selectedVariables as any).set([{
+            code: 'clinical_sdr',
+            label: 'Clinical syndrome',
+            enumerations: [{ code: '1', label: 'TACS' }, { code: '2', label: 'PACS' }],
+        }]);
+
+        expect(component.transformationRuleSummary({
+            value: 'ACS',
+            filter: { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' } as any,
+        })).toBe('Clinical syndrome is any of TACS, PACS');
+    });
+
     it('toggles Filtering exclusive of Raw Summary via Preview data', () => {
         configureRawSummary();
         component.goToSection('filters');
