@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { CsvExportService } from '../../../../services/csv-export.service';
 import { getAlgorithmTableBuilder, TableSpec } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
@@ -11,6 +12,7 @@ import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AutoRendererComponent {
+  private readonly csvExport = inject(CsvExportService);
   readonly value = input<any>(null);
   readonly algorithm = input<string | null>(null);
   readonly fallbackTitle = input<string | null>(null);
@@ -140,39 +142,10 @@ export class AutoRendererComponent {
   }
 
   exportToCSV(table: TableSpec) {
-    if (!table || !table.columns || !table.rows) return;
-
-    const headers = table.columns.map(c => this.escapeCSV(c)).join(',');
-    const csvRows = table.rows.map(row =>
-      row.map(cell => this.escapeCSV(this.formatValue(cell))).join(',')
+    this.csvExport.exportTableCsv(
+      { ...table, rows: (table.rows ?? []).map((row) => row.map((cell) => this.formatValue(cell))) },
+      this.algorithm() || 'export',
     );
-
-    const csvContent = [headers, ...csvRows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    const fileName = (table.title || this.algorithm() || 'export')
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '_')
-      .replace(/[^\w-]/g, '');
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${fileName}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-
-  private escapeCSV(val: any): string {
-    const str = String(val ?? '');
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
   }
 
   private getResultTitle(result: any): string | null {

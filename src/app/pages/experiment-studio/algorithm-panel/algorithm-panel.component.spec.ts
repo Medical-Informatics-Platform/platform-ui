@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
 import { ErrorService } from '../../../services/error.service';
-import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
+import { PdfExportService } from '../../../services/pdf-export.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -144,7 +144,7 @@ describe('AlgorithmPanelComponent', () => {
         { provide: ExperimentStudioService, useValue: experimentStudioService },
         { provide: ErrorService, useValue: { clearError: jasmine.createSpy('clearError') } },
         { provide: AuthService, useValue: { currentUser: null } },
-        { provide: ResultsPdfExportService, useValue: { exportExperimentPdf: jasmine.createSpy('exportExperimentPdf') } },
+        { provide: PdfExportService, useValue: { exportExperimentPdf: jasmine.createSpy('exportExperimentPdf') } },
         { provide: RuntimeEnvService, useValue: { mipVersion: 'test' } },
         { provide: SessionStorageService, useValue: {} },
         { provide: ExperimentStudioNavigationService, useValue: studioNavigation },

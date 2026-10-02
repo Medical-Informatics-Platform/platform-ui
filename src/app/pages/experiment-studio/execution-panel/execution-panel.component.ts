@@ -4,7 +4,6 @@ import { RouterLink } from '@angular/router';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { CsvExportService } from '../../../services/csv-export.service';
 import { prettifyLabel } from '../../../core/algorithm-mappers';
 import { formulaLine } from '../../../core/result-label.utils';
 import { AlgorithmResultComponent } from '../algorithm-panel/algorithm-result/algorithm-result.component';
@@ -26,7 +25,6 @@ import { ExperimentSetupSummaryComponent } from './experiment-setup-summary/expe
 export class ExecutionPanelComponent {
   private expStudioService = inject(ExperimentStudioService);
   private studioNavigation = inject(ExperimentStudioNavigationService);
-  private csvExport = inject(CsvExportService);
 
   readonly isRunning = this.expStudioService.isRunning;
   readonly result = this.expStudioService.runResult;
@@ -62,6 +60,7 @@ export class ExecutionPanelComponent {
   /** Save As and PDF export need the parameter form, so the algorithm panel keeps them. */
   readonly saveAs = output<string>();
   readonly exportPdf = output<HTMLElement>();
+  readonly exportZip = output<void>();
 
   readonly exportOpen = signal(false);
   /** Set once a save round-trips, so the header can switch Unsaved -> Saved. */
@@ -180,24 +179,9 @@ export class ExecutionPanelComponent {
     this.exportPdf.emit(section);
   }
 
-  /** Quiet fallback export: one CSV, each result table as a titled block. */
-  onExportAllCsv(section: HTMLElement): void {
+  onExportZip(): void {
     this.exportOpen.set(false);
-    const tables = Array.from(section.querySelectorAll<HTMLTableElement>('table'));
-    if (!tables.length) return;
-
-    const cell = (text: string | null | undefined) => `"${(text ?? '').replace(/\s+/g, ' ').trim().replace(/"/g, '""')}"`;
-    const blocks = tables.map((table, index) => {
-      const title =
-        table.closest('.ar-card')?.querySelector('.ar-title')?.textContent ||
-        table.closest('.coefficients-card')?.querySelector('.coefficients-title')?.textContent ||
-        `Table ${index + 1}`;
-      const rows = Array.from(table.querySelectorAll('tr')).map((row) =>
-        Array.from(row.querySelectorAll('th,td')).map((c) => cell(c.textContent)).join(',')
-      );
-      return [cell(title), ...rows].join('\n');
-    });
-    this.csvExport.downloadCsv(blocks.join('\n\n'), 'experiment_tables.csv');
+    this.exportZip.emit();
   }
 
   backToAlgorithm(): void {

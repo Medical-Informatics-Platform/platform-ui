@@ -71,6 +71,12 @@
           Export PDF
         </button>
 
+        <button type="button" class="ghost-btn" (click)="onExportZip()"
+          title="Download every result table as CSV, the full result data and a README, in one ZIP">
+          <i class="fas fa-file-zipper" aria-hidden="true"></i>
+          Export CSV (ZIP)
+        </button>
+
         <button type="button" class="detail-primary-btn" (click)="runExperiment()" data-guide="dashboard-edit-studio">
           Open in Studio
           <i class="fas fa-arrow-right" aria-hidden="true"></i>

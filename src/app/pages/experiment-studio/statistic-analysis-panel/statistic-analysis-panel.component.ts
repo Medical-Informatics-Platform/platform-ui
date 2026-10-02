@@ -42,7 +42,7 @@ import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-clu
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
-import { countFilterRules } from '../../../core/filter-display.utils';
+import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
@@ -3018,10 +3018,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       const pathologyName = dataModel?.label || dataModel?.code || '';
       const summary = this.getSummary(kind);
 
+      const labelMap = this.expStudioService.variableLabelMap();
+      const filterLogic = this.expStudioService.filterLogic();
       await this.pdfExportService.exportDescriptiveStatisticsPdf({
+        title: this.summaryKindLabel(kind),
         pathologyName,
+        context: [
+          ['Datasets', this.expStudioService.selectedDatasets().map((code) => this.datasetLabel(code))],
+          // Source data is the selection before any cohort rule or preprocessing.
+          ['Filters', kind !== 'source' && filterLogic ? formatFilterExpression(filterLogic, { labelMap }) : null],
+          ['Preprocessing', kind === 'processed'
+            ? this.expStudioService.formatPreprocessingConfig(this.expStudioService.getAppliedDescriptivePreprocessing(), labelMap).split('\n')
+            : null],
+        ],
         variables: this.pivotBlocksWithDatasetLabels(summary.data),
-        models: [],
         charts: numericCharts,
         nonNominalVariables: summary.nonNominalVariables,
         nominalCharts,

@@ -12,7 +12,9 @@ import {
   serializeAlgorithmParameterValue,
 } from '../../../core/algorithm-parameter.utils';
 import { AlgorithmAvailabilityDetail, AlgorithmConfig } from '../../../models/algorithm-definition.model';
-import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
+import { experimentTables, PdfExportService } from '../../../services/pdf-export.service';
+import { CsvExportService } from '../../../services/csv-export.service';
+import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
 import { AlgorithmNames, VariableTypes } from '../../../core/constants/algorithm.constants';
@@ -65,7 +67,8 @@ interface AlgorithmNeedItem {
 })
 
 export class AlgorithmPanelComponent {
-  pdfExport = inject(ResultsPdfExportService);
+  pdfExport = inject(PdfExportService);
+  private readonly csvExport = inject(CsvExportService);
   private errorService = inject(ErrorService);
   private authService = inject(AuthService);
   private runtimeEnvService = inject(RuntimeEnvService);
@@ -1816,11 +1819,33 @@ export class AlgorithmPanelComponent {
   }
 
   onExportResult(section: HTMLElement) {
-    const result = this.experimentStudioService.runResult();
-    if (!section || !result) {
+    const payload = this.resultExportPayload();
+    if (!section || !payload) {
       console.warn('No result or element to export');
       return;
     }
+    this.pdfExport.exportExperimentPdf({ ...payload, chartContainer: section });
+  }
+
+  onExportResultZip() {
+    const payload = this.resultExportPayload();
+    if (!payload) {
+      console.warn('No result to export');
+      return;
+    }
+    this.csvExport.exportExperimentZip({
+      ...payload,
+      tables: experimentTables(payload.algorithmKey, payload.result),
+    }).catch((error) => {
+      console.error('Result ZIP export failed:', error);
+      this.errorMsg.set('Failed to export the result tables.');
+    });
+  }
+
+  /** The run's setup and result, shared by the PDF report and the ZIP export. */
+  private resultExportPayload() {
+    const result = this.experimentStudioService.runResult();
+    if (!result) return null;
 
     const info = this.experimentInfo();
     const algoKey =
@@ -1836,8 +1861,6 @@ export class AlgorithmPanelComponent {
     const createdBy =
       currentUser?.fullname || currentUser?.username || currentUser?.email || null;
 
-    const filename = info.experimentName;
-
     const transformations = this.transformationEnabled()
       ? Object.entries(this.transformationAssignments)
         .filter(([_, choice]) => choice && choice !== 'none')
@@ -1845,29 +1868,38 @@ export class AlgorithmPanelComponent {
           const label = this.labelMap()[code] || code;
           return `${label}: ${choice}`;
         })
-        .join(', ')
       : null;
 
-    this.pdfExport.exportExperimentPdf({
-      filename,
+    const filterLogic = this.experimentStudioService.filterLogic();
+    const filterExpression = filterLogic
+      ? formatFilterExpression(filterLogic, { labelMap: this.labelMap() })
+      : '';
+    const model = this.experimentStudioService.selectedDataModel();
+
+    return {
+      filename: info.experimentName,
       details: {
         experimentName: info.experimentName,
         createdBy,
         createdAt: new Date(),
         algorithm: algoLabel,
         params: info.algorithmConfigs,
-        preprocessing: this.experimentStudioService.getEffectivePreprocessingSummary(algoKey),
-        domain: this.experimentStudioService.selectedDataModel()?.code ?? null,
+        preprocessing: this.experimentStudioService
+          .getEffectivePreprocessingEntries(algoKey, this.labelMap())
+          .map((entry) => `${entry.label}: ${entry.value}`)
+          .join('\n'),
+        domain: model ? [model.label || model.code, model.version].filter(Boolean).join(' ') : null,
         datasets: this.datasetsWithLabels().map((d) => d.label),
         variables: (info.variables ?? []).map((v: any) => v.label || v.name || v.code),
         covariates: (info.covariates ?? []).map((c: any) => c.label || c.name || c.code),
-        filters: (info.filters ?? []).map((f: any) => f.label || f.name || f.code),
+        filters: filterExpression
+          ? [filterExpression]
+          : (info.filters ?? []).map((f: any) => f.label || f.name || f.code),
         transformations,
         mipVersion: this.mipVersion,
       },
       algorithmKey: algoKey,
       result,
-      chartContainer: section,
-    });
+    };
   }
 }

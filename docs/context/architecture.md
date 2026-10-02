@@ -75,7 +75,7 @@ flowchart TD
 - Chart rendering is driven by `AlgorithmChartRegistry` and renderer files under `visualisations/charts/renderers`.
 - Backend algorithm definitions are mapped in `src/app/core/algorithm-mappers.ts`.
 - Result labels and enum mappings are handled by `ExperimentLabelService` and `algorithm-result-enum-mapper`.
-- PDF exports are split between experiment result export and distribution/descriptive statistics export services.
+- Exports: `PdfExportService` builds the experiment report, the descriptive statistics PDF and the variable chart PDF on one flowing layout (setup block, contents list, then tables and charts, two charts per page). Charts are captured as JPEG through `core/export.utils.ts` (the ECharts instance's own export, then SVG, then an html2canvas screenshot as a last resort); PDFs are compressed and embed the logo once. `CsvExportService` writes single-table CSVs with a UTF-8 BOM and the result ZIP (`tables/NN_*.csv`, unrounded `result.json`, `README.txt` with the setup). JSZip is loaded on demand.
 
 ## Runtime and Deployment
 - The Dockerfile builds with Node 22 and serves the Angular output with nginx.
