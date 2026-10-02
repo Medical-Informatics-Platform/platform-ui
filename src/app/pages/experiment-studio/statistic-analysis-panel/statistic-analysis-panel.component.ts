@@ -829,7 +829,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       note: "Variables you don't touch keep the default: rows with a missing value are removed.",
     },
     transformation: {
-      steps: ['Choose the kind of column to add', 'Define it — category rules or a K-means run', 'Preview counts, then Apply'],
+      steps: ['Choose the kind of column to add', 'Define it — category rules or a K-means run', 'Done on a rule loads its counts, then Apply'],
       note: 'The new column joins your variable list, so you can pick it as an outcome or predictor in Algorithm Selection.',
     },
     kmeans: {
@@ -846,7 +846,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   ];
 
   /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
-  previewDraftId: number | 'kmeans' | null = null;
+  previewDraftId: 'kmeans' | null = null;
+  /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
+  countsDraftId: number | null = null;
   /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
   transformationDrafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
@@ -1070,8 +1072,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   get transformationHasPendingChange(): boolean {
     if (this.transformationHasDuplicateCodes) return true;
     return this.transformationDrafts.some(
-      (draft) => this.draftHasWork(draft) && !this.buildTransformationConfigForDraft(draft)
+      (draft) => this.draftHasWork(draft) && (this.hasUnfinishedCategory(draft) || !this.buildTransformationConfigForDraft(draft))
     );
+  }
+
+  /** A category without a name or a rule is left out of the saved column. */
+  private hasUnfinishedCategory(draft: TransformationColumnDraft): boolean {
+    return draft.rules.some((rule) => !rule.value.trim() || !rule.filter);
   }
 
   get transformationStatusLabel(): string {
@@ -1711,13 +1718,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.onTransformationChange();
   }
 
-  /** A card's own Preview: counts for its column, shown in place of its editor. The
-   *  editor stays mounted underneath, so its rule builders keep their state. */
-  previewTransformationCard(id: number | 'kmeans'): void {
-    // Only a categorical card has rule builders to commit; the K-means card has none.
-    const draft = this.transformationDrafts.find((item) => item.id === id);
-    if (draft) this.commitTransformationRuleFilters(draft);
-    this.previewDraftId = id;
+  /** The K-means card's Preview: cluster counts, shown in place of its editor. */
+  previewTransformationCard(): void {
+    this.previewDraftId = 'kmeans';
     this.refreshTransformationStatistics();
     this.cdr.markForCheck();
   }
@@ -1727,9 +1730,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
-  toggleTransformationPreview(id: number | 'kmeans'): void {
-    if (this.previewDraftId === id) this.closeTransformationPreview();
-    else this.previewTransformationCard(id);
+  toggleTransformationPreview(): void {
+    if (this.previewDraftId) this.closeTransformationPreview();
+    else this.previewTransformationCard();
   }
 
   transformationStatsFor(code: string): Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> {
@@ -1747,10 +1750,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    *  Valid cards are persisted as they are typed, so this never writes other cards. */
   commitTransformationDraft(draft: TransformationColumnDraft): void {
     this.commitTransformationRuleFilters(draft);
-    if (!this.draftHasNewWork(draft)) {
-      draft.open = false;
-      if (this.previewDraftId === draft.id) this.previewDraftId = null;
+    // An untouched category row (no name, no rule) is dropped, not left to block Apply.
+    for (let index = draft.rules.length - 1; index >= 0; index--) {
+      const rule = draft.rules[index];
+      if (!rule.value.trim() && !rule.filter) this.removeTransformationRule(draft, index);
     }
+    if (!this.draftHasNewWork(draft)) draft.open = false;
     this.cdr.markForCheck();
   }
 
@@ -1767,10 +1772,22 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.onTransformationChange();
   }
 
-  /** A new category lands collapsed, like every other row: its rule opens on Set rule. */
+  /** A new category opens straight onto its filter, with the first condition ready. */
   addTransformationRule(draft: TransformationColumnDraft): void {
     draft.rules.push({ value: '', filter: null });
+    const index = draft.rules.length - 1;
+    draft.openRuleIndex = index;
     this.onTransformationChange();
+    this.cdr.detectChanges();
+    this.ruleModalAt(draft, index)?.ensureFirstCondition();
+  }
+
+  /** `#ruleModal` renders one builder per rule in card order, so earlier cards' rules come first. */
+  private ruleModalAt(draft: TransformationColumnDraft, index: number) {
+    const offset = this.transformationDrafts
+      .slice(0, this.transformationDrafts.indexOf(draft))
+      .reduce((count, earlier) => count + earlier.rules.length, 0);
+    return this.transformationRuleModals?.toArray()[offset + index];
   }
 
   /**
@@ -1778,11 +1795,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * category list. A builder with an error stays open and shows its own message.
    */
   finishTransformationRule(draft: TransformationColumnDraft, index: number): void {
-    // `#ruleModal` renders one builder per rule in card order, so earlier cards' rules come first.
-    const offset = this.transformationDrafts
-      .slice(0, this.transformationDrafts.indexOf(draft))
-      .reduce((count, earlier) => count + earlier.rules.length, 0);
-    const modal = this.transformationRuleModals?.toArray()[offset + index];
+    const modal = this.ruleModalAt(draft, index);
     if (modal) {
       const logic = modal.exportFilterLogic();
       if (modal.filterError()) {
@@ -1793,6 +1806,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     draft.openRuleIndex = null;
     this.onTransformationChange();
+    this.countsDraftId = draft.id;
+    this.refreshTransformationStatistics();
   }
 
   removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
@@ -1845,11 +1860,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return row?.count != null ? row.count.toLocaleString() : '—';
   }
 
-  /** Per-card chip: a card is Applied only when it is complete and its name is unique. */
+  /** Per-card chip: Applied only when every category is complete and the name is unique.
+   *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
   transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
     const code = draft.code.trim();
     const isDuplicate = !!code && this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code);
-    if (this.buildTransformationConfigForDraft(draft)) {
+    if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
       return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
     }
     if (this.draftHasWork(draft) || isDuplicate) return { label: 'Not applied', tone: 'pending' };
@@ -3660,8 +3676,21 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     // does not wait for the shared Apply preprocessing button). The Pending/Applied
     // chip derives from the live drafts, so no separate applied snapshot is kept.
     this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    this.invalidateCategoryCounts();
     this.emitProgressState();
     this.cdr.markForCheck();
+  }
+
+  /** Category counts describe the config at the last Done; any later edit drops them. */
+  private invalidateCategoryCounts(): void {
+    if (this.countsDraftId === null) return;
+    this.countsDraftId = null;
+    // ponytail: also cancels an in-flight K-means preview; scope per card if both overlap in practice.
+    this.transformationStatsRequestId++;
+    this.isTransformationStatsLoading = false;
+    this.transformationStatisticsError = '';
+    const clusterCode = String(this.expStudioService.appliedKMeansClusterCreator()?.code ?? '').trim();
+    this.transformationStatistics = this.transformationStatistics.filter((block) => block.code === clusterCode);
   }
 
   /** Placeholder (null-count) rows for one card so Preview shows the category shape. */
@@ -3859,7 +3888,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           );
           this.transformationStatisticsError = hasAnyCount
             ? ''
-            : 'No counts were returned (privacy threshold or insufficient data after preprocessing).';
+            : this.isErrorResponse(response)
+              ? 'Failed to load category counts.'
+              : 'No counts were returned (privacy threshold or insufficient data after preprocessing).';
           this.isTransformationStatsLoading = false;
           this.cdr.markForCheck();
         },
@@ -3870,6 +3901,24 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           this.cdr.markForCheck();
         },
       });
+  }
+
+  private isErrorResponse(response: unknown): boolean {
+    const r = response as { status?: unknown; result?: { type?: unknown; data?: unknown } } | null;
+    return r?.status === 'error' ||
+      (typeof r?.result?.type === 'string' && r.result.type.includes('error')) ||
+      typeof r?.result?.data === 'string';
+  }
+
+  /** Category counts as the same horizontal bar chart the summary uses for groups. */
+  transformationCountChart(block: { code: string; rows: Array<{ value: string; count: number | null }> }): HistogramPreviewData | null {
+    if (!block.rows.some((row) => typeof row.count === 'number')) return null;
+    return {
+      bins: block.rows.map((row) => row.value),
+      counts: block.rows.map((row) => row.count),
+      variableName: block.code,
+      variableType: 'nominal',
+    };
   }
 
   private buildTransformationStatisticsFromDescribe(

@@ -91,6 +91,12 @@ export class FilterConfigModalComponent {
   /** The one condition row the user is editing; `<details>` follows it and opens new rows. */
   readonly activeBlockId = signal<string | null>(null);
 
+  /** A new category rule starts on its first condition, not on an empty "Add condition" prompt. */
+  ensureFirstCondition(): void {
+    const root = this.rootGroup();
+    if (root.rules.length === 0) this.addCondition(root.id, 0);
+  }
+
   addCondition(groupId: string, index: number): void {
     const newCondition = this.createCondition();
     this.updateGroup(groupId, (group) => ({

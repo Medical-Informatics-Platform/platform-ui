@@ -772,32 +772,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             expect(strayBars).toEqual([]);
         });
 
-        /**
-         * A column card previews its own counts in place: the editor is hidden, not
-         * destroyed, and the same footer button walks back to it.
-         */
-        it('previews one transformation column inside its own card', () => {
+        it('shows category counts on the rule rows and has no preview button', () => {
             component.addStep('transformation');
             component.chooseTransformation('categorical');
             fixture.detectChanges();
 
-            const refresh = spyOn(component, 'refreshTransformationStatistics');
-            const draft = component.transformationDrafts[0];
-            const preview = (fixture.nativeElement as HTMLElement).querySelector(
-                '[data-guide="analysis-transformation"] .station-card-footer .station-action-preview') as HTMLButtonElement;
-
-            preview.click();
-            fixture.detectChanges();
-
-            expect(component.previewDraftId).toBe(draft.id);
-            expect(refresh).toHaveBeenCalledTimes(1);
-            expect((fixture.nativeElement as HTMLElement).querySelector('.transformation-create.is-previewing')).toBeTruthy();
-            expect(preview.textContent?.trim()).toBe('Back to editor');
-
-            preview.click();
-            fixture.detectChanges();
-
-            expect(component.previewDraftId).toBeNull();
+            const footer = (fixture.nativeElement as HTMLElement).querySelector(
+                '[data-guide="analysis-transformation"] .station-card-footer') as HTMLElement;
+            expect(footer.querySelector('.station-action-preview')).toBeNull();
+            expect(footer.querySelector('.station-action-apply')).toBeTruthy();
         });
 
         it('folds the How to use strip by default', () => {
@@ -822,10 +805,10 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
             const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-transformation"]');
             const create = section?.querySelector('.transformation-create');
-            expect(create?.querySelectorAll('.column-step').length).toBe(3);
+            expect(create?.querySelectorAll('.column-step').length).toBe(2);
             expect(Array.from(create?.querySelectorAll('.column-step-number') ?? [])
                 .map((number) => number.textContent?.trim()))
-                .toEqual(['1', '2', '3']);
+                .toEqual(['1', '2']);
 
             const ghost = section?.querySelector('.transformation-rules-list .transformation-add-category') as HTMLButtonElement | null;
             expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBeTrue();
@@ -846,6 +829,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         }
 
         function openCardWithTwoCategories() {
+            // The rule builder renders its conditions only once there are variables to filter on.
+            (mockExpService.selectedVariables as any).set([age]);
             component.goToSection('transformation');
             component.chooseTransformation('categorical');
             const draft = component.transformationDrafts[0];
@@ -855,21 +840,18 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             return draft;
         }
 
-        it('adds categories collapsed, each offering Set rule', () => {
+        it('opens the new category on a started filter', () => {
             const draft = openCardWithTwoCategories();
 
-            expect(draft.openRuleIndex ?? null).toBeNull();
-            expect(rulesBlock().classList.contains('is-focused')).toBeFalse();
-            expect(rulesBlock().querySelector('.transformation-rule-editor.is-open')).toBeNull();
-            expect(Array.from(rulesBlock().querySelectorAll('.transformation-rule-edit-link'))
-                .map((link) => link.textContent?.trim())).toEqual(['Set rule', 'Set rule']);
+            expect(draft.openRuleIndex).toBe(1);
+            const editing = rulesBlock().querySelector('.transformation-rule-editor.is-open');
+            expect(editing?.querySelector('.empty-filter-group')).toBeNull();
+            expect(editing?.querySelector('.condition-row')).not.toBeNull();
+            expect(rulesBlock().querySelector('.transformation-rule-edit-link')?.textContent?.trim()).toBe('Set rule');
         });
 
         it('focuses the table on the rule being edited, and Done folds back to the list', () => {
             const draft = openCardWithTwoCategories();
-
-            (rulesBlock().querySelectorAll('.transformation-rule-edit-link')[1] as HTMLButtonElement).click();
-            fixture.detectChanges();
 
             expect(rulesBlock().classList.contains('is-focused')).toBeTrue();
             const editing = rulesBlock().querySelectorAll('.transformation-rule-row.is-editing');
@@ -927,7 +909,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.addStep('transformation');
             component.chooseTransformation('kmeans');
             mockExpService.setKMeansClusterPreprocessing({ code: 'cluster', reusable_preprocessing: {} } as any);
-            component.previewTransformationCard('kmeans');
+            component.previewTransformationCard();
 
             component.resetTransformation();
 
@@ -941,7 +923,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             const commit = spyOn(component, 'commitTransformationRuleFilters');
             spyOn(component, 'refreshTransformationStatistics');
 
-            component.previewTransformationCard('kmeans');
+            component.previewTransformationCard();
 
             expect(commit).not.toHaveBeenCalled();
             expect(component.previewDraftId).toBe('kmeans');
