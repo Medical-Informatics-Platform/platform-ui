@@ -1709,6 +1709,18 @@ describe('ExperimentStudioService', () => {
       }));
     });
 
+    it('lists the variables an applied cluster column was clustered on', () => {
+      expect(service.formatPreprocessingEntries({
+        kmeans_cluster_creator: {
+          code: 'kmeans_cluster',
+          reusable_preprocessing: { cluster_variables: ['age', 'nihss_24h'] },
+        },
+      }, { age: 'Age', nihss_24h: '24h score' })).toContain(jasmine.objectContaining({
+        label: 'K-means cluster column',
+        lines: ['kmeans_cluster', 'Clustered on Age, 24h score'],
+      }));
+    });
+
     it('leaves a config without a cluster creator untouched', () => {
       const config = { missing_values_handler: { strategies: { age: 'mean' } } };
 

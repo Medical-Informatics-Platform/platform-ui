@@ -1428,9 +1428,17 @@ export class ExperimentStudioService {
       .filter((key) => !knownKeys.has(key))
       .forEach((key) => {
         if (key === KMEANS_CLUSTER_CREATOR) {
-          const creator = preprocessing[key] as { code?: unknown } | undefined;
+          const creator = preprocessing[key] as {
+            code?: unknown;
+            reusable_preprocessing?: { cluster_variables?: unknown };
+          } | undefined;
           const code = typeof creator?.code === 'string' ? creator.code.trim() : '';
-          entries.push({ label: 'K-means cluster column', value: code || 'configured' });
+          const sources = creator?.reusable_preprocessing?.cluster_variables;
+          const variables = (Array.isArray(sources) ? sources : [])
+            .map((variable) => this.preprocessingVariableLabel(String(variable), labelMap));
+          const lines = [code || 'configured'];
+          if (variables.length) lines.push(`Clustered on ${variables.join(', ')}`);
+          entries.push({ label: 'K-means cluster column', value: lines.join('; '), lines });
           return;
         }
         if (key === 'categorical_column_creator') {
