@@ -1,7 +1,7 @@
 import { BubbleChartComponent } from './../visualisations/bubble-chart/bubble-chart.component';
 import { ErrorService } from '../../../services/error.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
-import { Component, HostListener, signal, inject, WritableSignal, OnDestroy, ElementRef, ViewChild, effect, computed, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, HostListener, signal, inject, WritableSignal, OnDestroy, ElementRef, ViewChild, effect, computed, ChangeDetectionStrategy, ChangeDetectorRef, untracked } from '@angular/core';
 import { DataModel } from '../../../models/data-model.interface';
 import { DataModelSelectorComponent } from './data-model-selector/data-model-selector.component';
 import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.component';
@@ -129,7 +129,14 @@ export class VariablesPanelComponent implements OnDestroy {
 
     effect(() => {
       const model = this.selectedDataModel();
-      if (!model) return;
+      if (!model) {
+        // A studio reset (e.g. a saved experiment whose pathology is gone) must not leave the old chart up.
+        if (this.lastModelKey !== null) {
+          this.lastModelKey = null;
+          untracked(() => this.clearModelView());
+        }
+        return;
+      }
       const key = `${model.code}:${model.version}`;
       if (this.lastModelKey === key) return;
       this.lastModelKey = key;
@@ -380,12 +387,15 @@ export class VariablesPanelComponent implements OnDestroy {
 
     this.selectedDataModel.set(null);
     this.experimentStudioService.selectedDataModel.set(null);
+    this.clearModelView();
+  }
+
+  private clearModelView(): void {
     this.availableDatasets = [];
     this.filteredVariables.set([]);
     this.filteredGroups.set([]);
     this.d3Data = null;
     this.selectedNode = null;
-    this.activeDetailsTab.set('histogram');
     this.guideState.setSelectedHierarchyNode(null);
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
