@@ -22,6 +22,7 @@ import {
   selectionFromSearchResult,
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
 
 type DetailsPanelTab = 'histogram' | 'info';
 
@@ -82,6 +83,7 @@ export class VariablesPanelComponent implements OnDestroy {
   experimentStudioService = inject(ExperimentStudioService);
   pdfExportService = inject(PdfExportService);
   csvExportService = inject(CsvExportService);
+  private readonly mipVersion = inject(RuntimeEnvService).mipVersion;
   guideState = inject(ExperimentStudioGuideStateService);
   private cdr = inject(ChangeDetectorRef);
 
@@ -784,7 +786,8 @@ export class VariablesPanelComponent implements OnDestroy {
           .filter(label => !!label),
         description: String(this.selectedNode?.description ?? ''),
         meta: this.groupHistogramMeta() ?? undefined,
-        isGroupView: !!this.groupHistogramData()
+        isGroupView: !!this.groupHistogramData(),
+        mipVersion: this.mipVersion,
       });
 
     } catch (err) {

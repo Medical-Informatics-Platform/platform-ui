@@ -10,7 +10,8 @@ import { getOutputSchema, prettifyLabel } from '../../../core/algorithm-mappers'
 import { enrichPcaResult, observationCount, pluralize, withLabels } from '../../../core/result-label.utils';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
-import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
+import { experimentTables, PdfExportService } from '../../../services/pdf-export.service';
+import { CsvExportService } from '../../../services/csv-export.service';
 import { Router } from '@angular/router';
 import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
@@ -29,7 +30,8 @@ import { preprocessingStepsToRecord } from '../experiments-dashboard.mapper';
 export class ExperimentDetailsComponent {
   private dashboardService = inject(ExperimentsDashboardService);
   private expStudioService = inject(ExperimentStudioService);
-  private pdfExport = inject(ResultsPdfExportService);
+  private pdfExport = inject(PdfExportService);
+  private csvExport = inject(CsvExportService);
   private router = inject(Router);
   private labelService = inject(ExperimentLabelService);
 
@@ -324,13 +326,31 @@ export class ExperimentDetailsComponent {
 
   onExportPdf(): void {
     const element = this.resultsCardRef?.nativeElement;
-    const result = this.experimentResult();
-    const fullExperiment = this.fullExperimentSignal();
-
-    if (!element || !result) {
+    const payload = this.resultExportPayload();
+    if (!element || !payload) {
       console.warn('No result or element to export');
       return;
     }
+    this.pdfExport.exportExperimentPdf({ ...payload, chartContainer: element });
+  }
+
+  onExportZip(): void {
+    const payload = this.resultExportPayload();
+    if (!payload) {
+      console.warn('No result to export');
+      return;
+    }
+    this.csvExport.exportExperimentZip({
+      ...payload,
+      tables: experimentTables(payload.algorithmKey, payload.result),
+    }).catch((error) => console.error('Result ZIP export failed:', error));
+  }
+
+  /** The saved experiment's setup and result, shared by the PDF report and the ZIP export. */
+  private resultExportPayload() {
+    const result = this.experimentResult();
+    if (!result) return null;
+    const fullExperiment = this.fullExperimentSignal();
 
     const baseName = this.selectedExperiment()?.name?.trim() || 'experiment results';
     const filename = baseName.replace(/\s+/g, '_');
@@ -355,7 +375,7 @@ export class ExperimentDetailsComponent {
     const algoConfig = this.expStudioService.backendAlgorithms()[algoCode];
     const algoLabel = algoConfig?.label || algoCode;
 
-    this.pdfExport.exportExperimentPdf({
+    return {
       filename,
       details: {
         experimentName: baseName,
@@ -372,10 +392,9 @@ export class ExperimentDetailsComponent {
         transformations,
         mipVersion: this.selectedExperiment()?.mipVersion ?? fullExperiment?.mipVersion ?? null,
       },
-      algorithmKey: fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName(),
+      algorithmKey: algoCode,
       result,
-      chartContainer: element,
-    });
+    };
   }
 
   runExperiment() {
