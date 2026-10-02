@@ -366,16 +366,21 @@ export function createZoomableCirclePacking(
       });
   }
 
+  const isTutorialTarget = (d: any): boolean =>
+    !d.children && !!tutorialHighlightCode && codeOf(d.data) === tutorialHighlightCode;
+
   function updateSelection() {
     node.transition().duration(200)
       .attr('fill', (d: any) => fillForNode(d))
       .attr('fill-opacity', (d: any) => (d.children ? 0.6 : 1))
       .attr('stroke', (d: any) => {
+        if (isTutorialTarget(d)) return '#15803d';
         if (d === selectedDataNode) return '#000';
         if (d.children) return 'rgba(0,0,0,0.08)';
         return 'rgba(0,0,0,0.12)';
       })
       .attr('stroke-width', (d: any) => {
+        if (isTutorialTarget(d)) return 2.5;
         if (d === selectedDataNode) return 2;
         if (d.children) return 1;
         return 0.6;
@@ -439,9 +444,9 @@ export function createZoomableCirclePacking(
     if (!view) view = [root.x, root.y, root.r * 2.05];
 
     if (focus === root && !selectedDataNode) {
-      zoomTo(zoomTarget);
       focus = group;
-      selectedDataNode = target.children ? null : target; // group -> null
+      selectedDataNode = target.children ? null : target;
+      zoomTo(zoomTarget);
       updateSelection();
       emitFocusChange();
     }
