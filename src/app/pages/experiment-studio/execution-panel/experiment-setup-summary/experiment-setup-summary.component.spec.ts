@@ -36,7 +36,7 @@ describe('ExperimentSetupSummaryComponent', () => {
       anova_oneway: {
         label: 'One-way ANOVA',
         configSchema: [
-          { key: 'conf_level', label: 'Confidence level' },
+          { key: 'conf_level', label: 'Confidence level', default: 0.95 },
           { key: 'groupA', label: 'Group A', type: 'select', options: [{ code: '1', label: 'female' }] },
         ],
       },
@@ -120,11 +120,24 @@ describe('ExperimentSetupSummaryComponent', () => {
     expect(html.textContent).not.toContain('column');
   });
 
-  it('says so when the cohort was not filtered or parameters were left alone', () => {
+  it('says so when the cohort was not filtered', () => {
     const html = render(buildSetup({ parameters: {} }));
 
     expect(html.textContent).toContain('FiltersNone');
-    expect(html.textContent).toContain('Default parameters');
+  });
+
+  it('lists the schema default of a parameter the run left unset', () => {
+    const html = render(buildSetup({ parameters: { conf_level: '' } }));
+
+    expect(textOf(html, '.setup-detail-name')).toBe('Confidence level');
+    expect(textOf(html, '.setup-detail-value')).toBe('0.95');
+    expect(html.textContent).not.toContain('Default parameters');
+  });
+
+  it('says the algorithm has no parameters when its schema has none', () => {
+    const html = render(buildSetup({ algorithmKey: 'linear_regression', parameters: {} }));
+
+    expect(html.textContent).toContain('No parameters');
   });
 
   it('walks back to the step that owns each part of the setup', () => {

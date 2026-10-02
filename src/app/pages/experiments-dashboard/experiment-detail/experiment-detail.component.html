@@ -151,7 +151,7 @@
         <h4>Run</h4>
         @if (parameterEntries().length) {
         <details class="setup-fold">
-          <summary>{{ hasStoredParameters() ? 'Parameters' : 'Default parameters' }}</summary>
+          <summary>Parameters</summary>
           <ul>
             @for (entry of parameterEntries(); track entry.key) {
             <li>{{ entry.label }}: {{ entry.value }}</li>
