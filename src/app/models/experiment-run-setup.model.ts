@@ -4,6 +4,7 @@ import { BackendFilter } from './filters.model';
 export interface RunSetupSummaryRow {
   label: string;
   value: string;
+  lines?: string[];
 }
 
 /**

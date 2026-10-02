@@ -31,7 +31,7 @@ export class StudioStepperComponent {
     { id: 'variables-top', index: 1, label: 'Data Exploration', guide: 'studio-step-variables' },
     { id: 'statistics-section', index: 2, label: 'Data Handling', guide: 'studio-step-statistics' },
     { id: 'algorithm-section', index: 3, label: 'Algorithm Selection', guide: 'studio-step-algorithm' },
-    { id: 'execution-section', index: 4, label: 'Experiment Execution', guide: 'studio-step-execution' },
+    { id: 'execution-section', index: 4, label: 'Execution Results', guide: 'studio-step-execution' },
   ];
 
   readonly activeSection = computed(() => this.state().activeSection);
