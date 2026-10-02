@@ -1010,6 +1010,7 @@ export class AlgorithmPanelComponent {
     const preprocessingSteps = this.experimentStudioService.formatPreprocessingEntries(
       this.experimentStudioService.getAppliedDescriptivePreprocessing(),
       this.labelMap(),
+      this.experimentStudioService.getCategoricalEnumMaps(),
     );
 
     return {
@@ -1871,8 +1872,9 @@ export class AlgorithmPanelComponent {
       : null;
 
     const filterLogic = this.experimentStudioService.filterLogic();
+    const enumMaps = this.experimentStudioService.getCategoricalEnumMaps();
     const filterExpression = filterLogic
-      ? formatFilterExpression(filterLogic, { labelMap: this.labelMap() })
+      ? formatFilterExpression(filterLogic, { labelMap: this.labelMap(), enumMaps })
       : '';
     const model = this.experimentStudioService.selectedDataModel();
 
@@ -1885,7 +1887,7 @@ export class AlgorithmPanelComponent {
         algorithm: algoLabel,
         params: info.algorithmConfigs,
         preprocessing: this.experimentStudioService
-          .getEffectivePreprocessingEntries(algoKey, this.labelMap())
+          .getEffectivePreprocessingEntries(algoKey, this.labelMap(), enumMaps)
           .map((entry) => `${entry.label}: ${entry.value}`)
           .join('\n'),
         domain: model ? [model.label || model.code, model.version].filter(Boolean).join(' ') : null,

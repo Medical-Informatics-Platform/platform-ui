@@ -209,7 +209,7 @@ export class ExperimentStudioService {
       outcome: this.roleCodes(this.algorithmY()),
       covariates: this.roleCodes(this.algorithmX()),
       filterLogic: this.filterLogic(),
-      preprocessing: this.getEffectivePreprocessingEntries(algorithmName, this.variableLabelMap()),
+      preprocessing: this.getEffectivePreprocessingEntries(algorithmName, this.variableLabelMap(), this.getCategoricalEnumMaps()),
       parameters: { ...configuredParameters },
     });
   }
@@ -1329,7 +1329,8 @@ export class ExperimentStudioService {
    */
   getEffectivePreprocessingEntries(
     algorithmName: string | null | undefined,
-    labelMap: Record<string, string> = {}
+    labelMap: Record<string, string> = {},
+    enumMaps: EnumMaps = {}
   ): RunSetupSummaryRow[] {
     if (!algorithmName) return [];
     const poolCodes = this.selectedVariables().map((variable) => variable.code);
@@ -1339,15 +1340,19 @@ export class ExperimentStudioService {
       [],
       this.appliedPreprocessingConfig()
     );
-    return this.formatPreprocessingEntries(preprocessing, labelMap);
+    return this.formatPreprocessingEntries(preprocessing, labelMap, enumMaps);
   }
 
   getEffectivePreprocessingSummary(algorithmName: string | null | undefined): string {
     return this.summarizePreprocessingEntries(this.getEffectivePreprocessingEntries(algorithmName));
   }
 
-  formatPreprocessingConfig(preprocessing: unknown, labelMap: Record<string, string> = {}): string {
-    return this.summarizePreprocessingEntries(this.formatPreprocessingEntries(preprocessing, labelMap));
+  formatPreprocessingConfig(
+    preprocessing: unknown,
+    labelMap: Record<string, string> = {},
+    enumMaps: EnumMaps = {}
+  ): string {
+    return this.summarizePreprocessingEntries(this.formatPreprocessingEntries(preprocessing, labelMap, enumMaps));
   }
 
   /** `Label: value` rows as the multi-line summary text, or 'none' when nothing was set. */
@@ -1357,16 +1362,19 @@ export class ExperimentStudioService {
       : 'none';
   }
 
+  /** `enumMaps` labels the category values in created-column rules; codes show without it. */
   formatPreprocessingEntries(
     preprocessing: unknown,
-    labelMap: Record<string, string> = {}
+    labelMap: Record<string, string> = {},
+    enumMaps: EnumMaps = {}
   ): RunSetupSummaryRow[] {
-    return this.summarizePreprocessingConfig(this.normalizePreprocessingConfig(preprocessing), labelMap);
+    return this.summarizePreprocessingConfig(this.normalizePreprocessingConfig(preprocessing), labelMap, enumMaps);
   }
 
   private summarizePreprocessingConfig(
     preprocessing: PreprocessingConfig | null,
-    labelMap: Record<string, string> = {}
+    labelMap: Record<string, string> = {},
+    enumMaps: EnumMaps = {}
   ): RunSetupSummaryRow[] {
     if (!preprocessing) return [];
 
@@ -1426,7 +1434,7 @@ export class ExperimentStudioService {
           return;
         }
         if (key === 'categorical_column_creator') {
-          const lines = this.categoricalCreatorLines(preprocessing[key], labelMap);
+          const lines = this.categoricalCreatorLines(preprocessing[key], labelMap, enumMaps);
           entries.push({ label: 'Nominal column', value: lines.join('; ') || 'configured', lines });
           return;
         }
@@ -1436,7 +1444,7 @@ export class ExperimentStudioService {
     return entries;
   }
 
-  private categoricalCreatorLines(value: unknown, labelMap: Record<string, string>): string[] {
+  private categoricalCreatorLines(value: unknown, labelMap: Record<string, string>, enumMaps: EnumMaps): string[] {
     const creators = Array.isArray(value) ? value : [value];
     return creators.flatMap((creator) => {
       if (!creator || typeof creator !== 'object') return [];
@@ -1449,7 +1457,7 @@ export class ExperimentStudioService {
       const code = String(config.code ?? '').trim();
       if (code) lines.push(this.preprocessingVariableLabel(code, labelMap));
       for (const [category, filter] of Object.entries(config.rules ?? {})) {
-        const expression = formatFilterExpression(filter, { labelMap });
+        const expression = formatFilterExpression(filter, { labelMap, enumMaps });
         lines.push(expression ? `${category}: ${expression}` : category);
       }
       const fallback = String(config.default_enumeration ?? '').trim();

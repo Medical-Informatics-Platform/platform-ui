@@ -1846,9 +1846,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const variable = this.expStudioService.selectedVariables()
       .find((item) => String(item?.code ?? '') === condition.field);
     const label = String(variable?.label ?? variable?.name ?? condition.field);
-    const values = Array.isArray(condition.value)
-      ? condition.value.map(String).join(', ')
-      : String(condition.value ?? '');
+    const enumLabel = (code: string) =>
+      variable?.enumerations?.find((item: { code?: unknown }) => String(item?.code) === code)?.label || code;
+    const values = (Array.isArray(condition.value) ? condition.value : [condition.value ?? ''])
+      .map((value) => enumLabel(String(value)))
+      .join(', ');
     const phrase = filterOperatorPhrase(condition.operator);
     return values ? `${label} ${phrase} ${values}` : `${label} ${phrase}`;
   }
@@ -3019,6 +3021,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       const summary = this.getSummary(kind);
 
       const labelMap = this.expStudioService.variableLabelMap();
+      const enumMaps = this.expStudioService.getCategoricalEnumMaps();
       const filterLogic = this.expStudioService.filterLogic();
       await this.pdfExportService.exportDescriptiveStatisticsPdf({
         title: this.summaryKindLabel(kind),
@@ -3026,9 +3029,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         context: [
           ['Datasets', this.expStudioService.selectedDatasets().map((code) => this.datasetLabel(code))],
           // Source data is the selection before any cohort rule or preprocessing.
-          ['Filters', kind !== 'source' && filterLogic ? formatFilterExpression(filterLogic, { labelMap }) : null],
+          ['Filters', kind !== 'source' && filterLogic ? formatFilterExpression(filterLogic, { labelMap, enumMaps }) : null],
           ['Preprocessing', kind === 'processed'
-            ? this.expStudioService.formatPreprocessingConfig(this.expStudioService.getAppliedDescriptivePreprocessing(), labelMap).split('\n')
+            ? this.expStudioService.formatPreprocessingConfig(this.expStudioService.getAppliedDescriptivePreprocessing(), labelMap, enumMaps).split('\n')
             : null],
         ],
         variables: this.pivotBlocksWithDatasetLabels(summary.data),

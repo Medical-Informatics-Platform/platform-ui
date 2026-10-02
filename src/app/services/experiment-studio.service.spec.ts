@@ -1687,6 +1687,19 @@ describe('ExperimentStudioService', () => {
       }));
     });
 
+    it('labels the enumeration values of a categorical column rule', () => {
+      expect(service.formatPreprocessingEntries({
+        categorical_column_creator: {
+          code: 'territory',
+          rules: {
+            ACS: { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' },
+          },
+        },
+      }, { clinical_sdr: 'Clinical syndrome' }, { clinical_sdr: { 1: 'TACS', 2: 'PACS' } })).toContain(jasmine.objectContaining({
+        value: 'territory; ACS: Clinical syndrome IN TACS, PACS',
+      }));
+    });
+
     it('summarizes an applied cluster creator as the cluster column it writes', () => {
       expect(service.formatPreprocessingEntries({
         kmeans_cluster_creator: { code: 'kmeans_cluster', reusable_preprocessing: {} },
