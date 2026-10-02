@@ -237,7 +237,9 @@ export interface LinearRegressionCVResult {
     dependent_var: string;
     indep_vars: string[];
     n_obs: number[];
-    mean_sq_error: BasicStats;
+    root_mean_sq_error: BasicStats;
+    /** Pre-rename name of the same RMSE value; still present in stored experiments. */
+    mean_sq_error?: BasicStats;
     r_squared: BasicStats;
     mean_abs_error: BasicStats;
     f_stat: BasicStats;
@@ -268,10 +270,11 @@ export interface LMMResult {
     n_iter: number;
 }
 
+// Exaflow sends [null, null] when any fold value is undefined or infinite.
 type BasicStats = {
-    mean: number;
-    std: number;
-} | number[];
+    mean: number | null;
+    std: number | null;
+} | (number | null)[];
 
 
 export interface LogisticRegressionResult {

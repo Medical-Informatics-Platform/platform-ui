@@ -643,16 +643,21 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       return { mean: null, std: null };
     };
 
-    const candidates: Array<{ label: string; stat: { mean: number | null; std: number | null } }> = [
-      { label: 'Root mean squared error', stat: normalizeStat((result as any).mean_sq_error) },
-      { label: 'R-squared', stat: normalizeStat((result as any).r_squared) },
-      { label: 'Mean absolute error', stat: normalizeStat((result as any).mean_abs_error) },
-      { label: 'F-statistic', stat: normalizeStat((result as any).f_stat) },
+    // mean_sq_error is the pre-rename name of the same RMSE value in stored experiments.
+    const candidates: Array<{ label: string; value: unknown }> = [
+      { label: 'Root mean squared error', value: result.root_mean_sq_error ?? result.mean_sq_error },
+      { label: 'R-squared', value: result.r_squared },
+      { label: 'Mean absolute error', value: result.mean_abs_error },
+      { label: 'F diagnostic', value: result.f_stat },
     ];
 
+    // Exaflow sends [null, null] when any fold is undefined or infinite; show that instead of hiding the metric.
     const statsRows = candidates
-      .filter(({ stat }) => stat.mean !== null || stat.std !== null)
-      .map(({ label, stat }) => [label, stat.mean ?? '', stat.std ?? '']);
+      .filter(({ value }) => value != null)
+      .map(({ label, value }) => {
+        const stat = normalizeStat(value);
+        return [label, stat.mean ?? 'Undefined', stat.std ?? 'Undefined'];
+      });
 
     return [
       {

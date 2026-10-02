@@ -1,70 +1,26 @@
 import { EChartsOption } from 'echarts';
 
+const finite = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
 export function buildCVMetricsChart(result: any): EChartsOption[] {
-  // Supports:
-  // 1) Per-fold arrays (e.g. classification CV summary)
-  // 2) Mean/std objects (e.g. linear_regression_cv)
-  const data = result?.summary || result;
-  if (!data) return [];
+  // linear_regression_cv summaries arrive as [mean, std] (or { mean, std }).
+  // Exaflow sends [null, null] for undefined metrics; those are left out of the chart.
+  if (!result) return [];
 
   const metricDefs = [
-    { key: 'mean_sq_error', label: 'MSE' },
-    { key: 'r_squared', label: 'R²' },
-    { key: 'mean_abs_error', label: 'MAE' },
-    { key: 'f_stat', label: 'F-Stat' },
-    { key: 'accuracy', label: 'Accuracy' },
-    { key: 'precision', label: 'Precision' },
-    { key: 'recall', label: 'Recall' },
-    { key: 'fscore', label: 'F-Score' },
+    // mean_sq_error is the pre-rename name of the same RMSE value in stored experiments.
+    { label: 'RMSE', raw: result.root_mean_sq_error ?? result.mean_sq_error },
+    { label: 'R²', raw: result.r_squared },
+    { label: 'MAE', raw: result.mean_abs_error },
+    { label: 'F diagnostic', raw: result.f_stat },
   ];
 
-  const foldCount = Array.isArray(data.n_obs) ? data.n_obs.length : 0;
-  const perFold = metricDefs
-    .map((m) => ({ ...m, values: data[m.key] }))
-    .filter((m) => Array.isArray(m.values) && m.values.length === foldCount) as Array<{
-      key: string;
-      label: string;
-      values: number[];
-    }>;
-
-  if (perFold.length > 0 && foldCount > 0) {
-    const folds = data.n_obs.map((_: any, i: number) => `Fold ${i + 1}`);
-    return perFold.map((metric) => ({
-      title: {
-        text: `${metric.label} per Fold`,
-        left: 'center',
-      },
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: folds,
-        axisLabel: { interval: 0, rotate: 30 },
-      },
-      yAxis: { type: 'value', name: metric.label },
-      series: [
-        {
-          type: 'line',
-          data: metric.values,
-          symbol: 'circle',
-          symbolSize: 8,
-          label: { show: true, position: 'top', formatter: (p: any) => Number(p.value).toFixed(3) },
-        },
-        {
-          type: 'bar',
-          data: metric.values,
-          itemStyle: { opacity: 0.2 },
-        },
-      ],
-    }));
-  }
-
   const summaryMetrics = metricDefs
-    .map((m) => {
-      const raw = data[m.key];
-      const mean = Number(raw?.mean);
-      const std = Number(raw?.std);
-      if (!Number.isFinite(mean) || !Number.isFinite(std)) return null;
-      return { label: m.label, mean, std };
+    .map(({ label, raw }) => {
+      const [mean, std] = (Array.isArray(raw) ? raw : [raw?.mean, raw?.std]).map(finite);
+      if (mean === null || std === null) return null;
+      return { label, mean, std };
     })
     .filter((m): m is { label: string; mean: number; std: number } => m !== null);
 

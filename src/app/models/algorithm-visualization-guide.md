@@ -62,10 +62,10 @@ This document describes what the frontend currently renders for each algorithm a
 
 - Charts:
   - CV metrics chart.
-  - Supports both per-fold arrays and summary `{ mean, std }` objects.
+  - Supports summary `[mean, std]` arrays and `{ mean, std }` objects; `[null, null]` metrics are skipped.
 - Tables:
   - Training set sample sizes.
-  - Error metrics mean/std table.
+  - Error metrics mean/std table (RMSE from `root_mean_sq_error`, falling back to legacy `mean_sq_error`; undefined metrics show `Undefined`).
 
 ### Logistic Regression (`logistic_regression`)
 

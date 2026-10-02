@@ -76,16 +76,16 @@ Proposed visualization:
 
 Data includes:
 - `n_obs` (per fold)
-- Metric summaries as `BasicStats`:
-  - `mean_sq_error`, `r_squared`, `mean_abs_error`, `f_stat`
+- Metric summaries as `BasicStats` (`[mean, std]`):
+  - `root_mean_sq_error` (RMSE), `r_squared`, `mean_abs_error`, `f_stat` (F diagnostic, not a significance test)
+  - Stored results from before the Exaflow rename carry the same RMSE value as `mean_sq_error`.
+  - A summary is `[null, null]` when any fold value is undefined or infinite.
 
 Proposed visualization:
-- Primary: Grouped bar chart of mean vs std for each metric.
+- Primary: Grouped bar chart of mean vs std for each metric; undefined metrics are left out.
 - Supporting tables:
   - Fold sample sizes.
-  - Metric mean/std summary table.
-- If future payload includes per-fold arrays:
-  - Add fold trend line charts for each metric.
+  - Metric mean/std summary table; undefined metrics show `Undefined`.
 
 ## `LogisticRegressionResult`
 
