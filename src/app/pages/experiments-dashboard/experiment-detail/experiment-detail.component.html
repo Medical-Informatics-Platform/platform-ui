@@ -120,16 +120,44 @@
 
       <section class="model-band-cell">
         <h4>Cohort</h4>
-        <span class="model-band-value">{{ rowsUsed() ? rowsUsed() + ' rows' : 'Rows pending' }}</span>
-        <span class="model-band-text">Filters: {{ filterPreview() || "None" }}</span>
+        @if (rowsUsed(); as rows) {
+        <span class="model-band-value">{{ rows }} rows</span>
+        } @else if (pendingRun()) {
+        <span class="model-band-value">Not finished</span>
+        }
+        <details class="setup-fold">
+          <summary>{{ filterPreview() ? 'Filters' : 'Filters: none' }}</summary>
+          <p>{{ filterPreview() || 'None' }}</p>
+        </details>
         @for (entry of preprocessingEntries(); track entry.label) {
-        <span class="model-band-text">{{ entry.label }}: {{ entry.value }}</span>
+        <details class="setup-fold">
+          <summary>{{ entry.label }}</summary>
+          <ul>
+            @for (line of entry.lines?.length ? entry.lines : [entry.value]; track $index) {
+            <li>{{ line }}</li>
+            }
+          </ul>
+        </details>
         }
       </section>
 
       <section class="model-band-cell">
         <h4>Run</h4>
-        <span class="model-band-run">{{ parameterSummary() }}</span>
+        @if (parameterEntries().length) {
+        <details class="setup-fold">
+          <summary>{{ hasStoredParameters() ? 'Parameters' : 'Default parameters' }}</summary>
+          <ul>
+            @for (entry of parameterEntries(); track entry.key) {
+            <li>{{ entry.label }}: {{ entry.value }}</li>
+            }
+          </ul>
+        </details>
+        } @else {
+        <span class="model-band-text">No parameters</span>
+        }
+        @if (selectedExperiment()?.mipVersion; as version) {
+        <span class="model-band-text">MIP {{ version }}</span>
+        }
       </section>
     </div>
 

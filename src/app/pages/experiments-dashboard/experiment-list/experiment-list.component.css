@@ -48,7 +48,8 @@
 }
 
 .experiments-tabs {
-  flex: 1 1 auto;
+  /* Words stay intact. The folder select is the control that gives up width. */
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2px;
@@ -56,11 +57,9 @@
   padding: 3px;
   border-radius: 10px;
   border: 1px solid rgba(43, 51, 233, 0.08);
-  min-width: 0;
 }
 
 .tab-btn {
-  /* A tight rail shortens the label rather than pushing the second tab out of the row. */
   min-width: 0;
   border: none;
   border-radius: 7px;
@@ -105,11 +104,11 @@
 .list-view-controls {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   margin-left: auto;
   min-width: 0;
-  /* The tray to its left is the one that shrinks and scrolls; these two never squeeze. */
-  flex-shrink: 0;
+  flex: 1 1 auto;
 }
 
 /* The sort control is the row-overflow menu on an icon: same recipe the row actions already use,
@@ -490,6 +489,8 @@
 .experiments-list {
   flex: 1 1 auto;
   min-height: 0;
+  /* Six rows (78px) plus the group header, then the list scrolls. */
+  max-height: 516px;
   margin: 0;
   padding: 0 6px 6px;
   display: flex;
@@ -619,8 +620,10 @@
 }
 
 .folder-select {
+  flex: 1 1 auto;
+  width: auto;
   max-width: 11rem;
-  min-width: 0;
+  min-width: 4.5rem;
   height: 36px;
   border: 1px solid rgba(43, 51, 233, 0.16);
   border-radius: 8px;
@@ -1064,11 +1067,15 @@
   color: var(--text-muted);
 }
 
-/* The tightest the rail ever gets (a short window at ~1100px): the tab labels keep their words
-   and the glyphs give up their room. */
-@container list-pane (max-width: 330px) {
-  .tab-btn i {
+/* Narrower than the two words plus a usable folder select: keep the icons, drop the labels.
+   aria-label and title on the buttons still name Mine and Shared. */
+@container list-pane (max-width: 320px) {
+  .tab-btn__label {
     display: none;
+  }
+
+  .tab-btn {
+    padding: 0 8px;
   }
 }
 

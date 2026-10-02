@@ -468,12 +468,29 @@
   overflow-wrap: anywhere;
 }
 
-.model-band-run {
+.setup-fold {
   font-size: 0.78rem;
-  line-height: 1.5;
+  line-height: 1.4;
+}
+
+.setup-fold summary {
+  cursor: pointer;
+  font-weight: 600;
   color: var(--text-main);
-  overflow-wrap: anywhere;
-  text-wrap: pretty;
+}
+
+.setup-fold summary:hover {
+  color: var(--primary-color);
+}
+
+.setup-fold p,
+.setup-fold ul {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.setup-fold ul {
+  padding-left: 1.1rem;
 }
 
 .model-formula {

@@ -7,7 +7,7 @@ import { Experiment } from '../../../models/experiments-dashboard.model';
 import { BackendExperimentWithResult } from '../../../models/backend-experiment.model';
 import { AlgorithmResultComponent } from '../../experiment-studio/algorithm-panel/algorithm-result/algorithm-result.component';
 import { getOutputSchema, prettifyLabel } from '../../../core/algorithm-mappers';
-import { enrichPcaResult, pluralize, rowsUsedLabel, withLabels } from '../../../core/result-label.utils';
+import { enrichPcaResult, observationCount, pluralize, withLabels } from '../../../core/result-label.utils';
 import { SpinnerComponent } from '../../shared/spinner/spinner.component';
 import { ExperimentStatusComponent } from '../shared/experiment-status/experiment-status.component';
 import { ResultsPdfExportService } from '../../../services/export-results-pdf.service';
@@ -15,6 +15,7 @@ import { Router } from '@angular/router';
 import { buildExperimentShareUrl, copyShareUrl, isExperimentOwner, SHARE_TOAST, shareToggleToast } from '../../../core/share.utils';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
 import { EnumMaps } from '../../../core/algorithm-result-enum-mapper';
+import { parameterDefaultsFromSchema } from '../../../core/algorithm-parameter.utils';
 import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { preprocessingStepsToRecord } from '../experiments-dashboard.mapper';
 
@@ -263,7 +264,7 @@ export class ExperimentDetailsComponent {
     this.loadError() || 'This run failed before it produced a result.'
   );
 
-  readonly rowsUsed = computed(() => rowsUsedLabel(this.experimentResult()?.n_obs));
+  readonly rowsUsed = computed(() => observationCount(this.experimentResult()));
 
   readonly pendingRun = computed(() => (this.selectedExperiment()?.status || '').toLowerCase() === 'pending');
 
@@ -275,15 +276,6 @@ export class ExperimentDetailsComponent {
     this.datasetsWithLabels().map((dataset) => dataset.label).join(', ')
   );
 
-  readonly parameterSummary = computed(() => {
-    const params = this.parameterEntries();
-    const body = params.length
-      ? params.map((entry) => `${entry.label}: ${entry.value}`).join(' · ')
-      : 'Default parameters';
-    const version = this.selectedExperiment()?.mipVersion;
-    return version ? `${body} · MIP ${version}` : body;
-  });
-
   copyFailure(): void {
     const message = this.failureMessage();
     navigator.clipboard.writeText(message).then(
@@ -292,14 +284,22 @@ export class ExperimentDetailsComponent {
     );
   }
 
+  readonly hasStoredParameters = computed(() =>
+    Object.values(this.fullExperimentSignal()?.analysis?.algorithm?.parameters ?? {})
+      .some((value) => !this.isEmptyParameterValue(value))
+  );
+
+  /** Stored parameters, or the schema defaults when the run saved none. */
   readonly parameterEntries = computed(() => {
     const fullExperiment = this.fullExperimentSignal();
-    const params = fullExperiment?.analysis?.algorithm?.parameters ?? {};
     const algoName = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
     const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
     const labelByKey = new Map(
       schema.map((field: any) => [String(field.key), String(field.label ?? field.key)])
     );
+    const params = this.hasStoredParameters()
+      ? fullExperiment?.analysis?.algorithm?.parameters ?? {}
+      : parameterDefaultsFromSchema(schema);
 
     return Object.entries(params)
       .filter(([, value]) => !this.isEmptyParameterValue(value))
