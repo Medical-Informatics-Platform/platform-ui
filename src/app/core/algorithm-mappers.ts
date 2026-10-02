@@ -438,10 +438,10 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
           type: 'table',
           label: 'Cross-Validation Metrics',
           key: 'cv_metrics',
-          constructFrom: ['mean_sq_error', 'r_squared', 'mean_abs_error'],
+          constructFrom: ['root_mean_sq_error', 'r_squared', 'mean_abs_error'],
           columns: [
             { key: 'fold', label: 'Fold' },
-            { key: 'mean_sq_error', label: 'MSE' },
+            { key: 'root_mean_sq_error', label: 'RMSE' },
             { key: 'r_squared', label: 'R²' },
             { key: 'mean_abs_error', label: 'MAE' }
           ]

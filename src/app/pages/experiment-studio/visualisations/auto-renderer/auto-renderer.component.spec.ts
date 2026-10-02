@@ -113,8 +113,8 @@ describe('AutoRendererComponent', () => {
       value: {
         title: 'Linear Regression CV Report',
         n_obs: [100, 101],
-        mean_sq_error: { mean: 1.1, std: 0.1 },
-        r_squared: { mean: 0.9, std: 0.02 },
+        root_mean_sq_error: [1.1, 0.1],
+        r_squared: [0.9, 0.02],
       },
     });
 

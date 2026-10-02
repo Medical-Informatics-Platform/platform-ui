@@ -6,7 +6,7 @@ describe('AlgorithmTableRegistry', () => {
       dependent_var: 'y',
       indep_vars: ['x1', 'x2'],
       n_obs: [100, 101, 99],
-      mean_sq_error: { mean: 1.25, std: 0.2 },
+      root_mean_sq_error: { mean: 1.25, std: 0.2 },
       r_squared: { mean: 0.91, std: 0.03 },
       mean_abs_error: { mean: 0.72, std: 0.11 },
       f_stat: { mean: 12.3, std: 1.1 },
@@ -17,6 +17,39 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[1].title).toBe('Error metrics');
     expect(tables[1].rows[0][1]).toBe(1.25);
     expect(tables[1].rows[0][2]).toBe(0.2);
+  });
+
+  it('shows undefined linear_regression_cv summaries from Exaflow [mean, std] arrays', () => {
+    const tables = AlgorithmTableRegistry['linear_regression_cv']({
+      dependent_var: 'y',
+      indep_vars: ['Intercept'],
+      n_obs: [80, 80],
+      root_mean_sq_error: [1.25, 0.2],
+      r_squared: [null, null],
+      mean_abs_error: [0.72, 0.11],
+      f_stat: [null, null],
+    });
+
+    expect(tables[1].rows).toEqual([
+      ['Root mean squared error', 1.25, 0.2],
+      ['R-squared', 'Undefined', 'Undefined'],
+      ['Mean absolute error', 0.72, 0.11],
+      ['F diagnostic', 'Undefined', 'Undefined'],
+    ]);
+  });
+
+  it('reads RMSE from the legacy mean_sq_error field of stored linear_regression_cv results', () => {
+    const tables = AlgorithmTableRegistry['linear_regression_cv']({
+      dependent_var: 'y',
+      indep_vars: ['x1'],
+      n_obs: [100, 101],
+      mean_sq_error: [1.5, 0.3],
+      r_squared: [0.9, 0.02],
+      mean_abs_error: [0.8, 0.1],
+      f_stat: [10, 1],
+    } as any);
+
+    expect(tables[1].rows[0]).toEqual(['Root mean squared error', 1.5, 0.3]);
   });
 
   it('supports logistic_regression stderr field mapping', () => {
