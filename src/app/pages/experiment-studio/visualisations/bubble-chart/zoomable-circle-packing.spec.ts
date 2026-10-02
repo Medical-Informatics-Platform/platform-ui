@@ -38,7 +38,7 @@ describe('createZoomableCirclePacking', () => {
       () => undefined,
       {
         tutorialHighlightCode: 'sex',
-        tutorialHighlightColor: '#DFEFE4',
+        tutorialHighlightColor: '#22c55e',
       }
     );
   });
@@ -55,12 +55,12 @@ describe('createZoomableCirclePacking', () => {
   });
 
   it('clears the previous tutorial highlight when the next step has no resolved highlight code yet', (done) => {
-    expect(container.querySelector('circle[fill="#DFEFE4"]')).not.toBeNull();
+    expect(container.querySelector('circle[fill="#22c55e"]')).not.toBeNull();
 
     chart.refreshColors({ tutorialHighlightCode: null });
 
     window.setTimeout(() => {
-      expect(container.querySelector('circle[fill="#DFEFE4"]')).toBeNull();
+      expect(container.querySelector('circle[fill="#22c55e"]')).toBeNull();
       done();
     }, 260);
   });

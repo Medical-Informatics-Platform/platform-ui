@@ -33,7 +33,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   private cdr = inject(ChangeDetectorRef);
 
   private readonly guideState = inject(ExperimentStudioGuideStateService);
-  private readonly tutorialHighlightColor = '#DFEFE4';
+  private readonly tutorialHighlightColor = '#22c55e';
+  private lastTutorialZoom: string | null = null;
 
   readonly d3Data = input<any | null>(null);
   readonly highlightNode = input<any | null>(null);
@@ -81,14 +82,14 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   constructor() {
     effect(() => {
-      this.guideState.activeStepId();
-      this.guideState.expectedTutorialCovariate();
+      const code = this.getPendingTutorialHighlightCode();
 
       if (!this.refreshColorsFn) {
         return;
       }
 
       this.refreshColorsFn(this.buildRefreshOptions());
+      this.zoomToTutorialTarget(code);
     });
   }
 
@@ -182,6 +183,9 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     this.destroyFn = destroy;
 
 
+    this.lastTutorialZoom = null;
+    this.zoomToTutorialTarget(this.getPendingTutorialHighlightCode());
+
     // apply pending highlight after chart is created
     const highlightNode = this.highlightNode();
     if (highlightNode?.code) {
@@ -212,6 +216,18 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       tutorialHighlightCode: this.getPendingTutorialHighlightCode(),
       tutorialHighlightColor: this.tutorialHighlightColor,
     };
+  }
+
+  private zoomToTutorialTarget(code: string | null): void {
+    if (!code) {
+      this.lastTutorialZoom = null;
+      return;
+    }
+    if (!this.zoomToNodeFn || code === this.lastTutorialZoom) {
+      return;
+    }
+    this.lastTutorialZoom = code;
+    this.zoomToNodeFn(code);
   }
 
   private getPendingTutorialHighlightCode(): string | null {
