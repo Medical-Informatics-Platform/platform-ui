@@ -688,7 +688,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         ) as HTMLElement[]).filter((card) => card.querySelector('.station-card-title')?.textContent?.trim());
         expect(titled.map((card) => card.querySelector('.station-card-title')?.textContent?.trim())).toEqual([
             'Missing Values',
-            'Categorical column',
+            'Nominal column',
             'K-means cluster column',
         ]);
         for (const card of titled) {
@@ -3085,7 +3085,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             }]);
 
             const preview = (fixture.nativeElement as HTMLElement).querySelector('.transformation-statistics');
-            expect(preview?.textContent).toContain('Categorical column · kmeans_cluster');
+            expect(preview?.textContent).toContain('Nominal column · kmeans_cluster');
             expect(preview?.textContent).toContain('Each record is assigned to the nearest of these clusters.');
             expect(preview?.textContent).toContain('Nearest cluster — Cluster 0');
             expect(preview?.textContent).toContain('2 clusters · covers every record');

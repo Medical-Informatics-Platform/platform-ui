@@ -1682,7 +1682,7 @@ describe('ExperimentStudioService', () => {
           default_enumeration: '60_plus',
         },
       }, { age: 'Age' })).toContain(jasmine.objectContaining({
-        label: 'Categorical column',
+        label: 'Nominal column',
         value: 'age_band; under_60: Age < 60; else 60_plus',
       }));
     });
