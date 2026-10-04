@@ -79,3 +79,8 @@ experiment-studio-review/
 .agents/
 .codex/
 .impeccable/
+
+# Playwright experiment-studio flow output
+/e2e/test-results/
+/playwright-report/
+/test-results/
