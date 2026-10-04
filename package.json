@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "verify": "npm run typecheck && npm run check:dead-code && npm run build",
-    "test": "ng test"
+    "test": "ng test",
+    "e2e:experiment-studio": "playwright test --config playwright.config.ts e2e/experiment-studio.flows.spec.ts"
   },
   "private": true,
   "engines": {
@@ -46,6 +47,7 @@
     "@angular-devkit/build-angular": "22.1.8",
     "@angular/cli": "22.1.8",
     "@angular/compiler-cli": "^22.2.1",
+    "@playwright/test": "^1.63.0",
     "@types/d3": "^7.4.3",
     "@types/jasmine": "~6.0.0",
     "jasmine-core": "~6.3.0",
