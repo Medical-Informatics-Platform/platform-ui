@@ -139,6 +139,11 @@
   font-weight: 400;
 }
 
+.coef-level {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .is-numeric {
   white-space: nowrap;
   text-align: right;

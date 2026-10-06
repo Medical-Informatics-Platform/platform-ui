@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { CsvExportService } from '../../../../services/csv-export.service';
 import { KeyFiguresComponent } from '../summary/key-figures.component';
 import { RegressionView } from './regression-view';
@@ -19,6 +19,7 @@ export class RegressionResultComponent {
   readonly view = input.required<RegressionView>();
   readonly coefficientColumns = signal<CoefficientColumnMode>('key');
   readonly fitOpen = signal(false);
+  readonly hasLevels = computed(() => this.view().rows.some((row) => row.level !== null));
 
   /** Raw, unrounded numbers with an ASCII minus and separate CI bounds, so the file
    *  reads as numeric columns in a spreadsheet or R; blanks stand for missing values. */

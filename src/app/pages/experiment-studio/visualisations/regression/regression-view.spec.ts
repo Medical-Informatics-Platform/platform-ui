@@ -53,12 +53,27 @@ describe('buildRegressionView', () => {
     expect(view.nullValue).toBe(1);
     expect(view.rows.map((row) => row.variable)).toEqual(['IVT[yes]', 'Age', 'Intercept']);
     const ivt = view.rows[0];
+    expect([ivt.term, ivt.level]).toEqual(['IVT', 'yes']);
+    expect(view.rows[1].level).toBeNull();
     expect(ivt.estimate).toBeCloseTo(Math.exp(0.4794), 10);
     expect(ivt.coefficient).toBe(0.4794);
     expect(ivt.ciText).toBe('1.49 to 1.75');
     // Plot sits on the log-odds scale: a positive coefficient lands right of the null line.
     expect(ivt.markerLeft).toBeGreaterThan(50);
     expect(view.rows[1].markerLeft).toBeLessThan(50);
+  });
+
+  it('reads created-column dummy codes as words', () => {
+    const view = buildRegressionView('linear_regression', {
+      indep_vars: ['Intercept', 'kmeans_cluster[cluster_2]', 'stroke_territory_cohort[PCS]'],
+      coefficients: [80, -46, 1],
+    }, null)!;
+
+    expect(view.rows.map((row) => [row.term, row.level])).toEqual([
+      ['K-means cluster', 'Cluster 2'],
+      ['Stroke territory cohort', 'PCS'],
+      ['Intercept', null],
+    ]);
   });
 
   it('derives the model likelihood-ratio test from ll and ll0', () => {

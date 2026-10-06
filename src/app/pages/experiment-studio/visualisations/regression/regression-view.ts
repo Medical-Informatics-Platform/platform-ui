@@ -11,7 +11,11 @@ import {
 import { KeyFigure } from '../summary/key-figures.component';
 
 export interface CoefficientRow {
+  /** As the result names it ("Sex[female]"); kept for the CSV. */
   variable: string;
+  /** Display split of a dummy term: "Sex" and "female"; level is null for a numeric predictor. */
+  term: string;
+  level: string | null;
   estimateText: string;
   /** The model-scale coefficient when the estimate column shows a transform of it (log-odds behind an odds ratio). */
   coefficientText: string;
@@ -53,6 +57,20 @@ export interface RegressionView {
 
 const arrayOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 
+/** A raw snake_case code (a created column such as stroke_territory_cohort, or a level such as
+ *  cluster_2) reads as words; labelled names pass through unchanged. */
+function readable(code: string): string {
+  if (!/^[a-z0-9]+(_[a-z0-9]+)+$/.test(code)) return code;
+  const words = code.replace(/_/g, ' ').replace(/^kmeans\b/, 'K-means');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** "Sex[female]" → { term: "Sex", level: "female" }: the bracket is model syntax, not a label. */
+function splitTerm(variable: string): { term: string; level: string | null } {
+  const match = variable.match(/^(.+?)\[(.+)\]$/);
+  return match ? { term: readable(match[1]), level: readable(match[2]) } : { term: readable(variable), level: null };
+}
+
 interface CoefficientInput {
   variables: string[];
   estimates: unknown[];
@@ -90,6 +108,7 @@ function buildRows(input: CoefficientInput, toEstimate?: (value: number) => numb
 
     return {
       variable,
+      ...splitTerm(variable),
       estimateText: estimate === null ? '—' : formatShown(estimate),
       coefficientText: coefficient === null ? '—' : formatSignedNumber(coefficient),
       stdErrText: stdErr === null ? '—' : formatSignedNumber(stdErr),

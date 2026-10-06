@@ -45,7 +45,7 @@
 
       @for (row of model.rows; track row.variable) {
       <div class="coef-row" [class.is-intercept]="row.isIntercept" role="row">
-        <span class="coef-variable">{{ row.variable }}</span>
+        <span class="coef-variable">{{ row.term }}@if (row.level) {<span class="coef-level"> · {{ row.level }}</span>}</span>
         <span class="is-numeric coef-estimate">{{ row.estimateText }}</span>
         @if (coefficientColumns() === 'all') {
         @if (model.coefficientLabel) {
@@ -75,6 +75,9 @@
       Bold p-values are below 0.05. Each interval is drawn on its own scale around
       {{ model.nullValue === 1 ? 'an odds ratio of 1 (log scale)' : 'zero' }}, so compare direction and whether it
       crosses {{ model.nullValue }}, not size between rows.
+      @if (hasLevels()) {
+      A category row compares that level with the variable's reference level, the one not listed.
+      }
     </p>
   </section>
 
