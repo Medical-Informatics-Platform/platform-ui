@@ -23,11 +23,13 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
 
   if (!priors.length || priors.length !== classes.length) return [];
 
+  // One horizontal bar per class: a handful of shares does not need a 500px column chart.
   return [
     {
+      mipChartHeight: 72 + 40 * classes.length,
       title: {
         text: 'Class Prior Probabilities',
-        left: 'center',
+        show: false,
       },
       tooltip: {
         trigger: 'axis',
@@ -39,40 +41,43 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
         },
       },
       grid: {
-        top: 56,
-        left: 56,
-        right: 28,
-        bottom: 56,
-      },
-      xAxis: {
-        type: 'category',
-        data: classes,
-        axisLabel: {
-          interval: 0,
-          rotate: classes.length > 6 ? 25 : 0,
-        },
+        top: 8,
+        left: 8,
+        right: 56,
+        bottom: 28,
+        containLabel: true,
       },
       yAxis: {
+        type: 'category',
+        data: classes,
+        inverse: true,
+        axisTick: { show: false },
+        axisLabel: { color: '#475569', interval: 0 },
+      },
+      xAxis: {
         type: 'value',
-        name: 'Probability',
         min: 0,
         max: 1,
+        axisLabel: { color: '#475569', formatter: (value: number) => `${Math.round(value * 100)}%` },
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
       },
       series: [
         {
           type: 'bar',
           data: priors,
-          barMaxWidth: 48,
+          barMaxWidth: 22,
           label: {
             show: true,
-            position: 'top',
+            position: 'right',
+            color: '#0f172a',
             formatter: (p: any) => `${(Number(p.value) * 100).toFixed(1)}%`,
           },
           itemStyle: {
             color: '#2b33e9',
+            borderRadius: [0, 4, 4, 0],
           },
         },
       ],
-    },
+    } as EChartsOption,
   ];
 }

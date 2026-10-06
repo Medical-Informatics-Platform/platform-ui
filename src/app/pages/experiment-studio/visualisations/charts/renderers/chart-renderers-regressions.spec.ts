@@ -1,4 +1,4 @@
-import { buildConfusionMatrixChart } from './confusion-matrix-chart';
+import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
 import { buildCVMetricsChart } from './cv-metrics-chart';
 import { buildKMeansChart } from './k-means-chart';
 import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
@@ -10,12 +10,21 @@ describe('Chart renderers regressions', () => {
     });
 
     expect(charts.length).toBe(1);
-    const heatmap = (charts[0] as any).series?.[0]?.data ?? [];
+    const cells = ((charts[0] as any).series?.[0]?.data ?? []).map((cell: any) => [cell.value[0], cell.value[1], cell.count]);
 
-    expect(heatmap).toContainEqual([0, 0, 5]); // TP
-    expect(heatmap).toContainEqual([1, 0, 2]); // FN
-    expect(heatmap).toContainEqual([0, 1, 1]); // FP
-    expect(heatmap).toContainEqual([1, 1, 7]); // TN
+    expect(cells).toContainEqual([0, 0, 5]); // TP
+    expect(cells).toContainEqual([1, 0, 2]); // FN
+    expect(cells).toContainEqual([0, 1, 1]); // FP
+    expect(cells).toContainEqual([1, 1, 7]); // TN
+  });
+
+  it('drops classes absent from both sides and shades by share of the actual class', () => {
+    const confusion = readConfusionMatrix({ data: [[3, 1, 0], [2, 6, 0], [0, 0, 0]], labels: ['no', 'yes', 'unknown'] })!;
+    expect(confusion.labels).toEqual(['no', 'yes']);
+
+    const charts = buildConfusionMatrixChart({ confusion_matrix: { data: [[3, 1, 0], [2, 6, 0], [0, 0, 0]], labels: ['no', 'yes', 'unknown'] } });
+    const shares = ((charts[0] as any).series[0].data).map((cell: any) => cell.value[2]);
+    expect(shares).toEqual([0.75, 0.25, 0.25, 0.75]);
   });
 
   it('renders linear regression CV metrics when payload uses mean/std objects', () => {

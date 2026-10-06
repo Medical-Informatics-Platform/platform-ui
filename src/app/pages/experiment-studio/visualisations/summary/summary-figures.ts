@@ -1,4 +1,5 @@
 import { formatInteger, formatPValue, formatRatio, formatSignedNumber, formatSummaryNumber, toFiniteNumber } from '../result-format';
+import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 import { KeyFigure } from './key-figures.component';
 
 /** Cohen's conventions for d / SMD: 0.2 small, 0.5 medium, 0.8 large. */
@@ -205,7 +206,88 @@ function smdFigures(result: any): KeyFigure[] {
   });
 }
 
+const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
+
+/** Fold-average accuracy (and its SD) from either CV summary shape:
+ *  naive Bayes `classification_summary.accuracy[class].{average, stdev, fold*}`,
+ *  logistic regression `summary.{row_names, accuracy[]}`. */
+function foldAccuracy(result: any): { mean: number; sd: number | null; folds: number } | null {
+  const perClass = result?.classification_summary?.accuracy;
+  if (perClass && typeof perClass === 'object') {
+    const first = Object.values(perClass)[0] as any;
+    const mean = toFiniteNumber(first?.average);
+    if (mean === null) return null;
+    return { mean, sd: toFiniteNumber(first?.stdev), folds: Object.keys(first).filter((key) => key.startsWith('fold')).length };
+  }
+  const rows: unknown[] = Array.isArray(result?.summary?.row_names) ? result.summary.row_names : [];
+  const accuracy: unknown[] = Array.isArray(result?.summary?.accuracy) ? result.summary.accuracy : [];
+  const mean = toFiniteNumber(accuracy[rows.indexOf('average')]);
+  if (mean === null) return null;
+  return {
+    mean,
+    sd: toFiniteNumber(accuracy[rows.indexOf('stdev')]),
+    folds: rows.filter((row) => String(row).startsWith('fold')).length,
+  };
+}
+
+/**
+ * Cross-validated classifiers: fold accuracy next to the majority-class baseline it has to beat,
+ * then balanced accuracy and macro F1 from the pooled confusion matrix (both weigh every class
+ * equally, so a large majority class cannot carry them), and the mean ROC AUC when folds report one.
+ */
+function classificationCvFigures(result: any): KeyFigure[] {
+  const figures: KeyFigure[] = [];
+  const accuracy = foldAccuracy(result);
+  const confusion = readConfusionMatrix(result?.confusion_matrix);
+
+  if (accuracy) {
+    const spread = accuracy.sd === null ? '' : `± ${(accuracy.sd * 100).toFixed(1)} pts`;
+    const folds = accuracy.folds ? `across ${accuracy.folds} folds` : '';
+    figures.push({ label: 'Accuracy', value: percent(accuracy.mean), note: [spread, folds].filter(Boolean).join(' ') || undefined });
+  }
+
+  if (confusion) {
+    const { labels, matrix } = confusion;
+    const rowTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0));
+    const colTotals = labels.map((_, j) => matrix.reduce((sum, row) => sum + row[j], 0));
+    const total = rowTotals.reduce((sum, value) => sum + value, 0);
+    const supported = labels.map((_, i) => i).filter((i) => rowTotals[i] > 0);
+
+    if (total > 0) {
+      const majority = supported.reduce((best, i) => (rowTotals[i] > rowTotals[best] ? i : best), supported[0]);
+      figures.push({
+        label: 'Majority baseline',
+        value: percent(rowTotals[majority] / total),
+        note: `Accuracy of always predicting ${labels[majority]}`,
+      });
+    }
+    if (supported.length > 1) {
+      const recall = supported.map((i) => matrix[i][i] / rowTotals[i]);
+      const f1 = supported.map((i, k) => {
+        const precision = colTotals[i] > 0 ? matrix[i][i] / colTotals[i] : 0;
+        return precision + recall[k] > 0 ? (2 * precision * recall[k]) / (precision + recall[k]) : 0;
+      });
+      const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+      figures.push({ label: 'Balanced accuracy', value: percent(mean(recall)), note: 'Mean recall over classes, pooled folds' });
+      figures.push({ label: 'Macro F1', value: mean(f1).toFixed(3), note: 'Mean F1 over classes, pooled folds' });
+    }
+  }
+
+  const aucs = (Array.isArray(result?.roc_curves) ? result.roc_curves : [])
+    .map((curve: any) => toFiniteNumber(curve?.auc))
+    .filter((auc: number | null): auc is number => auc !== null);
+  if (aucs.length) {
+    const mean = aucs.reduce((sum: number, auc: number) => sum + auc, 0) / aucs.length;
+    figures.push({ label: 'ROC AUC', value: mean.toFixed(3), note: `Mean over ${aucs.length} folds` });
+  }
+
+  return figures;
+}
+
 const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
+  naive_bayes_gaussian_cv: classificationCvFigures,
+  naive_bayes_categorical_cv: classificationCvFigures,
+  logistic_regression_cv: classificationCvFigures,
   ttest_independent: ttestFigures,
   ttest_paired: ttestFigures,
   ttest_onesample: ttestFigures,
@@ -217,8 +299,8 @@ const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
   standardized_mean_difference: smdFigures,
 };
 
-/** Headline figures for a hypothesis test result, or null when the algorithm has none to show. */
-export function buildTestSummary(algorithm: string | null, result: any): KeyFigure[] | null {
+/** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */
+export function buildSummaryFigures(algorithm: string | null, result: any): KeyFigure[] | null {
   const builder = algorithm ? BUILDERS[algorithm] : undefined;
   if (!builder || !result || typeof result !== 'object') return null;
   const figures = builder(result);

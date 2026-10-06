@@ -10,7 +10,7 @@
   @if (regression(); as view) {
   <app-regression-result [view]="view" />
   } @else {
-  @if (testSummary(); as figures) {
+  @if (summaryFigures(); as figures) {
   <app-key-figures [figures]="figures" />
   }
 

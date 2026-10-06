@@ -10,7 +10,7 @@ import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
 import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
-import { buildTestSummary } from '../../visualisations/summary/test-summary';
+import { buildSummaryFigures } from '../../visualisations/summary/summary-figures';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -40,8 +40,8 @@ export class AlgorithmResultComponent {
     this.errorMessage() ? null : buildRegressionView(this.algorithm(), this.mappedResult(), this.yVar())
   );
 
-  readonly testSummary = computed(() =>
-    this.errorMessage() ? null : buildTestSummary(this.algorithm(), this.mappedResult())
+  readonly summaryFigures = computed(() =>
+    this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult())
   );
 
   constructor() { }

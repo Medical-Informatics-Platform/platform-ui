@@ -29,7 +29,6 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
       name: label,
       type: 'line' as const,
       data: points,
-      smooth: true,
       showSymbol: false,
       emphasis: {
         focus: 'series',
@@ -37,15 +36,32 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
     });
   }
 
+  // Chance line: a classifier that guesses sits on the diagonal (AUC 0.5).
+  series.push({
+    name: 'Chance',
+    type: 'line' as const,
+    data: [[0, 0], [1, 1]],
+    showSymbol: false,
+    silent: true,
+    lineStyle: { color: '#94a3b8', type: 'dashed', width: 1 },
+    itemStyle: { color: '#94a3b8' },
+    tooltip: { show: false },
+  });
+
   return [
     {
+      mipChartHeight: 440,
       title: {
         text: 'ROC Curve',
         left: 'center',
+        textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
       },
       grid: {
         containLabel: true,
-        bottom: '20%',
+        top: 76,
+        left: 40,
+        right: 24,
+        bottom: 32,
       },
       xAxis: {
         type: 'value',
@@ -65,14 +81,16 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
       },
       tooltip: {
         trigger: 'axis',
-        formatter: (params: any) => {
-          const p = Array.isArray(params) ? params[0] : params;
-          const { seriesName, value } = p;
-          return `${seriesName}<br/>FPR: ${value[0].toFixed(2)}<br/>TPR: ${value[1].toFixed(2)}`;
-        },
+        // Every fold's nearest point, not only the first fold's.
+        formatter: (params: any) => (Array.isArray(params) ? params : [params])
+          .filter((p: any) => p.seriesName !== 'Chance')
+          .map((p: any) => `${p.marker}${p.seriesName}: FPR ${p.value[0].toFixed(2)}, TPR ${p.value[1].toFixed(2)}`)
+          .join('<br/>'),
       },
       legend: {
-        top: 'bottom',
+        top: 32,
+        type: 'scroll',
+        textStyle: { color: '#475569' },
       },
       series,
     },

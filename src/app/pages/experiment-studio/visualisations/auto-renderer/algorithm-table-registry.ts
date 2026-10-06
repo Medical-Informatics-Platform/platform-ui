@@ -12,6 +12,7 @@ import {
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { formatPValue } from '../result-format';
+import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 
 export interface TableSpec {
   title?: string;
@@ -21,10 +22,6 @@ export interface TableSpec {
 }
 
 type TableBuilder = (result: any) => TableSpec[];
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 function formatDecimal(value: any): string {
   if (typeof value !== 'number' || isNaN(value)) return value ?? '';
@@ -734,54 +731,51 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
   naive_bayes_gaussian_cv: (result: NaiveBayesCVResult) => {
     const summary = result?.classification_summary;
-    if (!summary) return [];
-
-    const metrics = ['accuracy', 'precision', 'recall', 'fscore'] as const;
-    if (!summary.accuracy) return [];
+    if (!summary?.accuracy) return [];
 
     const classes = Object.keys(summary.accuracy);
     if (!classes.length) return [];
 
-    const folds = Object.keys(summary.accuracy[classes[0]]).filter(k => k !== 'average' && k !== 'stdev');
+    const confusion = readConfusionMatrix(result.confusion_matrix);
+    const support = (cls: string): number | null => {
+      const index = confusion?.labels.indexOf(cls) ?? -1;
+      return confusion && index >= 0 ? confusion.matrix[index].reduce((sum, value) => sum + value, 0) : null;
+    };
+    // A class the confusion matrix never saw (an unused enumeration) has no metrics worth a row.
+    const shown = confusion ? classes.filter((cls) => (support(cls) ?? 0) > 0) : classes;
+    const meanSd = (block: Record<string, number> | undefined) =>
+      block?.['average'] === undefined ? '' : `${formatDecimal(block['average'])} ± ${formatDecimal(block['stdev'] ?? 0)}`;
 
-    const rows = [...folds, 'average', 'stdev'].map(fold => {
-      const row: any[] = [fold];
-      for (const metric of metrics) {
-        for (const cls of classes) {
-          row.push(formatDecimal(summary[metric][cls]?.[fold]));
-        }
-      }
-      const nObsVal = summary.n_obs?.[fold] ?? 0;
-      row.push(formatDecimal(nObsVal));
-      return row;
+    const tables: TableSpec[] = [{
+      title: 'Per-class metrics (mean ± SD over folds)',
+      columns: ['Class', 'Precision', 'Recall', 'F1', 'Support'],
+      rows: shown.map((cls) => [
+        cls,
+        meanSd(summary.precision?.[cls]),
+        meanSd(summary.recall?.[cls]),
+        meanSd(summary.fscore?.[cls]),
+        formatDecimal(support(cls) ?? ''),
+      ]),
+    }];
+
+    // Accuracy is one number per fold, repeated under every class key.
+    const accuracy = summary.accuracy[classes[0]];
+    const folds = Object.keys(accuracy).filter((key) => key !== 'average' && key !== 'stdev');
+    tables.push({
+      title: 'Accuracy per fold',
+      columns: ['Fold', 'Accuracy', 'Observations'],
+      layout: 'compact',
+      rows: [
+        ...folds.map((fold) => [fold.replace(/^fold(\d+)$/, (_, n) => `Fold ${Number(n) + 1}`), formatDecimal(accuracy[fold]), formatDecimal(summary.n_obs?.[fold] ?? '')]),
+        ['Mean ± SD', meanSd(accuracy), ''],
+      ],
     });
 
-    const columns = ['Fold'];
-    for (const metric of metrics) {
-      for (const cls of classes) {
-        const name = `${capitalize(metric)} (${cls})`;
-        columns.push(name);
-      }
-    }
-    columns.push('Number of observations');
-
-    const tables: TableSpec[] = [
-      {
-        title: 'Classification Metrics per Fold',
-        columns,
-        rows,
-        layout: 'full'
-      }
-    ];
-
-    if (result.confusion_matrix) {
+    if (confusion) {
       tables.push({
         title: 'Confusion Matrix (Combined)',
-        columns: ['Actual \\ Predicted', ...result.confusion_matrix.labels],
-        rows: result.confusion_matrix.data.map((row, i) => [
-          result.confusion_matrix.labels[i],
-          ...row.map(v => formatDecimal(v))
-        ])
+        columns: ['Actual \\ Predicted', ...confusion.labels],
+        rows: confusion.matrix.map((row, i) => [confusion.labels[i], ...row.map((v) => formatDecimal(v))]),
       });
     }
 
