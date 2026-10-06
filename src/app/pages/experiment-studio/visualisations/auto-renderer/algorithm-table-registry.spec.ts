@@ -224,7 +224,7 @@ describe('AlgorithmTableRegistry', () => {
 
     expect(tables.length).toBe(1);
     expect(tables[0].rows).toContainEqual(['U statistic', '163.5']);
-    expect(tables[0].rows).toContainEqual(['p-value', '8.437e-6']);
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows).toContainEqual(['z-score', '4.454']);
     expect(tables[0].rows).toContainEqual(['Group A sample size', '15']);
     expect(tables[0].rows).toContainEqual(['Group B sample size', '80']);
@@ -355,7 +355,7 @@ describe('AlgorithmTableRegistry', () => {
 
     expect(tables[0].rows).toContainEqual(['T-statistic', '3.888']);
     expect(tables[0].rows).toContainEqual(['Degrees of Freedom', '12.000']);
-    expect(tables[0].rows).toContainEqual(['p-value', '0.000']);
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows).toContainEqual(['Mean Difference', '0.068']);
   });
 
@@ -623,5 +623,16 @@ describe('AlgorithmTableRegistry', () => {
 
   it('returns no kmeans tables without clusters', () => {
     expect(AlgorithmTableRegistry['kmeans']({ clusters: [] })).toEqual([]);
+  });
+
+  it('formats every table p-value APA style and marks the Tukey clip bounds', () => {
+    const anova = AlgorithmTableRegistry['anova_oneway']({
+      anova_table: { df_explained: 1, df_residual: 98, ss_explained: 10, ss_residual: 90, ms_explained: 10, ms_residual: 0.9, f_stat: 10.9, p_value: 1.1102230246251565e-16 },
+      tuckey_test: [{ groupA: 'a', groupB: 'b', meanA: 1, meanB: 2, diff: -1, se: 0.1, t_stat: -10, p_tuckey: 0.001 }],
+      min_max_per_group: { categories: [], min: [], max: [] },
+    } as any);
+
+    expect(anova[0].rows[0][5]).toBe('< 0.001');
+    expect(anova[1].rows[0][7]).toBe('≤ 0.001');
   });
 });

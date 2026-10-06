@@ -58,10 +58,11 @@ function formatNullableOutlierValue(value: any): string {
   return formatDecimal(value);
 }
 
-function formatAnovaPValue(value: any): string {
-  if (typeof value !== 'number' || isNaN(value)) return value ?? '';
-  if (!Number.isFinite(value)) return String(value);
-  return value.toExponential(3);
+/** One p-value style across every result table: `< 0.001` below that, three decimals above —
+ *  0, 1.11e-16 and 3.9e-238 are all float noise at that size. Blank when missing. */
+function formatTableP(value: unknown): string {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(numeric) ? formatPValue(numeric) : '';
 }
 
 function formatTTestKey(key: string): string {
@@ -109,13 +110,13 @@ function buildTTestRows(
       if (value !== null && typeof value === 'object') return false;
       return true;
     })
-    .map(([k, v]) => [formatTTestKey(k), valueFormatter(v)]);
+    .map(([k, v]) => [formatTTestKey(k), k === 'p' || k === 'p_value' ? formatTableP(v) : valueFormatter(v)]);
 }
 
 function buildMetricRows(result: Record<string, any>, labels: Record<string, string>, keys: string[]): any[][] {
   return keys
     .filter((key) => result?.[key] !== undefined && result?.[key] !== null)
-    .map((key) => [labels[key] ?? key, formatDecimal(result[key])]);
+    .map((key) => [labels[key] ?? key, key === 'p_value' ? formatTableP(result[key]) : formatDecimal(result[key])]);
 }
 
 interface ContingencyContext {
@@ -238,11 +239,17 @@ function formatCoxHazardRatio(value: number | undefined): string {
   return numeric.toFixed(3);
 }
 
-function formatCoxPValue(value: number | undefined): string {
+/** Tukey p comes from statsmodels' psturng, which clips to [0.001, 0.9]: the ends are bounds, not values. */
+function formatTukeyP(value: unknown): string {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return '—';
-  if (numeric < 0.001) return '<0.001';
+  if (!Number.isFinite(numeric)) return '';
+  if (numeric <= 0.001) return '≤ 0.001';
+  if (numeric >= 0.9) return '≥ 0.900';
   return numeric.toFixed(3);
+}
+
+function formatCoxPValue(value: number | undefined): string {
+  return formatTableP(value) || '—';
 }
 
 function formatCoxHazardRatioCi(lower: number | undefined, upper: number | undefined): string {
@@ -450,7 +457,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         formatDecimal(coefficients[idx]),
         formatDecimal(stdErr[idx]),
         formatDecimal(tStats[idx]),
-        formatDecimal(pValues[idx]),
+        formatTableP(pValues[idx]),
         formatDecimal(lowerCi[idx]),
         formatDecimal(upperCi[idx]),
       ]);
@@ -804,7 +811,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       formatDecimal(s.coefficients[i]),
       formatDecimal(s.stderr[i]),
       formatDecimal(s.z_scores[i]),
-      formatDecimal(s.pvalues[i]),
+      formatTableP(s.pvalues[i]),
       formatDecimal(s.lower_ci[i]),
       formatDecimal(s.upper_ci[i]),
     ]);
@@ -1071,7 +1078,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       title: 'ANOVA Summary',
       columns: ['Source', 'df', 'Sum Sq', 'Mean Sq', 'F', 'Prob>F'],
       rows: [
-        ['Explained', formatAnovaMetric(result.anova_table.df_explained), formatAnovaMetric(result.anova_table.ss_explained), formatAnovaMetric(result.anova_table.ms_explained), formatAnovaMetric(result.anova_table.f_stat), formatAnovaPValue(result.anova_table.p_value)],
+        ['Explained', formatAnovaMetric(result.anova_table.df_explained), formatAnovaMetric(result.anova_table.ss_explained), formatAnovaMetric(result.anova_table.ms_explained), formatAnovaMetric(result.anova_table.f_stat), formatTableP(result.anova_table.p_value)],
         ['Residual', formatAnovaMetric(result.anova_table.df_residual), formatAnovaMetric(result.anova_table.ss_residual), formatAnovaMetric(result.anova_table.ms_residual), '', '']
       ]
     };
@@ -1086,7 +1093,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           r.groupA, r.groupB,
           formatAnovaMetric(r.meanA), formatAnovaMetric(r.meanB),
           formatAnovaMetric(r.diff), formatAnovaMetric(r.se),
-          formatAnovaMetric(r.t_stat), formatAnovaPValue(r.p_tuckey)
+          formatAnovaMetric(r.t_stat), formatTukeyP(r.p_tuckey)
         ])
       });
     }
@@ -1116,7 +1123,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       formatDecimal(result.sum_sq[i]),
       formatDecimal(result.df[i]),
       formatDecimal(result.f_stat[i]),
-      formatDecimal(result.f_pvalue[i])
+      formatTableP(result.f_pvalue[i])
     ]);
 
     return [{
@@ -1303,7 +1310,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       columns: ['Metric', 'Value'],
       rows: [
         ['U statistic', formatDecimal(result.u_stat)],
-        ['p-value', formatDecimal(result.p_value)],
+        ['p-value', formatTableP(result.p_value)],
         ['z-score', formatDecimal(result.z_score)],
         ['Group A sample size', formatDecimal(result.n1)],
         ['Group B sample size', formatDecimal(result.n2)],
