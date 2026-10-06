@@ -288,8 +288,9 @@ function buildCoxRegressionTables(
   }];
 
   const summaryRows: any[][] = [
-    ['Follow-up time', result.event_var],
-    ['Event indicator', result.dependent_var],
+    // Exaflow puts the follow-up time in y (dependent_var) and the event indicator in event_var.
+    ['Follow-up time', result.dependent_var],
+    ['Event indicator', result.event_var],
     ['Participants', formatDecimal(summary.n_obs)],
     ['Events', formatDecimal(summary.n_events)],
     ['Covariates in model', formatDecimal(summary.n_covariates)],
