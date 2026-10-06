@@ -254,10 +254,23 @@ function classificationCvFigures(result: any): KeyFigure[] {
   const accuracy = foldAccuracy(result);
   const confusion = readConfusionMatrix(result?.confusion_matrix);
 
+  // The share of the largest actual class: what always guessing that class would score.
+  const baseline = (() => {
+    if (!confusion) return null;
+    const totals = confusion.matrix.map((row) => row.reduce((sum, value) => sum + value, 0));
+    const total = totals.reduce((sum, value) => sum + value, 0);
+    return total > 0 ? Math.max(...totals) / total : null;
+  })();
+
   if (accuracy) {
     const spread = accuracy.sd === null ? '' : `± ${(accuracy.sd * 100).toFixed(1)} pts`;
     const folds = accuracy.folds ? `across ${accuracy.folds} folds` : '';
-    figures.push({ label: 'Accuracy', value: percent(accuracy.mean), note: [spread, folds].filter(Boolean).join(' ') || undefined });
+    const gain = baseline === null ? '' : `${accuracy.mean >= baseline ? '+' : '−'}${(Math.abs(accuracy.mean - baseline) * 100).toFixed(1)} pts over the baseline`;
+    figures.push({
+      label: 'Accuracy',
+      value: percent(accuracy.mean),
+      note: [[spread, folds].filter(Boolean).join(' '), gain].filter(Boolean).join(' · ') || undefined,
+    });
   }
 
   if (confusion) {

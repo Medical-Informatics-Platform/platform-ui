@@ -65,7 +65,7 @@ describe('buildSummaryFigures', () => {
     })!);
 
     expect(figures['Accuracy'].value).toBe('81.0%');
-    expect(figures['Accuracy'].note).toBe('± 0.9 pts across 2 folds');
+    expect(figures['Accuracy'].note).toBe('± 0.9 pts across 2 folds · +7.7 pts over the baseline');
     expect(figures['Majority baseline'].value).toBe('73.3%');
     expect(figures['Majority baseline'].note).toBe('Accuracy of always predicting yes');
     expect(figures['Balanced accuracy'].value).toBe('70.7%');
