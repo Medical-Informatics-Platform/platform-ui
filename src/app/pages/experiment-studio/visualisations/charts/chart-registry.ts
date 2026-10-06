@@ -9,9 +9,6 @@ import { buildKMeansChart } from './renderers/k-means-chart';
 import { buildMeanPlotChart } from './renderers/mean-plot-chart';
 import { buildBoxPlotChart } from './renderers/box-plot-chart';
 import { buildSVMChart } from './renderers/svm-chart';
-
-// New Renderers
-import { buildRegressionLineChart } from './renderers/regression-line-chart';
 import { buildTTestChart } from './renderers/t-test-chart';
 
 import { buildCVMetricsChart } from './renderers/cv-metrics-chart';
@@ -34,22 +31,10 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
     inputPath: '',
   },
 
-  linear_regression: {
-    build: buildRegressionLineChart,
-    inputPath: '',
-  },
-
   linear_regression_cv: {
     build: buildCVMetricsChart,
     inputPath: '',
   },
-
-  // Logistic Regression (Standard)
-  logistic_regression: {
-    build: buildRegressionLineChart,
-    inputPath: '',
-  },
-
 
   logistic_regression_cv: {
     build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart), // CV Metrics chart could be added if supported

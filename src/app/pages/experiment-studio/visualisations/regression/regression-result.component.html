@@ -34,16 +34,20 @@
       </div>
     </header>
 
-    <div class="coef-table" [class.is-all-columns]="coefficientColumns() === 'all'">
+    <div class="coef-table" [class.is-all-columns]="coefficientColumns() === 'all'"
+      [class.has-coefficient]="!!model.coefficientLabel">
       <div class="coef-row coef-row--head" role="row">
         <span>Variable</span>
         <span class="is-numeric">{{ model.estimateLabel }}</span>
         @if (coefficientColumns() === 'all') {
+        @if (model.coefficientLabel) {
+        <span class="is-numeric">{{ model.coefficientLabel }}</span>
+        }
         <span class="is-numeric">Std. error</span>
         <span class="is-numeric">{{ model.statLabel }}</span>
         }
         <span class="is-numeric">95% CI</span>
-        <span class="is-center">Interval vs 0</span>
+        <span class="is-center">Interval vs {{ model.nullValue }}</span>
         <span class="is-numeric">p</span>
       </div>
 
@@ -52,6 +56,9 @@
         <span class="coef-variable">{{ row.variable }}</span>
         <span class="is-numeric coef-estimate">{{ row.estimateText }}</span>
         @if (coefficientColumns() === 'all') {
+        @if (model.coefficientLabel) {
+        <span class="is-numeric coef-muted">{{ row.coefficientText }}</span>
+        }
         <span class="is-numeric coef-muted">{{ row.stdErrText }}</span>
         <span class="is-numeric coef-muted">{{ row.statText }}</span>
         }
@@ -73,8 +80,9 @@
     </div>
 
     <p class="coef-note">
-      Bold p-values are below 0.05. Each interval is drawn on its own scale around zero, so
-      compare direction and whether it crosses zero, not size between rows.
+      Bold p-values are below 0.05. Each interval is drawn on its own scale around
+      {{ model.nullValue === 1 ? 'an odds ratio of 1 (log scale)' : 'zero' }}, so compare direction and whether it
+      crosses {{ model.nullValue }}, not size between rows.
     </p>
   </section>
 

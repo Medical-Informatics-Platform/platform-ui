@@ -1,0 +1,75 @@
+import { chiSquarePValue, formatPValue, formatRatio } from '../result-format';
+import { buildRegressionView } from './regression-view';
+
+describe('result-format', () => {
+  it('matches χ² upper-tail reference values', () => {
+    expect(chiSquarePValue(3.841459, 1)).toBeCloseTo(0.05, 6);
+    expect(chiSquarePValue(2, 2)).toBeCloseTo(Math.exp(-1), 10);
+    expect(chiSquarePValue(18.307038, 10)).toBeCloseTo(0.05, 6);
+    // df = 4 has a closed form: e^(-x/2) * (1 + x/2).
+    expect(chiSquarePValue(0.5, 4)).toBeCloseTo(Math.exp(-0.25) * 1.25, 10);
+    expect(chiSquarePValue(10948.8, 7)).toBe(0);
+    expect(chiSquarePValue(0, 3)).toBe(1);
+  });
+
+  it('formats p-values APA style and ratios at 3 significant digits', () => {
+    expect(formatPValue(1.1102230246251565e-16)).toBe('< 0.001');
+    expect(formatPValue(0.8119)).toBe('0.812');
+    expect(formatRatio(0.98999)).toBe('0.990');
+    expect(formatRatio(903.51)).toBe('904');
+    expect(formatRatio(1163.4)).toBe('1,163');
+  });
+});
+
+describe('buildRegressionView', () => {
+  const logistic = {
+    dependent_var: '3m mRS good outcome',
+    indep_vars: ['Intercept', 'IVT[yes]', 'Age'],
+    summary: {
+      n_obs: 27308,
+      coefficients: [7.0586, 0.4794, -0.063],
+      stderr: [0.1287, 0.0405, 0.0016],
+      lower_ci: [6.8063, 0.4, -0.0662],
+      upper_ci: [7.311, 0.5587, -0.0599],
+      z_scores: [54.82, 11.84, -39.52],
+      pvalues: [0, 2.3e-32, 0],
+      df_model: 2,
+      df_resid: 27305,
+      r_squared_cs: 0.33,
+      r_squared_mcf: 0.3327,
+      ll0: -16452.2,
+      ll: -10977.8,
+      aic: 21971.6,
+      bic: 22037.3,
+    },
+  };
+
+  it('reports logistic coefficients as odds ratios, sorted by log-odds size', () => {
+    const view = buildRegressionView('logistic_regression', logistic, null)!;
+
+    expect(view.estimateLabel).toBe('Odds ratio');
+    expect(view.nullValue).toBe(1);
+    expect(view.rows.map((row) => row.variable)).toEqual(['IVT[yes]', 'Age', 'Intercept']);
+    const ivt = view.rows[0];
+    expect(ivt.estimate).toBeCloseTo(Math.exp(0.4794), 10);
+    expect(ivt.coefficient).toBe(0.4794);
+    expect(ivt.ciText).toBe('1.49 to 1.75');
+    // Plot sits on the log-odds scale: a positive coefficient lands right of the null line.
+    expect(ivt.markerLeft).toBeGreaterThan(50);
+    expect(view.rows[1].markerLeft).toBeLessThan(50);
+  });
+
+  it('derives the model likelihood-ratio test from ll and ll0', () => {
+    const view = buildRegressionView('logistic_regression', logistic, null)!;
+    const test = view.figures.find((figure) => figure.label === 'Model LR test')!;
+
+    expect(test.value).toBe('< 0.001');
+    expect(test.note).toBe('χ²(2) = 10,949');
+    expect(view.fitMetrics.map((metric) => metric.label)).toContain('Null log-likelihood');
+  });
+
+  it('returns null for algorithms without a coefficient view or incomplete payloads', () => {
+    expect(buildRegressionView('kmeans', logistic, null)).toBeNull();
+    expect(buildRegressionView('logistic_regression', { indep_vars: ['Intercept'] }, null)).toBeNull();
+  });
+});

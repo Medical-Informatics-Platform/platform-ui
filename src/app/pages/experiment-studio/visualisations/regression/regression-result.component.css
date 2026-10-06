@@ -10,7 +10,8 @@
 
 .key-figures {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   background: #ffffff;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 12px;
@@ -143,6 +144,10 @@
 
 .coef-table.is-all-columns .coef-row {
   grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
+}
+
+.coef-table.is-all-columns.has-coefficient .coef-row {
+  grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
 }
 
 .coef-row--head {
@@ -345,6 +350,7 @@
 
 @media (max-width: 900px) {
   .key-figures {
+    grid-auto-flow: row;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

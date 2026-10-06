@@ -26,7 +26,7 @@ export class RegressionResultComponent {
     const headers = [
       'Variable',
       model.estimateLabel,
-      ...(allColumns ? ['Std. error', model.statLabel] : []),
+      ...(allColumns ? [...(model.coefficientLabel ? [model.coefficientLabel] : []), 'Std. error', model.statLabel] : []),
       'CI 95% lower',
       'CI 95% upper',
       'p',
@@ -35,6 +35,7 @@ export class RegressionResultComponent {
     const rows = model.rows.map((row) => ({
       'Variable': row.variable,
       [model.estimateLabel]: raw(row.estimate),
+      ...(model.coefficientLabel ? { [model.coefficientLabel]: raw(row.coefficient) } : {}),
       'Std. error': raw(row.stdErr),
       [model.statLabel]: raw(row.stat),
       'CI 95% lower': raw(row.lower),

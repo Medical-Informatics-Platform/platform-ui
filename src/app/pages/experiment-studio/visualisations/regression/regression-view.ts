@@ -1,6 +1,8 @@
 import {
+  chiSquarePValue,
   formatInteger,
   formatPValue,
+  formatRatio,
   formatSignedNumber,
   formatSummaryNumber,
   toFiniteNumber,
@@ -15,6 +17,8 @@ export interface KeyFigure {
 export interface CoefficientRow {
   variable: string;
   estimateText: string;
+  /** The model-scale coefficient when the estimate column shows a transform of it (log-odds behind an odds ratio). */
+  coefficientText: string;
   stdErrText: string;
   statText: string;
   ciText: string;
@@ -22,6 +26,7 @@ export interface CoefficientRow {
   pValue: number | null;
   /** Unrounded values for export; the *Text fields are display-only. */
   estimate: number | null;
+  coefficient: number | null;
   stdErr: number | null;
   stat: number | null;
   lower: number | null;
@@ -35,8 +40,12 @@ export interface CoefficientRow {
 
 export interface RegressionView {
   dependent: string;
-  /** Header of the estimate column and its CSV column ("Estimate", "Log-odds"). */
+  /** Header of the estimate column and its CSV column ("Estimate", "Odds ratio"). */
   estimateLabel: string;
+  /** Header of the untransformed coefficient, shown with all columns; null when the estimate is the coefficient. */
+  coefficientLabel: string | null;
+  /** Where "no effect" sits on the estimate scale: 0 for a coefficient, 1 for a ratio. */
+  nullValue: 0 | 1;
   /** Test statistic column ("t" for OLS, "z" for the logistic Wald test). */
   statLabel: string;
   subtitle: string;
@@ -58,29 +67,41 @@ interface CoefficientInput {
   upper: unknown[];
 }
 
-/** Rows sorted by effect size with the intercept last; each interval is drawn on its own scale around zero. */
-function buildRows(input: CoefficientInput): CoefficientRow[] {
+/**
+ * Rows sorted by effect size with the intercept last. Each interval is drawn on its own scale around
+ * zero on the model scale; `toEstimate` maps a coefficient and its CI bounds to the reported scale
+ * (exp for odds ratios), so a ratio's plot is its log scale around 1.
+ */
+function buildRows(input: CoefficientInput, toEstimate?: (value: number) => number): CoefficientRow[] {
+  const shown = (value: number | null) => (value === null || !toEstimate ? value : toEstimate(value));
+  const formatShown = toEstimate ? formatRatio : formatSignedNumber;
   const rows = input.variables.map((variable, index) => {
-    const estimate = toFiniteNumber(input.estimates[index]);
-    const lower = toFiniteNumber(input.lower[index]);
-    const upper = toFiniteNumber(input.upper[index]);
+    const coefficient = toFiniteNumber(input.estimates[index]);
+    const lowerCoefficient = toFiniteNumber(input.lower[index]);
+    const upperCoefficient = toFiniteNumber(input.upper[index]);
+    const estimate = shown(coefficient);
+    const lower = shown(lowerCoefficient);
+    const upper = shown(upperCoefficient);
     const pValue = toFiniteNumber(input.pValues[index]);
     const stdErr = toFiniteNumber(input.stdErr[index]);
     const stat = toFiniteNumber(input.stats[index]);
-    const scale = Math.max(Math.abs(estimate ?? 0), Math.abs(lower ?? 0), Math.abs(upper ?? 0)) * 1.15 || 1;
+    const scale =
+      Math.max(Math.abs(coefficient ?? 0), Math.abs(lowerCoefficient ?? 0), Math.abs(upperCoefficient ?? 0)) * 1.15 || 1;
     const position = (value: number) => Math.max(0, Math.min(100, 50 + (value / scale) * 50));
-    const left = lower === null ? 50 : position(lower);
-    const right = upper === null ? 50 : position(upper);
+    const left = lowerCoefficient === null ? 50 : position(lowerCoefficient);
+    const right = upperCoefficient === null ? 50 : position(upperCoefficient);
 
     return {
       variable,
-      estimateText: estimate === null ? '—' : formatSignedNumber(estimate),
+      estimateText: estimate === null ? '—' : formatShown(estimate),
+      coefficientText: coefficient === null ? '—' : formatSignedNumber(coefficient),
       stdErrText: stdErr === null ? '—' : formatSignedNumber(stdErr),
       statText: stat === null ? '—' : formatSignedNumber(stat),
-      ciText: lower === null || upper === null ? '—' : `${formatSignedNumber(lower)} to ${formatSignedNumber(upper)}`,
+      ciText: lower === null || upper === null ? '—' : `${formatShown(lower)} to ${formatShown(upper)}`,
       pText: formatPValue(pValue),
       pValue,
       estimate,
+      coefficient,
       stdErr,
       stat,
       lower,
@@ -89,13 +110,13 @@ function buildRows(input: CoefficientInput): CoefficientRow[] {
       isIntercept: /^intercept$/i.test(variable),
       plotLeft: left,
       plotWidth: Math.max(1, right - left),
-      markerLeft: estimate === null ? 50 : position(estimate),
+      markerLeft: coefficient === null ? 50 : position(coefficient),
     };
   });
 
   return rows.sort((a, b) => {
     if (a.isIntercept !== b.isIntercept) return a.isIntercept ? 1 : -1;
-    return Math.abs(b.estimate ?? 0) - Math.abs(a.estimate ?? 0);
+    return Math.abs(b.coefficient ?? 0) - Math.abs(a.coefficient ?? 0);
   });
 }
 
@@ -176,6 +197,8 @@ function linearView(result: any, yVar: string | null): RegressionView | null {
   return {
     dependent,
     estimateLabel: 'Estimate',
+    coefficientLabel: null,
+    nullValue: 0,
     statLabel: 't',
     subtitle: `Effect on ${dependent}, other predictors held constant`,
     rows,
@@ -197,9 +220,91 @@ function linearView(result: any, yVar: string | null): RegressionView | null {
   };
 }
 
+/** Exaflow nests the logistic fit under `summary`; indep_vars and dependent_var stay top-level. */
+function logisticView(result: any, yVar: string | null): RegressionView | null {
+  const fit = result.summary;
+  const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
+  const estimates = arrayOf(fit?.coefficients);
+  if (!fit || !variables.length || !estimates.length) return null;
+
+  const dependent = String(result.dependent_var ?? yVar ?? 'outcome');
+  const rows = buildRows(
+    {
+      variables,
+      estimates,
+      stdErr: arrayOf(fit.stderr),
+      stats: arrayOf(fit.z_scores),
+      pValues: arrayOf(fit.pvalues),
+      lower: arrayOf(fit.lower_ci),
+      upper: arrayOf(fit.upper_ci),
+    },
+    Math.exp,
+  );
+
+  const mcFadden = toFiniteNumber(fit.r_squared_mcf);
+  const coxSnell = toFiniteNumber(fit.r_squared_cs);
+  const ll = toFiniteNumber(fit.ll);
+  const ll0 = toFiniteNumber(fit.ll0);
+  const nObs = toFiniteNumber(fit.n_obs);
+  const dfModel = toFiniteNumber(fit.df_model);
+  const dfResid = toFiniteNumber(fit.df_resid);
+  const aic = toFiniteNumber(fit.aic);
+  // Likelihood-ratio test of the fitted model against the intercept-only model.
+  const lrStat = ll !== null && ll0 !== null ? 2 * (ll - ll0) : null;
+  const lrPvalue = lrStat !== null && dfModel !== null && dfModel > 0 ? chiSquarePValue(lrStat, dfModel) : null;
+
+  const figures: KeyFigure[] = [];
+  if (mcFadden !== null) {
+    figures.push({
+      label: 'Pseudo R² (McFadden)',
+      value: mcFadden.toFixed(3),
+      note: 'Log-likelihood gained over the intercept-only model',
+    });
+  }
+  if (lrPvalue !== null && lrStat !== null) {
+    figures.push({
+      label: 'Model LR test',
+      value: formatPValue(lrPvalue),
+      note: `χ²(${formatInteger(dfModel!)}) = ${formatSummaryNumber(lrStat)}`,
+    });
+  }
+  if (aic !== null) {
+    figures.push({ label: 'AIC', value: formatSummaryNumber(aic), note: 'Lower fits better when comparing models' });
+  }
+  if (nObs !== null) {
+    figures.push({ label: 'Observations', value: formatInteger(nObs), note: 'Rows in the fitted model' });
+  }
+
+  return {
+    dependent,
+    estimateLabel: 'Odds ratio',
+    coefficientLabel: 'Log-odds',
+    nullValue: 1,
+    statLabel: 'z',
+    subtitle: `Effect on the odds of ${dependent}, other predictors held constant`,
+    rows,
+    figures,
+    ...fitSummary([
+      ['Dependent variable', dependent],
+      ['Observations', integer(nObs)],
+      ['df (model)', integer(dfModel)],
+      ['df (residual)', integer(dfResid)],
+      ['Pseudo R² (McFadden)', mcFadden === null ? '' : mcFadden.toFixed(3)],
+      ['Pseudo R² (Cox–Snell)', coxSnell === null ? '' : coxSnell.toFixed(3)],
+      ['LR χ²', summary(lrStat)],
+      ['p-value (LR)', lrPvalue === null ? '' : formatPValue(lrPvalue)],
+      ['Log-likelihood', summary(ll)],
+      ['Null log-likelihood', summary(ll0)],
+      ['AIC', summary(aic)],
+      ['BIC', summary(fit.bic)],
+    ]),
+  };
+}
+
 /** The coefficient/fit view for a result, or null when the algorithm has none or the payload is incomplete. */
 export function buildRegressionView(algorithm: string | null, result: any, yVar: string | null): RegressionView | null {
   if (!result || typeof result !== 'object') return null;
   if (algorithm === 'linear_regression') return linearView(result, yVar);
+  if (algorithm === 'logistic_regression') return logisticView(result, yVar);
   return null;
 }
