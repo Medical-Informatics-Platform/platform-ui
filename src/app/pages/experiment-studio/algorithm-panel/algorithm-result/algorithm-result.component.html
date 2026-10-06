@@ -15,10 +15,9 @@
   }
 
   @if (renderedCharts().length > 0) {
-  <section class="results-primary-visual gen-charts" aria-labelledby="results-chart-heading">
+  <section class="gen-charts" aria-labelledby="results-chart-heading">
     <header class="results-section-intro">
-      <h3 id="results-chart-heading" class="results-section-heading">Effect estimates</h3>
-      <p class="results-section-lead">Primary view for comparing factors. Tables below list the same estimates with exact values.</p>
+      <h3 id="results-chart-heading" class="results-section-heading">{{ chartTitle() }}</h3>
     </header>
     <app-chart-renderer [charts]="renderedCharts()" />
   </section>

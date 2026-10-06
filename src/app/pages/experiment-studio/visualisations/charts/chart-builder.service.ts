@@ -5,11 +5,6 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 // @ts-expect-error echarts-gl ships no types for its CommonJS dist bundle
 import * as echartsGl from 'echarts-gl/dist/echarts-gl.js';
 
-function getByPath(obj: any, path: string): any {
-  if (!path) return obj;
-  return path.split('.').reduce((o, key) => o?.[key], obj);
-}
-
 function ensureEchartsGlRegistered(): void {
   // echarts-gl omits dist/ from sideEffects; keep a live reference so the
   // CommonJS bundle is evaluated and scatter3D/grid3D types register.
@@ -25,13 +20,11 @@ export class ChartBuilderService {
 
   getChartsForAlgorithm(algorithm: string, result: any, _fallbackTitle?: string | null): EChartsOption[] {
     ensureEchartsGlRegistered();
-    const config = AlgorithmChartRegistry[algorithm] || AlgorithmChartRegistry['default'];
-
-    // raw input
-    const input = getByPath(result, config.inputPath);
+    const config = AlgorithmChartRegistry[algorithm];
+    if (!config) return [];
 
     // enrich with display names
-    const enrichedInput = this.enrichLabels(input);
+    const enrichedInput = this.enrichLabels(result);
 
     // PCA specific enrichment: inject actual variable names for the heatmap
     if (algorithm === 'pca' || algorithm === 'pca_with_transformation') {

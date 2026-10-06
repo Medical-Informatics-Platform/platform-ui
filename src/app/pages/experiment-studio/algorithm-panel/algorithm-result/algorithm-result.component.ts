@@ -3,6 +3,7 @@ import { Component, input, computed, inject, ChangeDetectionStrategy } from '@an
 import { CommonModule } from '@angular/common';
 import { AutoRendererComponent } from '../../visualisations/auto-renderer/auto-renderer.component';
 import { ChartRendererComponent } from '../../visualisations/charts/charts-renderer/charts-renderer.component';
+import { AlgorithmChartRegistry } from '../../visualisations/charts/chart-registry';
 import { NgxEchartsModule } from 'ngx-echarts';
 import { EnumMaps, LabelMap, mapAlgorithmResultEnums } from '../../../../core/algorithm-result-enum-mapper';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
@@ -78,6 +79,8 @@ export class AlgorithmResultComponent {
     return `Result ${prettifyLabel(this.algorithm()) || 'Algorithm'}`;
   });
 
+
+  readonly chartTitle = computed(() => AlgorithmChartRegistry[this.algorithm()]?.title ?? 'Charts');
 
   renderedCharts = computed(() => {
     if (!this.result() || !this.algorithm() || this.errorMessage()) return [];

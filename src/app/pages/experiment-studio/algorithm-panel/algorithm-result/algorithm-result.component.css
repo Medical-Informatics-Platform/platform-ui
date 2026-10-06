@@ -35,14 +35,6 @@
   letter-spacing: 0.02em;
 }
 
-.results-section-lead {
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: #64748b;
-  max-width: 52rem;
-}
-
 .results-detail-section--with-chart {
   padding-top: 0.25rem;
 }

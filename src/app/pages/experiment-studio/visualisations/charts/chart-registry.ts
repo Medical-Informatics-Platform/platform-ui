@@ -17,7 +17,8 @@ import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-for
 
 interface AlgorithmChartConfig {
   build: (input: any) => EChartsOption[];
-  inputPath: string;
+  /** Heading of the chart section on the result page. */
+  title: string;
 }
 
 function composeCharts(...builders: ((result: any) => EChartsOption[])[]): (result: any) => EChartsOption[] {
@@ -25,94 +26,23 @@ function composeCharts(...builders: ((result: any) => EChartsOption[])[]): (resu
 }
 
 export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
-  kmeans: {
-    build: buildKMeansChart,
-    inputPath: '',
-  },
-
-  linear_regression_cv: {
-    build: buildCVMetricsChart,
-    inputPath: '',
-  },
-
+  kmeans: { build: buildKMeansChart, title: 'Cluster centres' },
+  linear_regression_cv: { build: buildCVMetricsChart, title: 'Cross-validation metrics' },
   logistic_regression_cv: {
-    build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart), // CV Metrics chart could be added if supported
-    inputPath: '',
+    build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart),
+    title: 'Classification performance',
   },
-
-  naive_bayes_gaussian: {
-    build: buildNaiveBayesPriorsChart,
-    inputPath: '',
-  },
-
-  naive_bayes_categorical: {
-    build: buildNaiveBayesPriorsChart,
-    inputPath: '',
-  },
-
-  naive_bayes_gaussian_cv: {
-    build: buildNaiveBayesConfusionChart,
-    inputPath: '',
-  },
-
-  naive_bayes_categorical_cv: {
-    build: buildNaiveBayesConfusionChart,
-    inputPath: '',
-  },
-
-  pearson_correlation: {
-    build: buildMatrixChart,
-    inputPath: '',
-  },
-
-  pca: {
-    build: buildPCAHeatmapChart,
-    inputPath: '',
-  },
-
-  pca_with_transformation: {
-    build: buildPCAHeatmapChart,
-    inputPath: '',
-  },
-
-  anova_oneway: {
-    build: buildMeanPlotChart,
-    inputPath: '',
-  },
-
-  anova_twoway: {
-    build: () => [],
-    inputPath: '',
-  },
-
-  linear_svm: {
-    build: buildSVMChart,
-    inputPath: '',
-  },
-
-  describe: {
-    build: buildBoxPlotChart,
-    inputPath: '',
-  },
-
-  histogram: {
-    build: buildHistogramChart,
-    inputPath: '',
-  },
-
-
-  cox_regression_classical: {
-    build: buildCoxHazardRatioForestChart,
-    inputPath: '',
-  },
-
-  cox_regression_stacked: {
-    build: buildCoxHazardRatioForestChart,
-    inputPath: '',
-  },
-
-  default: {
-    build: () => [],
-    inputPath: '',
-  },
+  naive_bayes_gaussian: { build: buildNaiveBayesPriorsChart, title: 'Class priors' },
+  naive_bayes_categorical: { build: buildNaiveBayesPriorsChart, title: 'Class priors' },
+  naive_bayes_gaussian_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },
+  naive_bayes_categorical_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },
+  pearson_correlation: { build: buildMatrixChart, title: 'Correlation matrix' },
+  pca: { build: buildPCAHeatmapChart, title: 'Principal components' },
+  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components' },
+  anova_oneway: { build: buildMeanPlotChart, title: 'Group means' },
+  linear_svm: { build: buildSVMChart, title: 'Model weights' },
+  describe: { build: buildBoxPlotChart, title: 'Distributions' },
+  histogram: { build: buildHistogramChart, title: 'Distribution' },
+  cox_regression_classical: { build: buildCoxHazardRatioForestChart, title: 'Hazard ratios' },
+  cox_regression_stacked: { build: buildCoxHazardRatioForestChart, title: 'Hazard ratios' },
 };
