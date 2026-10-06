@@ -23,10 +23,6 @@
   margin-bottom: 0.65rem;
 }
 
-.results-section-intro--compact {
-  margin-bottom: 0.35rem;
-}
-
 .results-section-heading {
   margin: 0;
   font-size: 0.95rem;
@@ -37,6 +33,11 @@
 
 .results-detail-section--with-chart {
   padding-top: 0.25rem;
+}
+
+/* Every table already shown above: drop the empty section so it adds no gap. */
+.results-detail-section:has(> app-auto-renderer:empty) {
+  display: none;
 }
 
 /* CHARTS SECTION */

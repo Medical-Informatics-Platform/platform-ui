@@ -84,4 +84,12 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     expect(html.querySelector('.lr-result')).toBeFalsy();
     expect(html.querySelector('app-auto-renderer')).toBeTruthy();
   });
+
+  it('does not repeat a table whose values the key figures already show', () => {
+    const html = render({ t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, se_diff: 0.3, ci_lower: -1.8, ci_upper: -0.6, cohens_d: -0.7 }, 'ttest_independent');
+
+    expect(html.querySelector('app-key-figures')).toBeTruthy();
+    expect(html.querySelectorAll('.ar-card').length).toBe(0);
+    expect(html.querySelector('.ar-heading')).toBeFalsy();
+  });
 });

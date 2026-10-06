@@ -24,15 +24,10 @@
   }
 
   @if (isRenderable()) {
-  <section class="results-detail-section" [class.results-detail-section--with-chart]="renderedCharts().length > 0"
-    aria-labelledby="results-detail-heading">
-    @if (renderedCharts().length > 0) {
-    <header class="results-section-intro results-section-intro--compact">
-      <h3 id="results-detail-heading" class="results-section-heading">Detailed results</h3>
-    </header>
-    }
+  <section class="results-detail-section" [class.results-detail-section--with-chart]="hasSummaryAbove()">
     <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
-      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" />
+      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" [hiddenTitles]="hiddenTables()"
+      [heading]="hasSummaryAbove() ? 'Detailed results' : null" />
   </section>
   }
   }

@@ -17,6 +17,8 @@ interface AlgorithmChartConfig {
   build: (input: any) => EChartsOption[];
   /** Heading of the chart section on the result page. */
   title: string;
+  /** Result tables these charts already show in full; left out on screen when the charts rendered. */
+  replaces?: string[];
 }
 
 function composeCharts(...builders: ((result: any) => EChartsOption[])[]): (result: any) => EChartsOption[] {
@@ -24,18 +26,18 @@ function composeCharts(...builders: ((result: any) => EChartsOption[])[]): (resu
 }
 
 export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
-  kmeans: { build: buildKMeansChart, title: 'Cluster centres' },
+  kmeans: { build: buildKMeansChart, title: 'Cluster centres', replaces: ['Cluster Centers'] },
   logistic_regression_cv: {
     build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart),
     title: 'Classification performance',
   },
-  naive_bayes_gaussian: { build: composeCharts(buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart), title: 'Classes' },
-  naive_bayes_categorical: { build: buildNaiveBayesPriorsChart, title: 'Class priors' },
-  naive_bayes_gaussian_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },
-  naive_bayes_categorical_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },
+  naive_bayes_gaussian: { build: composeCharts(buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart), title: 'Classes', replaces: ['Class Summary'] },
+  naive_bayes_categorical: { build: buildNaiveBayesPriorsChart, title: 'Class priors', replaces: ['Class Summary'] },
+  naive_bayes_gaussian_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance', replaces: ['Confusion Matrix (Combined)'] },
+  naive_bayes_categorical_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance', replaces: ['Confusion Matrix (Combined)'] },
   pearson_correlation: { build: buildMatrixChart, title: 'Correlation matrix' },
-  pca: { build: buildPCAHeatmapChart, title: 'Principal components' },
-  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components' },
+  pca: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: ['PCA Summary', 'Loadings'] },
+  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: ['PCA Summary', 'Loadings'] },
   anova_oneway: { build: buildMeanPlotChart, title: 'Group means' },
   linear_svm: { build: buildSVMChart, title: 'Model weights' },
   describe: { build: buildBoxPlotChart, title: 'Distributions' },

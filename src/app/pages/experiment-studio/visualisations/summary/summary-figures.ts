@@ -61,6 +61,8 @@ function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
   const p = first(result, ['p', 'p_value']);
   const d = first(result, ['cohens_d', 'cohen_d']);
   const nObs = first(result, ['n_obs']);
+  const se = first(result, ['se_diff', 'se_difference', 'std_err_diff']);
+  const sd = first(result, ['std']);
 
   if (meanDiff !== null) {
     // Exaflow's independent t-test reports mean(group A) − mean(group B).
@@ -69,7 +71,7 @@ function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
     figures.push({
       label: 'Mean difference',
       value: formatSignedNumber(meanDiff),
-      note: [groups, ci].filter(Boolean).join(' · ') || undefined,
+      note: [groups, ci, se === null ? '' : `SE ${se.toPrecision(2)}`].filter(Boolean).join(' · ') || undefined,
     });
   }
   if (p !== null) {
@@ -80,7 +82,7 @@ function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
     figures.push({ label: "Cohen's d", value: formatSignedNumber(d), note: `${standardizedMagnitude(d)} effect` });
   }
   if (nObs !== null) {
-    figures.push({ label: 'Observations', value: formatInteger(nObs), note: 'Rows in the test' });
+    figures.push({ label: 'Observations', value: formatInteger(nObs), note: sd === null ? 'Rows in the test' : `Rows in the test · SD ${formatSignedNumber(sd)}` });
   }
   return figures;
 }
@@ -345,6 +347,21 @@ const BUILDERS: Record<string, (result: any, context?: SummaryContext) => KeyFig
   anova_oneway: anovaOneWayFigures,
   anova_twoway: anovaTwoWayFigures,
   standardized_mean_difference: smdFigures,
+};
+
+/**
+ * Result tables whose every value the figures above already show; the result view leaves them
+ * out on screen when the figures rendered (exports keep them).
+ */
+export const TABLES_SHOWN_AS_FIGURES: Record<string, string[]> = {
+  ttest_independent: ['Independent T-Test'],
+  ttest_paired: ['Paired T-Test'],
+  ttest_onesample: ['One-Sample T-Test'],
+  binned_mann_whitney_u_test: ['Binned Mann-Whitney U Test'],
+  chi_squared: ['Chi-Squared Test Summary'],
+  fisher_exact: ["Fisher's Exact Test Summary"],
+  standardized_mean_difference: ['Standardized Mean Difference'],
+  linear_regression_cv: ['Error metrics'],
 };
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */

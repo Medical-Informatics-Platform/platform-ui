@@ -11,9 +11,11 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
   const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
+  // Legend entries carry each cluster's size, so the centres table is not needed on screen.
+  const legendNames = names.map((name, i) => (sizes[i] === null ? name : `${name} · ~${Math.round(sizes[i]!).toLocaleString('en-US')}`));
   const charts = variables.length === 2
-    ? buildKMeans2DChart(centers as [number, number][], names, variables, sizes)
-    : buildKMeansParallelCoordinatesChart(centers, names, variables, title);
+    ? buildKMeans2DChart(centers as [number, number][], names, legendNames, variables, sizes)
+    : buildKMeansParallelCoordinatesChart(centers, legendNames, variables, title);
 
   if (output.elbow) {
     charts.push(buildKMeansElbowChart(output.elbow));
@@ -34,6 +36,7 @@ function intervalMidpoint(interval: unknown): number | null {
 function buildKMeans2DChart(
   centers: [number, number][],
   names: string[],
+  legendNames: string[],
   variables: string[],
   sizes: (number | null)[]
 ): EChartsOption[] {
@@ -61,7 +64,7 @@ function buildKMeans2DChart(
         trigger: 'item',
         formatter: (p: any) => {
           const size = sizes[p.seriesIndex];
-          return `${p.seriesName}<br/>${variables[0]}: <b>${p.value[0].toFixed(2)}</b><br/>${variables[1]}: <b>${p.value[1].toFixed(2)}</b>` +
+          return `${names[p.seriesIndex]}<br/>${variables[0]}: <b>${p.value[0].toFixed(2)}</b><br/>${variables[1]}: <b>${p.value[1].toFixed(2)}</b>` +
             (size === null ? '' : `<br/>~${Math.round(size).toLocaleString('en-US')} rows`);
         },
       },
@@ -69,7 +72,7 @@ function buildKMeans2DChart(
       xAxis: axis(variables[0]),
       yAxis: { ...axis(variables[1]), nameLocation: 'end', nameGap: 14, nameTextStyle: { color: '#475569', fontWeight: 600, align: 'left' } },
       series: centers.map(([x, y], i) => ({
-        name: names[i],
+        name: legendNames[i],
         type: 'scatter',
         data: [[x, y]],
         symbolSize: radius(sizes[i]),
@@ -104,6 +107,8 @@ function buildKMeansParallelCoordinatesChart(
       },
       tooltip: {
         trigger: 'item',
+        formatter: (p: any) => `${p.seriesName}<br/>` +
+          variables.map((variable, d) => `${variable}: <b>${Number(p.value?.[d]).toFixed(2)}</b>`).join('<br/>'),
       },
       legend: {
         top: 0,

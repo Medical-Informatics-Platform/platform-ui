@@ -20,6 +20,10 @@ export class AutoRendererComponent {
   readonly enumMaps = input<EnumMaps | null>(null);
   readonly yVar = input<string | null>(null);
   readonly xVar = input<string | null>(null);
+  /** Table titles the page already shows above (as figures or a chart); left out here, kept in exports. */
+  readonly hiddenTitles = input<string[]>([]);
+  /** Section heading drawn above the tables, only when at least one table is shown. */
+  readonly heading = input<string | null>(null);
 
   tableSpec = signal<TableSpec[] | null>(null);
   error = signal<string | null>(null);
@@ -38,6 +42,7 @@ export class AutoRendererComponent {
     const yVar = this.yVar();
     const xVar = this.xVar();
     const fallbackTitle = this.fallbackTitle();
+    const hiddenTitles = this.hiddenTitles();
 
     if (!algorithm) {
       this.tableSpec.set(null);
@@ -60,6 +65,7 @@ export class AutoRendererComponent {
       yVar,
       xVar,
       fallbackTitle,
+      hiddenTitles,
     });
     if (key === this.lastKey && this.tableSpec()) return;
 
@@ -67,7 +73,8 @@ export class AutoRendererComponent {
       const enrichedValue = value && (labelMap || enumMaps || yVar || xVar)
         ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar, __xVar__: xVar }
         : value;
-      const spec = builder(enrichedValue);
+      const hidden = new Set(hiddenTitles);
+      const spec = builder(enrichedValue).filter((table) => !hidden.has(table.title ?? ''));
       const explicitTitle = this.getResultTitle(enrichedValue);
       const resultTitle = explicitTitle ?? this.getFallbackTitle();
       this.tableSpec.set(this.applyResultTitle(spec, resultTitle, !!explicitTitle));

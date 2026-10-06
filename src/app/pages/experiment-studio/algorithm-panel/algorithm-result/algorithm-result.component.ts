@@ -10,7 +10,7 @@ import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
 import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
-import { buildSummaryFigures } from '../../visualisations/summary/summary-figures';
+import { buildSummaryFigures, TABLES_SHOWN_AS_FIGURES } from '../../visualisations/summary/summary-figures';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -91,6 +91,14 @@ export class AlgorithmResultComponent {
 
 
   readonly chartTitle = computed(() => AlgorithmChartRegistry[this.algorithm()]?.title ?? 'Charts');
+
+  /** Tables whose values the figures or charts above already show, so they are not repeated below. */
+  readonly hiddenTables = computed(() => [
+    ...(this.summaryFigures() ? TABLES_SHOWN_AS_FIGURES[this.algorithm()] ?? [] : []),
+    ...(this.renderedCharts().length ? AlgorithmChartRegistry[this.algorithm()]?.replaces ?? [] : []),
+  ]);
+
+  readonly hasSummaryAbove = computed(() => !!this.summaryFigures() || this.renderedCharts().length > 0);
 
   renderedCharts = computed(() => {
     if (!this.result() || !this.algorithm() || this.errorMessage()) return [];

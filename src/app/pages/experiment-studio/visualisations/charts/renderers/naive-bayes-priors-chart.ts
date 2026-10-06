@@ -22,6 +22,7 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
   }
 
   if (!priors.length || priors.length !== classes.length) return [];
+  const counts: unknown[] = Array.isArray(result?.class_count) ? result.class_count : [];
 
   // One horizontal bar per class: a handful of shares does not need a 500px column chart.
   return [
@@ -43,7 +44,7 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
       grid: {
         top: 8,
         left: 8,
-        right: 56,
+        right: 120,
         bottom: 28,
         containLabel: true,
       },
@@ -70,7 +71,12 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
             show: true,
             position: 'right',
             color: '#0f172a',
-            formatter: (p: any) => `${(Number(p.value) * 100).toFixed(1)}%`,
+            // Prior and training count together, so the class summary table is not needed on screen.
+            formatter: (p: any) => {
+              const count = Number(counts[p.dataIndex]);
+              const share = `${(Number(p.value) * 100).toFixed(1)}%`;
+              return Number.isFinite(count) ? `${share} · ${count.toLocaleString('en-US')} rows` : share;
+            },
           },
           itemStyle: {
             color: '#2b33e9',

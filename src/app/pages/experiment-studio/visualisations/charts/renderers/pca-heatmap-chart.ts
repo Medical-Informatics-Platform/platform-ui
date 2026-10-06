@@ -142,11 +142,15 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
         axisPointer: { type: 'shadow' },
         valueFormatter: (value: any) => `${Number(value).toFixed(1)}%`,
       },
-      grid: { top: 80, left: 8, right: 16, bottom: 24, containLabel: true },
+      grid: { top: 80, left: 8, right: 16, bottom: 12, containLabel: true },
       xAxis: {
         type: 'category',
-        data: componentNames,
-        axisLabel: { color: AXIS_COLOR, interval: 0 },
+        // Eigenvalue under each component, so the PCA summary table is not needed on screen.
+        data: componentNames.map((name, i) => {
+          const eigenvalue = Number(result.eigenvalues[i]);
+          return Number.isFinite(eigenvalue) ? `${name}\nλ ${eigenvalue.toFixed(2)}` : name;
+        }),
+        axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 16 },
       },
       yAxis: {
         type: 'value',
