@@ -351,7 +351,7 @@ function mixedView(result: any, yVar: string | null, logit: boolean): Regression
     figures.push({
       label: 'ICC',
       value: icc.toFixed(3),
-      note: `${(icc * 100).toFixed(1)}% of the ${logit ? 'latent-scale ' : ''}variance in ${dependent} lies between ${grouping} groups`,
+      note: `${(icc * 100).toFixed(1)}% of the ${logit ? 'latent ' : ''}variance lies between groups`,
     });
   }
   if (nGroups !== null) figures.push({ label: 'Groups', value: formatInteger(nGroups), note: `Levels of ${grouping}` });

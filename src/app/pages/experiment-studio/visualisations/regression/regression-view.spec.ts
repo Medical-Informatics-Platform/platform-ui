@@ -87,7 +87,7 @@ describe('buildRegressionView', () => {
     }, null)!;
 
     expect(view.estimateLabel).toBe('Estimate');
-    expect(view.figures[0]).toEqual({ label: 'ICC', value: '0.250', note: '25.0% of the variance in 3m mRS lies between Unit groups' });
+    expect(view.figures[0]).toEqual({ label: 'ICC', value: '0.250', note: '25.0% of the variance lies between groups' });
     expect(view.figures.some((figure) => figure.label === 'Converged')).toBeFalse();
   });
 

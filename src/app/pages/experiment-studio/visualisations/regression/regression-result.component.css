@@ -140,6 +140,7 @@
 }
 
 .is-numeric {
+  white-space: nowrap;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -301,14 +302,37 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 900px) {
-  .coef-table {
+/* Narrow by container, not viewport: the same card sits in the studio, the dashboard
+   detail and 360px compare columns. Below 620px the interval sketch goes (the CI and p
+   carry the same answer) so variable, estimate, CI and p fit without wrapping; the
+   wider All columns view scrolls sideways. */
+.lr-result {
+  container-type: inline-size;
+}
+
+@container (max-width: 620px) {
+  .coef-row {
+    grid-template-columns: minmax(96px, 1fr) auto auto auto;
+    column-gap: 12px;
+    padding-inline: 12px;
+  }
+
+  .coef-row > .coef-plot-cell,
+  .coef-row > .is-center {
+    display: none;
+  }
+
+  .coef-table.is-all-columns {
     overflow-x: auto;
   }
 
-  .coef-row,
   .coef-table.is-all-columns .coef-row {
-    min-width: 620px;
+    min-width: 560px;
+    grid-template-columns: minmax(96px, 1fr) repeat(4, auto) auto;
+  }
+
+  .coef-table.is-all-columns.has-coefficient .coef-row {
+    grid-template-columns: minmax(96px, 1fr) repeat(5, auto) auto;
   }
 
   .model-fit-grid {
