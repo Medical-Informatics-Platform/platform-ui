@@ -170,7 +170,7 @@ describe('AlgorithmTableRegistry', () => {
     expect(canonical[0].rows.some((row) => row[0] === 'Intercept')).toBe(true);
   });
 
-  it('renders category_log_prob tables for naive_bayes_categorical', () => {
+  it('renders categorical naive Bayes counts with class-conditional shares', () => {
     const tables = AlgorithmTableRegistry['naive_bayes_categorical']({
       classes: ['0', '1'],
       class_count: [50, 60],
@@ -181,7 +181,10 @@ describe('AlgorithmTableRegistry', () => {
       category_log_prob: { sex: [[-0.69, -0.69], [-0.65, -0.65]] },
     });
 
-    expect(tables.some((t) => t.title?.startsWith('Category Log Probabilities'))).toBe(true);
+    const sex = tables.find((t) => t.title === 'sex by class')!;
+    expect(sex.columns).toEqual(['Category', '0', '1']);
+    expect(sex.rows[0]).toEqual(['0', '25 · 50.2%', '30 · 52.2%']);
+    expect(tables[0].rows[0]).toEqual(['0', '50', '49.7%']);
   });
 
   it('renders pca summary and keeps pca_with_transformation alias', () => {

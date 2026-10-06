@@ -884,66 +884,52 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     // Map class codes to labels
     const classLabels = rawClasses.map(c => yVar ? getEnumLabel(yVar, String(c)) : String(c));
 
+    // Probabilities read as shares, not logs: exp(log prior) and exp(log P(category | class)).
+    const share = (log: unknown) => {
+      const value = Math.exp(Number(log));
+      return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '';
+    };
+
     // Class summary
     if (rawClasses.length > 0) {
       tables.push({
         title: 'Class Summary',
-        columns: ['Class', 'Count', 'Log Prior'],
+        columns: ['Class', 'Count', 'Prior'],
         rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count[i]),
-          formatDecimal(result.class_log_prior[i]),
+          share(result.class_log_prior[i]),
         ]),
         layout: 'full',
       });
     }
 
-    // Category tables
+    // One table per feature: each cell is the count and the model's P(category | class).
+    // A category no class ever had (an unused enumeration) is left out.
     for (const feature of result.feature_names) {
       const counts = result.category_count[feature];
-      const logProbs = result.category_log_prob[feature];
+      const logProbs = result.category_log_prob?.[feature];
       const categories = result.categories[feature];
-
-      const featureLabel = getLabel(feature);
-
       if (!counts || !categories) continue;
 
-      const numCats = categories.length;
-      const countRows = [];
-      const logProbRows = [];
-
-      for (let c = 0; c < numCats; c++) {
-        const catVal = String(categories[c]);
-        const catLabel = getEnumLabel(feature, catVal);
-
-        const countRow = [catLabel];
-        const logRow = [catLabel];
-
-        for (let i = 0; i < rawClasses.length; i++) {
-          countRow.push(formatDecimal(counts[i][c]));
-          if (logProbs) logRow.push(formatDecimal(logProbs[i][c]));
-        }
-        countRows.push(countRow);
-        logProbRows.push(logRow);
-      }
-
-      const colHeaders = ['Category', ...classLabels];
+      const rows = categories
+        .map((category, c) => ({ category, c }))
+        .filter(({ c }) => rawClasses.some((_cls, i) => Number(counts[i]?.[c]) > 0))
+        .map(({ category, c }) => [
+          getEnumLabel(feature, String(category)),
+          ...rawClasses.map((_cls, i) => {
+            const count = formatDecimal(counts[i]?.[c]);
+            const probability = logProbs ? share(logProbs[i]?.[c]) : '';
+            return probability ? `${count} · ${probability}` : count;
+          }),
+        ]);
 
       tables.push({
-        title: `Category Counts: ${featureLabel}`,
-        columns: colHeaders,
-        rows: countRows,
-        layout: 'full'
+        title: `${getLabel(feature)} by class`,
+        columns: ['Category', ...classLabels],
+        rows,
+        layout: 'full',
       });
-
-      if (logProbs) {
-        tables.push({
-          title: `Category Log Probabilities: ${featureLabel}`,
-          columns: colHeaders,
-          rows: logProbRows,
-          layout: 'full'
-        });
-      }
     }
 
     return tables;
