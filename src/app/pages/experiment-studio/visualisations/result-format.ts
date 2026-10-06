@@ -26,11 +26,21 @@ export function formatSummaryNumber(value: number): string {
   return formatSignedNumber(value);
 }
 
-/** Ratios (odds, hazard) at 3 significant digits: 0.725, 1.07, 904, then grouped integers from 1,000. */
-export function formatRatio(value: number): string {
+/** Ratios (odds, hazard) at 3 significant digits by default: 0.725, 1.07, 904, then grouped integers from 1,000. */
+export function formatRatio(value: number, digits = 3): string {
   if (!Number.isFinite(value)) return '';
   if (value >= 1000) return formatInteger(Math.round(value));
-  return value.toPrecision(3);
+  return value.toPrecision(digits);
+}
+
+/** The fewest significant digits (3 to 6) at which a ratio's CI bounds read differently,
+ *  so a tight interval such as 1.0345–1.0358 does not print as "1.04 to 1.04". */
+export function ratioDigits(lower: number | null, upper: number | null): number {
+  if (lower === null || upper === null) return 3;
+  for (let digits = 3; digits < 6; digits++) {
+    if (formatRatio(lower, digits) !== formatRatio(upper, digits)) return digits;
+  }
+  return 6;
 }
 
 /** APA style: `< 0.001` instead of 0, 1.1e-16 or 3.9e-238 — values that small are float noise. */

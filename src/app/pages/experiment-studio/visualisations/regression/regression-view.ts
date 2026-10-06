@@ -3,6 +3,7 @@ import {
   formatInteger,
   formatPValue,
   formatRatio,
+  ratioDigits,
   formatSignedNumber,
   formatSummaryNumber,
   toFiniteNumber,
@@ -69,7 +70,6 @@ interface CoefficientInput {
  */
 function buildRows(input: CoefficientInput, toEstimate?: (value: number) => number): CoefficientRow[] {
   const shown = (value: number | null) => (value === null || !toEstimate ? value : toEstimate(value));
-  const formatShown = toEstimate ? formatRatio : formatSignedNumber;
   const rows = input.variables.map((variable, index) => {
     const coefficient = toFiniteNumber(input.estimates[index]);
     const lowerCoefficient = toFiniteNumber(input.lower[index]);
@@ -77,6 +77,8 @@ function buildRows(input: CoefficientInput, toEstimate?: (value: number) => numb
     const estimate = shown(coefficient);
     const lower = shown(lowerCoefficient);
     const upper = shown(upperCoefficient);
+    const digits = ratioDigits(lower, upper);
+    const formatShown = (value: number) => (toEstimate ? formatRatio(value, digits) : formatSignedNumber(value));
     const pValue = toFiniteNumber(input.pValues[index]);
     const stdErr = toFiniteNumber(input.stdErr[index]);
     const stat = toFiniteNumber(input.stats[index]);
@@ -302,6 +304,12 @@ function groupingLabel(result: any): string {
   return typeof raw === 'string' && raw ? raw : 'group';
 }
 
+/** Exaflow echoes integer categories as floats ("2.0"); show them as entered. */
+function categoryLabel(value: unknown): string {
+  const text = String(value ?? '');
+  return /^-?\d+\.0+$/.test(text) ? text.replace(/\.0+$/, '') : text;
+}
+
 /** A non-converged mixed model is the first thing a reader needs to know. */
 function convergenceFigure(result: any): KeyFigure[] {
   if (result.converged !== false) return [];
@@ -313,12 +321,17 @@ function convergenceFigure(result: any): KeyFigure[] {
   }];
 }
 
+type MixedKind = 'linear' | 'binary' | 'ordinal';
+
 /**
- * Mixed models (lmm, glmm_binary): fixed effects in the coefficients card and the random
- * intercept summarised as an ICC — the share of variance that lies between groups. For the
- * logit GLMM the residual variance is the logistic distribution's π²/3 (latent-scale ICC).
+ * Mixed models (lmm, glmm_binary, glmm_ordinal): fixed effects in the coefficients card and the
+ * random intercept summarised as an ICC — the share of variance that lies between groups. For the
+ * logit GLMMs the residual variance is the logistic distribution's π²/3 (latent-scale ICC).
+ * The ordinal model is cumulative logit, P(Y ≤ j) = σ(κⱼ − η), so exp(β) multiplies the odds of
+ * a higher outcome category.
  */
-function mixedView(result: any, yVar: string | null, logit: boolean): RegressionView | null {
+function mixedView(result: any, yVar: string | null, kind: MixedKind): RegressionView | null {
+  const logit = kind !== 'linear';
   const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
   const estimates = arrayOf(result.coefficients);
   if (!variables.length || !estimates.length) return null;
@@ -364,12 +377,16 @@ function mixedView(result: any, yVar: string | null, logit: boolean): Regression
     coefficientLabel: logit ? 'Log-odds' : null,
     nullValue: logit ? 1 : 0,
     statLabel: logit ? 'z' : 't',
-    subtitle: `Effect on ${logit ? 'the odds of ' : ''}${dependent}, other predictors held constant, with a random intercept per ${grouping}`,
+    subtitle: `${
+      kind === 'ordinal' ? `Effect on the odds of a higher ${dependent} category` : `Effect on ${logit ? 'the odds of ' : ''}${dependent}`
+    }, other predictors held constant, with a random intercept per ${grouping}`,
     rows,
     figures,
     ...fitSummary([
       ['Dependent variable', dependent],
       ['Grouping variable', grouping],
+      ['Category order', Array.isArray(result.category_order) ? result.category_order.map(categoryLabel).join(' < ') : ''],
+      ['Cutpoints', Array.isArray(result.cutpoints) ? result.cutpoints.map((value: unknown) => summary(value) || '—').join(', ') : ''],
       ['Observations', integer(nObs)],
       ['Groups', integer(nGroups)],
       ['df (model)', integer(toFiniteNumber(result.df_model))],
@@ -389,7 +406,8 @@ export function buildRegressionView(algorithm: string | null, result: any, yVar:
   if (!result || typeof result !== 'object') return null;
   if (algorithm === 'linear_regression') return linearView(result, yVar);
   if (algorithm === 'logistic_regression') return logisticView(result, yVar);
-  if (algorithm === 'lmm') return mixedView(result, yVar, false);
-  if (algorithm === 'glmm_binary') return mixedView(result, yVar, true);
+  if (algorithm === 'lmm') return mixedView(result, yVar, 'linear');
+  if (algorithm === 'glmm_binary') return mixedView(result, yVar, 'binary');
+  if (algorithm === 'glmm_ordinal') return mixedView(result, yVar, 'ordinal');
   return null;
 }

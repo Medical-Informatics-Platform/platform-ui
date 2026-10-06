@@ -1,4 +1,4 @@
-import { chiSquarePValue, formatPValue, formatRatio } from '../result-format';
+import { chiSquarePValue, formatPValue, formatRatio, ratioDigits } from '../result-format';
 import { buildRegressionView } from './regression-view';
 
 describe('result-format', () => {
@@ -18,6 +18,8 @@ describe('result-format', () => {
     expect(formatRatio(0.98999)).toBe('0.990');
     expect(formatRatio(903.51)).toBe('904');
     expect(formatRatio(1163.4)).toBe('1,163');
+    expect(ratioDigits(1.03513, 1.03648)).toBe(4);
+    expect(ratioDigits(1.49, 1.75)).toBe(3);
   });
 });
 
@@ -111,6 +113,29 @@ describe('buildRegressionView', () => {
     expect(view.figures[0].note).toBe('Stopped after 50 iterations; treat estimates with caution');
     // Latent-scale ICC: σu² / (σu² + π²/3).
     expect(view.figures[1].value).toBe('0.500');
+  });
+
+  it('reads the ordinal GLMM as odds of a higher category and lists its order and cutpoints', () => {
+    const view = buildRegressionView('glmm_ordinal', {
+      dependent_var: '3m mRS',
+      grouping_var: ['Unit'],
+      indep_vars: ['Intercept', 'Age'],
+      category_order: ['0.0', '1.0', '2.0'],
+      coefficients: [-2.39, 0.0352],
+      z_stats: [-23.2, 105.7],
+      pvalues: [1e-119, 0],
+      lower_ci: [-2.59, 0.0345],
+      upper_ci: [-2.19, 0.0358],
+      cutpoints: [0, 1.1058],
+      sigma_u2: 0.1377,
+      converged: true,
+    }, null)!;
+
+    expect(view.estimateLabel).toBe('Odds ratio');
+    expect(view.subtitle).toContain('odds of a higher 3m mRS category');
+    const fit = Object.fromEntries(view.fitMetrics.map((metric) => [metric.label, metric.value]));
+    expect(fit['Category order']).toBe('0 < 1 < 2');
+    expect(fit['Cutpoints']).toBe('0.000, 1.11');
   });
 
   it('returns null for algorithms without a coefficient view or incomplete payloads', () => {
