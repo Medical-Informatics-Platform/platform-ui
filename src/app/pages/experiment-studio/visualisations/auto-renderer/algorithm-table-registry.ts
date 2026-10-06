@@ -11,6 +11,7 @@ import {
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
+import { formatPValue } from '../result-format';
 
 export interface TableSpec {
   title?: string;
@@ -1131,9 +1132,44 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   },
 
   pearson_correlation: (result: PearsonResult) => {
-    // Guide says "Correlation Heatmap" is primary.
-    // We can return a small summary if needed, e.g. number of observations?
     const tables: TableSpec[] = [];
+    const raw = result as any;
+    const pick = (...keys: string[]): any => keys.map((key) => raw?.[key]).find((m) => m && typeof m === 'object' && !Array.isArray(m)) ?? null;
+    const correlations = pick('correlations');
+    // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
+    const pValues = pick('p_values', 'p-values', 'pvalues');
+    const ciLower = pick('ci_lo', 'low_confidence_intervals');
+    const ciUpper = pick('ci_hi', 'high_confidence_intervals');
+
+    if (correlations) {
+      const cols: string[] = correlations.variables ?? [];
+      const rows = Object.keys(correlations).filter((key) => key !== 'variables');
+      const square = rows.length === cols.length && rows.every((row) => cols.includes(row));
+      const cell = (matrix: any, row: string, col: string): number | null => {
+        const values = matrix?.[row];
+        const index = (matrix?.variables ?? cols).indexOf(col);
+        const value = Array.isArray(values) && index >= 0 ? Number(values[index]) : NaN;
+        return Number.isFinite(value) ? value : null;
+      };
+      // Each pair once: in a square matrix keep the pairs below the diagonal.
+      const pairs = rows.flatMap((row) => cols
+        .filter((col) => !square || cols.indexOf(col) < cols.indexOf(row))
+        .map((col) => ({ row, col, r: cell(correlations, row, col) }))
+        .filter((pair): pair is { row: string; col: string; r: number } => pair.r !== null));
+      pairs.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+
+      if (pairs.length) {
+        tables.push({
+          title: 'Correlation pairs',
+          columns: ['Variable A', 'Variable B', 'r', '95% CI lower', '95% CI upper', 'p'],
+          rows: pairs.map(({ row, col, r }) => {
+            const p = cell(pValues, row, col);
+            return [row, col, formatDecimal(r), formatDecimal(cell(ciLower, row, col)), formatDecimal(cell(ciUpper, row, col)), p === null ? '' : formatPValue(p)];
+          }),
+        });
+      }
+    }
+
     if (typeof result.n_obs === 'number') {
       tables.push({
         title: 'Number of Observations',

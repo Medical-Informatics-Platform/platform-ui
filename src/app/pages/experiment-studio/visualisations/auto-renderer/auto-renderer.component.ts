@@ -104,6 +104,11 @@ export class AutoRendererComponent {
     return colCount <= 3 && rowCount <= 12;
   }
 
+  /** Name columns read left-aligned; every other column holds numbers and aligns right. */
+  isTextColumn(column: string | undefined): boolean {
+    return column === 'Role' || column === 'Categories' || !!column?.startsWith('Variable');
+  }
+
   // helper
   formatValue(value: any): string {
     if (value === null || value === undefined) return '';
