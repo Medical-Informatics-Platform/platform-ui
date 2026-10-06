@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { CsvExportService } from '../../../../services/csv-export.service';
-import { getAlgorithmTableBuilder, TableSpec } from './algorithm-table-registry';
+import { getAlgorithmTableBuilder, TableSpec, TableTrim, trimTable } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
 
@@ -20,8 +20,9 @@ export class AutoRendererComponent {
   readonly enumMaps = input<EnumMaps | null>(null);
   readonly yVar = input<string | null>(null);
   readonly xVar = input<string | null>(null);
-  /** Table titles the page already shows above (as figures or a chart); left out here, kept in exports. */
-  readonly hiddenTitles = input<string[]>([]);
+  /** What the page already shows above (as figures or a chart): whole tables, or some of their
+   *  columns or rows. Left out here; exports keep every table. */
+  readonly covered = input<TableTrim[]>([]);
   /** Section heading drawn above the tables, only when at least one table is shown. */
   readonly heading = input<string | null>(null);
 
@@ -42,7 +43,7 @@ export class AutoRendererComponent {
     const yVar = this.yVar();
     const xVar = this.xVar();
     const fallbackTitle = this.fallbackTitle();
-    const hiddenTitles = this.hiddenTitles();
+    const covered = this.covered();
 
     if (!algorithm) {
       this.tableSpec.set(null);
@@ -65,7 +66,7 @@ export class AutoRendererComponent {
       yVar,
       xVar,
       fallbackTitle,
-      hiddenTitles,
+      covered,
     });
     if (key === this.lastKey && this.tableSpec()) return;
 
@@ -73,8 +74,11 @@ export class AutoRendererComponent {
       const enrichedValue = value && (labelMap || enumMaps || yVar || xVar)
         ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar, __xVar__: xVar }
         : value;
-      const hidden = new Set(hiddenTitles);
-      const spec = builder(enrichedValue).filter((table) => !hidden.has(table.title ?? ''));
+      const spec = builder(enrichedValue).flatMap((table) => {
+        const trim = covered.find((entry) => entry.title === table.title);
+        const kept = trim ? trimTable(table, trim) : table;
+        return kept ? [kept] : [];
+      });
       const explicitTitle = this.getResultTitle(enrichedValue);
       const resultTitle = explicitTitle ?? this.getFallbackTitle();
       this.tableSpec.set(this.applyResultTitle(spec, resultTitle, !!explicitTitle));

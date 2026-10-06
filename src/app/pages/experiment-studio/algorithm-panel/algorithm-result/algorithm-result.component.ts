@@ -92,8 +92,8 @@ export class AlgorithmResultComponent {
 
   readonly chartTitle = computed(() => AlgorithmChartRegistry[this.algorithm()]?.title ?? 'Charts');
 
-  /** Tables whose values the figures or charts above already show, so they are not repeated below. */
-  readonly hiddenTables = computed(() => [
+  /** What the figures or charts above already show of the tables, so it is not repeated below. */
+  readonly coveredTables = computed(() => [
     ...(this.summaryFigures() ? TABLES_SHOWN_AS_FIGURES[this.algorithm()] ?? [] : []),
     ...(this.renderedCharts().length ? AlgorithmChartRegistry[this.algorithm()]?.replaces ?? [] : []),
   ]);

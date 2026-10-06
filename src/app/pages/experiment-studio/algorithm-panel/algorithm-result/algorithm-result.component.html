@@ -26,7 +26,7 @@
   @if (isRenderable()) {
   <section class="results-detail-section" [class.results-detail-section--with-chart]="hasSummaryAbove()">
     <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
-      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" [hiddenTitles]="hiddenTables()"
+      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" [covered]="coveredTables()"
       [heading]="hasSummaryAbove() ? 'Detailed results' : null" />
   </section>
   }

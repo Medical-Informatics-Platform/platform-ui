@@ -1,5 +1,6 @@
 import { formatInteger, formatPValue, formatRatio, formatSignedNumber, formatSummaryNumber, toFiniteNumber } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
+import { TableTrim } from '../auto-renderer/algorithm-table-registry';
 import { KeyFigure } from './key-figures.component';
 
 /** Cohen's conventions for d / SMD: 0.2 small, 0.5 medium, 0.8 large. */
@@ -286,6 +287,21 @@ function classificationCvFigures(result: any): KeyFigure[] {
     }
   }
 
+  // Logistic regression CV also reports positive-class precision, recall and F1 per fold.
+  const rows: unknown[] = Array.isArray(result?.summary?.row_names) ? result.summary.row_names : [];
+  const foldMean = (key: string) => {
+    const values: unknown[] = Array.isArray(result?.summary?.[key]) ? result.summary[key] : [];
+    const mean = toFiniteNumber(values[rows.indexOf('average')]);
+    const sd = toFiniteNumber(values[rows.indexOf('stdev')]);
+    return mean === null ? null : `${mean.toFixed(3)}${sd === null ? '' : ` ± ${sd.toFixed(3)}`}`;
+  };
+  const f1 = foldMean('fscore');
+  if (f1 !== null) {
+    const [value, spread] = f1.split(' ± ');
+    const parts = [spread ? `± ${spread}` : '', foldMean('precision') ? `precision ${foldMean('precision')}` : '', foldMean('recall') ? `recall ${foldMean('recall')}` : ''];
+    figures.push({ label: 'Positive-class F1', value, note: `Fold mean ${parts.filter(Boolean).join(' · ')}` });
+  }
+
   const aucs = (Array.isArray(result?.roc_curves) ? result.roc_curves : [])
     .map((curve: any) => toFiniteNumber(curve?.auc))
     .filter((auc: number | null): auc is number => auc !== null);
@@ -350,18 +366,25 @@ const BUILDERS: Record<string, (result: any, context?: SummaryContext) => KeyFig
 };
 
 /**
- * Result tables whose every value the figures above already show; the result view leaves them
- * out on screen when the figures rendered (exports keep them).
+ * What the figures show of each result's tables, so the result view does not repeat it on screen
+ * (exports keep every table): a title alone covers the whole table, columns or rows only those.
  */
-export const TABLES_SHOWN_AS_FIGURES: Record<string, string[]> = {
-  ttest_independent: ['Independent T-Test'],
-  ttest_paired: ['Paired T-Test'],
-  ttest_onesample: ['One-Sample T-Test'],
-  binned_mann_whitney_u_test: ['Binned Mann-Whitney U Test'],
-  chi_squared: ['Chi-Squared Test Summary'],
-  fisher_exact: ["Fisher's Exact Test Summary"],
-  standardized_mean_difference: ['Standardized Mean Difference'],
-  linear_regression_cv: ['Error metrics'],
+export const TABLES_SHOWN_AS_FIGURES: Record<string, TableTrim[]> = {
+  ttest_independent: [{ title: 'Independent T-Test' }],
+  ttest_paired: [{ title: 'Paired T-Test' }],
+  ttest_onesample: [{ title: 'One-Sample T-Test' }],
+  binned_mann_whitney_u_test: [{ title: 'Binned Mann-Whitney U Test' }],
+  chi_squared: [{ title: 'Chi-Squared Test Summary' }],
+  fisher_exact: [{ title: "Fisher's Exact Test Summary" }],
+  standardized_mean_difference: [{ title: 'Standardized Mean Difference' }],
+  linear_regression_cv: [{ title: 'Error metrics' }],
+  // F, its degrees of freedom and p are in the figures; the sums and mean squares stay.
+  anova_oneway: [{ title: 'ANOVA Summary', columns: ['df', 'F', 'Prob>F'] }],
+  anova_twoway: [{ title: 'Two-Way ANOVA', columns: ['df', 'F', 'Prob>F'] }],
+  // Fold means and SDs are in the figures; the per-fold rows stay.
+  naive_bayes_gaussian_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
+  naive_bayes_categorical_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
+  logistic_regression_cv: [{ title: 'Logistic Regression CV Summary', rows: ['average', 'stdev'] }],
 };
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */

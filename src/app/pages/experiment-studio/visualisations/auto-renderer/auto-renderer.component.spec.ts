@@ -127,7 +127,7 @@ describe('AutoRendererComponent', () => {
   it('leaves out tables the page already shows above, before titling the rest', () => {
     setInputs({
       algorithm: 'linear_regression_cv',
-      hiddenTitles: ['Error metrics'],
+      covered: [{ title: 'Error metrics' }],
       heading: 'Detailed results',
       value: { n_obs: [100, 101], root_mean_sq_error: [1.1, 0.1] },
     });
@@ -139,7 +139,7 @@ describe('AutoRendererComponent', () => {
   it('renders nothing, heading included, when every table is shown above', () => {
     setInputs({
       algorithm: 'binned_mann_whitney_u_test',
-      hiddenTitles: ['Binned Mann-Whitney U Test'],
+      covered: [{ title: 'Binned Mann-Whitney U Test' }],
       heading: 'Detailed results',
       value: { u_stat: 1, p_value: 0.5, z_score: 0.1, n1: 10, n2: 12 },
     });
