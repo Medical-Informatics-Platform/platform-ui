@@ -25,6 +25,8 @@ export class ChartRendererComponent implements OnChanges {
   private applyBrandChartDefaults(chart: EChartsOption): EChartsOption {
     return {
       ...chart,
+      // ECharts writes a text description of each chart for screen readers; no decal patterns.
+      aria: { enabled: true, decal: { show: false } },
       color: CHART_SERIES_COLORS,
       series: this.softenSeries(chart.series),
     };

@@ -1,5 +1,5 @@
 import { ChartBuilderService } from './../../visualisations/charts/chart-builder.service';
-import { Component, input, computed, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AutoRendererComponent } from '../../visualisations/auto-renderer/auto-renderer.component';
 import { ChartRendererComponent } from '../../visualisations/charts/charts-renderer/charts-renderer.component';
@@ -99,6 +99,10 @@ export class AlgorithmResultComponent {
   ]);
 
   readonly hasSummaryAbove = computed(() => !!this.summaryFigures() || this.renderedCharts().length > 0);
+
+  /** The reader can ask for every value as a table again — what a chart shows is otherwise only pixels. */
+  readonly showAllTables = signal(false);
+  readonly tablesToCover = computed(() => (this.showAllTables() ? [] : this.coveredTables()));
 
   renderedCharts = computed(() => {
     if (!this.result() || !this.algorithm() || this.errorMessage()) return [];

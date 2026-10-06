@@ -92,4 +92,15 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     expect(html.querySelectorAll('.ar-card').length).toBe(0);
     expect(html.querySelector('.ar-heading')).toBeFalsy();
   });
+
+  it('brings the covered tables back on request', () => {
+    const html = render({ t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, se_diff: 0.3, ci_lower: -1.8, ci_upper: -0.6, cohens_d: -0.7 }, 'ttest_independent');
+    const toggle = html.querySelector<HTMLButtonElement>('.tables-toggle')!;
+
+    expect(toggle.textContent?.trim()).toBe('Show all values as tables');
+    toggle.click();
+    fixture.detectChanges();
+    expect(html.querySelectorAll('.ar-card').length).toBe(1);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  });
 });

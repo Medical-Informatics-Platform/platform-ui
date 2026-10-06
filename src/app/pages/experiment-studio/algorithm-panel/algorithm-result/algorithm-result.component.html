@@ -26,9 +26,15 @@
   @if (isRenderable()) {
   <section class="results-detail-section" [class.results-detail-section--with-chart]="hasSummaryAbove()">
     <app-auto-renderer [value]="mappedResult()" [algorithm]="algorithm()" [labelMap]="labelMap()" [enumMaps]="enumMaps()"
-      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" [covered]="coveredTables()"
+      [yVar]="yVar()" [xVar]="xVar()" [fallbackTitle]="fallbackResultTitle()" [covered]="tablesToCover()"
       [heading]="hasSummaryAbove() ? 'Detailed results' : null" />
   </section>
+  }
+
+  @if (coveredTables().length) {
+  <button type="button" class="tables-toggle" [attr.aria-pressed]="showAllTables()" (click)="showAllTables.set(!showAllTables())">
+    {{ showAllTables() ? 'Hide tables repeated above' : 'Show all values as tables' }}
+  </button>
   }
   }
 </div>

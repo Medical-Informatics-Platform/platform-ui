@@ -35,6 +35,26 @@
   padding-top: 0.25rem;
 }
 
+/* Text button under the results, in the CSV link's style. */
+.tables-toggle {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tables-toggle:hover,
+.tables-toggle:focus-visible {
+  background: #eef0fd;
+  outline: none;
+}
+
 /* Every table already shown above: drop the empty section so it adds no gap. */
 .results-detail-section:has(> app-auto-renderer:empty) {
   display: none;
