@@ -60,10 +60,11 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
 
   return [
     {
-      mipChartHeight: 140 + 56 * labels.length,
+      mipChartHeight: 156 + 56 * labels.length,
       title: {
         text: 'Confusion Matrix',
-        subtext: 'Rows: actual class · columns: predicted class · shading: share of the actual class',
+        // Two short lines, so the caption fits a 360px compare column.
+        subtext: 'Rows: actual · columns: predicted\nShading: share of the actual class',
         left: 'center',
       },
       tooltip: {
@@ -73,7 +74,7 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
           return `Actual: ${labels[actualIdx]}<br/>Predicted: ${labels[predictedIdx]}<br/>Count: <b>${params.data.count.toLocaleString('en-US')}</b> (${(share * 100).toFixed(1)}% of actual ${labels[actualIdx]})`;
         },
       },
-      grid: { top: 64, left: 28, right: 16, bottom: 40, containLabel: true },
+      grid: { top: 80, left: 28, right: 16, bottom: 40, containLabel: true },
       xAxis: {
         type: 'category',
         data: labels,

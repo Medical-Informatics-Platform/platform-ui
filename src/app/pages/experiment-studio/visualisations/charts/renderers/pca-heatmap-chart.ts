@@ -50,9 +50,14 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
     shares[i] === undefined ? name : `${name} · ${shares[i].toFixed(1)}%`
   );
 
-  const heatmapData = matrix.flatMap((row: number[], i: number) =>
-    row.map((value, j) => ({
-      value: [j, i, value],
+  // Variables as rows and components as columns: long variable names wrap on the left, and
+  // the short component headers fit even a 360px compare column.
+  const componentHeaders = componentNames.map((name, i) =>
+    shares[i] === undefined ? name : `${name}\n${shares[i].toFixed(1)}%`
+  );
+  const heatmapData = matrix.flatMap((row: number[], component: number) =>
+    row.map((value, variable) => ({
+      value: [component, variable, value],
       // White text on the saturated ends, ink on the pale middle.
       label: { color: Math.abs(value) >= 0.5 ? '#ffffff' : TEXT_COLOR },
     }))
@@ -60,21 +65,21 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
 
   const charts: EChartsOption[] = [];
   charts.push({
-    mipChartHeight: 120 + 44 * nComponents,
+    mipChartHeight: 150 + 40 * nVariables,
     title: {
       text: 'Loadings',
-      subtext: 'Weight of each variable in each component; rows list the share of variance the component explains',
+      subtext: 'Weight of each variable in each component, with the variance the component explains',
       left: 'center',
     },
     tooltip: {
       position: 'top',
       formatter: (params: any) => {
-        const [x, y, val] = params.value;
-        return `${componentLabels[y]}<br/>${variableNames[x]}: <b>${val.toFixed(3)}</b>`;
+        const [component, variable, val] = params.value;
+        return `${componentLabels[component]}<br/>${variableNames[variable]}: <b>${val.toFixed(3)}</b>`;
       },
     },
     grid: {
-      top: 64,
+      top: 84,
       left: 8,
       right: 16,
       bottom: 56,
@@ -82,19 +87,19 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
     },
     xAxis: {
       type: 'category',
-      data: variableNames,
+      data: componentHeaders,
       position: 'top',
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: AXIS_COLOR, interval: 0, width: 110, overflow: 'break' },
+      axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 15 },
     },
     yAxis: {
       type: 'category',
-      data: componentLabels,
+      data: variableNames,
       inverse: true,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: AXIS_COLOR, interval: 0 },
+      axisLabel: { color: AXIS_COLOR, interval: 0, width: 120, overflow: 'break' },
     },
     visualMap: {
       min: -1,

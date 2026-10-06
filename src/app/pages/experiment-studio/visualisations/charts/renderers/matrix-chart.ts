@@ -70,13 +70,14 @@ export function buildMatrixChart(result: any): EChartsOption[] {
         return lines.join('<br/>');
       },
     },
-    grid: { top: 16, left: 8, right: 16, bottom: 72, containLabel: true },
+    grid: { top: 16, left: 8, right: 24, bottom: 48, containLabel: true },
     xAxis: {
       type: 'category',
       data: cols,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: AXIS_COLOR, interval: 0, width: 110, overflow: 'break' },
+      // Slanted so neighbouring names never run together, even in a 360px compare column.
+      axisLabel: { color: AXIS_COLOR, interval: 0, rotate: 30, width: 110, overflow: 'truncate' },
     },
     yAxis: {
       type: 'category',
