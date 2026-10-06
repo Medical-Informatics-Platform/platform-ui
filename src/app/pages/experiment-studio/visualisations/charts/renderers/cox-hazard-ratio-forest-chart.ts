@@ -113,8 +113,8 @@ export function buildCoxHazardRatioForestChart(result: any): EChartsOption[] {
       subtext: 'Dashed line = no effect (HR 1). Values above 1 suggest higher event risk.',
       left: 'center',
       top: 4,
-      textStyle: { fontSize: 15, fontWeight: 600, color: '#0f4f4f' },
-      subtextStyle: { fontSize: 11, color: '#64748b', lineHeight: 16 },
+      textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
+      subtextStyle: { fontSize: 12, color: '#475569', lineHeight: 16 },
     },
     tooltip: {
       trigger: 'item',

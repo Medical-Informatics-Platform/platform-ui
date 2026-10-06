@@ -91,4 +91,15 @@ describe('buildSummaryFigures', () => {
     const figures = buildSummaryFigures('linear_regression_cv', { mean_sq_error: [1.2, 0.1] })!;
     expect(figures[0].label).toBe('RMSE');
   });
+
+  it('reports Cox events and flags too few events per covariate', () => {
+    const figures = byLabel(buildSummaryFigures('cox_regression_classical', {
+      summary: { n_obs: 582, n_events: 18, n_covariates: 3, converged: true },
+    })!);
+
+    expect(figures['Events'].note).toBe('3.1% of 582 participants');
+    expect(figures['Events per covariate'].value).toBe('6.0');
+    expect(figures['Events per covariate'].note).toBe('Below the usual 10; estimates may be unstable');
+    expect(figures['Converged']).toBeUndefined();
+  });
 });

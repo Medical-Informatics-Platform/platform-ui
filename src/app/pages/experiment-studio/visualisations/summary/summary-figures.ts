@@ -320,7 +320,43 @@ function linearRegressionCvFigures(result: any): KeyFigure[] {
   return figures;
 }
 
+/** Cox: how much information the model had (events, not rows, limit a survival model) and whether it converged. */
+function coxFigures(result: any): KeyFigure[] {
+  const summary = result?.summary;
+  if (!summary || typeof summary !== 'object') return [];
+  const figures: KeyFigure[] = [];
+  if (summary.converged === false) {
+    figures.push({ label: 'Converged', value: 'No', note: 'Treat hazard ratios with caution' });
+  }
+  const events = toFiniteNumber(summary.n_events);
+  const participants = toFiniteNumber(summary.n_obs);
+  if (events !== null) {
+    figures.push({
+      label: 'Events',
+      value: formatInteger(events),
+      note: participants ? `${percent(events / participants)} of ${formatInteger(participants)} participants` : undefined,
+    });
+  }
+  const covariates = toFiniteNumber(summary.n_covariates);
+  if (events !== null && covariates) {
+    // The usual rule of thumb asks for about ten events per covariate.
+    const perCovariate = events / covariates;
+    figures.push({
+      label: 'Events per covariate',
+      value: perCovariate.toFixed(1),
+      note: perCovariate < 10 ? 'Below the usual 10; estimates may be unstable' : `${formatInteger(covariates)} covariates in the model`,
+    });
+  }
+  const mcFadden = toFiniteNumber(summary.r_squared_mcf);
+  if (mcFadden !== null) {
+    figures.push({ label: 'Pseudo R² (McFadden)', value: mcFadden.toFixed(3), note: 'Stacked model against its intercept-only fit' });
+  }
+  return figures;
+}
+
 const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
+  cox_regression_classical: coxFigures,
+  cox_regression_stacked: coxFigures,
   linear_regression_cv: linearRegressionCvFigures,
   naive_bayes_gaussian_cv: classificationCvFigures,
   naive_bayes_categorical_cv: classificationCvFigures,
