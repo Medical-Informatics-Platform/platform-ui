@@ -35,14 +35,24 @@ export class AlgorithmResultComponent {
   yVar = input<string | null>(null);
   xVar = input<string | null>(null);
   labelMap = input<LabelMap | null>(null);
+  /** The run's algorithm parameters; names the groups a two-group test compared. */
+  parameters = input<Record<string, unknown> | null>(null);
 
   readonly regression = computed(() =>
     this.errorMessage() ? null : buildRegressionView(this.algorithm(), this.mappedResult(), this.yVar())
   );
 
   readonly summaryFigures = computed(() =>
-    this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult())
+    this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult(), this.groupLabels())
   );
+
+  /** groupA / groupB parameters as the x variable's enumeration labels. */
+  private readonly groupLabels = computed(() => {
+    const params = this.parameters();
+    const enumMap = this.enumMaps()?.[this.xVar() ?? ''] ?? {};
+    const label = (value: unknown) => (value === null || value === undefined || value === '' ? null : enumMap[String(value)] ?? String(value));
+    return { groupA: label(params?.['groupA']), groupB: label(params?.['groupB']) };
+  });
 
   constructor() { }
 

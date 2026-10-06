@@ -13,7 +13,7 @@ import { ExecutionPanelComponent } from './execution-panel.component';
   standalone: true,
   selector: 'app-algorithm-result',
   template: '<div class="fake-result"></div>',
-  inputs: ['result', 'schema', 'algorithm', 'enumMaps', 'yVar', 'xVar', 'labelMap', 'algorithmLabel'],
+  inputs: ['result', 'schema', 'algorithm', 'enumMaps', 'yVar', 'xVar', 'labelMap', 'algorithmLabel', 'parameters'],
 })
 class FakeResultComponent {}
 

@@ -208,7 +208,7 @@
         } @else if (experimentResult()) {
         <app-algorithm-result [result]="enrichedResult()" [schema]="outputSchema()"
           [algorithm]="experimentalAlgorithmName()" [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()"
-          [labelMap]="labelMap()" />
+          [labelMap]="labelMap()" [parameters]="runParameters()" />
         } @else {
         <p class="no-data-text">No results available for this experiment yet.</p>
         }

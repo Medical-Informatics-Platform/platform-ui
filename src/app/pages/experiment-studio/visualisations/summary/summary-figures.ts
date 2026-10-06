@@ -45,7 +45,13 @@ const first = (result: any, keys: string[]): number | null => {
   return null;
 };
 
-function ttestFigures(result: any): KeyFigure[] {
+/** Which groups a two-group test compared, when the caller knows the run's parameters. */
+export interface SummaryContext {
+  groupA: string | null;
+  groupB: string | null;
+}
+
+function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
   const figures: KeyFigure[] = [];
   const meanDiff = first(result, ['mean_diff']);
   const lower = first(result, ['ci_lower']);
@@ -57,10 +63,13 @@ function ttestFigures(result: any): KeyFigure[] {
   const nObs = first(result, ['n_obs']);
 
   if (meanDiff !== null) {
+    // Exaflow's independent t-test reports mean(group A) − mean(group B).
+    const groups = context?.groupA && context?.groupB ? `${context.groupA} − ${context.groupB}` : '';
+    const ci = lower !== null && upper !== null ? `95% CI ${formatSignedNumber(lower)} to ${formatSignedNumber(upper)}` : '';
     figures.push({
       label: 'Mean difference',
       value: formatSignedNumber(meanDiff),
-      note: lower !== null && upper !== null ? `95% CI ${formatSignedNumber(lower)} to ${formatSignedNumber(upper)}` : undefined,
+      note: [groups, ci].filter(Boolean).join(' · ') || undefined,
     });
   }
   if (p !== null) {
@@ -76,7 +85,9 @@ function ttestFigures(result: any): KeyFigure[] {
   return figures;
 }
 
-function mannWhitneyFigures(result: any): KeyFigure[] {
+function mannWhitneyFigures(result: any, context?: SummaryContext): KeyFigure[] {
+  const a = context?.groupA ?? 'group A';
+  const b = context?.groupB ?? 'group B';
   const figures: KeyFigure[] = [];
   const u = first(result, ['u_stat']);
   const z = first(result, ['z_score']);
@@ -94,11 +105,11 @@ function mannWhitneyFigures(result: any): KeyFigure[] {
     figures.push({
       label: 'P(A > B)',
       value: probability.toFixed(2),
-      note: `${probabilityMagnitude(probability)} effect · chance a group A value ranks above group B, ties half`,
+      note: `${probabilityMagnitude(probability)} effect · chance a ${a} value ranks above a ${b} value, ties half`,
     });
   }
   if (n1 !== null && n2 !== null) {
-    figures.push({ label: 'Group sizes', value: `${formatInteger(n1)} · ${formatInteger(n2)}`, note: 'Group A · group B' });
+    figures.push({ label: 'Group sizes', value: `${formatInteger(n1)} · ${formatInteger(n2)}`, note: `${a} · ${b}` });
   }
   return figures;
 }
@@ -354,7 +365,7 @@ function coxFigures(result: any): KeyFigure[] {
   return figures;
 }
 
-const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
+const BUILDERS: Record<string, (result: any, context?: SummaryContext) => KeyFigure[]> = {
   cox_regression_classical: coxFigures,
   cox_regression_stacked: coxFigures,
   linear_regression_cv: linearRegressionCvFigures,
@@ -362,8 +373,8 @@ const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
   naive_bayes_categorical_cv: classificationCvFigures,
   logistic_regression_cv: classificationCvFigures,
   ttest_independent: ttestFigures,
-  ttest_paired: ttestFigures,
-  ttest_onesample: ttestFigures,
+  ttest_paired: (result) => ttestFigures(result),
+  ttest_onesample: (result) => ttestFigures(result),
   binned_mann_whitney_u_test: mannWhitneyFigures,
   chi_squared: chiSquaredFigures,
   fisher_exact: fisherFigures,
@@ -373,9 +384,9 @@ const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
 };
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */
-export function buildSummaryFigures(algorithm: string | null, result: any): KeyFigure[] | null {
+export function buildSummaryFigures(algorithm: string | null, result: any, context?: SummaryContext): KeyFigure[] | null {
   const builder = algorithm ? BUILDERS[algorithm] : undefined;
   if (!builder || !result || typeof result !== 'object') return null;
-  const figures = builder(result);
+  const figures = builder(result, context);
   return figures.length ? figures : null;
 }

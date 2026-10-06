@@ -102,4 +102,13 @@ describe('buildSummaryFigures', () => {
     expect(figures['Events per covariate'].note).toBe('Below the usual 10; estimates may be unstable');
     expect(figures['Converged']).toBeUndefined();
   });
+
+  it('names the compared groups when the run parameters are known', () => {
+    const context = { groupA: 'yes', groupB: 'no' };
+    const ttest = byLabel(buildSummaryFigures('ttest_independent', { mean_diff: -3.45, ci_lower: -3.46, ci_upper: -3.44, p: 0 }, context)!);
+    expect(ttest['Mean difference'].note).toBe('yes − no · 95% CI −3.46 to −3.44');
+
+    const mwu = byLabel(buildSummaryFigures('binned_mann_whitney_u_test', { u_stat: 70, p_value: 0.01, n1: 10, n2: 10 }, context)!);
+    expect(mwu['Group sizes'].note).toBe('yes · no');
+  });
 });
