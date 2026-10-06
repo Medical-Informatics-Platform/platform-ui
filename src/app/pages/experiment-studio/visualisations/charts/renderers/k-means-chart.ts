@@ -12,9 +12,7 @@ export function buildKMeansChart(output: any): EChartsOption[] {
 
   const charts = variables.length === 2
     ? buildKMeans2DChart(centers as [number, number][], names, variables, title)
-    : variables.length === 3
-      ? buildKMeans3DChart(centers as [number, number, number][], variables, title)
-      : buildKMeansParallelCoordinatesChart(centers, names, variables, title);
+    : buildKMeansParallelCoordinatesChart(centers, names, variables, title);
 
   if (output.elbow) {
     charts.push(buildKMeansElbowChart(output.elbow));
@@ -60,60 +58,6 @@ function buildKMeans2DChart(
   ];
 }
 
-function buildKMeans3DChart(
-  centers: [number, number, number][],
-  variables: string[],
-  title: string
-): EChartsOption[] {
-  const series: any[] = [
-    {
-      type: 'scatter3D',
-      data: centers,
-      symbolSize: 20,
-    },
-  ];
-
-  return [
-    {
-      title: {
-        text: `${title} (3D)`,
-        left: 'center',
-      },
-      xAxis3D: {
-        type: 'value',
-        name: variables[0],
-      },
-      yAxis3D: {
-        type: 'value',
-        name: variables[1],
-      },
-      zAxis3D: {
-        type: 'value',
-        name: variables[2],
-      },
-      grid3D: {
-        boxWidth: 100,
-        boxDepth: 100,
-        light: {
-          main: {
-            intensity: 1.2,
-          },
-          ambient: {
-            intensity: 0.3,
-          },
-        },
-      },
-      tooltip: {
-        formatter: (params: any) => {
-          const [x, y, z] = params.value;
-          return `${variables[0]}: ${x}<br>${variables[1]}: ${y}<br>${variables[2]}: ${z}`;
-        },
-      },
-      series: series as any, // Type assertion to bypass TS type check
-    },
-  ];
-}
-
 function buildKMeansParallelCoordinatesChart(
   centers: number[][],
   names: string[],
@@ -130,19 +74,21 @@ function buildKMeansParallelCoordinatesChart(
 
   return [
     {
+      // Each axis keeps its own scale, so variables in different units share one profile line per cluster.
+      mipChartHeight: 380,
       title: {
         text: `${title} (Parallel Coordinates)`,
-        left: 'center',
+        show: false,
       },
       tooltip: {
         trigger: 'item',
       },
       legend: {
-        top: 30,
+        top: 0,
         type: 'scroll',
       },
       parallel: {
-        top: 90,
+        top: 64,
         left: 70,
         right: 70,
         bottom: 60,
@@ -163,15 +109,19 @@ function buildKMeansParallelCoordinatesChart(
 
 function buildKMeansElbowChart(elbow: any): EChartsOption {
   const sortedKs = Object.keys(elbow.inertia_by_k).sort((a, b) => Number(a) - Number(b));
+  const selected = String(elbow.selected_k);
 
   return {
+    mipChartHeight: 340,
     title: {
       text: 'Elbow Curve',
       left: 'center',
+      textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
     },
     tooltip: {
       trigger: 'axis',
     },
+    grid: { top: 56, right: 32, bottom: 48, left: 88 },
     xAxis: {
       type: 'category',
       name: 'k',
@@ -179,20 +129,20 @@ function buildKMeansElbowChart(elbow: any): EChartsOption {
     },
     yAxis: {
       type: 'value',
-      name: 'Inertia',
+      name: 'Within-cluster sum of squares',
     },
     series: [
       {
         type: 'line',
-        name: 'Inertia',
+        name: 'Within-cluster sum of squares',
         data: sortedKs.map(k => elbow.inertia_by_k[k]),
+        symbolSize: 6,
         markPoint: {
-          data: [
-            {
-              coord: [String(elbow.selected_k), elbow.inertia_by_k[String(elbow.selected_k)]],
-              name: 'Selected k',
-            },
-          ],
+          symbol: 'circle',
+          symbolSize: 12,
+          itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
+          label: { show: true, position: 'top', distance: 8, color: '#0f172a', fontWeight: 600, formatter: `k = ${selected}` },
+          data: [{ coord: [selected, elbow.inertia_by_k[selected]], name: 'Selected k' }],
         },
       },
     ],

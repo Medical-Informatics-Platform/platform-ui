@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { EChartsOption } from 'echarts';
 import { NgxEchartsModule } from 'ngx-echarts';
 import { SimpleChanges } from '@angular/core';
+import { CHART_SERIES_COLORS } from '../chart-palette';
 
 @Component({
   selector: 'app-chart-renderer',
@@ -12,7 +13,6 @@ import { SimpleChanges } from '@angular/core';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ChartRendererComponent implements OnChanges {
-  private readonly brandChartColors = ['#2B33E9', '#7F9CE8', '#FFBA08', '#DFEFE4'];
   readonly charts = input<EChartsOption[]>([]);
   themedCharts: EChartsOption[] = [];
 
@@ -25,7 +25,7 @@ export class ChartRendererComponent implements OnChanges {
   private applyBrandChartDefaults(chart: EChartsOption): EChartsOption {
     return {
       ...chart,
-      color: this.brandChartColors,
+      color: CHART_SERIES_COLORS,
       series: this.softenSeries(chart.series),
     };
   }
@@ -52,14 +52,13 @@ export class ChartRendererComponent implements OnChanges {
       };
     }
 
+    // Lines keep their series colour and their real shape: smoothing invents bends
+    // between discrete points (an elbow curve, a ROC curve) that the data does not have.
     if (type === 'line') {
-      next['smooth'] = next['smooth'] ?? true;
       next['lineStyle'] = {
-        width: 2.5,
-        color: this.brandChartColors[0],
+        width: 2,
         ...this.objectValue(next['lineStyle']),
       };
-      next['areaStyle'] = next['areaStyle'] ?? { color: 'rgba(127, 156, 232, 0.12)' };
     }
 
     return next;

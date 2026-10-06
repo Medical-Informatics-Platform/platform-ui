@@ -429,6 +429,16 @@ export function mapAlgorithmResultEnums(
       }
     case 'histogram':
       return mapMultipleHistograms(result, safeEnumMaps, yVar);
+    case 'kmeans': {
+      if (!labelMap || !Array.isArray(result?.variables)) return result;
+      return {
+        ...result,
+        variables: result.variables.map((code: string) => labelMap[code] ?? code),
+        clusters: Array.isArray(result.clusters)
+          ? result.clusters.map((cluster: any) => ({ ...cluster, center: mapObjectKeys(cluster?.center ?? {}, labelMap) }))
+          : result.clusters,
+      };
+    }
     case 'standardized_mean_difference': {
       const map = getEnumMapForVar(safeEnumMaps, xVar);
       if (!map || !Array.isArray(result?.comparisons)) return result;

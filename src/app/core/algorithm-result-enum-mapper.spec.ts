@@ -103,4 +103,17 @@ describe('mapAlgorithmResultEnums', () => {
 
     expect(mapped.comparisons).toEqual([{ group1: 'male', group2: 'female', smd: -0.277 }]);
   });
+
+  it('labels k-means variables and the matching centre keys', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'kmeans',
+      { variables: ['age', 'nihss_24h'], clusters: [{ label: 'Cluster 0', center: { age: 79.5, nihss_24h: 2 } }] },
+      {},
+      {},
+      { age: 'Age', nihss_24h: '24h score' }
+    );
+
+    expect(mapped.variables).toEqual(['Age', '24h score']);
+    expect(mapped.clusters[0].center).toEqual({ Age: 79.5, '24h score': 2 });
+  });
 });

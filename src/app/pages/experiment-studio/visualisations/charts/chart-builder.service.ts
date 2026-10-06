@@ -2,16 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { EChartsOption } from 'echarts';
 import { AlgorithmChartRegistry } from './chart-registry';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-// @ts-expect-error echarts-gl ships no types for its CommonJS dist bundle
-import * as echartsGl from 'echarts-gl/dist/echarts-gl.js';
-
-function ensureEchartsGlRegistered(): void {
-  // echarts-gl omits dist/ from sideEffects; keep a live reference so the
-  // CommonJS bundle is evaluated and scatter3D/grid3D types register.
-  if (echartsGl == null) {
-    throw new Error('echarts-gl failed to load');
-  }
-}
 
 @Injectable({ providedIn: 'root' })
 export class ChartBuilderService {
@@ -19,7 +9,6 @@ export class ChartBuilderService {
 
 
   getChartsForAlgorithm(algorithm: string, result: any, _fallbackTitle?: string | null): EChartsOption[] {
-    ensureEchartsGlRegistered();
     const config = AlgorithmChartRegistry[algorithm];
     if (!config) return [];
 
