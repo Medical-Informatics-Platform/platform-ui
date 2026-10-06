@@ -15,8 +15,9 @@ export class ChartBuilderService {
     // enrich with display names
     const enrichedInput = this.enrichLabels(result);
 
-    // PCA specific enrichment: inject actual variable names for the heatmap
-    if (algorithm === 'pca' || algorithm === 'pca_with_transformation') {
+    // PCA: the studio's current selection names the heatmap columns, unless the caller
+    // (a saved experiment in the dashboard) already supplied that run's own variable names.
+    if ((algorithm === 'pca' || algorithm === 'pca_with_transformation') && !enrichedInput?.variable_names?.length) {
       const allSelected = this.experimentService.algorithmAssignableVariables();
 
       if (allSelected.length > 0) {

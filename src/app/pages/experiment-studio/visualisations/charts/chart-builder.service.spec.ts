@@ -40,8 +40,9 @@ describe('ChartBuilderService', () => {
     });
 
     expect(charts.length).toBe(2);
-    expect((charts[0] as any).title?.text).toBe('Eigenvectors');
-    expect((charts[1] as any).title?.text).toBe('Scree Plot (Eigenvalues)');
+    expect((charts[0] as any).title?.text).toBe('Loadings');
+    expect((charts[1] as any).title?.text).toBe('Variance explained');
+    expect((charts[1] as any).series[0].data).toEqual([66.7, 33.3]);
   });
 
   it('uses fallback title when result title is missing', () => {

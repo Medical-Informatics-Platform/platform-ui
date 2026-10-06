@@ -955,12 +955,33 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     if (!result) return [];
     const tables: TableSpec[] = [];
 
-    // Eigenvalues
-    if (result.eigenvalues && result.eigenvalues.length) {
+    const eigenvalues = (result.eigenvalues ?? []).map(Number);
+    const total = eigenvalues.reduce((sum, value) => sum + value, 0);
+    if (eigenvalues.length) {
+      let cumulative = 0;
+      const percent = (value: number) => (total > 0 ? ((value / total) * 100).toFixed(1) : '');
       tables.push({
         title: 'PCA Summary',
-        columns: ['Component', 'Eigenvalue'],
-        rows: result.eigenvalues.map((v, i) => [`PC${i + 1}`, formatDecimal(v)])
+        columns: ['Component', 'Eigenvalue', 'Variance explained (%)', 'Cumulative (%)'],
+        rows: eigenvalues.map((value, i) => {
+          cumulative += value;
+          return [`PC${i + 1}`, formatDecimal(value), percent(value), percent(cumulative)];
+        }),
+      });
+    }
+
+    // Rows of eigenvectors are components; the table turns them so each variable reads across.
+    const vectors = Array.isArray(result.eigenvectors) ? result.eigenvectors : [];
+    const nVariables = vectors[0]?.length ?? 0;
+    if (nVariables) {
+      const names: unknown[] = Array.isArray((result as any).variable_names) ? (result as any).variable_names : [];
+      tables.push({
+        title: 'Loadings',
+        columns: ['Variable', ...vectors.map((_, i) => `PC${i + 1}`)],
+        rows: Array.from({ length: nVariables }, (_, j) => [
+          String(names[j] ?? `Var${j + 1}`),
+          ...vectors.map((row) => formatDecimal(row[j])),
+        ]),
       });
     }
 
