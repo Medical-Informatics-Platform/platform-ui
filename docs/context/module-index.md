@@ -50,9 +50,9 @@ Notes: Browser validation often requires a backend with data models, algorithms,
 
 ## `src/app/pages/experiment-studio/visualisations`
 Purpose: Chart/table rendering for algorithm outputs, histograms, metadata browsers, and auto-rendered results.
-Key files: `charts/chart-registry.ts`, `charts/chart-builder.service.ts`, `auto-renderer/algorithm-table-registry.ts`, renderer files under `charts/renderers`.
+Key files: `charts/chart-registry.ts` (builder + section title per algorithm), `charts/chart-builder.service.ts`, `charts/chart-palette.ts` (the one 8-slot series palette), `auto-renderer/algorithm-table-registry.ts`, renderer files under `charts/renderers`, `regression/regression-view.ts` + `regression-result.component` (coefficient view for linear/logistic regression, LMM, binary GLMM), `summary/summary-figures.ts` + `key-figures.component` (headline figures for tests and cross-validated models), `result-format.ts` (p-value, ratio and number formatting, χ² tail).
 Used by: Algorithm result panels, dashboard detail/compare, and statistics views.
-Rules: Register new algorithm outputs in the existing registries; preserve legacy aliases when changing algorithm keys.
+Rules: Register new algorithm outputs in the existing registries; preserve legacy aliases when changing algorithm keys. `AlgorithmResultComponent` picks one layout: the regression view when `buildRegressionView` returns one (it then replaces charts and tables), otherwise key figures from `buildSummaryFigures`, then the registry charts, then the tables. View builders are pure functions with specs; components only render. The PDF export reads the table registry, so tables stay complete even where a summary view leads on screen.
 Tests: Registry and renderer specs live in this subtree.
 Notes: Registry keys and legacy aliases are compatibility-sensitive; check stored experiment data before removing an alias.
 
