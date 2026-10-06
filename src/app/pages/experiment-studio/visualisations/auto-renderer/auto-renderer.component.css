@@ -137,11 +137,6 @@
   overflow-wrap: anywhere;
 }
 
-.ar-table td.ar-cell-text {
-  text-align: left;
-  font-family: var(--font-sans);
-}
-
 .ar-table td.ar-role-factor {
   font-weight: 700;
   color: var(--covariate-color);
@@ -156,6 +151,13 @@
 .ar-table thead th:not(:first-child) {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Name columns read left; declared after the right-align rule it overrides (same specificity). */
+.ar-table td.ar-cell-text,
+.ar-table thead th.ar-cell-text {
+  text-align: left;
+  font-family: var(--font-sans);
 }
 
 @media (max-width: 1024px) {

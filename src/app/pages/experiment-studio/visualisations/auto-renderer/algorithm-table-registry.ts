@@ -1263,40 +1263,34 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         : [];
     if (!featurewise.length) return [];
 
+    // One rule column and one kept-range column instead of strategy/tail/fold and two bounds,
+    // and each variable's datasets kept together.
+    const strategyLabels: Record<string, string> = { gaussian: 'Mean ± SD', iqr: 'IQR', mad: 'MAD', quantile: 'Quantile' };
+    const tailLabels: Record<string, string> = { left: 'lower tail', right: 'upper tail', both: 'both tails' };
+    const bound = (value: unknown) => (value === null || value === undefined ? '—' : formatDecimal(value));
+    const rows = featurewise.filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets');
+    const variableOrder = [...new Set(rows.map((row: any) => row?.variable))];
+    rows.sort((a: any, b: any) => variableOrder.indexOf(a?.variable) - variableOrder.indexOf(b?.variable));
+
     return [{
       title: 'Outlier Report',
-      columns: [
-        'Variable',
-        'Dataset',
-        'Strategy',
-        'Tail',
-        'Fold',
-        'Lower bound',
-        'Upper bound',
-        'Lower outliers',
-        'Upper outliers',
-        'Total outliers',
-        'Outlier %',
-      ],
-      rows: featurewise
-        .filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets')
-        .map((row: any) => {
+      columns: ['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Outlier %'],
+      rows: rows.map((row: any) => {
         const data = row?.data ?? {};
+        const strategy = data.strategy ? strategyLabels[data.strategy] ?? data.strategy : 'Unavailable';
+        const fold = data.fold === null || data.fold === undefined ? '' : ` × ${formatDecimal(data.fold)}`;
+        const tail = data.tail ? `, ${tailLabels[data.tail] ?? data.tail}` : '';
         return [
           row?.variable ?? '',
           row?.dataset ?? '',
-          data.strategy ?? 'Unavailable',
-          data.tail ?? 'Unavailable',
-          formatNullableOutlierValue(data.fold),
-          formatNullableOutlierValue(data.lower_bound),
-          formatNullableOutlierValue(data.upper_bound),
+          `${strategy}${fold}${tail}`,
+          `${bound(data.lower_bound)} to ${bound(data.upper_bound)}`,
           formatNullableOutlierValue(data.lower_outlier_count),
           formatNullableOutlierValue(data.upper_outlier_count),
           formatNullableOutlierValue(data.total_outlier_count),
           formatNullableOutlierValue(data.total_outlier_percentage),
         ];
       }),
-      layout: 'full',
     }];
   },
 

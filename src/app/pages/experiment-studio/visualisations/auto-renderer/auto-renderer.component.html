@@ -13,7 +13,7 @@
         <thead>
           <tr>
             @for (col of table.columns; track col) {
-            <th>{{ col }}</th>
+            <th [class.ar-cell-text]="isTextColumn(col)">{{ col }}</th>
             }
           </tr>
         </thead>

@@ -431,6 +431,13 @@ export function mapAlgorithmResultEnums(
       }
     case 'histogram':
       return mapMultipleHistograms(result, safeEnumMaps, yVar);
+    case 'outlier_report': {
+      if (!labelMap || !Array.isArray(result?.featurewise)) return result;
+      return {
+        ...result,
+        featurewise: result.featurewise.map((row: any) => ({ ...row, variable: labelMap[row?.variable] ?? row?.variable })),
+      };
+    }
     case 'kmeans': {
       if (!labelMap || !Array.isArray(result?.variables)) return result;
       return {

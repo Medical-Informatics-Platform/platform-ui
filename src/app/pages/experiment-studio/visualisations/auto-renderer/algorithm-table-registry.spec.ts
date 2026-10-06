@@ -306,10 +306,12 @@ describe('AlgorithmTableRegistry', () => {
     });
 
     expect(tables.length).toBe(1);
-    expect(tables[0].columns).toContain('Outlier %');
+    expect(tables[0].columns).toEqual(['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Outlier %']);
+    expect(tables[0].rows[0][2]).toBe('IQR × 1.5, both tails');
+    expect(tables[0].rows[0][3]).toBe('— to 90');
+    expect(tables[0].rows[0][4]).toBe('0');
     expect(tables[0].rows[0][5]).toBe('Unavailable');
-    expect(tables[0].rows[0][7]).toBe('0');
-    expect(tables[0].rows[0][9]).toBe('0');
+    expect(tables[0].rows[0][6]).toBe('0');
   });
 
   it('filters frontend metadata keys from ttest results', () => {

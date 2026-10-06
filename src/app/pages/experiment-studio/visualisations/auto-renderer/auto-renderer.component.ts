@@ -106,7 +106,7 @@ export class AutoRendererComponent {
 
   /** Name columns read left-aligned; every other column holds numbers and aligns right. */
   isTextColumn(column: string | undefined): boolean {
-    return column === 'Role' || column === 'Categories' || !!column?.startsWith('Variable');
+    return column === 'Role' || column === 'Categories' || column === 'Dataset' || column === 'Rule' || !!column?.startsWith('Variable');
   }
 
   // helper
