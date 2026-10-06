@@ -23,7 +23,8 @@ export function readConfusionMatrix(cm: any): ConfusionMatrix | null {
       [Number(cm.tp) || 0, Number(cm.fn) || 0],
       [Number(cm.fp) || 0, Number(cm.tn) || 0],
     ];
-    labels = ['Positive', 'Negative'];
+    const positive = typeof cm.positive_label === 'string' && cm.positive_label ? cm.positive_label : null;
+    labels = positive ? [positive, `not ${positive}`] : ['Positive', 'Negative'];
   }
 
   if (!matrix.length || matrix.length !== labels.length) return null;

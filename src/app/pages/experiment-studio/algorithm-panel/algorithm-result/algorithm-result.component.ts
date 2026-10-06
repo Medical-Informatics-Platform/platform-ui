@@ -39,8 +39,15 @@ export class AlgorithmResultComponent {
   parameters = input<Record<string, unknown> | null>(null);
 
   readonly regression = computed(() =>
-    this.errorMessage() ? null : buildRegressionView(this.algorithm(), this.mappedResult(), this.yVar())
+    this.errorMessage() ? null : buildRegressionView(this.algorithm(), this.mappedResult(), this.yVar(), this.positiveClassLabel())
   );
+
+  /** The positive_class parameter of a binary model as the outcome's enumeration label. */
+  private readonly positiveClassLabel = computed(() => {
+    const value = this.parameters()?.['positive_class'];
+    if (value === null || value === undefined || value === '') return null;
+    return this.enumMaps()?.[this.yVar() ?? '']?.[String(value)] ?? String(value);
+  });
 
   readonly summaryFigures = computed(() =>
     this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult(), this.groupLabels())
@@ -68,14 +75,17 @@ export class AlgorithmResultComponent {
     return !!this.result() && !!this.algorithm() && !this.errorMessage();
   });
 
-  mappedResult = computed(() =>
-    this.errorMessage()
-      ? this.result()
-      : mapAlgorithmResultEnums(this.algorithm(), this.result(), this.enumMaps(), {
-        y: this.yVar(),
-        x: this.xVar(),
-      }, this.labelMap())
-  );
+  mappedResult = computed(() => {
+    if (this.errorMessage()) return this.result();
+    const mapped = mapAlgorithmResultEnums(this.algorithm(), this.result(), this.enumMaps(), {
+      y: this.yVar(),
+      x: this.xVar(),
+    }, this.labelMap());
+    // A binary tp/fp/fn/tn matrix names its classes after the positive class when the run says which.
+    const cm = mapped?.confusion_matrix;
+    const positive = this.positiveClassLabel();
+    return positive && cm && cm.tp !== undefined ? { ...mapped, confusion_matrix: { ...cm, positive_label: positive } } : mapped;
+  });
 
   fallbackResultTitle = computed(() => {
     const explicitTitle = this.mappedResult()?.title;

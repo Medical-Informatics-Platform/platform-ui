@@ -17,6 +17,11 @@ describe('Chart renderers regressions', () => {
     expect(cells).toContainEqual([1, 1, 7]); // TN
   });
 
+  it('names a binary matrix after the positive class when the run gives it', () => {
+    expect(readConfusionMatrix({ tp: 5, fp: 1, fn: 2, tn: 7, positive_label: 'yes' })!.labels).toEqual(['yes', 'not yes']);
+    expect(readConfusionMatrix({ tp: 5, fp: 1, fn: 2, tn: 7 })!.labels).toEqual(['Positive', 'Negative']);
+  });
+
   it('drops classes absent from both sides and shades by share of the actual class', () => {
     const confusion = readConfusionMatrix({ data: [[3, 1, 0], [2, 6, 0], [0, 0, 0]], labels: ['no', 'yes', 'unknown'] })!;
     expect(confusion.labels).toEqual(['no', 'yes']);

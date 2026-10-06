@@ -237,7 +237,7 @@ function linearView(result: any, yVar: string | null): RegressionView | null {
 }
 
 /** Exaflow nests the logistic fit under `summary`; indep_vars and dependent_var stay top-level. */
-function logisticView(result: any, yVar: string | null): RegressionView | null {
+function logisticView(result: any, yVar: string | null, positiveClass: string | null): RegressionView | null {
   const fit = result.summary;
   const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
   const estimates = arrayOf(fit?.coefficients);
@@ -297,7 +297,7 @@ function logisticView(result: any, yVar: string | null): RegressionView | null {
     coefficientLabel: 'Log-odds',
     nullValue: 1,
     statLabel: 'z',
-    subtitle: `Effect on the odds of ${dependent}, other predictors held constant`,
+    subtitle: `Effect on the odds ${outcomeOdds(dependent, positiveClass)}, other predictors held constant`,
     rows,
     figures,
     ...fitSummary([
@@ -315,6 +315,11 @@ function logisticView(result: any, yVar: string | null): RegressionView | null {
       ['BIC', summary(fit.bic)],
     ]),
   };
+}
+
+/** "that 3m mRS good outcome is yes" when the run names its positive class, else "of 3m mRS good outcome". */
+function outcomeOdds(dependent: string, positiveClass: string | null): string {
+  return positiveClass ? `that ${dependent} is ${positiveClass}` : `of ${dependent}`;
 }
 
 /** Exaflow sends grouping_var as a one-item list; older payloads as a string. */
@@ -349,7 +354,7 @@ type MixedKind = 'linear' | 'binary' | 'ordinal';
  * The ordinal model is cumulative logit, P(Y ≤ j) = σ(κⱼ − η), so exp(β) multiplies the odds of
  * a higher outcome category.
  */
-function mixedView(result: any, yVar: string | null, kind: MixedKind): RegressionView | null {
+function mixedView(result: any, yVar: string | null, kind: MixedKind, positiveClass: string | null = null): RegressionView | null {
   const logit = kind !== 'linear';
   const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
   const estimates = arrayOf(result.coefficients);
@@ -397,7 +402,9 @@ function mixedView(result: any, yVar: string | null, kind: MixedKind): Regressio
     nullValue: logit ? 1 : 0,
     statLabel: logit ? 'z' : 't',
     subtitle: `${
-      kind === 'ordinal' ? `Effect on the odds of a higher ${dependent} category` : `Effect on ${logit ? 'the odds of ' : ''}${dependent}`
+      kind === 'ordinal'
+        ? `Effect on the odds of a higher ${dependent} category`
+        : logit ? `Effect on the odds ${outcomeOdds(dependent, positiveClass)}` : `Effect on ${dependent}`
     }, other predictors held constant, with a random intercept per ${grouping}`,
     rows,
     figures,
@@ -500,12 +507,17 @@ function coxView(result: any, yVar: string | null): RegressionView | null {
 }
 
 /** The coefficient/fit view for a result, or null when the algorithm has none or the payload is incomplete. */
-export function buildRegressionView(algorithm: string | null, result: any, yVar: string | null): RegressionView | null {
+export function buildRegressionView(
+  algorithm: string | null,
+  result: any,
+  yVar: string | null,
+  positiveClass: string | null = null,
+): RegressionView | null {
   if (!result || typeof result !== 'object') return null;
   if (algorithm === 'linear_regression') return linearView(result, yVar);
-  if (algorithm === 'logistic_regression') return logisticView(result, yVar);
+  if (algorithm === 'logistic_regression') return logisticView(result, yVar, positiveClass);
   if (algorithm === 'lmm') return mixedView(result, yVar, 'linear');
-  if (algorithm === 'glmm_binary') return mixedView(result, yVar, 'binary');
+  if (algorithm === 'glmm_binary') return mixedView(result, yVar, 'binary', positiveClass);
   if (algorithm === 'glmm_ordinal') return mixedView(result, yVar, 'ordinal');
   if (algorithm === 'cox_regression_classical' || algorithm === 'cox_regression_stacked') return coxView(result, yVar);
   return null;

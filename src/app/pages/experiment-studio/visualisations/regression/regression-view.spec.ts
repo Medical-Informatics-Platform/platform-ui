@@ -76,6 +76,13 @@ describe('buildRegressionView', () => {
     ]);
   });
 
+  it('names the positive class in the logistic subtitle when the run gives it', () => {
+    expect(buildRegressionView('logistic_regression', logistic, null, 'yes')!.subtitle)
+      .toBe('Effect on the odds that 3m mRS good outcome is yes, other predictors held constant');
+    expect(buildRegressionView('logistic_regression', logistic, null)!.subtitle)
+      .toBe('Effect on the odds of 3m mRS good outcome, other predictors held constant');
+  });
+
   it('derives the model likelihood-ratio test from ll and ll0', () => {
     const view = buildRegressionView('logistic_regression', logistic, null)!;
     const test = view.figures.find((figure) => figure.label === 'Model LR test')!;
