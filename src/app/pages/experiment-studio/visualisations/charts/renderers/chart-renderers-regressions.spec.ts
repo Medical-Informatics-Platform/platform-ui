@@ -43,6 +43,23 @@ describe('Chart renderers regressions', () => {
     expect((charts[0] as any).series?.[0]?.name).toBe('Cluster 0');
   });
 
+  it('sizes two-variable kmeans bubbles by the midpoint of each size interval', () => {
+    const charts = buildKMeansChart({
+      variables: ['Age', 'Score'],
+      clusters: [
+        { label: 'Cluster 0', size_interval: '90-110', center: { Age: 70, Score: 3 } },
+        { label: 'Cluster 1', size_interval: '20-30', center: { Age: 50, Score: 4 } },
+      ],
+      elbow: null,
+    });
+
+    const series = (charts[0] as any).series;
+    expect(series.map((s: any) => s.data[0])).toEqual([[70, 3], [50, 4]]);
+    // Area proportional to size: the largest cluster gets the full radius.
+    expect(series[0].symbolSize).toBe(48);
+    expect(series[1].symbolSize).toBeCloseTo(12 + 36 * Math.sqrt(25 / 100), 6);
+  });
+
   it('appends an elbow curve when kmeans used elbow selection', () => {
     const charts = buildKMeansChart({
       variables: ['v1', 'v2'],

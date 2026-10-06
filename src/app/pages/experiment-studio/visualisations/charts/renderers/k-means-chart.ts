@@ -10,8 +10,9 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const names: string[] = clusters.map((c: any) => c.label);
   const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
+  const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
   const charts = variables.length === 2
-    ? buildKMeans2DChart(centers as [number, number][], names, variables, title)
+    ? buildKMeans2DChart(centers as [number, number][], names, variables, sizes)
     : buildKMeansParallelCoordinatesChart(centers, names, variables, title);
 
   if (output.elbow) {
@@ -21,39 +22,60 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   return charts;
 }
 
+/** Cluster sizes arrive as privacy-safe intervals ("87520-87529"); the midpoint is close enough to scale a bubble. */
+function intervalMidpoint(interval: unknown): number | null {
+  const match = String(interval ?? '').match(/^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*$/);
+  if (match) return (Number(match[1]) + Number(match[2])) / 2;
+  const single = Number(interval);
+  return Number.isFinite(single) ? single : null;
+}
+
+/** Two variables: one bubble per centre, its area proportional to the cluster's size. */
 function buildKMeans2DChart(
   centers: [number, number][],
   names: string[],
   variables: string[],
-  title: string
+  sizes: (number | null)[]
 ): EChartsOption[] {
-  const series = centers.map(([x, y]: [number, number], i: number) => ({
-    name: names[i],
-    type: 'scatter',
-    data: [[x, y]],
-    symbolSize: 20,
-    label: {
-      show: true,
-      formatter: names[i],
-      position: 'top',
-    },
-  }));
+  const largest = Math.max(1, ...sizes.map((size) => size ?? 0));
+  const radius = (size: number | null) => (size === null ? 18 : 12 + 36 * Math.sqrt(size / largest));
+  const axis = (name: string) => ({
+    type: 'value' as const,
+    name,
+    nameLocation: 'middle' as const,
+    nameGap: 32,
+    scale: true,
+    // Room around the extreme centres so their bubbles do not sit on the axes.
+    boundaryGap: ['15%', '15%'] as [string, string],
+    nameTextStyle: { color: '#475569', fontWeight: 600 },
+    axisLabel: { color: '#475569' },
+    splitLine: { lineStyle: { color: '#e2e8f0' } },
+  });
 
   return [
     {
-      title: {
-        text: title,
-        left: 'center',
+      mipChartHeight: 380,
+      title: { text: 'K-Means Centers', show: false },
+      legend: { top: 0, textStyle: { color: '#475569' } },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p: any) => {
+          const size = sizes[p.seriesIndex];
+          return `${p.seriesName}<br/>${variables[0]}: <b>${p.value[0].toFixed(2)}</b><br/>${variables[1]}: <b>${p.value[1].toFixed(2)}</b>` +
+            (size === null ? '' : `<br/>~${Math.round(size).toLocaleString('en-US')} rows`);
+        },
       },
-      xAxis: {
-        type: 'value',
-        name: variables[0],
-      },
-      yAxis: {
-        type: 'value',
-        name: variables[1],
-      },
-      series: series as any,
+      grid: { top: 64, left: 24, right: 32, bottom: 48, containLabel: true },
+      xAxis: axis(variables[0]),
+      yAxis: { ...axis(variables[1]), nameLocation: 'end', nameGap: 14, nameTextStyle: { color: '#475569', fontWeight: 600, align: 'left' } },
+      series: centers.map(([x, y], i) => ({
+        name: names[i],
+        type: 'scatter',
+        data: [[x, y]],
+        symbolSize: radius(sizes[i]),
+        itemStyle: { opacity: 0.85, borderColor: '#ffffff', borderWidth: 2 },
+        label: { show: true, position: 'top', color: '#0f172a', formatter: names[i] },
+      })) as any,
     },
   ];
 }
