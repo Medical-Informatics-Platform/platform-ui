@@ -134,7 +134,8 @@
   font-weight: 600;
   color: var(--text-main);
   text-align: left;
-  overflow-wrap: anywhere;
+  /* break-word, not anywhere: a squeezed column breaks long words only, never "Cluster 0" mid-word. */
+  overflow-wrap: break-word;
 }
 
 .ar-table td.ar-role-factor {
