@@ -429,6 +429,18 @@ export function mapAlgorithmResultEnums(
       }
     case 'histogram':
       return mapMultipleHistograms(result, safeEnumMaps, yVar);
+    case 'standardized_mean_difference': {
+      const map = getEnumMapForVar(safeEnumMaps, xVar);
+      if (!map || !Array.isArray(result?.comparisons)) return result;
+      return {
+        ...result,
+        comparisons: result.comparisons.map((row: any) => ({
+          ...row,
+          group1: map[normalizeKey(row.group1)] ?? row.group1,
+          group2: map[normalizeKey(row.group2)] ?? row.group2,
+        })),
+      };
+    }
     case 'linear_regression':
     case 'linear_regression_cv':
     case 'logistic_regression':

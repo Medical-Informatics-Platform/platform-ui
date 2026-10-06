@@ -10,6 +10,10 @@
   @if (regression(); as view) {
   <app-regression-result [view]="view" />
   } @else {
+  @if (testSummary(); as figures) {
+  <app-key-figures [figures]="figures" />
+  }
+
   @if (renderedCharts().length > 0) {
   <section class="results-primary-visual gen-charts" aria-labelledby="results-chart-heading">
     <header class="results-section-intro">

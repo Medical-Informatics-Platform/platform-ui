@@ -8,6 +8,8 @@ import { EnumMaps, LabelMap, mapAlgorithmResultEnums } from '../../../../core/al
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
+import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
+import { buildTestSummary } from '../../visualisations/summary/test-summary';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -15,6 +17,7 @@ import { buildRegressionView } from '../../visualisations/regression/regression-
     AutoRendererComponent,
     ChartRendererComponent,
     RegressionResultComponent,
+    KeyFiguresComponent,
     NgxEchartsModule],
   templateUrl: './algorithm-result.component.html',
   styleUrl: './algorithm-result.component.css',
@@ -34,6 +37,10 @@ export class AlgorithmResultComponent {
 
   readonly regression = computed(() =>
     this.errorMessage() ? null : buildRegressionView(this.algorithm(), this.mappedResult(), this.yVar())
+  );
+
+  readonly testSummary = computed(() =>
+    this.errorMessage() ? null : buildTestSummary(this.algorithm(), this.mappedResult())
   );
 
   constructor() { }

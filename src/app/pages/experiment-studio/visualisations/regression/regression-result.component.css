@@ -8,53 +8,6 @@
   gap: 16px;
 }
 
-.key-figures {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  background: #ffffff;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.key-figure {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 14px 16px;
-  border-left: 1px solid rgba(148, 163, 184, 0.22);
-}
-
-.key-figure:first-child {
-  border-left: 0;
-}
-
-.key-figure-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.key-figure-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--text-main);
-  font-variant-numeric: tabular-nums;
-}
-
-.key-figure-note {
-  font-size: 0.76rem;
-  line-height: 1.4;
-  color: var(--text-muted);
-  text-wrap: pretty;
-}
-
 .coefficients-card {
   background: #ffffff;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -349,20 +302,6 @@
 }
 
 @media (max-width: 900px) {
-  .key-figures {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .key-figure {
-    border-left: 0;
-    border-top: 1px solid rgba(148, 163, 184, 0.22);
-  }
-
-  .key-figure:first-child {
-    border-top: 0;
-  }
-
   .coef-table {
     overflow-x: auto;
   }

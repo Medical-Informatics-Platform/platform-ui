@@ -92,4 +92,15 @@ describe('mapAlgorithmResultEnums', () => {
     expect(mapped.x_labels).toEqual(['Alzheimer disease', 'Other diagnosis']);
     expect(mapped.y_labels).toEqual(['Female', 'Male']);
   });
+
+  it('maps standardized mean difference groups using the x-variable enum map', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'standardized_mean_difference',
+      { comparisons: [{ group1: '1', group2: '2', smd: -0.277 }] },
+      { biol_sex: { '1': 'male', '2': 'female' } },
+      { y: 'age', x: 'biol_sex' }
+    );
+
+    expect(mapped.comparisons).toEqual([{ group1: 'male', group2: 'female', smd: -0.277 }]);
+  });
 });

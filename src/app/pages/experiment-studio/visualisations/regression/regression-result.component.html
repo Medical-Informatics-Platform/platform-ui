@@ -1,15 +1,7 @@
 @let model = view();
 <section class="lr-result" aria-label="Regression result">
   @if (model.figures.length) {
-  <div class="key-figures" role="group" aria-label="Key figures">
-    @for (figure of model.figures; track figure.label) {
-    <div class="key-figure">
-      <span class="key-figure-label">{{ figure.label }}</span>
-      <span class="key-figure-value">{{ figure.value }}</span>
-      <span class="key-figure-note">{{ figure.note }}</span>
-    </div>
-    }
-  </div>
+  <app-key-figures [figures]="model.figures" />
   }
 
   <section class="coefficients-card" aria-labelledby="coef-heading">

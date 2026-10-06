@@ -7,12 +7,7 @@ import {
   formatSummaryNumber,
   toFiniteNumber,
 } from '../result-format';
-
-export interface KeyFigure {
-  label: string;
-  value: string;
-  note?: string;
-}
+import { KeyFigure } from '../summary/key-figures.component';
 
 export interface CoefficientRow {
   variable: string;

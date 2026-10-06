@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { CsvExportService } from '../../../../services/csv-export.service';
+import { KeyFiguresComponent } from '../summary/key-figures.component';
 import { RegressionView } from './regression-view';
 
 type CoefficientColumnMode = 'key' | 'all';
@@ -7,6 +8,7 @@ type CoefficientColumnMode = 'key' | 'all';
 /** Key figures, one coefficients card with an interval-vs-zero column, and collapsed model-fit details. */
 @Component({
   selector: 'app-regression-result',
+  imports: [KeyFiguresComponent],
   templateUrl: './regression-result.component.html',
   styleUrl: './regression-result.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

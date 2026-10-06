@@ -1,6 +1,5 @@
 import { buildConfusionMatrixChart } from './confusion-matrix-chart';
 import { buildCVMetricsChart } from './cv-metrics-chart';
-import { buildTTestChart } from './t-test-chart';
 import { buildKMeansChart } from './k-means-chart';
 import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
 
@@ -51,17 +50,6 @@ describe('Chart renderers regressions', () => {
     const charts = buildCVMetricsChart({ n_obs: [100, 95], mean_sq_error: [1.2, 0.1] });
 
     expect((charts[0] as any).xAxis.data).toEqual(['RMSE']);
-  });
-
-  it('accepts numeric strings in t-test CI bounds', () => {
-    const charts = buildTTestChart({
-      mean_diff: 0.5,
-      ci_lower: '-0.1',
-      ci_upper: '1.2',
-      p: 0.03,
-    });
-
-    expect(charts.length).toBe(1);
   });
 
   it('falls back to parallel coordinates for high-dimensional kmeans clusters', () => {

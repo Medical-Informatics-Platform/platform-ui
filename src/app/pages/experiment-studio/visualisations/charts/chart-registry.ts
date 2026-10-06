@@ -9,7 +9,6 @@ import { buildKMeansChart } from './renderers/k-means-chart';
 import { buildMeanPlotChart } from './renderers/mean-plot-chart';
 import { buildBoxPlotChart } from './renderers/box-plot-chart';
 import { buildSVMChart } from './renderers/svm-chart';
-import { buildTTestChart } from './renderers/t-test-chart';
 
 import { buildCVMetricsChart } from './renderers/cv-metrics-chart';
 import { buildHistogramChart } from './renderers/histogram-chart';
@@ -83,21 +82,6 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
 
   anova_twoway: {
     build: () => [],
-    inputPath: '',
-  },
-
-  ttest_independent: {
-    build: buildTTestChart,
-    inputPath: '',
-  },
-
-  ttest_paired: {
-    build: buildTTestChart,
-    inputPath: '',
-  },
-
-  ttest_onesample: {
-    build: buildTTestChart,
     inputPath: '',
   },
 
