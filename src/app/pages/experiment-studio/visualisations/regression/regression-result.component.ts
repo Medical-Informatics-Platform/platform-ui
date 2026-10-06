@@ -20,6 +20,11 @@ export class RegressionResultComponent {
   readonly coefficientColumns = signal<CoefficientColumnMode>('key');
   readonly fitOpen = signal(false);
   readonly hasLevels = computed(() => this.view().rows.some((row) => row.level !== null));
+  /** "an odds ratio", "a hazard ratio". */
+  readonly ratioPhrase = computed(() => {
+    const label = this.view().estimateLabel.toLowerCase();
+    return `${/^[aeiou]/.test(label) ? 'an' : 'a'} ${label}`;
+  });
 
   /** Raw, unrounded numbers with an ASCII minus and separate CI bounds, so the file
    *  reads as numeric columns in a spreadsheet or R; blanks stand for missing values. */

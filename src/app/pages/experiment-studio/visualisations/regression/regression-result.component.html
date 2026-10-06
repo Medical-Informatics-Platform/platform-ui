@@ -73,7 +73,7 @@
 
     <p class="coef-note">
       Bold p-values are below 0.05. Each interval is drawn on its own scale around
-      {{ model.nullValue === 1 ? 'a ' + model.estimateLabel.toLowerCase() + ' of 1 (log scale)' : 'zero' }}, so compare direction and whether it
+      {{ model.nullValue === 1 ? ratioPhrase() + ' of 1 (log scale)' : 'zero' }}, so compare direction and whether it
       crosses {{ model.nullValue }}, not size between rows.
       @if (hasLevels()) {
       A category row compares that level with the variable's reference level, the one not listed.
