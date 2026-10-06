@@ -102,3 +102,11 @@ export function chiSquarePValue(x: number, df: number): number {
   }
   return Math.min(1, Math.max(0, lead * h));
 }
+
+/** A raw snake_case code (a created column such as stroke_territory_cohort, or a level such as
+ *  cluster_2) reads as words; labelled names pass through unchanged. */
+export function readable(code: string): string {
+  if (!/^[a-z0-9]+(_[a-z0-9]+)+$/.test(code)) return code;
+  const words = code.replace(/_/g, ' ').replace(/^kmeans\b/, 'K-means');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

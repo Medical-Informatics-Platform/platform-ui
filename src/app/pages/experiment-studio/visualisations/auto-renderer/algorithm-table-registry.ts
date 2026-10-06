@@ -11,7 +11,7 @@ import {
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
-import { formatPValue } from '../result-format';
+import { formatPValue, readable } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 
 export interface TableSpec {
@@ -158,7 +158,8 @@ function resolveVariableDisplayLabel(
   if (!code) return '';
   const trimmed = String(code).trim();
   if (!trimmed) return '';
-  return labelMap?.[trimmed] ?? trimmed;
+  // A created column has no data-model label; its code still reads as words.
+  return labelMap?.[trimmed] ?? readable(trimmed);
 }
 
 function buildContingencyCategoryTable(
