@@ -52,9 +52,12 @@ function formatDecimal(value: any): string {
   const abs = Math.abs(value);
   if (abs === 0) return '0';
 
-  // Too small or too big numbers -> scientific
-  if (abs < 1e-4 || abs >= 1_000_000) {
+  // Too small numbers -> scientific. Large ones stay whole: 1065587, not 1.066e+6 (four digits lost).
+  if (abs < 1e-4) {
     return value.toExponential(3);
+  }
+  if (abs >= 1_000_000) {
+    return value.toFixed(0);
   }
 
   const decimals = abs < 1 ? 4 : 3;
@@ -941,7 +944,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         .map(({ category, c }) => [
           getEnumLabel(feature, String(category)),
           ...rawClasses.map((_cls, i) => {
-            const count = formatDecimal(counts[i]?.[c]);
+            const count = Number(counts[i]?.[c]).toLocaleString('en-US');
             const probability = logProbs ? share(logProbs[i]?.[c]) : '';
             return probability ? `${count} · ${probability}` : count;
           }),

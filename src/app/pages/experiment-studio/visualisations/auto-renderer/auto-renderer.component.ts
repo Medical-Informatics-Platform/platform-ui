@@ -120,8 +120,9 @@ export class AutoRendererComponent {
     return column === 'Role' || column === 'Categories' || column === 'Dataset' || column === 'Rule' || !!column?.startsWith('Variable');
   }
 
-  // helper
-  formatValue(value: any): string {
+  /** On screen: thousands grouped (111,854; 1,065,587), trailing zeros trimmed, a typographic minus;
+   *  scientific notation only below 1e-4. With `grouping` off (CSV) numbers stay plain for spreadsheets. */
+  formatValue(value: any, grouping = true): string {
     if (value === null || value === undefined) return '';
 
     // If number type is string, turn to number
@@ -137,29 +138,22 @@ export class AutoRendererComponent {
     const num = maybeNum;
     const abs = Math.abs(num);
     if (abs === 0) return '0';
+    if (abs < 1e-4) return num.toExponential(3);
 
-    // scientific numbers
-    if (abs < 1e-4 || abs >= 1_000_000) {
-      return num.toExponential(3);
-    }
-
-    // Less decimals
-    const decimals = abs < 1 ? 4 : 3;
-    let fixed = num.toFixed(decimals);
-
-    // Less zeros
-    fixed = fixed
-      .replace(/(\.\d*?[1-9])0+$/, '$1')
-      .replace(/\.0+$/, '');
-
-    if (fixed === '-0') fixed = '0';
-
-    return fixed;
+    // Large values keep no decimals, mid-size three, small four; trailing zeros go.
+    const decimals = abs >= 1_000_000 ? 0 : abs < 1 ? 4 : 3;
+    const text = num.toLocaleString('en-US', {
+      maximumFractionDigits: decimals,
+      useGrouping: grouping,
+    });
+    if (text === '-0') return '0';
+    // Typographic minus on screen, like the key figures; CSV keeps the ASCII hyphen.
+    return grouping ? text.replace(/^-/, '−') : text;
   }
 
   exportToCSV(table: TableSpec) {
     this.csvExport.exportTableCsv(
-      { ...table, rows: (table.rows ?? []).map((row) => row.map((cell) => this.formatValue(cell))) },
+      { ...table, rows: (table.rows ?? []).map((row) => row.map((cell) => this.formatValue(cell, false))) },
       this.algorithm() || 'export',
     );
   }
