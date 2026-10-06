@@ -65,8 +65,6 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
         text: 'Confusion Matrix',
         subtext: 'Rows: actual class · columns: predicted class · shading: share of the actual class',
         left: 'center',
-        textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
-        subtextStyle: { color: '#475569', fontSize: 12 },
       },
       tooltip: {
         position: 'top',

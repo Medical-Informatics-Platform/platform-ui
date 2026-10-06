@@ -143,7 +143,6 @@ function buildKMeansElbowChart(elbow: any): EChartsOption {
     title: {
       text: 'Elbow Curve',
       left: 'center',
-      textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
     },
     tooltip: {
       trigger: 'axis',

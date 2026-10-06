@@ -5,6 +5,9 @@ import { NgxEchartsModule } from 'ngx-echarts';
 import { SimpleChanges } from '@angular/core';
 import { CHART_SERIES_COLORS } from '../chart-palette';
 
+/** --font-sans without the licensed Alaska faces, which canvas text cannot load either. */
+const CHART_FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
 @Component({
   selector: 'app-chart-renderer',
   imports: [CommonModule, NgxEchartsModule],
@@ -22,14 +25,42 @@ export class ChartRendererComponent implements OnChanges {
     this.themedCharts = this.charts().map((chart) => this.applyBrandChartDefaults(chart));
   }
 
+  /**
+   * House style every chart starts from; a renderer's own settings win. Canvas text cannot read
+   * CSS, so the app font, title ink and tooltip card are set here once rather than per renderer.
+   */
   private applyBrandChartDefaults(chart: EChartsOption): EChartsOption {
+    const title = chart.title;
+    const tooltip = chart.tooltip;
     return {
       ...chart,
       // ECharts writes a text description of each chart for screen readers; no decal patterns.
       aria: { enabled: true, decal: { show: false } },
       color: CHART_SERIES_COLORS,
+      textStyle: { fontFamily: CHART_FONT, ...this.objectValue(chart.textStyle) },
+      ...(title && !Array.isArray(title)
+        ? {
+          title: {
+            ...title,
+            textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a', ...this.objectValue((title as Record<string, unknown>)['textStyle']) },
+            subtextStyle: { fontSize: 12, color: '#475569', ...this.objectValue((title as Record<string, unknown>)['subtextStyle']) },
+          },
+        }
+        : {}),
+      ...(tooltip && !Array.isArray(tooltip)
+        ? {
+          tooltip: {
+            backgroundColor: '#ffffff',
+            borderColor: 'rgba(148, 163, 184, 0.45)',
+            borderWidth: 1,
+            extraCssText: 'border-radius: 8px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);',
+            ...tooltip,
+            textStyle: { color: '#0f172a', fontSize: 12, fontFamily: CHART_FONT, ...this.objectValue((tooltip as Record<string, unknown>)['textStyle']) },
+          },
+        }
+        : {}),
       series: this.softenSeries(chart.series),
-    };
+    } as EChartsOption;
   }
 
   private softenSeries(series: EChartsOption['series']): EChartsOption['series'] {

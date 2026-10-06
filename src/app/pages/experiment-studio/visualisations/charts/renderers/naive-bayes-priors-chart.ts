@@ -117,8 +117,6 @@ export function buildNaiveBayesProfileChart(result: any): EChartsOption[] {
         text: 'Class profiles',
         subtext: 'Class mean minus overall mean, in pooled within-class SDs',
         left: 'center',
-        textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
-        subtextStyle: { fontSize: 12, color: '#475569' },
       },
       legend: { bottom: 0, textStyle: { color: '#475569' } },
       tooltip: {

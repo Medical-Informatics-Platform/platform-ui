@@ -54,7 +54,6 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
       title: {
         text: 'ROC Curve',
         left: 'center',
-        textStyle: { fontSize: 13, fontWeight: 600, color: '#0f172a' },
       },
       grid: {
         containLabel: true,

@@ -65,8 +65,6 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       text: 'Loadings',
       subtext: 'Weight of each variable in each component; rows list the share of variance the component explains',
       left: 'center',
-      textStyle: { fontSize: 13, fontWeight: 600, color: TEXT_COLOR },
-      subtextStyle: { color: AXIS_COLOR },
     },
     tooltip: {
       position: 'top',
@@ -134,7 +132,6 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       title: {
         text: 'Variance explained',
         left: 'center',
-        textStyle: { fontSize: 13, fontWeight: 600, color: TEXT_COLOR },
       },
       legend: { top: 32, data: ['Per component', 'Cumulative'], textStyle: { color: AXIS_COLOR } },
       tooltip: {
