@@ -405,6 +405,13 @@ export function mapAlgorithmResultEnums(
       const confusionMapped = mapConfusionMatrix(classesMapped.result, safeEnumMaps, yVar);
       const effectiveMap = confusionMapped.map ?? classesMapped.map;
 
+      // Gaussian only: the categorical table looks category_count up by feature code.
+      if (labelMap && Array.isArray(confusionMapped.result?.feature_names) && !confusionMapped.result?.category_count) {
+        confusionMapped.result = {
+          ...confusionMapped.result,
+          feature_names: confusionMapped.result.feature_names.map((code: string) => labelMap[code] ?? code),
+        };
+      }
       if (effectiveMap && confusionMapped.result?.classification_summary) {
         return {
           ...confusionMapped.result,

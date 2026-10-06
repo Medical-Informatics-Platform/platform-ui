@@ -11,7 +11,7 @@ import { buildBoxPlotChart } from './renderers/box-plot-chart';
 import { buildSVMChart } from './renderers/svm-chart';
 
 import { buildHistogramChart } from './renderers/histogram-chart';
-import { buildNaiveBayesPriorsChart } from './renderers/naive-bayes-priors-chart';
+import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './renderers/naive-bayes-priors-chart';
 import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-forest-chart';
 
 interface AlgorithmChartConfig {
@@ -30,7 +30,7 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
     build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart),
     title: 'Classification performance',
   },
-  naive_bayes_gaussian: { build: buildNaiveBayesPriorsChart, title: 'Class priors' },
+  naive_bayes_gaussian: { build: composeCharts(buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart), title: 'Classes' },
   naive_bayes_categorical: { build: buildNaiveBayesPriorsChart, title: 'Class priors' },
   naive_bayes_gaussian_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },
   naive_bayes_categorical_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance' },

@@ -1,6 +1,6 @@
 import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
 import { buildKMeansChart } from './k-means-chart';
-import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
+import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './naive-bayes-priors-chart';
 
 describe('Chart renderers regressions', () => {
   it('maps tp/fp/fn/tn confusion matrix with rows=actual and cols=predicted', () => {
@@ -87,5 +87,20 @@ describe('Chart renderers regressions', () => {
     expect(data.length).toBe(2);
     expect(data[0]).toBeCloseTo(0.2, 3);
     expect(data[1]).toBeCloseTo(0.8, 3);
+  });
+
+  it('places Gaussian naive Bayes class means in pooled SDs from the overall mean', () => {
+    const charts = buildNaiveBayesProfileChart({
+      classes: ['no', 'yes'],
+      class_count: [1, 3],
+      feature_names: ['Score'],
+      theta: [[8], [4]],
+      var: [[4], [4]],
+    });
+
+    // Overall mean 5, pooled SD 2: "no" sits +1.5 SD, "yes" −0.5 SD.
+    const series = (charts[0] as any).series;
+    expect(series[0].data).toEqual([[1.5, 0]]);
+    expect(series[1].data).toEqual([[-0.5, 0]]);
   });
 });
