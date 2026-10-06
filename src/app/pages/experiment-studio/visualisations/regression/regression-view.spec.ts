@@ -68,6 +68,51 @@ describe('buildRegressionView', () => {
     expect(view.fitMetrics.map((metric) => metric.label)).toContain('Null log-likelihood');
   });
 
+  it('summarises a linear mixed model with the ICC from its variance components', () => {
+    const view = buildRegressionView('lmm', {
+      dependent_var: '3m mRS',
+      grouping_var: ['Unit'],
+      indep_vars: ['Intercept', 'Age'],
+      n_obs: 1000,
+      n_groups: 14,
+      coefficients: [-1.1, 0.031],
+      std_err: [0.08, 0.0003],
+      t_stats: [-13.5, 101.8],
+      pvalues: [1e-41, 0],
+      lower_ci: [-1.27, 0.0305],
+      upper_ci: [-0.95, 0.0317],
+      sigma2: 3,
+      sigma_u2: 1,
+      converged: true,
+    }, null)!;
+
+    expect(view.estimateLabel).toBe('Estimate');
+    expect(view.figures[0]).toEqual({ label: 'ICC', value: '0.250', note: '25.0% of the variance in 3m mRS lies between Unit groups' });
+    expect(view.figures.some((figure) => figure.label === 'Converged')).toBeFalse();
+  });
+
+  it('reports a binary GLMM as odds ratios and leads with non-convergence', () => {
+    const view = buildRegressionView('glmm_binary', {
+      dependent_var: 'Good outcome',
+      grouping_var: 'Unit',
+      indep_vars: ['Intercept', 'Age'],
+      coefficients: [5.36, -0.0616],
+      z_stats: [121.4, -111.1],
+      pvalues: [0, 0],
+      lower_ci: [5.27, -0.0627],
+      upper_ci: [5.44, -0.0605],
+      sigma_u2: Math.PI * Math.PI / 3,
+      converged: false,
+      n_iter: 50,
+    }, null)!;
+
+    expect(view.estimateLabel).toBe('Odds ratio');
+    expect(view.figures[0].label).toBe('Converged');
+    expect(view.figures[0].note).toBe('Stopped after 50 iterations; treat estimates with caution');
+    // Latent-scale ICC: σu² / (σu² + π²/3).
+    expect(view.figures[1].value).toBe('0.500');
+  });
+
   it('returns null for algorithms without a coefficient view or incomplete payloads', () => {
     expect(buildRegressionView('kmeans', logistic, null)).toBeNull();
     expect(buildRegressionView('logistic_regression', { indep_vars: ['Intercept'] }, null)).toBeNull();

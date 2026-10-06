@@ -243,6 +243,8 @@ function mapMixedEffectsResult(
 
   if (typeof mapped?.grouping_var === 'string') {
     next.grouping_var = labelMap?.[mapped.grouping_var] ?? mapped.grouping_var;
+  } else if (Array.isArray(mapped?.grouping_var)) {
+    next.grouping_var = mapped.grouping_var.map((code: string) => labelMap?.[code] ?? code);
   }
 
   if (Array.isArray(mapped?.category_order)) {

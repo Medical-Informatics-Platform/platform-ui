@@ -296,10 +296,100 @@ function logisticView(result: any, yVar: string | null): RegressionView | null {
   };
 }
 
+/** Exaflow sends grouping_var as a one-item list; older payloads as a string. */
+function groupingLabel(result: any): string {
+  const raw = Array.isArray(result.grouping_var) ? result.grouping_var.join(', ') : result.grouping_var;
+  return typeof raw === 'string' && raw ? raw : 'group';
+}
+
+/** A non-converged mixed model is the first thing a reader needs to know. */
+function convergenceFigure(result: any): KeyFigure[] {
+  if (result.converged !== false) return [];
+  const iterations = toFiniteNumber(result.n_iter);
+  return [{
+    label: 'Converged',
+    value: 'No',
+    note: `Stopped${iterations === null ? '' : ` after ${formatInteger(iterations)} iterations`}; treat estimates with caution`,
+  }];
+}
+
+/**
+ * Mixed models (lmm, glmm_binary): fixed effects in the coefficients card and the random
+ * intercept summarised as an ICC — the share of variance that lies between groups. For the
+ * logit GLMM the residual variance is the logistic distribution's π²/3 (latent-scale ICC).
+ */
+function mixedView(result: any, yVar: string | null, logit: boolean): RegressionView | null {
+  const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
+  const estimates = arrayOf(result.coefficients);
+  if (!variables.length || !estimates.length) return null;
+
+  const dependent = String(result.dependent_var ?? yVar ?? 'outcome');
+  const grouping = groupingLabel(result);
+  const rows = buildRows(
+    {
+      variables,
+      estimates,
+      stdErr: arrayOf(result.std_err),
+      stats: arrayOf(logit ? result.z_stats : result.t_stats),
+      pValues: arrayOf(result.pvalues),
+      lower: arrayOf(result.lower_ci),
+      upper: arrayOf(result.upper_ci),
+    },
+    logit ? Math.exp : undefined,
+  );
+
+  const sigmaU2 = toFiniteNumber(result.sigma_u2);
+  const sigma2 = logit ? (Math.PI * Math.PI) / 3 : toFiniteNumber(result.sigma2);
+  const nObs = toFiniteNumber(result.n_obs);
+  const nGroups = toFiniteNumber(result.n_groups);
+  const aic = toFiniteNumber(result.aic);
+  const ll = toFiniteNumber(logit ? result.ll_laplace : result.ll_reml);
+
+  const figures: KeyFigure[] = [...convergenceFigure(result)];
+  if (sigmaU2 !== null && sigma2 !== null && sigmaU2 + sigma2 > 0) {
+    const icc = sigmaU2 / (sigmaU2 + sigma2);
+    figures.push({
+      label: 'ICC',
+      value: icc.toFixed(3),
+      note: `${(icc * 100).toFixed(1)}% of the ${logit ? 'latent-scale ' : ''}variance in ${dependent} lies between ${grouping} groups`,
+    });
+  }
+  if (nGroups !== null) figures.push({ label: 'Groups', value: formatInteger(nGroups), note: `Levels of ${grouping}` });
+  if (nObs !== null) figures.push({ label: 'Observations', value: formatInteger(nObs), note: 'Rows in the fitted model' });
+  if (aic !== null) figures.push({ label: 'AIC', value: formatSummaryNumber(aic), note: 'Lower fits better when comparing models' });
+
+  return {
+    dependent,
+    estimateLabel: logit ? 'Odds ratio' : 'Estimate',
+    coefficientLabel: logit ? 'Log-odds' : null,
+    nullValue: logit ? 1 : 0,
+    statLabel: logit ? 'z' : 't',
+    subtitle: `Effect on ${logit ? 'the odds of ' : ''}${dependent}, other predictors held constant, with a random intercept per ${grouping}`,
+    rows,
+    figures,
+    ...fitSummary([
+      ['Dependent variable', dependent],
+      ['Grouping variable', grouping],
+      ['Observations', integer(nObs)],
+      ['Groups', integer(nGroups)],
+      ['df (model)', integer(toFiniteNumber(result.df_model))],
+      ['df (residual)', integer(toFiniteNumber(result.df_resid))],
+      ['Residual variance', logit ? '' : summary(result.sigma2)],
+      ['Random intercept variance', summary(sigmaU2)],
+      [logit ? 'Laplace log-likelihood' : 'REML log-likelihood', summary(ll)],
+      ['AIC', summary(aic)],
+      ['BIC', summary(result.bic)],
+      ['Converged', result.converged === undefined ? '' : result.converged ? 'Yes' : 'No'],
+    ]),
+  };
+}
+
 /** The coefficient/fit view for a result, or null when the algorithm has none or the payload is incomplete. */
 export function buildRegressionView(algorithm: string | null, result: any, yVar: string | null): RegressionView | null {
   if (!result || typeof result !== 'object') return null;
   if (algorithm === 'linear_regression') return linearView(result, yVar);
   if (algorithm === 'logistic_regression') return logisticView(result, yVar);
+  if (algorithm === 'lmm') return mixedView(result, yVar, false);
+  if (algorithm === 'glmm_binary') return mixedView(result, yVar, true);
   return null;
 }

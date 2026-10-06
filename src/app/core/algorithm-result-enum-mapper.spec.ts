@@ -116,4 +116,16 @@ describe('mapAlgorithmResultEnums', () => {
     expect(mapped.variables).toEqual(['Age', '24h score']);
     expect(mapped.clusters[0].center).toEqual({ Age: 79.5, '24h score': 2 });
   });
+
+  it('labels a mixed model grouping variable sent as a list', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'lmm',
+      { grouping_var: ['hospit_unit'], indep_vars: ['Intercept'] },
+      {},
+      {},
+      { hospit_unit: 'Hospitalization unit' }
+    );
+
+    expect(mapped.grouping_var).toEqual(['Hospitalization unit']);
+  });
 });
