@@ -284,7 +284,44 @@ function classificationCvFigures(result: any): KeyFigure[] {
   return figures;
 }
 
+/**
+ * Out-of-fold error for linear regression CV. Exaflow sends each metric as [mean, sd]
+ * (older runs { mean, std }; [null, null] when undefined). The F statistic is left out:
+ * it describes each training fit, not how well the model predicts held-out rows.
+ */
+function linearRegressionCvFigures(result: any): KeyFigure[] {
+  const meanSd = (raw: any): [number, number | null] | null => {
+    const [mean, sd] = (Array.isArray(raw) ? raw : [raw?.mean, raw?.std]).map(toFiniteNumber);
+    return mean === null ? null : [mean, sd];
+  };
+  const spread = (sd: number | null, digits: number) => (sd === null ? undefined : `± ${sd.toFixed(digits)} across folds`);
+  const outcome = typeof result?.dependent_var === 'string' ? result.dependent_var : 'outcome';
+  const figures: KeyFigure[] = [];
+
+  // mean_sq_error is the pre-rename name of the same RMSE value in stored experiments.
+  const rmse = meanSd(result?.root_mean_sq_error ?? result?.mean_sq_error);
+  if (rmse) figures.push({ label: 'RMSE', value: formatSummaryNumber(rmse[0]), note: `${outcome} units, ${spread(rmse[1], 2) ?? 'held-out rows'}` });
+  const mae = meanSd(result?.mean_abs_error);
+  if (mae) figures.push({ label: 'MAE', value: formatSummaryNumber(mae[0]), note: `${outcome} units, ${spread(mae[1], 2) ?? 'held-out rows'}` });
+  const r2 = meanSd(result?.r_squared);
+  if (r2) {
+    figures.push({
+      label: 'Out-of-fold R²',
+      value: r2[0].toFixed(3),
+      note: `${(r2[0] * 100).toFixed(1)}% of the variance in held-out rows${r2[1] === null ? '' : `, ± ${r2[1].toFixed(3)}`}`,
+    });
+  }
+  const folds: unknown[] = Array.isArray(result?.n_obs) ? result.n_obs : [];
+  const sizes = folds.map(toFiniteNumber).filter((n): n is number => n !== null);
+  if (sizes.length) {
+    const mean = sizes.reduce((sum, n) => sum + n, 0) / sizes.length;
+    figures.push({ label: 'Folds', value: formatInteger(sizes.length), note: `~${formatInteger(Math.round(mean))} training rows each` });
+  }
+  return figures;
+}
+
 const BUILDERS: Record<string, (result: any) => KeyFigure[]> = {
+  linear_regression_cv: linearRegressionCvFigures,
   naive_bayes_gaussian_cv: classificationCvFigures,
   naive_bayes_categorical_cv: classificationCvFigures,
   logistic_regression_cv: classificationCvFigures,

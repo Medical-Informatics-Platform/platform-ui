@@ -1,5 +1,4 @@
 import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
-import { buildCVMetricsChart } from './cv-metrics-chart';
 import { buildKMeansChart } from './k-means-chart';
 import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
 
@@ -25,40 +24,6 @@ describe('Chart renderers regressions', () => {
     const charts = buildConfusionMatrixChart({ confusion_matrix: { data: [[3, 1, 0], [2, 6, 0], [0, 0, 0]], labels: ['no', 'yes', 'unknown'] } });
     const shares = ((charts[0] as any).series[0].data).map((cell: any) => cell.value[2]);
     expect(shares).toEqual([0.75, 0.25, 0.25, 0.75]);
-  });
-
-  it('renders linear regression CV metrics when payload uses mean/std objects', () => {
-    const charts = buildCVMetricsChart({
-      n_obs: [100, 95, 98, 101, 97],
-      root_mean_sq_error: { mean: 1.2, std: 0.1 },
-      r_squared: { mean: 0.82, std: 0.03 },
-      mean_abs_error: { mean: 0.7, std: 0.06 },
-      f_stat: { mean: 9.5, std: 1.3 },
-    });
-
-    expect(charts.length).toBe(1);
-    expect((charts[0] as any).title?.text).toBe('Cross-Validation Metric Summary');
-    expect((charts[0] as any).series?.length).toBe(2);
-  });
-
-  it('charts Exaflow [mean, std] CV summaries and skips [null, null] metrics', () => {
-    const charts = buildCVMetricsChart({
-      n_obs: [100, 95],
-      root_mean_sq_error: [1.2, 0.1],
-      r_squared: [null, null],
-      mean_abs_error: [0.7, 0.06],
-      f_stat: [null, null],
-    });
-
-    expect(charts.length).toBe(1);
-    expect((charts[0] as any).xAxis.data).toEqual(['RMSE', 'MAE']);
-    expect((charts[0] as any).series[0].data).toEqual([1.2, 0.7]);
-  });
-
-  it('charts RMSE from the legacy mean_sq_error field', () => {
-    const charts = buildCVMetricsChart({ n_obs: [100, 95], mean_sq_error: [1.2, 0.1] });
-
-    expect((charts[0] as any).xAxis.data).toEqual(['RMSE']);
   });
 
   it('falls back to parallel coordinates for high-dimensional kmeans clusters', () => {

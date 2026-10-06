@@ -70,4 +70,25 @@ describe('buildSummaryFigures', () => {
     expect(figures['Majority baseline'].note).toBe('Accuracy of always predicting yes');
     expect(figures['Balanced accuracy'].value).toBe('70.7%');
   });
+
+  it('reports linear regression CV error from [mean, sd] pairs and skips undefined metrics', () => {
+    const figures = byLabel(buildSummaryFigures('linear_regression_cv', {
+      dependent_var: 'Age',
+      n_obs: [199461, 199462, 199463],
+      root_mean_sq_error: [13.4115, 0.1331],
+      r_squared: [null, null],
+      mean_abs_error: { mean: 10.65, std: 0.027 },
+      f_stat: [3903.46, 325.48],
+    })!);
+
+    expect(Object.keys(figures)).toEqual(['RMSE', 'MAE', 'Folds']);
+    expect(figures['RMSE'].value).toBe('13.41');
+    expect(figures['RMSE'].note).toBe('Age units, ± 0.13 across folds');
+    expect(figures['Folds'].note).toBe('~199,462 training rows each');
+  });
+
+  it('reads RMSE from the legacy mean_sq_error field', () => {
+    const figures = buildSummaryFigures('linear_regression_cv', { mean_sq_error: [1.2, 0.1] })!;
+    expect(figures[0].label).toBe('RMSE');
+  });
 });

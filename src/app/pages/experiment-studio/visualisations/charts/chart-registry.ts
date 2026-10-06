@@ -10,7 +10,6 @@ import { buildMeanPlotChart } from './renderers/mean-plot-chart';
 import { buildBoxPlotChart } from './renderers/box-plot-chart';
 import { buildSVMChart } from './renderers/svm-chart';
 
-import { buildCVMetricsChart } from './renderers/cv-metrics-chart';
 import { buildHistogramChart } from './renderers/histogram-chart';
 import { buildNaiveBayesPriorsChart } from './renderers/naive-bayes-priors-chart';
 import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-forest-chart';
@@ -27,7 +26,6 @@ function composeCharts(...builders: ((result: any) => EChartsOption[])[]): (resu
 
 export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   kmeans: { build: buildKMeansChart, title: 'Cluster centres' },
-  linear_regression_cv: { build: buildCVMetricsChart, title: 'Cross-validation metrics' },
   logistic_regression_cv: {
     build: composeCharts(buildLogRegConfusionChart, buildRocCurveChart),
     title: 'Classification performance',
