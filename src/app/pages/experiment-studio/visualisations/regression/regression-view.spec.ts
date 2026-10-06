@@ -153,6 +153,29 @@ describe('buildRegressionView', () => {
     expect(fit['Cutpoints']).toBe('0.000, 1.11');
   });
 
+  it('reports Cox hazard ratios and leads with events per covariate', () => {
+    const view = buildRegressionView('cox_regression_classical', {
+      dependent_var: 'Days to follow-up',
+      event_var: 'Death',
+      indep_vars: ['Sex[female]', 'Age'],
+      summary: {
+        n_obs: 582, n_events: 18, n_covariates: 3, converged: true,
+        coefficients: [0.154, 0.0387], std_err: [0.283, 0.0133], z_scores: [0.54, 2.91], pvalues: [0.586, 0.0037],
+        lower_ci: [-0.401, 0.0126], upper_ci: [0.709, 0.0647],
+      },
+    }, null)!;
+
+    expect(view.estimateLabel).toBe('Hazard ratio');
+    expect(view.rows.map((row) => row.term)).toEqual(['Sex', 'Age']);
+    expect(view.rows[0].estimate).toBeCloseTo(Math.exp(0.154), 10);
+    const figures = Object.fromEntries(view.figures.map((figure) => [figure.label, figure]));
+    expect(figures['Events'].note).toBe('3.1% of 582 participants');
+    expect(figures['Events per covariate'].note).toBe('Below the usual 10; estimates may be unstable');
+    const fit = Object.fromEntries(view.fitMetrics.map((metric) => [metric.label, metric.value]));
+    expect(fit['Follow-up time']).toBe('Days to follow-up');
+    expect(fit['Event indicator']).toBe('Death');
+  });
+
   it('returns null for algorithms without a coefficient view or incomplete payloads', () => {
     expect(buildRegressionView('kmeans', logistic, null)).toBeNull();
     expect(buildRegressionView('logistic_regression', { indep_vars: ['Intercept'] }, null)).toBeNull();

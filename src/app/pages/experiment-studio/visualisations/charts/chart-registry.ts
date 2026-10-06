@@ -12,7 +12,6 @@ import { buildSVMChart } from './renderers/svm-chart';
 
 import { buildHistogramChart } from './renderers/histogram-chart';
 import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './renderers/naive-bayes-priors-chart';
-import { buildCoxHazardRatioForestChart } from './renderers/cox-hazard-ratio-forest-chart';
 
 interface AlgorithmChartConfig {
   build: (input: any) => EChartsOption[];
@@ -41,6 +40,4 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   linear_svm: { build: buildSVMChart, title: 'Model weights' },
   describe: { build: buildBoxPlotChart, title: 'Distributions' },
   histogram: { build: buildHistogramChart, title: 'Distribution' },
-  cox_regression_classical: { build: buildCoxHazardRatioForestChart, title: 'Hazard ratios' },
-  cox_regression_stacked: { build: buildCoxHazardRatioForestChart, title: 'Hazard ratios' },
 };

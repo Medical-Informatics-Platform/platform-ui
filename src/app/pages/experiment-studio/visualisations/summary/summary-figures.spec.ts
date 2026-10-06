@@ -92,17 +92,6 @@ describe('buildSummaryFigures', () => {
     expect(figures[0].label).toBe('RMSE');
   });
 
-  it('reports Cox events and flags too few events per covariate', () => {
-    const figures = byLabel(buildSummaryFigures('cox_regression_classical', {
-      summary: { n_obs: 582, n_events: 18, n_covariates: 3, converged: true },
-    })!);
-
-    expect(figures['Events'].note).toBe('3.1% of 582 participants');
-    expect(figures['Events per covariate'].value).toBe('6.0');
-    expect(figures['Events per covariate'].note).toBe('Below the usual 10; estimates may be unstable');
-    expect(figures['Converged']).toBeUndefined();
-  });
-
   it('names the compared groups when the run parameters are known', () => {
     const context = { groupA: 'yes', groupB: 'no' };
     const ttest = byLabel(buildSummaryFigures('ttest_independent', { mean_diff: -3.45, ci_lower: -3.46, ci_upper: -3.44, p: 0 }, context)!);

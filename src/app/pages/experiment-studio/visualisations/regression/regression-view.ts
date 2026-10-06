@@ -420,6 +420,85 @@ function mixedView(result: any, yVar: string | null, kind: MixedKind): Regressio
   };
 }
 
+/**
+ * Cox regression (classical and stacked): hazard ratios in the coefficients card, led by how
+ * much information the model had — events, not rows, limit a survival model.
+ */
+function coxView(result: any, yVar: string | null): RegressionView | null {
+  const fit = result.summary;
+  const variables = arrayOf(result.indep_vars).map((entry) => String(entry ?? ''));
+  const estimates = arrayOf(fit?.coefficients);
+  if (!fit || !variables.length || !estimates.length) return null;
+
+  const time = String(result.dependent_var ?? yVar ?? 'time');
+  const event = String(result.event_var ?? 'the event');
+  const rows = buildRows(
+    {
+      variables,
+      estimates,
+      stdErr: arrayOf(fit.std_err),
+      stats: arrayOf(fit.z_scores),
+      pValues: arrayOf(fit.pvalues),
+      lower: arrayOf(fit.lower_ci),
+      upper: arrayOf(fit.upper_ci),
+    },
+    Math.exp,
+  ).filter((row) => !row.isIntercept);
+
+  const events = toFiniteNumber(fit.n_events);
+  const participants = toFiniteNumber(fit.n_obs);
+  const covariates = toFiniteNumber(fit.n_covariates);
+  const mcFadden = toFiniteNumber(fit.r_squared_mcf);
+
+  const figures: KeyFigure[] = [...convergenceFigure(fit)];
+  if (events !== null) {
+    figures.push({
+      label: 'Events',
+      value: formatInteger(events),
+      note: participants ? `${((events / participants) * 100).toFixed(1)}% of ${formatInteger(participants)} participants` : undefined,
+    });
+  }
+  if (events !== null && covariates) {
+    // The usual rule of thumb asks for about ten events per covariate.
+    const perCovariate = events / covariates;
+    figures.push({
+      label: 'Events per covariate',
+      value: perCovariate.toFixed(1),
+      note: perCovariate < 10 ? 'Below the usual 10; estimates may be unstable' : `${formatInteger(covariates)} covariates in the model`,
+    });
+  }
+  if (mcFadden !== null) {
+    figures.push({ label: 'Pseudo R² (McFadden)', value: mcFadden.toFixed(3), note: 'Stacked model against its intercept-only fit' });
+  }
+
+  return {
+    dependent: event,
+    estimateLabel: 'Hazard ratio',
+    coefficientLabel: 'Log hazard',
+    nullValue: 1,
+    statLabel: 'z',
+    subtitle: `Effect on the hazard of ${event} over ${time}, other predictors held constant`,
+    rows,
+    figures,
+    ...fitSummary([
+      ['Follow-up time', time],
+      ['Event indicator', event],
+      ['Participants', integer(participants)],
+      ['Events', integer(events)],
+      ['Covariates', integer(covariates)],
+      ['Distinct event times', integer(toFiniteNumber(fit.n_unique_event_times))],
+      ['Analysis rows', integer(toFiniteNumber(fit.n_stacked_rows))],
+      ['Tied events', typeof fit.ties === 'string' ? fit.ties : ''],
+      ['Pseudo R² (Cox–Snell)', toFiniteNumber(fit.r_squared_cs) === null ? '' : Number(fit.r_squared_cs).toFixed(3)],
+      ['Pseudo R² (McFadden)', mcFadden === null ? '' : mcFadden.toFixed(3)],
+      ['Log-likelihood', summary(fit.ll)],
+      ['AIC', summary(fit.aic)],
+      ['BIC', summary(fit.bic)],
+      ['Converged', fit.converged === undefined ? '' : fit.converged ? 'Yes' : 'No'],
+    ]),
+  };
+}
+
 /** The coefficient/fit view for a result, or null when the algorithm has none or the payload is incomplete. */
 export function buildRegressionView(algorithm: string | null, result: any, yVar: string | null): RegressionView | null {
   if (!result || typeof result !== 'object') return null;
@@ -428,5 +507,6 @@ export function buildRegressionView(algorithm: string | null, result: any, yVar:
   if (algorithm === 'lmm') return mixedView(result, yVar, 'linear');
   if (algorithm === 'glmm_binary') return mixedView(result, yVar, 'binary');
   if (algorithm === 'glmm_ordinal') return mixedView(result, yVar, 'ordinal');
+  if (algorithm === 'cox_regression_classical' || algorithm === 'cox_regression_stacked') return coxView(result, yVar);
   return null;
 }
