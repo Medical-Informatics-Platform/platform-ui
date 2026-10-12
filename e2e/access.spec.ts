@@ -6,14 +6,15 @@ import { expect, test } from './fixtures';
 
 const ACTIVE_USER = /\/services\/activeUser(\?.*)?$/;
 
-/** Serve `assets/env.js` with these runtime values on top of the defaults. */
+/** Serve the real `assets/env.js`, then these runtime values on top of its defaults. */
 async function runtimeEnv(page: Page, values: Record<string, string>) {
-  await page.route('**/assets/env.js', (route) =>
-    route.fulfill({
+  await page.route('**/assets/env.js', async (route) => {
+    const defaults = await (await route.fetch()).text();
+    await route.fulfill({
       contentType: 'application/javascript',
-      body: `window.__env = Object.assign(window.__env || {}, ${JSON.stringify({ JUPYTER_CONTEXT_PATH: '/notebook', ...values })});`,
-    }),
-  );
+      body: `${defaults}\nObject.assign(window.__env, ${JSON.stringify(values)});`,
+    });
+  });
 }
 
 test('a signed-out user is sent to the Keycloak login with the page to return to', async ({ page }) => {

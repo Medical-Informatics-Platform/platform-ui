@@ -7,7 +7,7 @@ import { goToAlgorithms, goToDataHandling, runExperiment, saveExperiment } from 
 
 async function openExperiment(page: Page, name: string) {
   await page.goto('/experiments-dashboard');
-  await page.getByRole('option', { name: new RegExp(name) }).click();
+  await page.getByRole('option', { name }).click();
   await expect(page.getByRole('heading', { name })).toBeVisible();
 }
 
@@ -72,7 +72,7 @@ test.describe('experiments dashboard', () => {
     } }));
     await page.goto('/experiments-dashboard');
     for (const name of ['Baseline age model', 'Strict age model']) {
-      await page.getByRole('option', { name: new RegExp(name) }).getByLabel('Select for compare').click();
+      await page.getByRole('option', { name }).getByLabel('Select for compare').click();
     }
     await page.getByRole('button', { name: 'Compare 2' }).click();
 
