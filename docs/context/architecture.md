@@ -85,6 +85,6 @@ flowchart TD
 
 ## Known Gaps
 - No dedicated lint, format, or standalone typecheck scripts are defined.
-- No e2e test runner is configured in this repository.
+- E2E coverage (Playwright, `e2e/`) is limited to experiment studio flows against a mocked `/services` API; no e2e run exercises a real backend.
 - Many authenticated experiment flows require a running backend and Keycloak-compatible environment for full validation.
 - CI workflows publish/mirror images, but no workflow in this repo currently runs unit tests or builds on pull requests.

@@ -271,21 +271,15 @@ function json(route: Route, body: unknown, status = 200) {
 /**
  * Intercept every `/services/*` call the studio and dashboard make.
  * One in-memory list stands in for PostgreSQL so save and re-open share a store.
+ * `unhandled` collects every call no branch below answers, so a test can fail on it.
  */
-export async function installExperimentStudioApi(page: Page, initial: StoredExperiment[] = []): Promise<StoredExperiment[]> {
+export async function installExperimentStudioApi(
+  page: Page,
+  initial: StoredExperiment[] = [],
+): Promise<{ experiments: StoredExperiment[]; unhandled: string[] }> {
   const experiments = [...initial];
+  const unhandled: string[] = [];
   let sequence = experiments.length;
-  let specsLeft = 3;
-  let markSpecsReady: () => void = () => undefined;
-  const specsReady = new Promise<void>((resolve) => {
-    markSpecsReady = resolve;
-  });
-
-  const noteSpec = () => {
-    specsLeft -= 1;
-    if (specsLeft <= 0) markSpecsReady();
-  };
-
   await page.route('**/services/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -315,7 +309,6 @@ export async function installExperimentStudioApi(page: Page, initial: StoredExpe
     }
 
     if (path === '/services/specifications/inputdata' && method === 'GET') {
-      noteSpec();
       return json(route, {
         data_model: inputField(['text'], { required: true }),
         datasets: inputField(['text'], { required: true }),
@@ -325,7 +318,6 @@ export async function installExperimentStudioApi(page: Page, initial: StoredExpe
     }
 
     if (path === '/services/specifications/preprocessing' && method === 'GET') {
-      noteSpec();
       return json(route, [
         {
           name: 'missing_values_handler',
@@ -345,7 +337,6 @@ export async function installExperimentStudioApi(page: Page, initial: StoredExpe
     }
 
     if (path === '/services/specifications/algorithms' && method === 'GET') {
-      noteSpec();
       return json(route, algorithmSpecs());
     }
 
@@ -397,8 +388,6 @@ export async function installExperimentStudioApi(page: Page, initial: StoredExpe
 
     const experimentMatch = path.match(/^\/services\/experiments\/([^/]+)$/);
     if (experimentMatch && method === 'GET') {
-      // Hydration reads the catalog. Hold the experiment until specifications have answered.
-      await Promise.race([specsReady, new Promise((resolve) => setTimeout(resolve, 15_000))]);
       const found = experiments.find((experiment) => experiment.uuid === experimentMatch[1]);
       if (!found) return json(route, { message: 'not found' }, 404);
       return json(route, found);
@@ -413,8 +402,10 @@ export async function installExperimentStudioApi(page: Page, initial: StoredExpe
       return json(route, found);
     }
 
-    return json(route, {});
+    // The app called an endpoint this mock does not know. Answer with an error, not an empty success.
+    unhandled.push(`${method} ${path}`);
+    return json(route, { message: `No mock for ${method} ${path}` }, 501);
   });
 
-  return experiments;
+  return { experiments, unhandled };
 }

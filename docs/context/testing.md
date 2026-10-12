@@ -49,7 +49,13 @@ There is no separate QA checklist file; the list below is it. Walk the affected 
 Not applicable in this frontend repository. Backend behavior must be validated in the backend repository or against a deployed/local backend.
 
 ## E2E Tests
-Unknown / TODO: verify. No e2e runner is configured in this repository.
+Playwright flows for the experiment studio live in `e2e/`. They run headless against `ng serve`, with every `/services` call mocked in the browser by `e2e/experiment-studio-api.ts`, so they need no backend and no secrets. CI runs them on pull requests (`.github/workflows/e2e-experiment-studio.yml`).
+
+```bash
+npm run e2e:experiment-studio
+```
+
+The mock answers any `/services` call it does not know with a 501 and the test fails, listing the call. When the app starts calling a new endpoint, add a branch for it to the mock. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.
 
 ## Fixtures and Mocks
 - Existing unit tests define local fixtures inside specs.

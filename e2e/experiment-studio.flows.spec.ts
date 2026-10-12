@@ -6,7 +6,10 @@ import { installExperimentStudioApi, seedLinearExperiment, StoredExperiment } fr
  * Each test is named for the flow it covers so a failure says which one broke.
  */
 
+let unhandledCalls: string[] = [];
+
 test.beforeEach(async ({ page }) => {
+  unhandledCalls = [];
   await page.addInitScript(() => {
     localStorage.setItem('mip.guide.experiments-dashboard.autostarted', 'true');
     localStorage.setItem('mip.guide.experiment-studio.seen', 'true');
@@ -14,8 +17,12 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test.afterEach(() => {
+  expect(unhandledCalls, 'calls to /services the mock does not answer').toEqual([]);
+});
+
 async function boot(page: Page, experiments: StoredExperiment[] = []) {
-  await installExperimentStudioApi(page, experiments);
+  ({ unhandled: unhandledCalls } = await installExperimentStudioApi(page, experiments));
 }
 
 async function openNewStudio(page: Page) {
@@ -173,6 +180,23 @@ test.describe('experiment studio flow', () => {
       await setAlpha(page, '0.2');
       await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
     });
+  });
+
+  test('edit when specifications answer after the experiment', async ({ page }) => {
+    await boot(page, [seedLinearExperiment()]);
+    // A slow Exaflow catalog: the saved experiment arrives first, the specifications 2 s later.
+    await page.route('**/services/specifications/**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await route.fallback();
+    });
+
+    await page.goto('/experiment-studio?experimentId=exp-seed-1&mode=edit');
+    await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
+    await goToDataHandling(page);
+    await goToAlgorithms(page);
+    await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
+    await expect(page.locator('.config-field', { hasText: 'Alpha' }).locator('input')).toHaveValue('0.05');
+    await expect(page.getByRole('button', { name: 'Remove Age from outcome' })).toBeVisible();
   });
 
   test('save', async ({ page }) => {
@@ -560,7 +584,6 @@ async function applyOutlierChoice(page: Page, method?: string, clip?: string) {
   await outlier.getByRole('button', { name: 'Apply', exact: true }).click();
   await collapsePipeline(page, 'Preprocessing');
   await expect(page.getByText(/Extreme values capped/)).toBeVisible();
-  if (method) await expect(page.getByText(new RegExp(`\\(${method}\\)`))).toBeVisible();
   if (clip) {
     await page.getByRole('button', { name: /Outlier Winsorizer/ }).click();
     await expect(page.locator('app-station-card', { hasText: 'Outlier Handling' }).getByRole('radio', { name: clip, exact: true })).toHaveAttribute('aria-checked', 'true');

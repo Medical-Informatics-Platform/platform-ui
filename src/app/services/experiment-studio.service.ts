@@ -246,9 +246,11 @@ export class ExperimentStudioService {
     return acc;
   }, {} as Record<string, string>);
 
+  /** The specifications request, made once. Edit hydration waits on it before it resolves the saved algorithm. */
+  private readonly catalogLoaded$ = this.loadBackendAlgorithms().pipe(shareReplay(1));
 
   constructor() {
-    this.loadBackendAlgorithms().subscribe();
+    this.catalogLoaded$.subscribe();
 
 
 
@@ -2105,9 +2107,10 @@ export class ExperimentStudioService {
 
     this.setFilterLogic(filters);
 
-    this.loadAllDataModels()
+    // The experiment can arrive before the specifications; resolving the algorithm then would find nothing.
+    forkJoin([this.loadAllDataModels(), this.catalogLoaded$])
       .pipe(takeUntil(this.destroy$))
-      .subscribe((models) => {
+      .subscribe(([models]) => {
         if (!models || !models.length) {
           console.warn('No data models available for hydration.');
           return;
