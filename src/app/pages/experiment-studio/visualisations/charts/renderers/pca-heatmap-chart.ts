@@ -1,5 +1,6 @@
 import { EChartsOption } from "echarts";
 import { CHART_SERIES_COLORS, DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 const AXIS_COLOR = '#475569';
 const TEXT_COLOR = '#0f172a';
@@ -73,7 +74,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       position: 'top',
       formatter: (params: any) => {
         const [component, variable, val] = params.value;
-        return `${componentLabels[component]}<br/>${variableNames[variable]}: <b>${val.toFixed(3)}</b>`;
+        return `${componentLabels[component]}<br/>${escapeHtml(variableNames[variable])}: <b>${val.toFixed(3)}</b>`;
       },
     },
     grid: {

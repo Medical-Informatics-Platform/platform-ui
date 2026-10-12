@@ -1,6 +1,7 @@
 import { EChartsOption } from 'echarts';
 import { formatPValue } from '../../result-format';
 import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 const AXIS_COLOR = '#475569';
 
@@ -59,7 +60,7 @@ export function buildMatrixChart(result: any): EChartsOption[] {
         const [j, i, r] = params.value;
         const row = rows[i];
         const col = cols[j];
-        const lines = [`${row} × ${col}`, `r = <b>${r.toFixed(3)}</b>`];
+        const lines = [`${escapeHtml(row)} × ${escapeHtml(col)}`, `r = <b>${r.toFixed(3)}</b>`];
         const lower = cell(ciLower, row, col);
         const upper = cell(ciUpper, row, col);
         if (lower !== null && upper !== null) lines.push(`95% CI ${lower.toFixed(3)} to ${upper.toFixed(3)}`);

@@ -1,5 +1,6 @@
 import { EChartsOption } from 'echarts';
 import { cellLabelColor } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 export interface ConfusionMatrix {
   labels: string[];
@@ -72,7 +73,8 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
         position: 'top',
         formatter: (params: any) => {
           const [predictedIdx, actualIdx, share] = params.value;
-          return `Actual: ${labels[actualIdx]}<br/>Predicted: ${labels[predictedIdx]}<br/>Count: <b>${params.data.count.toLocaleString('en-US')}</b> (${(share * 100).toFixed(1)}% of actual ${labels[actualIdx]})`;
+          const actual = escapeHtml(labels[actualIdx]);
+          return `Actual: ${actual}<br/>Predicted: ${escapeHtml(labels[predictedIdx])}<br/>Count: <b>${params.data.count.toLocaleString('en-US')}</b> (${(share * 100).toFixed(1)}% of actual ${actual})`;
         },
       },
       grid: { top: 80, left: 28, right: 16, bottom: 40, containLabel: true },

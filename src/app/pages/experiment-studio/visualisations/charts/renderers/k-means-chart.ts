@@ -1,6 +1,7 @@
 import { EChartsOption } from 'echarts';
 import { formatSummaryNumber } from '../../result-format';
 import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 const AXIS_COLOR = '#475569';
 
@@ -77,8 +78,8 @@ function buildKMeans2DChart(
         trigger: 'item',
         formatter: (p: any) => {
           const size = sizeTexts[p.seriesIndex];
-          return `${names[p.seriesIndex]}<br/>${variables[0]}: <b>${p.value[0].toFixed(2)}</b><br/>${variables[1]}: <b>${p.value[1].toFixed(2)}</b>` +
-            (size === null ? '' : `<br/>${size} rows`);
+          return `${escapeHtml(names[p.seriesIndex])}<br/>${escapeHtml(variables[0])}: <b>${p.value[0].toFixed(2)}</b><br/>${escapeHtml(variables[1])}: <b>${p.value[1].toFixed(2)}</b>` +
+            (size === null ? '' : `<br/>${escapeHtml(size)} rows`);
         },
       },
       grid: { top: 64, left: 24, right: 32, bottom: 48, containLabel: true },
@@ -141,7 +142,7 @@ function buildKMeansCentresHeatmap(
         formatter: (p: any) => {
           const [v, c, shade, value] = p.value;
           const side = shade > 0 ? 'above' : shade < 0 ? 'below' : 'at';
-          return `${names[c]}<br/>${variables[v]}: <b>${formatSummaryNumber(value)}</b><br/>${side} the overall mean`;
+          return `${escapeHtml(names[c])}<br/>${escapeHtml(variables[v])}: <b>${formatSummaryNumber(value)}</b><br/>${side} the overall mean`;
         },
       },
       grid: { top: 8, left: 8, right: 16, bottom: 48, containLabel: true },

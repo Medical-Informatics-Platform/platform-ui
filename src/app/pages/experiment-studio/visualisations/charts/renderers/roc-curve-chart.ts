@@ -1,5 +1,6 @@
 import { EChartsOption } from "echarts";
 import type { LineSeriesOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 
 export function buildRocCurveChart(result: any): EChartsOption[] {
@@ -85,7 +86,7 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
         // Every fold's nearest point, not only the first fold's.
         formatter: (params: any) => (Array.isArray(params) ? params : [params])
           .filter((p: any) => p.seriesName !== 'Chance')
-          .map((p: any) => `${p.marker}${p.seriesName}: FPR ${p.value[0].toFixed(2)}, TPR ${p.value[1].toFixed(2)}`)
+          .map((p: any) => `${p.marker}${escapeHtml(p.seriesName)}: FPR ${p.value[0].toFixed(2)}, TPR ${p.value[1].toFixed(2)}`)
           .join('<br/>'),
       },
       legend: {

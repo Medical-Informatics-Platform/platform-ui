@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 /** Group means with whiskers at ± 1 sample SD — Exaflow's ci_info "m-s"/"m+s" are mean ∓ SD, not a CI. */
 export function buildMeanPlotChart(result: any): EChartsOption[] {
@@ -58,14 +59,14 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
         if (p.seriesType === 'scatter') {
           const group = p.name ?? (Array.isArray(p.value) ? p.value[0] : '');
           const mean = Array.isArray(p.value) ? p.value[1] : meanMap[group];
-          return `${group}<br/>Mean: <b>${fmt(mean)}</b>`;
+          return `${escapeHtml(group)}<br/>Mean: <b>${fmt(mean)}</b>`;
         }
         if (p.seriesType === 'custom' && Array.isArray(p.value)) {
           const group = p.value[4];
           const low = p.value[1];
           const high = p.value[2];
           const mean = meanMap[group];
-          return `${group}<br/>Mean: <b>${fmt(mean)}</b><br/>± 1 SD: <b>${fmt(low)} – ${fmt(high)}</b>`;
+          return `${escapeHtml(group)}<br/>Mean: <b>${fmt(mean)}</b><br/>± 1 SD: <b>${fmt(low)} – ${fmt(high)}</b>`;
         }
         return '';
       }

@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 import {
   getDescribeDatasetLabels,
   getFeaturewiseDescribeRows,
@@ -60,7 +61,7 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
           const vals = p.value.length === 6 ? p.value.slice(1) : p.value;
           const [min, q1, median, q3, max] = vals;
           return `
-            <b>${datasets[p.dataIndex]}</b><br/>
+            <b>${escapeHtml(datasets[p.dataIndex])}</b><br/>
             Min: ${fmt(min)}<br/>
             Q1: ${fmt(q1)}<br/>
             Median: ${fmt(median)}<br/>
@@ -69,7 +70,7 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
           `;
         } else if (p.seriesType === 'scatter') {
           // p.value for scatter is [index, mean]
-          return `${datasets[p.value[0]]}<br/>Mean: ${fmt(p.value[1])}`;
+          return `${escapeHtml(datasets[p.value[0]])}<br/>Mean: ${fmt(p.value[1])}`;
         }
         return '';
       },

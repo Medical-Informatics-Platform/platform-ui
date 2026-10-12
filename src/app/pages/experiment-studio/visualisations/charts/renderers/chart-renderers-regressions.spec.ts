@@ -58,6 +58,19 @@ describe('Chart renderers regressions', () => {
     expect(labelColors[3]).toBe('#ffffff');
   });
 
+  it('escapes labels in chart tooltips, which ECharts renders as HTML', () => {
+    const chart = buildKMeansChart({
+      variables: ['<img src=x onerror=alert(1)>', 'v2', 'v3'],
+      clusters: [{ label: 'Cluster 0', size_interval: '<10', center: { '<img src=x onerror=alert(1)>': 1, v2: 1, v3: 1 } }],
+      elbow: null,
+    })[0] as any;
+
+    const html = chart.tooltip.formatter({ value: [0, 0, 0, 1] });
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('Cluster 0 · &lt;10');
+  });
+
   it('weights a kmeans cluster under the privacy threshold by half the threshold', () => {
     const chart = buildKMeansChart({
       variables: ['v1', 'v2', 'v3'],

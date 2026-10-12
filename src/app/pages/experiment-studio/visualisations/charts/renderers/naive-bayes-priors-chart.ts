@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 function normalize(values: number[]): number[] {
   const safe = values.map((v) => (Number.isFinite(v) ? v : 0));
@@ -38,7 +39,7 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
         formatter: (params: any) => {
           const p = Array.isArray(params) ? params[0] : params;
           const value = Number(p?.value);
-          return `${p?.name}<br/>Prior: ${(value * 100).toFixed(2)}%`;
+          return `${escapeHtml(p?.name)}<br/>Prior: ${(value * 100).toFixed(2)}%`;
         },
       },
       grid: {
@@ -124,7 +125,7 @@ export function buildNaiveBayesProfileChart(result: any): EChartsOption[] {
         formatter: (p: any) => {
           const f = p.dataIndex;
           const c = p.seriesIndex;
-          return `${features[f]} · ${classes[c]}<br/>Mean: <b>${Number(theta[c][f]).toFixed(2)}</b> (SD ${Math.sqrt(Number(variance[c][f])).toFixed(2)})<br/>${p.value[0] >= 0 ? '+' : '−'}${Math.abs(p.value[0]).toFixed(2)} SD from the overall mean`;
+          return `${escapeHtml(features[f])} · ${escapeHtml(classes[c])}<br/>Mean: <b>${Number(theta[c][f]).toFixed(2)}</b> (SD ${Math.sqrt(Number(variance[c][f])).toFixed(2)})<br/>${p.value[0] >= 0 ? '+' : '−'}${Math.abs(p.value[0]).toFixed(2)} SD from the overall mean`;
         },
       },
       // Room above the first row for its class-name labels.
