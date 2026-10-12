@@ -135,4 +135,12 @@ describe('hub-session', () => {
 
         await expect(ensureHubSession('/notebook')).resolves.toEqual('failed');
     }, 15000);
+
+    it('ensureHubSession returns failed without redirecting once the caller is gone', async () => {
+        vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
+
+        await expect(ensureHubSession('/notebook', () => false)).resolves.toEqual('failed');
+        // No redirect was recorded, so the page was never sent to the Hub login.
+        expect(shouldRedirectToHubLogin()).toBe(true);
+    }, 15000);
 });
