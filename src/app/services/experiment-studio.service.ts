@@ -176,8 +176,11 @@ export class ExperimentStudioService {
   readonly runSetup = signal<ExperimentRunSetup | null>(null);
   /** Save As toast host: rendered by the Execution step, triggered from anywhere. */
   readonly saveSucceeded = signal(false);
+  /** Why the last save failed, shown next to the Save As form; null while none failed. */
+  readonly saveError = signal<string | null>(null);
 
   notifySaveSucceeded(): void {
+    this.saveError.set(null);
     this.saveSucceeded.set(true);
     setTimeout(() => this.saveSucceeded.set(false), 8000);
   }

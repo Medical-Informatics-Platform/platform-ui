@@ -27,6 +27,7 @@ describe('ExecutionPanelComponent', () => {
     lastRunSchema: signal<unknown>(null),
     runStatusText: signal('Running the experiment…'),
     saveSucceeded: signal(false),
+    saveError: signal<string | null>(null),
     lastUsedAlgorithm: signal('flat_algo'),
     backendAlgorithms: signal<Record<string, { label: string }>>({ flat_algo: { label: 'Flat Algo' } }),
     algorithmY: signal<never[]>([]),
@@ -49,6 +50,7 @@ describe('ExecutionPanelComponent', () => {
     studio.isRunning.set(false);
     studio.runResult.set(null);
     studio.runError.set(null);
+    studio.saveError.set(null);
     studioNavigation.navigateToSection.mockClear();
 
     await TestBed.configureTestingModule({
@@ -67,6 +69,13 @@ describe('ExecutionPanelComponent', () => {
     });
 
     fixture = TestBed.createComponent(ExecutionPanelComponent);
+  });
+
+  it('shows why the last save failed next to the result', () => {
+    studio.saveError.set('Engine crashed');
+    const html = render({ result: { title: 'Saved run' } });
+
+    expect(html.querySelector('[role="alert"].result-save-error')?.textContent).toContain('Saving failed: Engine crashed');
   });
 
   it('asks for a run while there is no result', () => {
