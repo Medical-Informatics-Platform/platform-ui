@@ -1,6 +1,6 @@
 name: Experiment studio e2e
 
-# Playwright flows for the experiment studio. Backend calls are mocked in the
+# Playwright flows in e2e/ (studio, dashboard, access). Backend calls are mocked in the
 # browser (every same-origin /services request). No live API and no secrets.
 # The Vitest unit tests run in unit-tests.yml.
 on:
@@ -29,7 +29,17 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Experiment studio flows
-        run: npm run e2e:experiment-studio
+      - name: E2E flows
+        run: npm run e2e
         env:
           CI: true
+
+      # Traces and screenshots of failed tests only (see playwright.config.ts).
+      - name: Upload failure traces
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-test-results
+          path: e2e/test-results
+          retention-days: 7
+          if-no-files-found: ignore

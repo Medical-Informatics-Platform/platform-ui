@@ -57,18 +57,27 @@ There is no separate QA checklist file; the list below is it. Walk the affected 
 Not applicable in this frontend repository. Backend behavior must be validated in the backend repository or against a deployed/local backend.
 
 ## E2E Tests
-Playwright flows for the experiment studio live in `e2e/`. They run headless against `ng serve`, with every `/services` call mocked in the browser by `e2e/experiment-studio-api.ts`, so they need no backend and no secrets. CI runs them on pull requests (`.github/workflows/e2e-experiment-studio.yml`).
+Playwright flows live in `e2e/`. They run headless and in parallel against `ng serve`, with every `/services` call mocked in the browser, so they need no backend and no secrets. CI runs them on pull requests (`.github/workflows/e2e-experiment-studio.yml`).
 
 ```bash
-npm run e2e:experiment-studio
+npm run e2e                              # every spec in e2e/
+npm run e2e -- e2e/dashboard.spec.ts     # one file
+npm run e2e -- -g "save shows"           # tests whose name matches
 ```
 
-The mock answers any `/services` call it does not know with a 501 and the test fails, listing the call. When the app starts calling a new endpoint, add a branch for it to the mock. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.
+- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, run and save lifecycle, result rendering.
+- `dashboard.spec.ts`: rename, share, delete (with rollback), compare, duplicate.
+- `access.spec.ts`: Keycloak redirect, terms acceptance, notebook route on and off.
+- `fixtures.ts`: the `test` every spec imports. It installs the mock (`api`), and fails the test if the app called a `/services` endpoint the mock does not answer.
+- `experiment-studio-api.ts`: the mock and its data. `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
+- `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, run, save).
+
+Failed tests keep a trace and a screenshot in `e2e/test-results/`; CI uploads that folder as the `e2e-test-results` artifact. Open a trace with `npx playwright show-trace <trace.zip>`. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.
 
 ## Fixtures and Mocks
 - Existing unit tests define local fixtures inside specs.
 - Component tests commonly provide service stubs and Angular Signals through `TestBed`.
-- No central fixture directory was detected.
+- Shared unit-test helpers live in `src/app/testing/` (for example `createSpyObj`); e2e fixtures and the `/services` mock live in `e2e/`.
 
 ## Critical Paths That Need Strong Coverage
 - Auth and redirect handling.

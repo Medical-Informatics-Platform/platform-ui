@@ -214,15 +214,31 @@ function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inpu
   return { featurewise, dataset_labels: { chuv: 'CHUV', adni: 'ADNI' } };
 }
 
+/**
+ * Age ~ sex, in the shape Exaflow returns for linear_regression
+ * (exaflow tests/prod_env_tests/expected/linear_regression_expected.json).
+ */
+export const LINEAR_REGRESSION_RESULT = {
+  dependent_var: 'age',
+  n_obs: 100,
+  df_resid: 98.0,
+  df_model: 1.0,
+  rse: 7.912,
+  r_squared: 0.0421,
+  r_squared_adjusted: 0.0323,
+  f_stat: 4.3082,
+  f_pvalue: 0.04055,
+  indep_vars: ['Intercept', 'sex[M]'],
+  coefficients: [71.2041, 2.0512],
+  std_err: [1.0213, 0.9882],
+  t_stats: [69.7191, 2.0757],
+  pvalues: [1.2e-80, 0.04055],
+  lower_ci: [69.1773, 0.0901],
+  upper_ci: [73.2309, 4.0123],
+};
+
 function resultFor(name: string) {
-  if (name === 'linear_regression') {
-    return {
-      title: 'Result Linear regression',
-      dependent_var: 'age',
-      indep_vars: ['sex', 'intercept'],
-      n_obs: 100,
-    };
-  }
+  if (name === 'linear_regression') return LINEAR_REGRESSION_RESULT;
   return { title: `Result ${name}`, n_obs: 100 };
 }
 
@@ -268,18 +284,31 @@ function json(route: Route, body: unknown, status = 200) {
   });
 }
 
+export interface RecordedRequest {
+  method: string;
+  path: string;
+  body: Record<string, any>;
+}
+
+export interface StudioApi {
+  /** The stored experiments. Push seeds here before the page loads them. */
+  experiments: StoredExperiment[];
+  /** Every `/services` call, in order, with its parsed JSON body. */
+  requests: RecordedRequest[];
+  /** Calls no branch below answers. The fixture fails the test when this is not empty. */
+  unhandled: string[];
+}
+
 /**
- * Intercept every `/services/*` call the studio and dashboard make.
+ * Intercept every `/services/*` call the app makes.
  * One in-memory list stands in for PostgreSQL so save and re-open share a store.
- * `unhandled` collects every call no branch below answers, so a test can fail on it.
+ * Tests override single endpoints with their own `page.route`, which runs first.
  */
-export async function installExperimentStudioApi(
-  page: Page,
-  initial: StoredExperiment[] = [],
-): Promise<{ experiments: StoredExperiment[]; unhandled: string[] }> {
-  const experiments = [...initial];
+export async function installExperimentStudioApi(page: Page): Promise<StudioApi> {
+  const experiments: StoredExperiment[] = [];
+  const requests: RecordedRequest[] = [];
   const unhandled: string[] = [];
-  let sequence = experiments.length;
+  let sequence = 0;
   await page.route('**/services/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -296,8 +325,14 @@ export async function installExperimentStudioApi(
       }
     };
 
+    requests.push({ method, path, body: readBody() });
+
     if (path === '/services/activeUser' && method === 'GET') {
       return json(route, STUDIO_USER);
+    }
+
+    if (path === '/services/activeUser/agreeNDA' && method === 'POST') {
+      return json(route, { ...STUDIO_USER, agreeNDA: true });
     }
 
     if (path === '/services/experiment-folders' && method === 'GET') {
@@ -393,6 +428,13 @@ export async function installExperimentStudioApi(
       return json(route, found);
     }
 
+    if (experimentMatch && method === 'DELETE') {
+      const index = experiments.findIndex((experiment) => experiment.uuid === experimentMatch[1]);
+      if (index < 0) return json(route, { message: 'not found' }, 404);
+      experiments.splice(index, 1);
+      return route.fulfill({ status: 204 });
+    }
+
     if (experimentMatch && method === 'PATCH') {
       const found = experiments.find((experiment) => experiment.uuid === experimentMatch[1]);
       if (!found) return json(route, { message: 'not found' }, 404);
@@ -407,5 +449,5 @@ export async function installExperimentStudioApi(
     return json(route, { message: `No mock for ${method} ${path}` }, 501);
   });
 
-  return { experiments, unhandled };
+  return { experiments, requests, unhandled };
 }

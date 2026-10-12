@@ -15,7 +15,7 @@
     "check:dead-code": "node scripts/check-dead-code.mjs",
     "verify": "npm run typecheck && npm run check:dead-code && npm run build",
     "test": "ng test",
-    "e2e:experiment-studio": "playwright test --config playwright.config.ts e2e/experiment-studio.flows.spec.ts"
+    "e2e": "playwright test"
   },
   "private": true,
   "engines": {

@@ -84,7 +84,6 @@ flowchart TD
 - `nginx.conf.template` proxies `/${PLATFORM_BACKEND_CONTEXT}/` to the backend and `/${JUPYTER_CONTEXT}/` to Jupyter only when notebook support is enabled.
 
 ## Known Gaps
-- No dedicated lint, format, or standalone typecheck scripts are defined.
-- E2E coverage (Playwright, `e2e/`) is limited to experiment studio flows against a mocked `/services` API; no e2e run exercises a real backend.
+- No lint or format scripts are defined. `npm run typecheck` and `npm run check:dead-code` cover types and dead code.
+- E2E flows (Playwright, `e2e/`) run against a mocked `/services` API; no e2e run exercises a real backend.
 - Many authenticated experiment flows require a running backend and Keycloak-compatible environment for full validation.
-- CI workflows publish/mirror images, but no workflow in this repo currently runs unit tests or builds on pull requests.

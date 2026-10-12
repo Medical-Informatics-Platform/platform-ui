@@ -72,6 +72,11 @@ npm test
 ```
 Runs the Vitest unit tests through Angular CLI in headless Chromium. Use `npm test -- --watch=false` for a single run, and `--include <spec path>` to focus. Chromium comes from `npx playwright install chromium`, or set `CHROME_BIN` to an installed Chrome.
 
+```bash
+npm run e2e
+```
+Runs the Playwright flows in `e2e/` against a mocked `/services` API (starts `ng serve` itself; a few minutes). See `docs/context/testing.md` (E2E Tests).
+
 Manual browser QA is required for authenticated experiment workflows and backend-dependent chart/result rendering. The checklist lives in `docs/context/testing.md` (Frontend Manual QA).
 
 ## Lint / Format / Typecheck

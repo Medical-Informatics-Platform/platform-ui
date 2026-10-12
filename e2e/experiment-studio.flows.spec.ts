@@ -1,189 +1,100 @@
-import { expect, Page, test } from '@playwright/test';
-import { installExperimentStudioApi, seedLinearExperiment, StoredExperiment } from './experiment-studio-api';
+import { Page } from '@playwright/test';
+import { seedLinearExperiment, StudioApi } from './experiment-studio-api';
+import { expect, lastRequest, test } from './fixtures';
+import {
+  addKMeansColumn,
+  addNominalColumn,
+  addVariable,
+  alphaInput,
+  applyFilters,
+  applyLongitudinalStrategy,
+  applyMeanImputationToAll,
+  applyOutlierChoice,
+  assignRole,
+  clearRole,
+  collapsePreprocessing,
+  expectAlgorithm,
+  expectAlgorithmBlocked,
+  goToAlgorithms,
+  goToDataHandling,
+  openAgeAndSex,
+  openLongitudinalAge,
+  openMissingValues,
+  openNewStudio,
+  prepareLinearRun,
+  runExperiment,
+  saveExperiment,
+  setAlpha,
+} from './studio';
 
 /**
  * End-to-end experiment studio flows against a mocked `/services` API.
  * Each test is named for the flow it covers so a failure says which one broke.
+ * Payload checks read the request the studio sent, since that is what Exaflow runs.
  */
 
-let unhandledCalls: string[] = [];
+const TRANSIENT = '/services/experiments/transient';
 
-test.beforeEach(async ({ page }) => {
-  unhandledCalls = [];
-  await page.addInitScript(() => {
-    localStorage.setItem('mip.guide.experiments-dashboard.autostarted', 'true');
-    localStorage.setItem('mip.guide.experiment-studio.seen', 'true');
-    localStorage.setItem('mip.guide.experiment-studio.autostarted', 'true');
+/** One preprocessing step from the latest Data review preview (`describe`). */
+function previewStep(api: StudioApi, name: string) {
+  const steps: { name: string; parameters: Record<string, any> }[] =
+    lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.preprocessing ?? [];
+  const step = steps.find((candidate) => candidate.name === name);
+  expect(step, `preview sends ${name}`).toBeTruthy();
+  return step!.parameters;
+}
+
+test.describe('experiment studio', () => {
+  test('new experiment starts empty and lists the variables it adds', async ({ page }) => {
+    await openNewStudio(page);
+    await expect(page).not.toHaveURL(/experimentId/);
+    await addVariable(page, 'Age');
+    await expect(page.locator('.pool-card')).toContainText('Age');
+    await expect(page.locator('.sub-header-cta')).toHaveText(/Continue with 1 variable/);
   });
-});
 
-test.afterEach(() => {
-  expect(unhandledCalls, 'calls to /services the mock does not answer').toEqual([]);
-});
+  test('open a saved experiment from the dashboard', async ({ page, api }) => {
+    api.experiments.push(seedLinearExperiment());
+    await page.goto('/experiments-dashboard');
+    await page.getByRole('option', { name: /Baseline age model/ }).click();
+    await expect(page.getByRole('heading', { name: 'Baseline age model' })).toBeVisible();
+    await page.getByRole('button', { name: /Open in Studio/ }).click();
+    await expect(page).toHaveURL(/mode=edit/);
+    await expect(page).toHaveURL(/experimentId=exp-seed-1/);
+    await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
+    await expect(page.locator('.pool-chip', { hasText: 'Sex' })).toBeVisible();
+    await goToDataHandling(page);
+    await goToAlgorithms(page);
+    await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
+    await expect(page.getByRole('button', { name: 'Remove Age from outcome' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove Sex from predictors' })).toBeVisible();
+  });
 
-async function boot(page: Page, experiments: StoredExperiment[] = []) {
-  ({ unhandled: unhandledCalls } = await installExperimentStudioApi(page, experiments));
-}
+  test('edit a saved experiment and save the changed parameter', async ({ page, api }) => {
+    api.experiments.push(seedLinearExperiment());
+    await page.goto('/experiment-studio?experimentId=exp-seed-1&mode=edit');
+    await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
+    await goToDataHandling(page);
+    await goToAlgorithms(page);
+    await expect(alphaInput(page)).toHaveValue('0.05');
+    await setAlpha(page, '0.2');
+    await runExperiment(page);
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
+    await saveExperiment(page, 'Edited age model');
+    await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
 
-async function openNewStudio(page: Page) {
-  await page.goto('/experiments-dashboard');
-  await page.getByRole('button', { name: 'New experiment' }).click();
-  await expect(page).toHaveURL(/\/experiment-studio\/?$/);
-  await expect(page.getByRole('button', { name: /Dementia/ })).toBeVisible();
-}
-
-async function addVariable(page: Page, label: string) {
-  await page.getByRole('button', { name: 'Search variables or groups' }).click();
-  await page.locator('#search-bar').fill(label);
-  await page.locator('.search-result-item', { hasText: label }).first().click();
-  await page.locator('[data-guide="guide-add-variable"]').click();
-  await expect(page.locator('.pool-chip', { hasText: label })).toBeVisible();
-}
-
-async function continueFromHeader(page: Page, name: RegExp) {
-  const cta = page.locator('.sub-header-cta');
-  await expect(cta).toBeEnabled();
-  await expect(cta).toHaveText(name);
-  await cta.click();
-}
-
-async function goToDataHandling(page: Page) {
-  await continueFromHeader(page, /Continue with/);
-  await expect(page.getByRole('heading', { name: 'Data Handling Pipeline' })).toBeVisible();
-}
-
-async function goToAlgorithms(page: Page) {
-  await continueFromHeader(page, /Continue to Algorithm Selection/);
-  await expect(page.getByRole('heading', { name: 'Algorithm', exact: true })).toBeVisible();
-}
-
-async function ensureRolesOpen(page: Page) {
-  const add = page.getByRole('button', { name: '+ Add' });
-  if (await add.isVisible()) {
-    await add.click();
-  }
-}
-
-async function assignRole(page: Page, variable: string, role: 'Outcome' | 'Predictor') {
-  await ensureRolesOpen(page);
-  const row = page.locator('app-algorithm-role-assignment li.row', { hasText: variable });
-  await row.getByRole('radio', { name: role }).click();
-  const slot = role === 'Outcome' ? 'outcome' : 'predictors';
-  await expect(page.getByRole('button', { name: `Remove ${variable} from ${slot}` })).toBeVisible();
-}
-
-async function clearRole(page: Page, variable: string, slot: 'outcome' | 'predictors') {
-  await page.getByRole('button', { name: `Remove ${variable} from ${slot}` }).click();
-}
-
-async function chooseAlgorithm(page: Page, label: string) {
-  await page.locator('#algo-search').fill(label);
-  const tile = page.locator('.algo-tile', { hasText: label });
-  await expect(tile).toBeVisible();
-  await tile.click();
-  await expect(page.locator('h2.algorithm-details__title')).toHaveText(label);
-  return tile;
-}
-
-async function expectAlgorithm(page: Page, label: string, category: string) {
-  await chooseAlgorithm(page, label);
-  await expect(page.locator('.inspector-tag')).toHaveText(category);
-  await expect(page.locator('.algo-tile.selected', { hasText: label })).not.toHaveClass(/disabled-algo/);
-}
-
-async function expectAlgorithmBlocked(page: Page, label: string) {
-  // The catalog hides methods that cannot run until "All" is selected.
-  const allMethods = page.getByRole('button', { name: /^All\b/ });
-  if ((await allMethods.getAttribute('aria-pressed')) !== 'true') {
-    await allMethods.click();
-  }
-  await page.locator('#algo-search').fill(label);
-  const tile = page.locator('.algo-tile', { hasText: label });
-  await expect(tile).toBeVisible();
-  await expect(tile).toHaveClass(/disabled-algo/);
-  await expect(tile.locator('.algo-why')).not.toHaveText('');
-}
-
-async function setAlpha(page: Page, value: string) {
-  const alpha = page.locator('.config-field', { hasText: 'Alpha' }).locator('input');
-  // The parameter column is clipped, so a normal fill never reaches the form control.
-  await alpha.evaluate((el, next) => {
-    const input = el as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(input, next);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value);
-  await expect(alpha).toHaveValue(value);
-}
-
-async function applyMeanImputation(page: Page) {
-  await page.getByRole('button', { name: 'Customize rules' }).click();
-  const missing = page.locator('app-station-card', { hasText: 'Missing Values' });
-  await missing.getByRole('button', { name: 'Set all' }).click();
-  await page.getByRole('menuitem', { name: 'Set all numerical to Mean imputation' }).click();
-  await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(missing).toContainText(/Mean imputation|Applied/);
-}
-
-async function prepareLinearRun(page: Page) {
-  await openNewStudio(page);
-  await addVariable(page, 'Age');
-  await addVariable(page, 'Sex');
-  await goToDataHandling(page);
-  await goToAlgorithms(page);
-  await assignRole(page, 'Age', 'Outcome');
-  await assignRole(page, 'Sex', 'Predictor');
-  await expectAlgorithm(page, 'Linear regression', 'Regression');
-}
-
-test.describe('experiment studio flow', () => {
-  test('create', async ({ page }) => {
-    await test.step('create', async () => {
-      await boot(page);
-      await openNewStudio(page);
-      await expect(page).not.toHaveURL(/experimentId/);
-      await addVariable(page, 'Age');
-      await expect(page.locator('.pool-card')).toContainText('Age');
-      await expect(page.locator('.sub-header-cta')).toHaveText(/Continue with 1 variable/);
+    const body = lastRequest(api, 'POST', '/services/experiments');
+    expect(body.name).toBe('Edited age model');
+    expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
+    // The saved preprocessing comes back unchanged.
+    expect(body.analysis.preprocessing).toContainEqual({
+      name: 'missing_values_handler',
+      parameters: { strategies: { age: 'drop', sex: 'drop' } },
     });
   });
 
-  test('open', async ({ page }) => {
-    await test.step('open', async () => {
-      await boot(page, [seedLinearExperiment()]);
-      await page.goto('/experiments-dashboard');
-      await page.getByRole('option', { name: /Baseline age model/ }).click();
-      await expect(page.getByRole('heading', { name: 'Baseline age model' })).toBeVisible();
-      await page.getByRole('button', { name: /Open in Studio/ }).click();
-      await expect(page).toHaveURL(/mode=edit/);
-      await expect(page).toHaveURL(/experimentId=exp-seed-1/);
-      await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
-      await expect(page.locator('.pool-chip', { hasText: 'Sex' })).toBeVisible();
-      await goToDataHandling(page);
-      await goToAlgorithms(page);
-      await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
-      await expect(page.getByRole('button', { name: 'Remove Age from outcome' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Remove Sex from predictors' })).toBeVisible();
-    });
-  });
-
-  test('edit', async ({ page }) => {
-    await test.step('edit', async () => {
-      await boot(page, [seedLinearExperiment()]);
-      await page.goto('/experiment-studio?experimentId=exp-seed-1&mode=edit');
-      await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
-      await goToDataHandling(page);
-      await goToAlgorithms(page);
-      const alpha = page.locator('.config-field', { hasText: 'Alpha' }).locator('input');
-      await expect(alpha).toHaveValue('0.05');
-      await setAlpha(page, '0.2');
-      await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
-    });
-  });
-
-  test('edit when specifications answer after the experiment', async ({ page }) => {
-    await boot(page, [seedLinearExperiment()]);
+  test('edit when specifications answer after the experiment', async ({ page, api }) => {
+    api.experiments.push(seedLinearExperiment());
     // A slow Exaflow catalog: the saved experiment arrives first, the specifications 2 s later.
     await page.route('**/services/specifications/**', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 2_000));
@@ -195,484 +106,336 @@ test.describe('experiment studio flow', () => {
     await goToDataHandling(page);
     await goToAlgorithms(page);
     await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
-    await expect(page.locator('.config-field', { hasText: 'Alpha' }).locator('input')).toHaveValue('0.05');
+    await expect(alphaInput(page)).toHaveValue('0.05');
     await expect(page.getByRole('button', { name: 'Remove Age from outcome' })).toBeVisible();
   });
 
-  test('save', async ({ page }) => {
-    await test.step('save', async () => {
-      await boot(page);
-      await prepareLinearRun(page);
-      await setAlpha(page, '0.2');
-      await page.locator('.sub-header-cta', { hasText: 'Run experiment' }).click();
-      await expect(page.getByText('age ~ sex')).toBeVisible();
+  test('save sends the whole analysis', async ({ page, api }) => {
+    await prepareLinearRun(page);
+    await setAlpha(page, '0.2');
+    await runExperiment(page);
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
+    await saveExperiment(page, 'Age by sex');
+    await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
+    await expect(page.getByText('Saved as “Age by sex”')).toBeVisible();
 
-      const saved = page.waitForRequest((request) => {
-        if (request.method() !== 'POST') return false;
-        return new URL(request.url()).pathname === '/services/experiments';
-      });
-      await page.getByRole('button', { name: 'Save experiment' }).click();
-      await page.locator('#save-as-name-input').fill('Age by sex');
-      await page.locator('.result-save-form').getByRole('button', { name: 'Save', exact: true }).click();
-      const request = await saved;
-      const body = request.postDataJSON() as {
-        name: string;
-        analysis: { algorithm: { name: string; parameters: { alpha: number }; y: string[]; x: string[] } };
-      };
-      expect(body.name).toBe('Age by sex');
-      expect(body.analysis.algorithm.name).toBe('linear_regression');
-      expect(body.analysis.algorithm.parameters.alpha).toBe(0.2);
-      expect(body.analysis.algorithm.y).toEqual(['age']);
-      expect(body.analysis.algorithm.x).toEqual(['sex']);
-      await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
-      await expect(page.getByText('Saved as “Age by sex”')).toBeVisible();
+    const body = lastRequest(api, 'POST', '/services/experiments');
+    expect(body.name).toBe('Age by sex');
+    expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
+    expect(body.analysis.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['chuv', 'adni'], filters: null });
+    expect(body.analysis.inputdata.variables).toEqual(expect.arrayContaining(['age', 'sex']));
+    expect(body.analysis.preprocessing).toContainEqual({
+      name: 'missing_values_handler',
+      parameters: { strategies: { age: 'drop', sex: 'drop' } },
     });
   });
 
-  test('re-open', async ({ page }) => {
-    await test.step('re-open', async () => {
-      await boot(page);
-      await prepareLinearRun(page);
-      await applyMeanImputationFromAlgorithms(page);
-      await setAlpha(page, '0.2');
-      await page.locator('.sub-header-cta', { hasText: 'Run experiment' }).click();
-      await expect(page.getByText('age ~ sex')).toBeVisible();
-      await page.getByRole('button', { name: 'Save experiment' }).click();
-      await page.locator('#save-as-name-input').fill('Reopened age model');
-      await page.locator('.result-save-form').getByRole('button', { name: 'Save', exact: true }).click();
-      await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
+  test('re-open restores preprocessing and parameters', async ({ page }) => {
+    await prepareLinearRun(page);
+    await page.getByRole('button', { name: 'Back to Data Handling' }).click();
+    await expect(page.getByRole('heading', { name: 'Data Handling Pipeline' })).toBeVisible();
+    await applyMeanImputationToAll(page);
+    await page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last().click();
+    await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
+    await setAlpha(page, '0.2');
+    await runExperiment(page);
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
+    await saveExperiment(page, 'Reopened age model');
+    await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
 
-      await page.getByRole('link', { name: 'My experiments' }).click();
-      await expect(page).toHaveURL(/experiments-dashboard/);
-      await page.getByRole('option', { name: /Reopened age model/ }).click();
-      await page.getByRole('button', { name: /Open in Studio/ }).click();
-      await expect(page).toHaveURL(/mode=edit/);
-      await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
-      await goToDataHandling(page);
-      await expect(page.getByText(/Mean imputation|Imputation configured/).first()).toBeVisible();
-      await goToAlgorithms(page);
-      await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
-      await expect(page.locator('.config-field', { hasText: 'Alpha' }).locator('input')).toHaveValue('0.2');
-    });
+    await page.getByRole('link', { name: 'My experiments' }).click();
+    await expect(page).toHaveURL(/experiments-dashboard/);
+    await page.getByRole('option', { name: /Reopened age model/ }).click();
+    await page.getByRole('button', { name: /Open in Studio/ }).click();
+    await expect(page).toHaveURL(/mode=edit/);
+    await expect(page.locator('.pool-chip', { hasText: 'Age' })).toBeVisible();
+    await goToDataHandling(page);
+    await expect(page.getByText(/Mean imputation|Imputation configured/).first()).toBeVisible();
+    await goToAlgorithms(page);
+    await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
+    await expect(alphaInput(page)).toHaveValue('0.2');
   });
 
-  test('algorithms', async ({ page }) => {
-    await test.step('algorithms', async () => {
-      await boot(page);
-      await openNewStudio(page);
-      await addVariable(page, 'Age');
-      await addVariable(page, 'Sex');
-      await addVariable(page, 'APOE');
-      await goToDataHandling(page);
-      await goToAlgorithms(page);
+  test('algorithms follow the assigned roles', async ({ page }) => {
+    await openNewStudio(page);
+    await addVariable(page, 'Age');
+    await addVariable(page, 'Sex');
+    await addVariable(page, 'APOE');
+    await goToDataHandling(page);
+    await goToAlgorithms(page);
 
-      await assignRole(page, 'Age', 'Outcome');
-      await assignRole(page, 'Sex', 'Predictor');
-      await expectAlgorithm(page, 'Linear regression', 'Regression');
-      await expectAlgorithm(page, 'Independent t-test', 'Statistical Tests');
-      await expectAlgorithm(page, 'One-way ANOVA', 'Statistical Tests');
-      await expectAlgorithm(page, 'Pearson correlation', 'Correlation');
-      await expectAlgorithmBlocked(page, 'K-means');
-      await expectAlgorithmBlocked(page, 'PCA');
-      await expectAlgorithmBlocked(page, 'Logistic regression');
+    await assignRole(page, 'Age', 'Outcome');
+    await assignRole(page, 'Sex', 'Predictor');
+    await expectAlgorithm(page, 'Linear regression', 'Regression');
+    await expectAlgorithm(page, 'Independent t-test', 'Statistical Tests');
+    await expectAlgorithm(page, 'One-way ANOVA', 'Statistical Tests');
+    await expectAlgorithm(page, 'Pearson correlation', 'Correlation');
+    await expectAlgorithmBlocked(page, 'K-means');
+    await expectAlgorithmBlocked(page, 'PCA');
+    await expectAlgorithmBlocked(page, 'Logistic regression');
 
-      await clearRole(page, 'Sex', 'predictors');
-      await expectAlgorithm(page, 'K-means', 'Clustering');
-      await expectAlgorithm(page, 'PCA', 'Dimensionality Reduction');
+    await clearRole(page, 'Sex', 'predictors');
+    await expectAlgorithm(page, 'K-means', 'Clustering');
+    await expectAlgorithm(page, 'PCA', 'Dimensionality Reduction');
 
-      await clearRole(page, 'Age', 'outcome');
-      await assignRole(page, 'Sex', 'Outcome');
-      await assignRole(page, 'Age', 'Predictor');
-      await expectAlgorithm(page, 'Logistic regression', 'Regression');
-      await expectAlgorithm(page, 'Naive Bayes gaussian', 'Classification');
+    await clearRole(page, 'Age', 'outcome');
+    await assignRole(page, 'Sex', 'Outcome');
+    await assignRole(page, 'Age', 'Predictor');
+    await expectAlgorithm(page, 'Logistic regression', 'Regression');
+    await expectAlgorithm(page, 'Naive Bayes gaussian', 'Classification');
 
-      await clearRole(page, 'Age', 'predictors');
-      await assignRole(page, 'APOE', 'Predictor');
-      await expectAlgorithm(page, 'Chi-squared', 'Statistical Tests');
-      await expectAlgorithm(page, 'Naive Bayes categorical', 'Classification');
-    });
+    await clearRole(page, 'Age', 'predictors');
+    await assignRole(page, 'APOE', 'Predictor');
+    await expectAlgorithm(page, 'Chi-squared', 'Statistical Tests');
+    await expectAlgorithm(page, 'Naive Bayes categorical', 'Classification');
   });
+});
 
-  test('preprocessing', async ({ page }) => {
-    await test.step('preprocessing', async () => {
-      await boot(page);
-      await openNewStudio(page);
-      await addVariable(page, 'Age');
-      await addVariable(page, 'Sex');
-      await goToDataHandling(page);
-
-      await applyMeanImputation(page);
-
-      const addOutlier = page.locator('button:visible').filter({ hasText: /Add outlier/ });
-      await addOutlier.first().click();
-      const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
-      await outlier.getByRole('button', { name: 'Batch' }).click();
-      await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();
-      await outlier.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText(/Extreme values capped|iqr|IQR/).first()).toBeVisible();
-    });
-  });
-
-  test('data handling', async ({ page }) => {
-    await test.step('data handling', async () => {
-      await boot(page);
-      await openNewStudio(page);
-      await addVariable(page, 'Age');
-      await addVariable(page, 'Sex');
-      await goToDataHandling(page);
-      await expect(page.getByRole('heading', { name: 'Data Handling Pipeline' })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Preprocessing' })).toBeVisible();
-
-      await page.getByRole('button', { name: 'Add filtering' }).click();
-      const modal = page.locator('app-filter-config-modal:visible');
-      await modal.getByRole('button', { name: 'Add condition' }).click();
-      const fields = modal.locator('.condition-fields').first();
-      await fields.getByPlaceholder('Type to find a variable').fill('Sex');
-      await fields.locator('select.filter-field-input').last().selectOption({ label: 'Female' });
-      await page.locator('.filter-workflow-section').getByRole('button', { name: 'Apply filters' }).click();
-      await expect(page.getByText('Sex is Female')).toBeVisible();
-
-      await expect(page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last()).toBeEnabled();
-    });
-  });
-
-  test('transformation nominal column', async ({ page }) => {
-    await test.step('transformation nominal column', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await addNominalColumn(page, 'sex_group', 'female', 'other');
-      await expect(page.getByText('Nominal column · sex_group')).toBeVisible();
-      await expect(page.getByText('Sex is Female')).toBeVisible();
-      await expect(page.locator('app-station-card', { hasText: 'Nominal column · sex_group' })).toContainText('Applied');
-    });
-  });
-
-  test('transformation k-means cluster column', async ({ page }) => {
-    await test.step('transformation k-means cluster column', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await addKMeansColumn(page);
-      await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
-      await expect(page.getByText(/2 clusters from age/)).toBeVisible();
-    });
-  });
-
-  test('preprocessing remove rows', async ({ page }) => {
-    await test.step('preprocessing remove rows', async () => {
-      await boot(page);
+test.describe('preprocessing', () => {
+  const missingStrategies = [
+    { radio: /Mean imputation/, label: 'Mean imputation', strategy: 'mean' },
+    { radio: /Median imputation/, label: 'Median imputation', strategy: 'median' },
+    { radio: /Constant value/, label: 'Constant value', strategy: 'constant', value: '70' },
+  ];
+  for (const { radio, label, strategy, value } of missingStrategies) {
+    test(`missing values: ${label}`, async ({ page, api }) => {
       await openAgeAndSex(page);
       const missing = await openMissingValues(page);
-      await missing.getByRole('radio', { name: /Mean imputation/ }).click();
+      await missing.getByRole('radio', { name: radio }).click();
+      if (value) await missing.getByPlaceholder('Value').fill(value);
       await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Age: Mean imputation')).toBeVisible();
-      await page.getByRole('button', { name: /Missing Values Strategy/ }).click();
-      const reopened = page.locator('app-station-card', { hasText: 'Missing Values' });
-      await reopened.getByRole('radio', { name: /Remove rows/ }).click();
-      await reopened.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText(/Rows with missing values removed/)).toBeVisible();
+      await collapsePreprocessing(page);
+      await expect(page.getByText(`Age: ${label}`)).toBeVisible();
+
+      const parameters = previewStep(api, 'missing_values_handler');
+      expect(parameters.strategies).toEqual({ age: strategy, sex: 'drop' });
+      if (value) expect(JSON.stringify(parameters)).toContain(value);
     });
+  }
+
+  test('missing values: switch a strategy back to removing rows', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    const missing = await openMissingValues(page);
+    await missing.getByRole('radio', { name: /Mean imputation/ }).click();
+    await missing.getByRole('button', { name: 'Apply', exact: true }).click();
+    await collapsePreprocessing(page);
+    await expect(page.getByText('Age: Mean imputation')).toBeVisible();
+    await page.getByRole('button', { name: /Missing Values Strategy/ }).click();
+    const reopened = page.locator('app-station-card', { hasText: 'Missing Values' });
+    await reopened.getByRole('radio', { name: /Remove rows/ }).click();
+    await reopened.getByRole('button', { name: 'Apply', exact: true }).click();
+    await collapsePreprocessing(page);
+    await expect(page.getByText(/Rows with missing values removed/)).toBeVisible();
+    expect(previewStep(api, 'missing_values_handler').strategies).toEqual({ age: 'drop', sex: 'drop' });
   });
 
-  test('preprocessing mean imputation', async ({ page }) => {
-    await test.step('preprocessing mean imputation', async () => {
-      await boot(page);
+  test('batch actions set every numerical variable', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    await applyMeanImputationToAll(page);
+    await page.locator('button:visible').filter({ hasText: /Add outlier/ }).first().click();
+    const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
+    await outlier.getByRole('button', { name: 'Batch' }).click();
+    await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();
+    await outlier.getByRole('button', { name: 'Apply', exact: true }).click();
+    await collapsePreprocessing(page);
+    await expect(page.getByText(/Extreme values capped/).first()).toBeVisible();
+
+    expect(previewStep(api, 'missing_values_handler').strategies).toEqual({ age: 'mean', sex: 'drop' });
+    expect(Object.keys(previewStep(api, 'outlier_winsorizer').strategies)).toEqual(['age']);
+  });
+
+  const outlierMethods = [
+    { method: 'Gaussian', strategy: 'gaussian' },
+    { method: 'IQR', strategy: 'iqr' },
+    { method: 'MAD', strategy: 'mad' },
+    { method: 'Quantile', strategy: 'quantile' },
+  ];
+  for (const { method, strategy } of outlierMethods) {
+    test(`outliers: ${method} method`, async ({ page, api }) => {
       await openAgeAndSex(page);
-      const missing = await openMissingValues(page);
-      await missing.getByRole('radio', { name: /Mean imputation/ }).click();
-      await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Age: Mean imputation')).toBeVisible();
+      await applyOutlierChoice(page, method);
+      await expect(page.getByText(`(${method})`)).toBeVisible();
+      expect(previewStep(api, 'outlier_winsorizer').strategies).toEqual({ age: strategy });
     });
-  });
+  }
 
-  test('preprocessing median imputation', async ({ page }) => {
-    await test.step('preprocessing median imputation', async () => {
-      await boot(page);
+  const outlierTails = [
+    { clip: 'Low only', tail: 'left' },
+    { clip: 'High only', tail: 'right' },
+    { clip: 'Both', tail: 'both' },
+  ];
+  for (const { clip, tail } of outlierTails) {
+    test(`outliers: clip ${clip.toLowerCase()}`, async ({ page, api }) => {
       await openAgeAndSex(page);
-      const missing = await openMissingValues(page);
-      await missing.getByRole('radio', { name: /Median imputation/ }).click();
-      await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Age: Median imputation')).toBeVisible();
+      await applyOutlierChoice(page, undefined, clip);
+      expect(previewStep(api, 'outlier_winsorizer').tails).toEqual({ age: tail });
+      await page.getByRole('button', { name: /Outlier Winsorizer/ }).click();
+      const card = page.locator('app-station-card', { hasText: 'Outlier Handling' });
+      await expect(card.getByRole('radio', { name: clip, exact: true })).toHaveAttribute('aria-checked', 'true');
     });
-  });
+  }
 
-  test('preprocessing constant value', async ({ page }) => {
-    await test.step('preprocessing constant value', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      const missing = await openMissingValues(page);
-      await missing.getByRole('radio', { name: /Constant value/ }).click();
-      await missing.getByPlaceholder('Value').fill('70');
-      await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Age: Constant value')).toBeVisible();
-    });
-  });
-
-  test('preprocessing outlier gaussian', async ({ page }) => {
-    await test.step('preprocessing outlier gaussian', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, 'Gaussian');
-      await expect(page.getByText(/\(Gaussian\)/)).toBeVisible();
-    });
-  });
-
-  test('preprocessing outlier iqr', async ({ page }) => {
-    await test.step('preprocessing outlier iqr', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, 'IQR');
-      await expect(page.getByText(/\(IQR\)/)).toBeVisible();
-    });
-  });
-
-  test('preprocessing outlier mad', async ({ page }) => {
-    await test.step('preprocessing outlier mad', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, 'MAD');
-      await expect(page.getByText(/\(MAD\)/)).toBeVisible();
-    });
-  });
-
-  test('preprocessing outlier quantile', async ({ page }) => {
-    await test.step('preprocessing outlier quantile', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, 'Quantile');
-      await expect(page.getByText(/\(Quantile\)/)).toBeVisible();
-    });
-  });
-
-  test('preprocessing outlier clip low only', async ({ page }) => {
-    await test.step('preprocessing outlier clip low only', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, undefined, 'Low only');
-    });
-  });
-
-  test('preprocessing outlier clip high only', async ({ page }) => {
-    await test.step('preprocessing outlier clip high only', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, undefined, 'High only');
-    });
-  });
-
-  test('preprocessing outlier clip both', async ({ page }) => {
-    await test.step('preprocessing outlier clip both', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyOutlierChoice(page, undefined, 'Both');
-    });
-  });
-
-  test('preprocessing longitudinal diff', async ({ page }) => {
-    await test.step('preprocessing longitudinal diff', async () => {
-      await boot(page);
+  const longitudinalStrategies = [
+    { label: 'Diff (Visit 2 - Visit 1)', strategy: 'diff' },
+    { label: 'Use visit 1', strategy: 'first' },
+    { label: 'Use visit 2', strategy: 'second' },
+  ];
+  for (const { label, strategy } of longitudinalStrategies) {
+    test(`longitudinal: ${label}`, async ({ page, api }) => {
       await openLongitudinalAge(page);
-      const card = await openLongitudinal(page);
-      await expect(card.locator('select').last().locator('option:checked')).toHaveText('Diff (Visit 2 - Visit 1)');
-      await card.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Baseline vs Month 12')).toBeVisible();
+      await applyLongitudinalStrategy(page, label);
+      expect(previewStep(api, 'longitudinal_transformer')).toEqual({ visit1: 'bl', visit2: 'm12', strategies: { age: strategy } });
+      await page.getByRole('button', { name: /Longitudinal Comparison/ }).click();
+      const card = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
+      await expect(card.locator('select').last().locator('option:checked')).toHaveText(label);
+    });
+  }
+});
+
+test.describe('filters and transformations', () => {
+  test('filters on a numeric and a nominal variable', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    await applyFilters(page, { female: true });
+    await expect(page.getByText('Age is at least 60')).toBeVisible();
+    await expect(page.getByText('Sex is Female')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last()).toBeEnabled();
+
+    expect(lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.inputdata.filters).toEqual({
+      condition: 'AND',
+      rules: [
+        expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 }),
+        expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' }),
+      ],
+      valid: true,
     });
   });
 
-  test('preprocessing longitudinal use visit 1', async ({ page }) => {
-    await test.step('preprocessing longitudinal use visit 1', async () => {
-      await boot(page);
-      await openLongitudinalAge(page);
-      await applyLongitudinalStrategy(page, 'Use visit 1');
+  test('filter, preprocessing and algorithm reach the run', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    await applyFilters(page);
+    await expect(page.getByText('Age is at least 60')).toBeVisible();
+    const missing = await openMissingValues(page);
+    await missing.getByRole('radio', { name: /Median imputation/ }).click();
+    await missing.getByRole('button', { name: 'Apply', exact: true }).click();
+    await collapsePreprocessing(page);
+    await expect(page.getByText('Age: Median imputation')).toBeVisible();
+    await goToAlgorithms(page);
+    await assignRole(page, 'Age', 'Outcome');
+    await assignRole(page, 'Sex', 'Predictor');
+    await expectAlgorithm(page, 'Linear regression', 'Regression');
+    await runExperiment(page);
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
+    await expect(page.getByText('Age >= 60 · 1 rule')).toBeVisible();
+    await expect(page.getByText('Age: median imputation, Sex: remove rows')).toBeVisible();
+
+    const run = lastRequest(api, 'POST', TRANSIENT, 'linear_regression').analysis;
+    expect(run.algorithm).toMatchObject({ y: ['age'], x: ['sex'] });
+    expect(run.inputdata.filters.rules).toEqual([expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 })]);
+    expect(run.preprocessing).toContainEqual({
+      name: 'missing_values_handler',
+      parameters: { strategies: { age: 'median', sex: 'drop' } },
     });
   });
 
-  test('preprocessing longitudinal use visit 2', async ({ page }) => {
-    await test.step('preprocessing longitudinal use visit 2', async () => {
-      await boot(page);
-      await openLongitudinalAge(page);
-      await applyLongitudinalStrategy(page, 'Use visit 2');
-    });
+  test('k-means cluster column', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    await addKMeansColumn(page);
+    await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
+    expect(lastRequest(api, 'POST', TRANSIENT, 'kmeans').analysis.algorithm.y).toEqual(['age']);
   });
 
-  test('filters', async ({ page }) => {
-    await test.step('filters', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyAgeAtLeastFilter(page);
-      await expect(page.getByText('Age is at least 60')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last()).toBeEnabled();
-    });
-  });
+  test('nominal column and k-means cluster column together', async ({ page, api }) => {
+    await openAgeAndSex(page);
+    await addNominalColumn(page, 'sex_group', 'female', 'other');
+    await addKMeansColumn(page, { stepAdded: true });
+    await expect(page.getByText('Nominal column · sex_group')).toBeVisible();
+    await expect(page.locator('app-station-card', { hasText: 'Nominal column · sex_group' })).toContainText('Applied');
+    await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
+    await expect(page.getByText('Sex is Female')).toBeVisible();
 
-  test('filter preprocessing and algorithm', async ({ page }) => {
-    await test.step('filter preprocessing and algorithm', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await applyAgeAtLeastFilter(page);
-      await expect(page.getByText('Age is at least 60')).toBeVisible();
-      const missing = await openMissingValues(page);
-      await missing.getByRole('radio', { name: /Median imputation/ }).click();
-      await missing.getByRole('button', { name: 'Apply', exact: true }).click();
-      await collapsePipeline(page, 'Preprocessing');
-      await expect(page.getByText('Age: Median imputation')).toBeVisible();
-      await goToAlgorithms(page);
-      await assignRole(page, 'Age', 'Outcome');
-      await assignRole(page, 'Sex', 'Predictor');
-      await expectAlgorithm(page, 'Linear regression', 'Regression');
-      await page.locator('.sub-header-cta', { hasText: 'Run experiment' }).click();
-      await expect(page.getByText('age ~ sex')).toBeVisible();
-      await expect(page.getByText('Age >= 60 · 1 rule')).toBeVisible();
-      await expect(page.getByText('Age: median imputation, Sex: remove rows')).toBeVisible();
+    const steps = lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.preprocessing;
+    expect(steps).toContainEqual({
+      name: 'categorical_column_creator',
+      parameters: {
+        code: 'sex_group',
+        strategy: 'filter_rules',
+        rules: { female: { condition: 'AND', rules: [expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' })], valid: true } },
+        default_enumeration: 'other',
+      },
     });
-  });
-
-  test('nominal column and k-means', async ({ page }) => {
-    await test.step('nominal column and k-means', async () => {
-      await boot(page);
-      await openAgeAndSex(page);
-      await addNominalColumn(page, 'sex_group', 'female', 'other');
-      await addKMeansColumn(page);
-      await expect(page.getByText('Nominal column · sex_group')).toBeVisible();
-      await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
-      await expect(page.getByText('Sex is Female')).toBeVisible();
+    expect(steps).toContainEqual({
+      name: 'kmeans_cluster_creator',
+      parameters: expect.objectContaining({ code: 'kmeans_cluster' }),
     });
   });
 });
 
+test.describe('run and save lifecycle', () => {
+  /** Answer the polled experiment with `answers` in order, then fall back to the mock. */
+  async function answerPolls(page: Page, answers: Record<string, unknown>[]) {
+    let polls = 0;
+    await page.route(/\/services\/experiments\/exp-created-\d+$/, async (route) => {
+      if (route.request().method() !== 'GET') return route.fallback();
+      const answer = answers[polls++];
+      return answer ? route.fulfill({ json: answer }) : route.fallback();
+    });
+    return () => polls;
+  }
 
-async function openAgeAndSex(page: Page) {
-  await openNewStudio(page);
-  await addVariable(page, 'Age');
-  await addVariable(page, 'Sex');
-  await goToDataHandling(page);
-}
+  async function runLinearModel(page: Page) {
+    await prepareLinearRun(page);
+    await runExperiment(page);
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
+  }
 
-async function openMissingValues(page: Page) {
-  await page.getByRole('button', { name: 'Customize rules' }).click();
-  const missing = page.locator('app-station-card', { hasText: 'Missing Values' });
-  await missing.getByRole('button', { name: /^Age/ }).click();
-  return missing;
-}
-
-async function collapsePipeline(page: Page, heading: string) {
-  const section = page.locator('section.pipeline-node').filter({
-    has: page.getByRole('heading', { name: heading, exact: true }),
+  test('save keeps polling while the engine reports pending', async ({ page }) => {
+    const polls = await answerPolls(page, [{ uuid: 'pending', status: 'pending' }]);
+    await runLinearModel(page);
+    await saveExperiment(page, 'Slow save');
+    // The studio polls every 5 s; the second answer is the stored success.
+    await expect(page.getByText('Experiment saved successfully!')).toBeVisible({ timeout: 15_000 });
+    expect(polls()).toBeGreaterThanOrEqual(2);
   });
-  const collapse = section.getByRole('button', { name: 'Collapse', exact: true });
-  if (await collapse.isVisible()) await collapse.click();
-}
 
-async function applyOutlierChoice(page: Page, method?: string, clip?: string) {
-  await page.getByRole('button', { name: 'Customize rules' }).click();
-  await page.locator('button:visible').filter({ hasText: /Add outlier/ }).first().click();
-  const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
-  await outlier.getByRole('button', { name: 'Batch' }).click();
-  await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();
-  if (method) {
-    await outlier.getByRole('radio', { name: method, exact: true }).click();
-  }
-  if (clip) {
-    await outlier.getByRole('radio', { name: clip, exact: true }).click();
-  }
-  await outlier.getByRole('button', { name: 'Apply', exact: true }).click();
-  await collapsePipeline(page, 'Preprocessing');
-  await expect(page.getByText(/Extreme values capped/)).toBeVisible();
-  if (clip) {
-    await page.getByRole('button', { name: /Outlier Winsorizer/ }).click();
-    await expect(page.locator('app-station-card', { hasText: 'Outlier Handling' }).getByRole('radio', { name: clip, exact: true })).toHaveAttribute('aria-checked', 'true');
-  }
-}
+  test('save shows the engine error', async ({ page }) => {
+    await answerPolls(page, [{ uuid: 'failed', status: 'error', result: { message: 'Engine crashed' } }]);
+    await runLinearModel(page);
+    await saveExperiment(page, 'Broken save');
+    await expect(page.getByRole('alert').filter({ hasText: 'Saving failed: Engine crashed' })).toBeVisible();
+    await expect(page.getByText('Experiment saved successfully!')).toHaveCount(0);
+  });
 
-async function selectStroke(page: Page) {
-  await page.locator('.study-context-chip').click();
-  await page.locator('.data-model-chip', { hasText: 'Stroke' }).click();
-  await expect(page.locator('.study-context-chip')).toContainText('Stroke');
-  if ((await page.locator('.study-context-chip').getAttribute('aria-expanded')) === 'true') {
-    await page.locator('.study-context-chip').click();
-  }
-}
+  test('save shows a failed request', async ({ page }) => {
+    await page.route('**/services/experiments', (route) =>
+      route.request().method() === 'POST' ? route.fulfill({ status: 500, json: {} }) : route.fallback(),
+    );
+    await runLinearModel(page);
+    await saveExperiment(page, 'Rejected save');
+    await expect(page.getByText('Failed to run experiment. Please try again.')).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Saving failed: Experiment request failed.' })).toBeVisible();
+  });
 
-async function openLongitudinalAge(page: Page) {
-  await openNewStudio(page);
-  await selectStroke(page);
-  await addVariable(page, 'Age');
-  await goToDataHandling(page);
-}
+  test('run shows the engine error', async ({ page }) => {
+    await page.route('**/services/experiments/transient', (route) =>
+      route.request().postDataJSON()?.analysis?.algorithm?.name === 'linear_regression'
+        ? route.fulfill({ json: { status: 'error', result: { message: 'Singular matrix' } } })
+        : route.fallback(),
+    );
+    await prepareLinearRun(page);
+    await runExperiment(page);
+    await expect(page.getByText('The experiment did not finish')).toBeVisible();
+    await expect(page.getByText('Singular matrix')).toBeVisible();
+  });
 
-async function openLongitudinal(page: Page) {
-  await page.getByRole('button', { name: 'Customize rules' }).click();
-  const card = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
-  await expect(card).toBeVisible();
-  await card.getByRole('button', { name: /^Age/ }).click();
-  return card;
-}
-
-async function applyLongitudinalStrategy(page: Page, label: string) {
-  const card = await openLongitudinal(page);
-  await card.locator('select').last().selectOption({ label });
-  await card.getByRole('button', { name: 'Apply', exact: true }).click();
-  await collapsePipeline(page, 'Preprocessing');
-  await expect(page.getByText('Baseline vs Month 12')).toBeVisible();
-  await page.getByRole('button', { name: /Longitudinal Comparison/ }).click();
-  const reopened = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
-  await expect(reopened.locator('select').last().locator('option:checked')).toHaveText(label);
-}
-
-async function applyAgeAtLeastFilter(page: Page) {
-  await page.getByRole('button', { name: 'Add filtering' }).click();
-  const modal = page.locator('app-filter-config-modal:visible');
-  await modal.getByRole('button', { name: 'Add condition' }).click();
-  const fields = modal.locator('.condition-fields').first();
-  await fields.getByPlaceholder('Type to find a variable').fill('Age');
-  const operator = fields.locator('select.filter-field-input').first();
-  await expect(operator).toContainText('is at least');
-  await operator.selectOption({ label: 'is at least' });
-  await fields.getByPlaceholder('Value').fill('60');
-  await page.locator('.filter-workflow-section').getByRole('button', { name: 'Apply filters' }).click();
-}
-
-async function addNominalColumn(page: Page, code: string, category: string, fallback: string) {
-  await page.getByRole('button', { name: 'Add transformation' }).click();
-  await page.getByRole('button', { name: /Nominal column from rules/ }).click();
-  await page.getByPlaceholder('e.g. mrs_good_outcome').fill(code);
-  await page.getByRole('button', { name: /Add the first category/ }).click();
-  await page.getByPlaceholder('Enumeration value').fill(category);
-  const editor = page.locator('.transformation-rule-editor.is-open');
-  const fields = editor.locator('.condition-fields').first();
-  await fields.getByPlaceholder('Type to find a variable').fill('Sex');
-  await fields.locator('select.filter-field-input').last().selectOption({ label: 'Female' });
-  await editor.getByRole('button', { name: 'Done' }).click();
-  await page.getByPlaceholder('unknown').fill(fallback);
-  await expect(page.getByText('Sex is Female')).toBeVisible();
-}
-
-async function addKMeansColumn(page: Page) {
-  const addStep = page.getByRole('button', { name: 'Add transformation' });
-  if (await addStep.isVisible()) {
-    await addStep.click();
-  }
-  await page.getByRole('button', { name: /K-means cluster column/ }).click();
-  const source = page.locator('app-kmeans-cluster-source');
-  await source.getByRole('button', { name: 'Run K-means report' }).click();
-  await expect(source.getByText('Cluster 0')).toBeVisible();
-  await source.getByRole('button', { name: 'Use as cluster column' }).click();
-  await page.getByRole('button', { name: 'Back to column' }).click();
-  await expect(source.getByText('Column kmeans_cluster')).toBeVisible();
-  await expect(source.getByText(/2 clusters from age/)).toBeVisible();
-}
-
-/** Re-open checks that a preprocessing edit survives a later studio visit. */
-async function applyMeanImputationFromAlgorithms(page: Page) {
-  await page.getByRole('button', { name: 'Back to Data Handling' }).click();
-  await expect(page.getByRole('heading', { name: 'Data Handling Pipeline' })).toBeVisible();
-  await applyMeanImputation(page);
-  await page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last().click();
-  await expect(page.locator('h2.algorithm-details__title')).toHaveText('Linear regression');
-}
+  test('linear regression result shows the Exaflow fields', async ({ page }) => {
+    await runLinearModel(page);
+    const result = page.locator('app-execution-panel');
+    await expect(result).toContainText('R²');
+    await expect(result).toContainText('0.042');
+    await expect(result).toContainText('F(1, 98) = 4.31');
+    const sexRow = result.getByRole('row', { name: /Sex\[Male\]/ });
+    await expect(sexRow).toContainText('2.05');
+    await expect(sexRow).toContainText('0.090 to 4.01');
+    await expect(result.getByRole('row', { name: /Intercept/ })).toContainText('71.20');
+  });
+});
