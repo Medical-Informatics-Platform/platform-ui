@@ -49,9 +49,9 @@
     "@angular/compiler-cli": "^22.2.2",
     "@playwright/test": "^1.63.0",
     "@types/d3": "^7.4.3",
-    "@vitest/browser-playwright": "^5.0.4",
-    "typescript": "~6.0.3",
-    "vitest": "^5.0.4"
+    "@vitest/browser-playwright": "5.0.4",
+    "typescript": "6.0.3",
+    "vitest": "5.0.4"
   },
   "overrides": {
     "@babel/core": "7.29.7",
