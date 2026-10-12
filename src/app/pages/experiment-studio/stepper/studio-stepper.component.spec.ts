@@ -1,3 +1,4 @@
+import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { StudioStepperComponent } from './studio-stepper.component';
 import {
@@ -6,12 +7,13 @@ import {
   ExperimentStudioSection,
   StepState,
 } from '../../../services/experiment-studio-navigation.service';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 describe('StudioStepperComponent', () => {
   let fixture: ComponentFixture<StudioStepperComponent>;
   let component: StudioStepperComponent;
   let navService: ExperimentStudioNavigationService;
-  let host: jasmine.SpyObj<ExperimentStudioNavigationHost>;
+  let host: MockedObject<ExperimentStudioNavigationHost>;
 
   /** railStatus is a full Record, so every test states all four steps explicitly. */
   function rail(overrides: Partial<Record<ExperimentStudioSection, StepState>> = {}): Record<ExperimentStudioSection, StepState> {
@@ -26,7 +28,7 @@ describe('StudioStepperComponent', () => {
 
   beforeEach(async () => {
     // The service decides clickability, the registered host receives the navigation.
-    host = jasmine.createSpyObj<ExperimentStudioNavigationHost>('ExperimentStudioNavigationHost', [
+    host = createSpyObj<ExperimentStudioNavigationHost>('ExperimentStudioNavigationHost', [
       'navigateToSection',
       'navigateToDescriptiveStep',
       'runExperiment',
@@ -70,13 +72,13 @@ describe('StudioStepperComponent', () => {
     publish({ activeSection: 'algorithm-section' });
 
     const nodes = (fixture.nativeElement as HTMLElement).querySelectorAll('.stepper-node');
-    expect(nodes[0].classList.contains('is-complete')).toBeTrue();
+    expect(nodes[0].classList.contains('is-complete')).toBe(true);
     expect(nodes[0].textContent?.trim()).toBe('1');
-    expect(nodes[2].classList.contains('is-active')).toBeTrue();
+    expect(nodes[2].classList.contains('is-active')).toBe(true);
 
     const connectors = (fixture.nativeElement as HTMLElement).querySelectorAll('.stepper-connector');
-    expect(connectors[0].classList.contains('is-complete')).toBeTrue();
-    expect(connectors[2].classList.contains('is-complete')).toBeFalse();
+    expect(connectors[0].classList.contains('is-complete')).toBe(true);
+    expect(connectors[2].classList.contains('is-complete')).toBe(false);
   });
 
   it('keeps a locked step inert and explains it, preferring the per-step reason', () => {
@@ -87,7 +89,7 @@ describe('StudioStepperComponent', () => {
     });
 
     const locked = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.stepper-step-btn')[3];
-    expect(locked.disabled).toBeTrue();
+    expect(locked.disabled).toBe(true);
     expect(locked.getAttribute('aria-disabled')).toBe('true');
     expect(locked.title).toBe('Select an algorithm first');
 

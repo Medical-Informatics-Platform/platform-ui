@@ -34,7 +34,7 @@ describe('ExecutionPanelComponent', () => {
     variableLabelMap: signal<Record<string, string>>({}),
     getCategoricalEnumMaps: () => ({}),
   };
-  const studioNavigation = { navigateToSection: jasmine.createSpy('navigateToSection') };
+  const studioNavigation = { navigateToSection: vi.fn() };
 
   /** Zoneless: every state is a signal write, so rendering is driven through the stub. */
   function render(state: Partial<{ running: boolean; result: Record<string, unknown> | null; error: string | null }> = {}): HTMLElement {
@@ -49,7 +49,7 @@ describe('ExecutionPanelComponent', () => {
     studio.isRunning.set(false);
     studio.runResult.set(null);
     studio.runError.set(null);
-    studioNavigation.navigateToSection.calls.reset();
+    studioNavigation.navigateToSection.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ExecutionPanelComponent],
@@ -140,7 +140,7 @@ describe('ExecutionPanelComponent', () => {
 
     fixture.componentInstance.backToAlgorithm();
 
-    expect(fixture.componentInstance.saveAsMode()).toBeFalse();
+    expect(fixture.componentInstance.saveAsMode()).toBe(false);
     expect(studioNavigation.navigateToSection).toHaveBeenCalledWith('algorithm-section');
   });
 

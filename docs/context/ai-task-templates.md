@@ -70,7 +70,7 @@ Behavior:
 ...
 
 Constraints:
-- Match existing Jasmine/Karma style.
+- Match existing Vitest style.
 - Prefer local fixtures and service stubs used by nearby tests.
 - Avoid brittle DOM assertions unless UI output is the behavior.
 

@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
@@ -51,18 +52,18 @@ describe('KMeansClusterSourceComponent', () => {
   let fixture: ComponentFixture<KMeansClusterSourceComponent>;
   let component: KMeansClusterSourceComponent;
   let studio: {
-    selectedVariables: jasmine.Spy;
-    getActiveDataModelCode: jasmine.Spy;
-    requestDatasets: jasmine.Spy;
-    requestFilters: jasmine.Spy;
-    appliedKMeansClusterCreator: jasmine.Spy;
-    setKMeansClusterPreprocessing: jasmine.Spy;
-    loadKMeansReport: jasmine.Spy;
+    selectedVariables: Mock;
+    getActiveDataModelCode: Mock;
+    requestDatasets: Mock;
+    requestFilters: Mock;
+    appliedKMeansClusterCreator: Mock;
+    setKMeansClusterPreprocessing: Mock;
+    loadKMeansReport: Mock;
     backendAlgorithms: ReturnType<typeof signal<Record<string, { configSchema?: unknown[] }>>>;
   };
   let dashboard: {
-    listKMeansExperiments: jasmine.Spy;
-    getExperimentResult: jasmine.Spy;
+    listKMeansExperiments: Mock;
+    getExperimentResult: Mock;
   };
 
   function html(): HTMLElement {
@@ -71,18 +72,18 @@ describe('KMeansClusterSourceComponent', () => {
 
   beforeEach(async () => {
     studio = {
-      selectedVariables: jasmine.createSpy('selectedVariables').and.returnValue([]),
-      getActiveDataModelCode: jasmine.createSpy('getActiveDataModelCode').and.returnValue(CONTEXT.dataModel),
-      requestDatasets: jasmine.createSpy('requestDatasets').and.returnValue(CONTEXT.datasets),
-      requestFilters: jasmine.createSpy('requestFilters').and.returnValue(CONTEXT.filters),
-      appliedKMeansClusterCreator: jasmine.createSpy('appliedKMeansClusterCreator').and.returnValue(null),
-      setKMeansClusterPreprocessing: jasmine.createSpy('setKMeansClusterPreprocessing'),
-      loadKMeansReport: jasmine.createSpy('loadKMeansReport').and.returnValue(of({})),
+      selectedVariables: vi.fn().mockReturnValue([]),
+      getActiveDataModelCode: vi.fn().mockReturnValue(CONTEXT.dataModel),
+      requestDatasets: vi.fn().mockReturnValue(CONTEXT.datasets),
+      requestFilters: vi.fn().mockReturnValue(CONTEXT.filters),
+      appliedKMeansClusterCreator: vi.fn().mockReturnValue(null),
+      setKMeansClusterPreprocessing: vi.fn(),
+      loadKMeansReport: vi.fn().mockReturnValue(of({})),
       backendAlgorithms: signal({}),
     };
     dashboard = {
-      listKMeansExperiments: jasmine.createSpy('listKMeansExperiments').and.returnValue(of([])),
-      getExperimentResult: jasmine.createSpy('getExperimentResult').and.returnValue(of({})),
+      listKMeansExperiments: vi.fn().mockReturnValue(of([])),
+      getExperimentResult: vi.fn().mockReturnValue(of({})),
     };
 
     await TestBed.configureTestingModule({
@@ -99,7 +100,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('lists only compatible experiments and reports the hidden count', () => {
-    dashboard.listKMeansExperiments.and.returnValue(
+    dashboard.listKMeansExperiments.mockReturnValue(
       of([
         kmeansExperiment('a'),
         // Different datasets → hidden.
@@ -118,10 +119,10 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('apply() stores a valid reusable_preprocessing under the default code', () => {
-    dashboard.listKMeansExperiments.and.returnValue(of([kmeansExperiment('a')]));
+    dashboard.listKMeansExperiments.mockReturnValue(of([kmeansExperiment('a')]));
     fixture.detectChanges();
     component.selectedUuid.set('a');
-    dashboard.getExperimentResult.and.returnValue(of({ result: { reusable_preprocessing: reusable() } }));
+    dashboard.getExperimentResult.mockReturnValue(of({ result: { reusable_preprocessing: reusable() } }));
 
     component.apply();
 
@@ -133,10 +134,10 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('apply() refuses a result without reusable_preprocessing', () => {
-    dashboard.listKMeansExperiments.and.returnValue(of([kmeansExperiment('a')]));
+    dashboard.listKMeansExperiments.mockReturnValue(of([kmeansExperiment('a')]));
     fixture.detectChanges();
     component.selectedUuid.set('a');
-    dashboard.getExperimentResult.and.returnValue(of({ result: { clusters: [] } }));
+    dashboard.getExperimentResult.mockReturnValue(of({ result: { clusters: [] } }));
 
     component.apply();
 
@@ -147,7 +148,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('apply() rejects a column name that is not an identifier', () => {
-    dashboard.listKMeansExperiments.and.returnValue(of([kmeansExperiment('a')]));
+    dashboard.listKMeansExperiments.mockReturnValue(of([kmeansExperiment('a')]));
     fixture.detectChanges();
     component.selectedUuid.set('a');
     component.code.set('1st column');
@@ -162,7 +163,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('remove() drops the applied cluster column', () => {
-    studio.appliedKMeansClusterCreator.and.returnValue({ code: 'kmeans_cluster', reusable_preprocessing: reusable() });
+    studio.appliedKMeansClusterCreator.mockReturnValue({ code: 'kmeans_cluster', reusable_preprocessing: reusable() });
 
     component.remove();
 
@@ -170,10 +171,10 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('asks the stage to run the creator once the column is applied', () => {
-    dashboard.listKMeansExperiments.and.returnValue(of([kmeansExperiment('a')]));
+    dashboard.listKMeansExperiments.mockReturnValue(of([kmeansExperiment('a')]));
     fixture.detectChanges();
     component.selectedUuid.set('a');
-    dashboard.getExperimentResult.and.returnValue(of({ result: { reusable_preprocessing: reusable() } }));
+    dashboard.getExperimentResult.mockReturnValue(of({ result: { reusable_preprocessing: reusable() } }));
     const runs: number[] = [];
     component.runRequested.subscribe(() => runs.push(1));
 
@@ -183,16 +184,16 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('reports a failed experiment list instead of an empty picker', () => {
-    dashboard.listKMeansExperiments.and.returnValue(throwError(() => new Error('offline')));
+    dashboard.listKMeansExperiments.mockReturnValue(throwError(() => new Error('offline')));
 
     fixture.detectChanges();
 
     expect(component.error()).toBe('Could not load K-means experiments.');
-    expect(component.loading()).toBeFalse();
+    expect(component.loading()).toBe(false);
   });
 
   it('offers the in-place K-means report when the user has no finished run', () => {
-    dashboard.listKMeansExperiments.and.returnValue(of([]));
+    dashboard.listKMeansExperiments.mockReturnValue(of([]));
 
     fixture.detectChanges();
 
@@ -201,9 +202,9 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('runs the K-means report in place and stores its reusable preprocessing', () => {
-    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
     const reusablePreprocessing = reusable();
-    studio.loadKMeansReport.and.returnValue(of({
+    studio.loadKMeansReport.mockReturnValue(of({
       result_type: 'privacy_safe_cluster_report',
       selected_k: 2,
       k_selection: 'manual',
@@ -230,7 +231,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('keeps catalog defaults until Parameters changes one', () => {
-    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
     studio.backendAlgorithms.set({
       kmeans: {
         configSchema: [
@@ -273,8 +274,8 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('sizes each cluster share bar from the interval midpoint', () => {
-    studio.selectedVariables.and.returnValue([{ code: 'age', label: 'Age', type: 'real' }]);
-    studio.loadKMeansReport.and.returnValue(of({
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.loadKMeansReport.mockReturnValue(of({
       result_type: 'privacy_safe_cluster_report',
       selected_k: 2,
       k_selection: 'manual',

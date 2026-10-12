@@ -87,41 +87,41 @@ describe('kmeans-cluster-source.utils', () => {
         filters: { rules: [rule('age', 'greater_or_equal', 18)], condition: 'AND' } as BackendFilter,
       });
 
-      expect(kmeansSourceIsReusable(source, current)).toBeTrue();
+      expect(kmeansSourceIsReusable(source, current)).toBe(true);
     });
 
     it('rejects a non K-means experiment', () => {
       expect(kmeansSourceIsReusable(experiment({ algorithm: 'pca' }), { ...current, filters: null }))
-        .toBeFalse();
+        .toBe(false);
     });
 
     it('rejects a run that did not finish successfully', () => {
       expect(kmeansSourceIsReusable(experiment({ status: 'error' }), { ...current, filters: null }))
-        .toBeFalse();
+        .toBe(false);
     });
 
     it('rejects a different data model', () => {
       expect(kmeansSourceIsReusable(experiment({ dataModel: 'MIP:1.0' }), { ...current, filters: null }))
-        .toBeFalse();
+        .toBe(false);
     });
 
     it('rejects different datasets', () => {
       expect(kmeansSourceIsReusable(experiment({ datasets: ['diabetes'] }), { ...current, filters: null }))
-        .toBeFalse();
+        .toBe(false);
     });
 
     it('rejects different filters, including no source filters at all', () => {
-      expect(kmeansSourceIsReusable(experiment({ filters: null }), current)).toBeFalse();
+      expect(kmeansSourceIsReusable(experiment({ filters: null }), current)).toBe(false);
       expect(kmeansSourceIsReusable(experiment({ filters: group('OR', [rule('sex', 'equal', '1')]) }), current))
-        .toBeFalse();
+        .toBe(false);
     });
 
     it('does not throw when the analysis is incomplete', () => {
-      expect(kmeansSourceIsReusable({ status: 'success' } as BackendExperiment, current)).toBeFalse();
+      expect(kmeansSourceIsReusable({ status: 'success' } as BackendExperiment, current)).toBe(false);
       expect(kmeansSourceIsReusable(
         { status: 'success', analysis: { algorithm: { name: 'kmeans' } } } as BackendExperiment,
         current
-      )).toBeFalse();
+      )).toBe(false);
     });
   });
 

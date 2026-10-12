@@ -33,13 +33,13 @@ describe('AlgorithmRulesService', () => {
       x: { label: 'x', desc: '', types: ['text'], required: false },
     });
 
-    expect(service.isAlgorithmAvailable(algo, { y: [], x: [] })).toBeFalse();
+    expect(service.isAlgorithmAvailable(algo, { y: [], x: [] })).toBe(false);
     expect(service.evaluateAlgorithmAvailability(algo, { y: [], x: [] }).summary)
       .toBe('Outcome needs at least 1 (none assigned).');
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-    })).toBeTrue();
+    })).toBe(true);
   });
 
   it('validates max_count from the JSON specification', () => {
@@ -55,7 +55,7 @@ describe('AlgorithmRulesService', () => {
       x: [],
     });
 
-    expect(available).toBeFalse();
+    expect(available).toBe(false);
   });
 
   it('validates selected variable types from the JSON specification', () => {
@@ -66,12 +66,12 @@ describe('AlgorithmRulesService', () => {
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'text' } as any],
       x: [],
-    })).toBeFalse();
+    })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-    })).toBeTrue();
+    })).toBe(true);
   });
 
   it('uses normalized metadata type aliases only for matching specification types', () => {
@@ -82,7 +82,7 @@ describe('AlgorithmRulesService', () => {
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'nominal' } as any],
       x: [],
-    })).toBeTrue();
+    })).toBe(true);
   });
 
   it('does not apply algorithm-name-specific restrictions beyond the JSON specification for unspecified algorithms', () => {
@@ -99,7 +99,7 @@ describe('AlgorithmRulesService', () => {
       x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
     });
 
-    expect(availableWithOneCovariate).toBeTrue();
+    expect(availableWithOneCovariate).toBe(true);
   });
 
   it('limits linear regression to one target variable when backend omits max_count', () => {
@@ -119,9 +119,9 @@ describe('AlgorithmRulesService', () => {
       x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
     });
 
-    expect(result.available).toBeFalse();
+    expect(result.available).toBe(false);
     expect(result.summary).toBe('Outcome allows at most 1, selected 2.');
-    expect(result.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+    expect(result.details.find((detail) => detail.role === 'y')).toEqual(expect.objectContaining({
       selectedCount: 2,
       maxCount: 1,
       satisfied: false,
@@ -139,7 +139,7 @@ describe('AlgorithmRulesService', () => {
       x: [],
     });
 
-    expect(result.available).toBeTrue();
+    expect(result.available).toBe(true);
     expect(result.details.map((detail) => detail.role)).not.toContain('filter' as any);
   });
 
@@ -151,7 +151,7 @@ describe('AlgorithmRulesService', () => {
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
       x: [],
-    })).toBeFalse();
+    })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [
@@ -159,7 +159,7 @@ describe('AlgorithmRulesService', () => {
         { code: 'v2', label: 'var2', type: 'real' } as any,
       ],
       x: [],
-    })).toBeTrue();
+    })).toBe(true);
   });
 
   it('requires at least two covariates for Binary GLMM when min_count is omitted', () => {
@@ -176,13 +176,13 @@ describe('AlgorithmRulesService', () => {
       x: [{ code: 'age', label: 'Age', type: 'real', stattype: 'numerical' } as any],
     });
 
-    expect(unavailable.available).toBeFalse();
+    expect(unavailable.available).toBe(false);
     expect(unavailable.summary).toBe('Predictor needs at least 2, selected 1.');
-    expect(unavailable.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+    expect(unavailable.details.find((detail) => detail.role === 'y')).toEqual(expect.objectContaining({
       minCount: 1,
       maxCount: 1,
     }));
-    expect(unavailable.details.find((detail) => detail.role === 'x')).toEqual(jasmine.objectContaining({
+    expect(unavailable.details.find((detail) => detail.role === 'x')).toEqual(expect.objectContaining({
       minCount: 2,
       maxCount: null,
     }));
@@ -200,12 +200,12 @@ describe('AlgorithmRulesService', () => {
         { code: 'age', label: 'Age', type: 'real' } as any,
       ],
       x: [],
-    })).toBeFalse();
+    })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [{ code: 'age', label: 'Age', type: 'real' } as any],
       x: [{ code: 'age', label: 'Age', type: 'real' } as any],
-    })).toBeFalse();
+    })).toBe(false);
   });
 
   it('displays nominal as the user-facing type when stattype validation fails for text inputs', () => {
@@ -218,7 +218,7 @@ describe('AlgorithmRulesService', () => {
       x: [],
     });
 
-    expect(result.available).toBeFalse();
+    expect(result.available).toBe(false);
     expect(result.summary).toBe('Outcome type must be one of nominal.');
   });
 
@@ -232,7 +232,7 @@ describe('AlgorithmRulesService', () => {
       x: [{ code: 'v1', label: 'var1', type: 'boolean' } as any],
     });
 
-    expect(result.available).toBeFalse();
+    expect(result.available).toBe(false);
     expect(result.summary).toBe('Predictor type must be one of real, int, nominal.');
     expect(result.summary).not.toContain('text');
   });
@@ -251,9 +251,9 @@ describe('AlgorithmRulesService', () => {
       ],
     });
 
-    expect(result.available).toBeFalse();
+    expect(result.available).toBe(false);
     expect(result.summary).toBe('Predictor allows at most 1, selected 2.');
-    expect(result.details.find((detail) => detail.role === 'x')).toEqual(jasmine.objectContaining({
+    expect(result.details.find((detail) => detail.role === 'x')).toEqual(expect.objectContaining({
       label: 'Predictor',
       selectedCount: 2,
       maxCount: 1,

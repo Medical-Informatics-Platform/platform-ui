@@ -1,9 +1,10 @@
 # Testing
 
 ## Frameworks Detected
-- Unit/component tests: Jasmine and Karma through Angular CLI.
+- Unit/component tests: Vitest through the Angular CLI `unit-test` builder, in headless Chromium (Vitest browser mode with Playwright, 1280x720 viewport).
 - Test configuration: `angular.json` test target and `tsconfig.spec.json`.
-- Test setup file: `src/test-console-filter.ts`, which suppresses known noisy console messages during tests.
+- Test setup file: `src/test-setup.ts`. It suppresses known noisy console messages and restores `vi.spyOn` spies after each test.
+- `createSpyObj` in `src/app/testing/spy-obj.testing.ts` builds a typed object of `vi.fn()` methods.
 
 ## Test Structure
 - Specs live beside source files as `*.spec.ts`.
@@ -12,14 +13,21 @@
 - Visualization registry/renderer specs are under `src/app/pages/experiment-studio/visualisations`.
 
 ## Test Output Guardrails
-Full Karma runs can be noisy or long-running because `npm test` maps to `ng test`. Do not start full interactive/watch test runs unless the user requested them or has confirmed after being told they may consume substantial runtime/tokens. Prefer focused specs or a verified non-watch command when available.
+`npm test` maps to `ng test`, which watches when run in a terminal. Do not start full interactive/watch test runs unless the user requested them or has confirmed after being told they may consume substantial runtime/tokens. Prefer focused specs or a verified non-watch command when available.
 
 ## Unit Test Command
 ```bash
 npm test
 ```
 
-This is the available unit test command, but agents should not start it autonomously unless the user requested tests or confirmed the token/runtime cost. Angular/Karma normally launches a browser and may watch; prefer a verified non-watch or focused command when available.
+Agents should not start it autonomously unless the user requested tests or confirmed the token/runtime cost. A bounded run:
+
+```bash
+npm test -- --watch=false                                   # whole suite
+npm test -- --watch=false --include src/app/services/x.spec.ts  # one spec
+```
+
+The tests need Chromium: run `npx playwright install chromium` once, or set `CHROME_BIN` to an installed Chrome.
 
 ## Static Checks (no browser, no backend)
 ```bash

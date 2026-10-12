@@ -1,3 +1,4 @@
+import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { QueryList } from '@angular/core';
 import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
@@ -10,16 +11,17 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { of, Subject } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 describe('StatisticAnalysisPanelComponent', () => {
     let component: StatisticAnalysisPanelComponent;
     let fixture: ComponentFixture<StatisticAnalysisPanelComponent>;
-    let mockExpService: jasmine.SpyObj<ExperimentStudioService>;
-    let mockChartBuilder: jasmine.SpyObj<ChartBuilderService>;
-    let mockPdfService: jasmine.SpyObj<PdfExportService>;
+    let mockExpService: MockedObject<ExperimentStudioService>;
+    let mockChartBuilder: MockedObject<ChartBuilderService>;
+    let mockPdfService: MockedObject<PdfExportService>;
 
     beforeEach(async () => {
-        mockExpService = jasmine.createSpyObj('ExperimentStudioService', [
+        mockExpService = createSpyObj('ExperimentStudioService', [
             'loadDescriptiveOverview',
             'loadOutlierReportPreview',
             'getAlgorithmResults',
@@ -50,25 +52,25 @@ describe('StatisticAnalysisPanelComponent', () => {
             appliedPreprocessingConfig: signal(null),
             backendAlgorithms: signal({})
         });
-        mockChartBuilder = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
-        mockChartBuilder.getChartsForAlgorithm.and.returnValue([]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
-        mockExpService.loadOutlierReportPreview.and.returnValue(of({ result: { featurewise: [] } }));
-        mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
-        mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.and.returnValue(null);
+        mockChartBuilder = createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
+        mockChartBuilder.getChartsForAlgorithm.mockReturnValue([]);
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadOutlierReportPreview.mockReturnValue(of({ result: { featurewise: [] } }));
+        mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
+        mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
+        mockExpService.appliedKMeansClusterCreator.mockReturnValue(null);
         // Pass-through by default; the creator-appending behaviour is the service's, not the panel's.
-        mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => config ?? null);
-        mockExpService.requestDatasets.and.returnValue(['dataset-a']);
-        mockExpService.requestFilters.and.returnValue(null);
-        mockExpService.getActiveDataModelCode.and.returnValue('Stroke:3.7');
-        mockExpService.appliedCategoricalCreators.and.callFake(() => {
+        mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => config ?? null);
+        mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
+        mockExpService.requestFilters.mockReturnValue(null);
+        mockExpService.getActiveDataModelCode.mockReturnValue('Stroke:3.7');
+        mockExpService.appliedCategoricalCreators.mockImplementation(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
         });
         // Mirrors the real collector: a group walks its rules, a condition is its field.
-        mockExpService.filterVariableCodes.and.callFake((logic: any) => {
+        mockExpService.filterVariableCodes.mockImplementation((logic: any) => {
             const codes = new Set<string>();
             const walk = (node: any) => {
                 if (!node) return;
@@ -81,7 +83,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             walk(logic);
             return [...codes];
         });
-        mockPdfService = jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
+        mockPdfService = createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({
             imports: [StatisticAnalysisPanelComponent], // Standalone component
@@ -105,8 +107,8 @@ describe('StatisticAnalysisPanelComponent', () => {
     function configureRawSummary(chartOptions: any[] = []) {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
-        mockChartBuilder.getChartsForAlgorithm.and.returnValue(chartOptions);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockChartBuilder.getChartsForAlgorithm.mockReturnValue(chartOptions);
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
@@ -186,17 +188,17 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const filtering = workflowSection('Filtering');
-        expect(component.sectionOpen().filters).toBeTrue();
-        expect(component.sectionOpen().raw).toBeFalse();
+        expect(component.sectionOpen().filters).toBe(true);
+        expect(component.sectionOpen().raw).toBe(false);
 
         const preview = filtering.querySelector('.station-action-preview') as HTMLButtonElement;
         expect(preview.textContent?.trim()).toBe('Preview matching records');
         preview.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().filters).toBeFalse();
-        expect(component.sectionOpen().raw).toBeTrue();
-        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.sectionOpen().filters).toBe(false);
+        expect(component.sectionOpen().raw).toBe(true);
+        expect(component.sectionOpen().setup).toBe(false);
 
         const raw = workflowSection('Raw Data Summary');
         const tabLabels = Array.from(raw.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
@@ -208,8 +210,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         close.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().filters).toBeTrue();
-        expect(component.sectionOpen().raw).toBeFalse();
+        expect(component.sectionOpen().filters).toBe(true);
+        expect(component.sectionOpen().raw).toBe(false);
     });
 
     /**
@@ -222,15 +224,15 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const apply = filtering.querySelector('.station-action-apply') as HTMLButtonElement;
         expect(apply.textContent?.trim()).toBe('Close');
-        expect(apply.disabled).toBeFalse();
-        expect(apply.classList.contains('is-quiet')).toBeTrue();
+        expect(apply.disabled).toBe(false);
+        expect(apply.classList.contains('is-quiet')).toBe(true);
 
         apply.click();
         fixture.detectChanges();
 
         // An optional station with no conditions has nothing to keep: it returns to its card.
-        expect(component.isStepAdded('filters')).toBeFalse();
-        expect(component.sectionOpen().filters).toBeFalse();
+        expect(component.isStepAdded('filters')).toBe(false);
+        expect(component.sectionOpen().filters).toBe(false);
         expect(workflowSection('Filtering').textContent).toContain('Add filtering');
     });
 
@@ -242,17 +244,17 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const apply = filtering.querySelector('.station-action-apply') as HTMLButtonElement;
         expect(apply.textContent?.trim()).toBe('Apply filters');
-        expect(apply.classList.contains('is-quiet')).toBeFalse();
+        expect(apply.classList.contains('is-quiet')).toBe(false);
 
         apply.click();
         fixture.detectChanges();
 
         expect(mockExpService.setFilterLogic).toHaveBeenCalled();
-        expect(component.sectionOpen().filters).toBeFalse();
-        expect(component.sectionOpen().raw).toBeFalse();
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(component.sectionOpen().transformation).toBeFalse();
-        expect(component.isStepAdded('filters')).toBeTrue();
+        expect(component.sectionOpen().filters).toBe(false);
+        expect(component.sectionOpen().raw).toBe(false);
+        expect(component.sectionOpen().setup).toBe(false);
+        expect(component.sectionOpen().transformation).toBe(false);
+        expect(component.isStepAdded('filters')).toBe(true);
     });
 
     it('closes the Missing Values card from Close without writing anything', () => {
@@ -263,16 +265,16 @@ describe('StatisticAnalysisPanelComponent', () => {
         const apply = preprocessing.querySelector('.station-card-footer .station-action-apply') as HTMLButtonElement;
         expect(component.stepPendingCount('missing')).toBe(0);
         expect(apply.textContent?.trim()).toBe('Close');
-        expect(apply.disabled).toBeFalse();
+        expect(apply.disabled).toBe(false);
 
-        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length;
         apply.click();
         fixture.detectChanges();
 
         // Close folds its own card and leaves the stage exactly as it was.
-        expect(component.preprocessingStepOpen.missing).toBeFalse();
-        expect(component.sectionOpen().setup).toBeTrue();
-        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+        expect(component.preprocessingStepOpen.missing).toBe(false);
+        expect(component.sectionOpen().setup).toBe(true);
+        expect(mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length).toBe(persistCalls);
     });
 
     it('closes the preprocessing Batch menu when the click is outside it', () => {
@@ -306,8 +308,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         preview.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(component.sectionOpen().processed).toBeTrue();
+        expect(component.sectionOpen().setup).toBe(false);
+        expect(component.sectionOpen().processed).toBe(true);
 
         const processed = workflowSection('Processed Data Summary');
         const tabLabels = Array.from(processed.querySelectorAll('.summary-tabs button')).map((button) => button.textContent?.trim());
@@ -321,8 +323,8 @@ describe('StatisticAnalysisPanelComponent', () => {
      * fills without Apply, and nothing is persisted.
      */
     it('opens processed tables from Preview data without clicking Apply', () => {
-        spyOn(Element.prototype, 'scrollIntoView');
-        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+        vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
         });
@@ -333,20 +335,20 @@ describe('StatisticAnalysisPanelComponent', () => {
         const preprocessing = workflowSection('Preprocessing');
         const apply = preprocessing.querySelector('.station-action-apply') as HTMLButtonElement;
         // Nothing pending: the slot reads Close (enabled) rather than a disabled Apply.
-        expect(apply.disabled).toBeFalse();
+        expect(apply.disabled).toBe(false);
         expect(preprocessing.textContent).not.toContain('No preprocessing has been applied yet');
 
-        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length;
         const preview = preprocessing.querySelector('.station-action-preview') as HTMLButtonElement;
         preview.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().processed).toBeTrue();
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(component.processedSummary.isLoading).toBeFalse();
+        expect(component.sectionOpen().processed).toBe(true);
+        expect(component.sectionOpen().setup).toBe(false);
+        expect(component.processedSummary.isLoading).toBe(false);
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
         // Transient: previewing wrote nothing into the applied request.
-        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+        expect(mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length).toBe(persistCalls);
 
         const processed = workflowSection('Processed Data Summary');
         expect(processed.textContent).not.toContain('No preprocessing has been applied yet');
@@ -379,9 +381,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         const processed = workflowSection('Processed Data Summary');
         const editorBody = workflowSection('Preprocessing')
             .querySelector('.pipeline-node-body > .workflow-section-body') as HTMLElement;
-        expect(component.sectionOpen().setup).toBeFalse();
+        expect(component.sectionOpen().setup).toBe(false);
         expect(editorBody).toBeTruthy();
-        expect(editorBody.contains(processed)).toBeFalse();
+        expect(editorBody.contains(processed)).toBe(false);
         expect(processed.closest('.workflow-section-body')).toBeNull();
         expect(getComputedStyle(processed.querySelector('.workflow-section-body') as HTMLElement).display).not.toBe('none');
     });
@@ -403,13 +405,13 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(close.textContent?.trim()).toBe('Close');
         expect(processed.querySelectorAll('.station-preview-toggle').length).toBe(1);
 
-        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length;
         close.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().processed).toBeFalse();
-        expect(component.sectionOpen().setup).toBeTrue();
-        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+        expect(component.sectionOpen().processed).toBe(false);
+        expect(component.sectionOpen().setup).toBe(true);
+        expect(mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length).toBe(persistCalls);
     });
 
     it('closes the raw preview back to the Filtering editor without writing', () => {
@@ -425,13 +427,13 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(close.textContent?.trim()).toBe('Close');
         expect(raw.querySelectorAll('.station-preview-toggle').length).toBe(1);
 
-        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.calls.count();
+        const persistCalls = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length;
         close.click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().raw).toBeFalse();
-        expect(component.sectionOpen().filters).toBeTrue();
-        expect(mockExpService.setAppliedDescriptivePreprocessing.calls.count()).toBe(persistCalls);
+        expect(component.sectionOpen().raw).toBe(false);
+        expect(component.sectionOpen().filters).toBe(true);
+        expect(mockExpService.setAppliedDescriptivePreprocessing.mock.calls.length).toBe(persistCalls);
     });
 
     it('keeps category counts on the rule rows and has no preview button', () => {
@@ -486,7 +488,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
-        expect(component.isLoading).toBeFalse();
+        expect(component.isLoading).toBe(false);
     });
 
     it('should treat variable as nominal if counts are present in response, even if metadata type is missing', () => {
@@ -510,7 +512,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             }
         };
-        mockExpService.loadDescriptiveOverview.and.returnValue(of(response));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of(response));
 
         // 3. Trigger fetch
         component.fetchDescriptiveStatistics();
@@ -529,7 +531,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([variable]);
 
         const response = { result: { featurewise: [] } }; // Empty data
-        mockExpService.loadDescriptiveOverview.and.returnValue(of(response));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of(response));
 
         component.fetchDescriptiveStatistics();
 
@@ -547,7 +549,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             }
         };
-        mockExpService.loadDescriptiveOverview.and.returnValue(of(response));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of(response));
 
         component.fetchDescriptiveStatistics();
 
@@ -600,7 +602,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([
             { code: 'age', label: 'Age', type: 'real' },
         ]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
         openStation('setup');
         expect(fixture.nativeElement.textContent).toContain('Required for longitudinal pathologies');
@@ -645,7 +647,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             { code: 'age', label: 'Age', type: 'real' },
         ]);
         component.prepSearch.missing = 'no-match';
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
         const preprocessingSection = openStation('setup');
         expect(preprocessingSection.querySelector('.empty-state-block')).toBeTruthy();
@@ -731,7 +733,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         missingHeader.click();
         fixture.detectChanges();
 
-        expect(component.preprocessingStepOpen.missing).toBeFalse();
+        expect(component.preprocessingStepOpen.missing).toBe(false);
         expect(missingHeader.getAttribute('aria-expanded')).toBe('false');
     });
 
@@ -851,7 +853,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('keeps preprocessing rules when variables are removed and re-added', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'real' };
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         component.pendingPreprocessingRules = {
             age: { variableCode: 'age', action: 'drop', value: '', enabled: true },
         };
@@ -879,7 +881,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('keeps the default NA removal in memory when variables are first selected', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         (mockExpService.selectedVariables as any).set([age, sex]);
         fixture.detectChanges();
 
@@ -888,12 +890,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.prepVariableStateLabel('missing',age)).toBe('Default');
         expect(component.prepVariableStateLabel('missing',sex)).toBe('Default');
         expect(component.pendingChangeCount).toBe(0);
-        const persisted = mockExpService.setAppliedDescriptivePreprocessing.calls
-            .allArgs()
+        const persisted = mockExpService.setAppliedDescriptivePreprocessing.mock.calls
             .map(([config]) => config)
             .filter((config) => config !== null);
         expect(persisted).toEqual([]);
-        expect(component.isStepAdded('setup')).toBeFalse();
+        expect(component.isStepAdded('setup')).toBe(false);
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
         expect(component.preprocessingStatus).toBe('none');
         expect((component as any).userPreprocessingApplied).toBe(false);
@@ -904,14 +905,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         // The bare set spy does not round-trip the persisted config; wire it up
         // so the post-apply reconcile hydrates from the applied config (as the
         // real service does) instead of treating it as a fresh session.
-        mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) => {
-            mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(config as never);
+        mockExpService.setAppliedDescriptivePreprocessing.mockImplementation((config: unknown) => {
+            mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(config as never);
         });
         (mockExpService.selectedVariables as any).set([age]);
         component.onMissingActionChange(age, 'mean');
         expect(component.preprocessingStatus).not.toBe('applied');
 
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         component.applyPreprocessing();
         fixture.detectChanges();
 
@@ -930,7 +931,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         };
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -944,7 +945,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // The NA drop for a newly added variable is injected per request, not stored, so the
         // honest label is Default: covered by the inherited default, owed nothing, pending nothing.
         expect(component.prepVariableStateLabel('missing',sex)).toBe('Default');
-        expect(component.prepVariableHasPendingChange('missing', sex)).toBeFalse();
+        expect(component.prepVariableHasPendingChange('missing', sex)).toBe(false);
         expect(component.pendingChangeCount).toBe(0);
         expect(defaultGroup?.variables.map((v) => v.code)).toEqual(['sex']);
     });
@@ -973,7 +974,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
 
         // Pending (not yet applied) missing-value strategy.
         component.onMissingActionChange(age, 'mean');
@@ -984,7 +985,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.goToSection('processed');
         fixture.detectChanges();
 
-        expect(component.sectionOpen().processed).toBeTrue();
+        expect(component.sectionOpen().processed).toBe(true);
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
             ['age'],
             { missing_values_handler: { strategies: { age: 'mean' } } }
@@ -1005,7 +1006,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             { missing_values_handler: { strategies: { age: 'mean' } } }
         );
 
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
         component.onMissingActionChange(age, 'median');
         fixture.detectChanges();
 
@@ -1019,23 +1020,23 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
 
         component.onMissingActionChange(age, 'mean');
 
         const first = new Subject<any>();
-        mockExpService.loadDescriptiveOverview.and.returnValue(first.asObservable());
+        mockExpService.loadDescriptiveOverview.mockReturnValue(first.asObservable());
         (component as any).fetchProcessedPreview();
 
         // Same pending config: the request is already in flight, so it must not fan out.
         (component as any).fetchProcessedPreview();
-        expect(mockExpService.loadDescriptiveOverview.calls.count()).toBe(1);
+        expect(mockExpService.loadDescriptiveOverview.mock.calls.length).toBe(1);
 
         component.onMissingActionChange(age, 'median');
         const second = new Subject<any>();
-        mockExpService.loadDescriptiveOverview.and.returnValue(second.asObservable());
+        mockExpService.loadDescriptiveOverview.mockReturnValue(second.asObservable());
         (component as any).fetchProcessedPreview();
-        expect(mockExpService.loadDescriptiveOverview.calls.count()).toBe(2);
+        expect(mockExpService.loadDescriptiveOverview.mock.calls.length).toBe(2);
 
         second.next({
             result: {
@@ -1066,12 +1067,12 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const stale = new Subject<any>();
-        mockExpService.loadDescriptiveOverview.and.returnValue(stale.asObservable());
+        mockExpService.loadDescriptiveOverview.mockReturnValue(stale.asObservable());
         component.fetchSourceSummary();
 
         (mockExpService.selectedVariables as any).set([age, sex]);
         const current = new Subject<any>();
-        mockExpService.loadDescriptiveOverview.and.returnValue(current.asObservable());
+        mockExpService.loadDescriptiveOverview.mockReturnValue(current.asObservable());
         component.fetchSourceSummary();
 
         current.next({
@@ -1092,7 +1093,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.sourceSummary.featurewiseRows.length).toBe(1);
         expect(component.sourceSummary.featurewiseRows[0].data.mean).toBe(82);
-        expect(component.sourceSummary.isLoading).toBeFalse();
+        expect(component.sourceSummary.isLoading).toBe(false);
 
         stale.complete();
         current.complete();
@@ -1101,7 +1102,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('selects the first processed statistic after preprocessing is applied', () => {
         const variable = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([variable]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1123,21 +1124,21 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // Apply saves and closes the station: nothing is handed to the next one, and the
         // summary it computed is still selected for the trip Preview data makes.
-        expect(component.sectionOpen().setup).toBeFalse();
-        expect(component.sectionOpen().processed).toBeFalse();
-        expect(component.sectionOpen().transformation).toBeFalse();
+        expect(component.sectionOpen().setup).toBe(false);
+        expect(component.sectionOpen().processed).toBe(false);
+        expect(component.sectionOpen().transformation).toBe(false);
         expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
     });
 
-    it('opens and scrolls to the processed summary while preprocessing is loading', (done) => {
+    it('opens and scrolls to the processed summary while preprocessing is loading', () => new Promise<void>((done) => {
         const { age } = configureRawSummary();
         const response$ = new Subject<unknown>();
-        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
-        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
         });
-        mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+        mockExpService.loadDescriptiveOverview.mockReturnValue(response$.asObservable());
 
         component.onMissingActionChange(age, 'mean');
         component.applyPreprocessing();
@@ -1145,8 +1146,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const processedSection = workflowSection('Processed Data Summary');
         const processedBody = processedSection.querySelector('.workflow-section-body.open') as HTMLElement;
-        expect(component.sectionOpen().processed).toBeTrue();
-        expect(component.processedSummary.isLoading).toBeTrue();
+        expect(component.sectionOpen().processed).toBe(true);
+        expect(component.processedSummary.isLoading).toBe(true);
         expect(processedSection.querySelector('[aria-label="Processed data summary loading"]')).toBeTruthy();
         expect(processedBody).toBeTruthy();
 
@@ -1169,10 +1170,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             // Apply folded the station instead of opening the next one; the summary is
             // still built and selected, and Preview data is what shows it.
-            expect(component.sectionOpen().setup).toBeFalse();
-            expect(component.sectionOpen().processed).toBeFalse();
-            expect(component.sectionOpen().transformation).toBeFalse();
-            expect(component.processedSummary.isLoading).toBeFalse();
+            expect(component.sectionOpen().setup).toBe(false);
+            expect(component.sectionOpen().processed).toBe(false);
+            expect(component.sectionOpen().transformation).toBe(false);
+            expect(component.processedSummary.isLoading).toBe(false);
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
 
             (mockExpService.appliedPreprocessingConfig as any).set({
@@ -1183,16 +1184,16 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
             // A later config write invalidates the workspace the same way, without
             // losing the statistic selection built for it.
-            expect(component.sectionOpen().processed).toBeFalse();
+            expect(component.sectionOpen().processed).toBe(false);
             expect(component.selectedStatisticBlock('processed')?.name).toBe('Age');
             done();
         });
-    });
+    }));
 
-    it('scrolls the workflow subsection into view', (done) => {
+    it('scrolls the workflow subsection into view', () => new Promise<void>((done) => {
         configureRawSummary();
-        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
-        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
         });
@@ -1204,27 +1205,27 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
             done();
         });
-    });
+    }));
 
     it('keeps the processed summary open and stops the spinner when preprocessing fails', () => {
         const { age } = configureRawSummary();
         const response$ = new Subject<unknown>();
-        spyOn(console, 'error');
-        mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+        vi.spyOn(console, 'error').mockReturnValue(undefined);
+        mockExpService.loadDescriptiveOverview.mockReturnValue(response$.asObservable());
 
         component.onMissingActionChange(age, 'mean');
         component.applyPreprocessing();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().processed).toBeTrue();
-        expect(component.processedSummary.isLoading).toBeTrue();
+        expect(component.sectionOpen().processed).toBe(true);
+        expect(component.processedSummary.isLoading).toBe(true);
 
         response$.error(new Error('preprocessing failed'));
         fixture.detectChanges();
 
         const processedSection = workflowSection('Processed Data Summary');
-        expect(component.sectionOpen().processed).toBeTrue();
-        expect(component.processedSummary.isLoading).toBeFalse();
+        expect(component.sectionOpen().processed).toBe(true);
+        expect(component.processedSummary.isLoading).toBe(false);
         expect(processedSection.textContent).not.toContain('Processed data summary loading');
     });
 
@@ -1233,7 +1234,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
 
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1351,14 +1352,14 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         const rawSection = workflowSection('Raw Data Summary');
         const rawWrapper = rawSection.querySelector('.statistics-table-wrapper') as HTMLElement;
-        expect(rawWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeTrue();
+        expect(rawWrapper.classList.contains('statistics-table-wrapper--numeric')).toBe(true);
 
         component.onMissingActionChange(age, 'mean');
         component.applyPreprocessing();
         fixture.detectChanges();
 
         const processedWrapper = workflowSection('Processed Data Summary').querySelector('.statistics-table-wrapper') as HTMLElement;
-        expect(processedWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeTrue();
+        expect(processedWrapper.classList.contains('statistics-table-wrapper--numeric')).toBe(true);
 
         const sexButton = (Array.from(workflowSection('Raw Data Summary').querySelectorAll('.statistics-variable-btn')) as HTMLButtonElement[])
             .find((button) => button.textContent?.includes('Sex'));
@@ -1366,14 +1367,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const nominalWrapper = workflowSection('Raw Data Summary').querySelector('.statistics-table-wrapper') as HTMLElement;
-        expect(nominalWrapper.classList.contains('statistics-table-wrapper--numeric')).toBeFalse();
+        expect(nominalWrapper.classList.contains('statistics-table-wrapper--numeric')).toBe(false);
     });
 
     it('filters raw statistics browser by variable label or code', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
@@ -1402,7 +1403,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
@@ -1514,7 +1515,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             ],
         });
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
         component.applyPreprocessing();
 
@@ -1557,9 +1558,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
         (mockExpService.selectedVariables as any).set([age, sex, bmi]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         fixture.detectChanges();
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
 
         expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age', 'bmi']);
 
@@ -1597,7 +1598,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
-        mockExpService.loadOutlierReportPreview.and.returnValue(of({
+        mockExpService.loadOutlierReportPreview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1619,7 +1620,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         }));
         openStation('setup');
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
 
         component.onOutlierEnabledChange(age, true);
         component.previewOutlierReport();
@@ -1641,7 +1642,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         );
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
         expect(component.outlierPreviewRows).toEqual([
-            jasmine.objectContaining({
+            expect.objectContaining({
                 variable: 'Age',
                 dataset: 'dataset-a',
                 strategy: 'IQR',
@@ -1664,7 +1665,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('excludes all datasets rows from outlier report preview like descriptive numerical charts', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([age]);
-        mockExpService.loadOutlierReportPreview.and.returnValue(of({
+        mockExpService.loadOutlierReportPreview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1692,7 +1693,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
 
         component.onOutlierStrategyChange(age, 'quantile');
         component.onOutlierFoldChange(age, 0.5);
@@ -1758,7 +1759,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         };
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.selectedVariables as any).set([age, sex]);
 
         fixture.detectChanges();
@@ -1795,13 +1796,13 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         };
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.selectedVariables as any).set([age, sex]);
 
         fixture.detectChanges();
 
         expect(component.outlierPreprocessingVariables.map((variable) => variable.code)).toEqual(['age']);
-        expect(component.outlierRuleFor(age).enabled).toBeTrue();
+        expect(component.outlierRuleFor(age).enabled).toBe(true);
         expect(component.prepVariableStateLabel('outlier', age)).toBe('Applied');
         // Internal status stays config-driven (outlier config is applied); the
         // user-apply flag is what keeps the stepper from claiming Done.
@@ -1817,7 +1818,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             type: 'nominal',
             enumerations: [{ code: '0', label: 'No' }, { code: '1', label: 'Yes' }],
         };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue({
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue({
             missing_values_handler: { strategies: { aspiration: 'drop' } },
         });
         (mockExpService.selectedVariables as any).set([aspiration]);
@@ -1842,14 +1843,14 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.processedSummary.selectedStatisticKey = 'aspiration';
         fixture.detectChanges();
 
-        mockExpService.getAlgorithmResults.calls.reset();
+        mockExpService.getAlgorithmResults.mockClear();
         component.setSummaryTab('processed', 'Histogram');
         fixture.detectChanges();
 
         expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
         const block = component.selectedStatisticBlock('processed');
         expect(block).toBeTruthy();
-        expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(jasmine.objectContaining({
+        expect(component.selectedSummaryHistogramData('processed', block!)).toEqual(expect.objectContaining({
             bins: ['No', 'Yes'],
             counts: [18000, 3766],
             variableName: 'Aspiration',
@@ -1865,7 +1866,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         };
         configureRawSummary();
         (mockExpService.selectedVariables as any).set([aspiration]);
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1895,7 +1896,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         const block = component.selectedStatisticBlock('raw');
-        expect(component.selectedSummaryHistogramData('raw', block!)).toEqual(jasmine.objectContaining({
+        expect(component.selectedSummaryHistogramData('raw', block!)).toEqual(expect.objectContaining({
             bins: ['No', 'Yes'],
             counts: [18000, 3766],
         }));
@@ -1903,7 +1904,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('requests raw histogram with the default NaN drop only', () => {
         const dose = { code: 'dose', label: 'Dose', type: 'real' };
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     {
@@ -1914,7 +1915,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ],
             },
         }));
-        mockExpService.getAlgorithmResults.and.returnValue(of({
+        mockExpService.getAlgorithmResults.mockReturnValue(of({
             result: {
                 histogram: [{
                     var: 'dose',
@@ -1926,7 +1927,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         (mockExpService.selectedVariables as any).set([dose]);
         fixture.detectChanges();
 
-        mockExpService.getAlgorithmResults.calls.reset();
+        mockExpService.getAlgorithmResults.mockClear();
         component.setSummaryTab('raw', 'Histogram');
         fixture.detectChanges();
 
@@ -1953,12 +1954,12 @@ describe('StatisticAnalysisPanelComponent', () => {
                 strategies: { aspiration: 'mean' },
             },
         };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(applied);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(applied);
         (mockExpService.selectedVariables as any).set([aspiration]);
         fixture.detectChanges();
 
         component.onMissingActionChange(aspiration, 'drop');
-        mockExpService.getAlgorithmResults.and.returnValue(of({
+        mockExpService.getAlgorithmResults.mockReturnValue(of({
             result: {
                 histogram: [{
                     var: 'aspiration',
@@ -1981,7 +1982,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.processedSummary.selectedStatisticKey = 'aspiration';
         fixture.detectChanges();
 
-        mockExpService.getAlgorithmResults.calls.reset();
+        mockExpService.getAlgorithmResults.mockClear();
         component.setSummaryTab('processed', 'Histogram');
         fixture.detectChanges();
 
@@ -2007,9 +2008,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             }],
         };
         (mockExpService.appliedPreprocessingConfig as any).set(stored);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(stored);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(stored);
         (mockExpService.selectedVariables as any).set([age]);
-        mockExpService.getAlgorithmResults.and.returnValue(of({
+        mockExpService.getAlgorithmResults.mockReturnValue(of({
             result: {
                 histogram: [{
                     var: 'age',
@@ -2037,7 +2038,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.processedSummary.selectedStatisticKey = 'age';
         fixture.detectChanges();
 
-        mockExpService.getAlgorithmResults.calls.reset();
+        mockExpService.getAlgorithmResults.mockClear();
         component.setSummaryTab('processed', 'Histogram');
         fixture.detectChanges();
 
@@ -2048,7 +2049,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             { missing_values_handler: { strategies: { age: 'mean' } } },
             undefined
         );
-        const preprocessingArg = mockExpService.getAlgorithmResults.calls.mostRecent().args[3] as Record<string, unknown>;
+        const preprocessingArg = mockExpService.getAlgorithmResults.mock.lastCall![3] as Record<string, unknown>;
         expect(Object.keys(preprocessingArg ?? {})).not.toContain('categorical_column_creator');
     });
 
@@ -2062,8 +2063,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
         };
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
-        mockExpService.loadDescriptiveOverview.and.callFake((_codes: string[], preprocessingArg?: unknown) => {
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
+        mockExpService.loadDescriptiveOverview.mockImplementation((_codes: string[], preprocessingArg?: unknown) => {
             if (!preprocessingArg) {
                 return of({ result: { featurewise: [] } });
             }
@@ -2093,10 +2094,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.processedSummary.data[0].name).toBe('Age');
     });
 
-    it('scrolls to the transformation section when that sub-tab is selected', (done) => {
+    it('scrolls to the transformation section when that sub-tab is selected', () => new Promise<void>((done) => {
         configureRawSummary();
-        const scrollSpy = spyOn(Element.prototype, 'scrollIntoView');
-        spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+        const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+        vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
             void Promise.resolve().then(() => callback(0));
             return 0;
         });
@@ -2105,11 +2106,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
 
         setTimeout(() => {
-            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(component.sectionOpen().transformation).toBe(true);
             expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
             done();
         });
-    });
+    }));
 
     it('hydrates the transformation form from applied categorical_column_creator and keeps it on sync', () => {
         const age = { code: 'age', label: 'Age', type: 'real' };
@@ -2136,7 +2137,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             },
             categorical_column_creator: [transformation],
         };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
@@ -2166,7 +2167,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             default_enumeration: 'other_or_unknown',
         };
         const preprocessing = { categorical_column_creator: [transformation] };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
         (mockExpService.selectedVariables as any).set([clinical]);
         fixture.detectChanges();
@@ -2202,17 +2203,17 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.transformationRuleModals = new QueryList() as any;
 
         expect(component.transformationDraftStatus(draft).label).toBe('Not applied');
-        expect(component.transformationHasPendingChange).toBeTrue();
+        expect(component.transformationHasPendingChange).toBe(true);
 
         component.commitTransformationDraft(draft);
         expect(draft.rules.map((rule) => rule.value)).toEqual(['old']);
         expect(component.transformationDraftStatus(draft).label).toBe('Applied');
-        expect(component.transformationHasPendingChange).toBeFalse();
+        expect(component.transformationHasPendingChange).toBe(false);
 
         draft.rules.push({ value: 'named-only', filter: null });
         component.commitTransformationDraft(draft);
         expect(draft.rules.length).toBe(2);
-        expect(component.transformationHasPendingChange).toBeTrue();
+        expect(component.transformationHasPendingChange).toBe(true);
     });
 
     it('drops loaded category counts once the column is edited', () => {
@@ -2247,7 +2248,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
         ];
         const preprocessing = { categorical_column_creator: creators };
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(preprocessing);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
@@ -2259,7 +2260,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Applied');
 
         // Re-persisting the same cards keeps them as an ordered array of two.
-        mockExpService.setTransformationPreprocessing.calls.reset();
+        mockExpService.setTransformationPreprocessing.mockClear();
         component.onTransformationChange();
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
             { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
@@ -2313,7 +2314,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.transformationDrafts.length).toBe(1);
         expect(cards().length).toBe(0);
-        expect(component.transformationChooserOnly).toBeTrue();
+        expect(component.transformationChooserOnly).toBe(true);
     });
 
     it('clears the primary card instead of removing the last one', () => {
@@ -2329,7 +2330,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('commits a column card without leaving the pipeline', () => {
-        const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+        const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
         const filter = categoryFilter();
         openStation('transformation');
         const draft = component.transformationDrafts[0];
@@ -2338,7 +2339,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.transformationRuleModals = {
             toArray: () => [{ exportFilterLogic: () => filter, filterError: () => null }],
         } as any;
-        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.sectionOpen().transformation).toBe(true);
 
         component.commitTransformationDraft(draft);
         fixture.detectChanges();
@@ -2348,10 +2349,10 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // The card's own Apply folds just that card: the stage stays open for the next
         // derived column.
-        expect(component.sectionOpen().transformation).toBeTrue();
-        expect(component.transformationDrafts.every((card) => !card.open)).toBeTrue();
+        expect(component.sectionOpen().transformation).toBe(true);
+        expect(component.transformationDrafts.every((card) => !card.open)).toBe(true);
         const body = workflowSection('Transformation').querySelector('.workflow-section-body');
-        expect(body?.classList.contains('open')).toBeTrue();
+        expect(body?.classList.contains('open')).toBe(true);
 
         // The terminal card is the only control that advances to Algorithm.
         component.finishDataHandling();
@@ -2366,12 +2367,12 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         component.commitTransformationDraft(component.transformationDrafts[0]);
 
-        expect(component.sectionOpen().transformation).toBeTrue();
-        expect(component.transformationDrafts[0].open).toBeFalse();
+        expect(component.sectionOpen().transformation).toBe(true);
+        expect(component.transformationDrafts[0].open).toBe(false);
     });
 
     it('applies the first card when two derived columns share a name', () => {
-        const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+        const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
         const filter = categoryFilter();
         openStation('transformation');
         component.addTransformationDraft();
@@ -2398,11 +2399,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(navigate).not.toHaveBeenCalled();
         // Each card answers for itself: the clash names both cards 'Duplicate name', so both
         // keep their editor open with 'Apply' in the primary slot, and the stage stays open.
-        expect(component.transformationDrafts[0].open).toBeTrue();
-        expect(component.transformationDrafts[1].open).toBeTrue();
-        expect(component.sectionOpen().transformation).toBeTrue();
-        const persisted = mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0];
-        expect(persisted).toEqual([jasmine.objectContaining({ code: 'group' })]);
+        expect(component.transformationDrafts[0].open).toBe(true);
+        expect(component.transformationDrafts[1].open).toBe(true);
+        expect(component.sectionOpen().transformation).toBe(true);
+        const persisted = mockExpService.setTransformationPreprocessing.mock.lastCall![0];
+        expect(persisted).toEqual([expect.objectContaining({ code: 'group' })]);
     });
 
     it('copies live category filters onto rules before preview and apply', () => {
@@ -2425,8 +2426,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
         expect(component.transformationDrafts[1].rules[0].filter).toBe(secondFilter as any);
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
-            jasmine.objectContaining({ code: 'mrs_good_outcome' }),
-            jasmine.objectContaining({ code: 'mrs_bad_outcome' }),
+            expect.objectContaining({ code: 'mrs_good_outcome' }),
+            expect.objectContaining({ code: 'mrs_bad_outcome' }),
         ]);
     });
 
@@ -2492,7 +2493,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         it('states why the evidence pane is empty instead of rendering blank space', () => {
             const age = { code: 'age', label: 'Age', type: 'real' };
             (mockExpService.selectedVariables as any).set([age]);
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
             openStation('setup');
             component.selectPrepVariable('missing', age);
             fixture.detectChanges();
@@ -2530,7 +2531,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(html).toContain('<p class="preprocessing-doc-section-title">Strategies:</p>');
             // '-' and '\u2022' are the same list, and a 'Term: description' item keeps its colon
             // because it is read as one line of prose rather than a table row.
-            expect(html.match(/<li>/g)).toHaveSize(3);
+            expect(html.match(/<li>/g)).toHaveLength(3);
             expect(html).toContain('<span class="preprocessing-doc-term">Fold:</span>');
             expect(html).toContain(
                 '<span class="preprocessing-doc-desc">Mean fills missing numerical values with the local mean.</span>'
@@ -2541,7 +2542,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     describe('summary number formatting', () => {
         it('keeps pivot values canonical for CSV and groups only at display time', () => {
             const age = { code: 'age', label: 'Age', type: 'real' };
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
                         { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 1234.5 } },
@@ -2559,10 +2560,10 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ?.rows.find((row) => row.metric === 'Mean');
             expect(meanRow?.values['all datasets']).toBe('1234.50');
 
-            const csvSpy = spyOn(TestBed.inject(CsvExportService), 'exportToCsv');
+            const csvSpy = vi.spyOn(TestBed.inject(CsvExportService), 'exportToCsv').mockReturnValue(undefined);
             component.exportSummaryToCSV('raw');
             expect(csvSpy).toHaveBeenCalledWith(
-                jasmine.arrayContaining([jasmine.objectContaining({ Metric: 'Mean', Dataset: 'All datasets', Value: '1234.50' })]),
+                expect.arrayContaining([expect.objectContaining({ Metric: 'Mean', Dataset: 'All datasets', Value: '1234.50' })]),
                 ['Variable', 'Metric', 'Dataset', 'Value'],
                 'raw_data_summary.csv',
             );
@@ -2598,7 +2599,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             const tabs = Array.from(rawSection.querySelectorAll('.summary-tabs button')) as HTMLButtonElement[];
             expect(tabs.map((b) => b.textContent?.trim())).toEqual(['Table', 'Charts', 'Histogram']);
             // Default tab is Statistics (Table).
-            expect(tabs[0].classList.contains('active')).toBeTrue();
+            expect(tabs[0].classList.contains('active')).toBe(true);
         });
 
         /**
@@ -2635,7 +2636,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             // Held open: this is the window the user actually stares at.
             const pending = new Subject<any>();
-            mockExpService.getAlgorithmResults.and.returnValue(pending.asObservable());
+            mockExpService.getAlgorithmResults.mockReturnValue(pending.asObservable());
             component.setSummaryTab('raw', 'Histogram');
             fixture.detectChanges();
 
@@ -2659,13 +2660,13 @@ describe('StatisticAnalysisPanelComponent', () => {
         it('does not refetch the raw summary when only the applied preprocessing changes', () => {
             configureRawSummary();
             const before = component.rawSummary;
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             (mockExpService.appliedPreprocessingConfig as any).set({ missing_values_handler: { age: 'mean' } });
             fixture.detectChanges();
 
             expect(component.rawSummary).toBe(before);
-            const rawRuns = mockExpService.loadDescriptiveOverview.calls.allArgs().filter((args) => args[1] === null);
+            const rawRuns = mockExpService.loadDescriptiveOverview.mock.calls.filter((args) => args[1] === null);
             expect(rawRuns.length).toBe(0);
         });
 
@@ -2687,11 +2688,11 @@ describe('StatisticAnalysisPanelComponent', () => {
             });
 
             const stale = new Subject<any>();
-            mockExpService.loadDescriptiveOverview.and.returnValue(stale.asObservable());
+            mockExpService.loadDescriptiveOverview.mockReturnValue(stale.asObservable());
             component.fetchDescriptiveStatistics();
 
             const current = new Subject<any>();
-            mockExpService.loadDescriptiveOverview.and.returnValue(current.asObservable());
+            mockExpService.loadDescriptiveOverview.mockReturnValue(current.asObservable());
             component.fetchDescriptiveStatistics();
 
             current.next(describePayload(71));
@@ -2709,17 +2710,17 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     describe('unapplied-changes guard at the pipeline terminal', () => {
         it('advances straight to algorithm selection when nothing is pending', () => {
-            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
             configureRawSummary();
 
             component.finishDataHandling();
 
-            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(component.showUnappliedChangesWarning()).toBe(false);
             expect(navigate).toHaveBeenCalledWith('algorithm-section');
         });
 
         it('asks what to do with unapplied changes instead of advancing', () => {
-            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
             const { age } = configureRawSummary();
             component.onMissingActionChange(age, 'mean');
             expect(component.pendingChangeCount).toBeGreaterThan(0);
@@ -2728,29 +2729,29 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
 
             expect(navigate).not.toHaveBeenCalled();
-            expect(component.showUnappliedChangesWarning()).toBeTrue();
+            expect(component.showUnappliedChangesWarning()).toBe(true);
             const card = fixture.nativeElement.querySelector('.unapplied-warning-card');
             expect(card?.textContent).toContain('You have unapplied changes');
         });
 
         it('stays in the pipeline when the warning is dismissed', () => {
-            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
             const { age } = configureRawSummary();
             component.onMissingActionChange(age, 'mean');
             component.finishDataHandling();
             fixture.detectChanges();
-            expect(component.showUnappliedChangesWarning()).toBeTrue();
+            expect(component.showUnappliedChangesWarning()).toBe(true);
 
             (fixture.nativeElement.querySelector('.unapplied-warning-btn.ghost') as HTMLButtonElement).click();
             fixture.detectChanges();
 
-            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(component.showUnappliedChangesWarning()).toBe(false);
             expect(navigate).not.toHaveBeenCalled();
             expect(component.pendingChangeCount).toBeGreaterThan(0);
         });
 
         it('discards pending changes and continues', () => {
-            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+            const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
             const { age } = configureRawSummary();
             component.onMissingActionChange(age, 'mean');
             expect(component.pendingChangeCount).toBeGreaterThan(0);
@@ -2758,27 +2759,27 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.discardAndContinue();
             fixture.detectChanges();
 
-            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(component.showUnappliedChangesWarning()).toBe(false);
             expect(component.pendingChangeCount).toBe(0);
             expect(component.pendingPreprocessingRules['age']?.action).toBe('drop');
             expect(navigate).toHaveBeenCalledWith('algorithm-section');
         });
 
-        it('applies pending changes and continues once the describe lands', (done) => {
-            const navigate = spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection');
+        it('applies pending changes and continues once the describe lands', () => new Promise<void>((done) => {
+            const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
             const { age } = configureRawSummary();
             const response$ = new Subject<unknown>();
-            spyOn(Element.prototype, 'scrollIntoView');
-            spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+            vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
                 void Promise.resolve().then(() => callback(0));
                 return 0;
             });
-            mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+            mockExpService.loadDescriptiveOverview.mockReturnValue(response$.asObservable());
 
             component.onMissingActionChange(age, 'mean');
             component.applyAndContinue();
 
-            expect(component.showUnappliedChangesWarning()).toBeFalse();
+            expect(component.showUnappliedChangesWarning()).toBe(false);
             expect(navigate).not.toHaveBeenCalled();
 
             setTimeout(() => {
@@ -2796,7 +2797,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 expect(navigate).toHaveBeenCalledWith('algorithm-section');
                 done();
             }, 0);
-        });
+        }));
     });
 
     describe('batch preprocessing actions', () => {
@@ -2842,24 +2843,24 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             component.toggleAllOutliers(true);
 
-            expect(component.pendingOutlierRules['age']?.enabled).toBeTrue();
+            expect(component.pendingOutlierRules['age']?.enabled).toBe(true);
             expect(component.pendingOutlierRules['sex']).toBeUndefined();
         });
     });
 
     describe('cohort retention strip', () => {
-        it('shows the retention strip only when both raw and processed summaries are loaded', (done) => {
+        it('shows the retention strip only when both raw and processed summaries are loaded', () => new Promise<void>((done) => {
             const { age } = configureRawSummary();
             // Before any preprocessing is applied, the processed summary is empty.
             expect(fixture.nativeElement.querySelector('.cohort-retention-strip')).toBeNull();
 
             const response$ = new Subject<unknown>();
-            spyOn(Element.prototype, 'scrollIntoView');
-            spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+            vi.spyOn(Element.prototype, 'scrollIntoView').mockReturnValue(undefined);
+            vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
                 void Promise.resolve().then(() => callback(0));
                 return 0;
             });
-            mockExpService.loadDescriptiveOverview.and.returnValue(response$.asObservable());
+            mockExpService.loadDescriptiveOverview.mockReturnValue(response$.asObservable());
 
             component.onMissingActionChange(age, 'mean');
             component.applyPreprocessing();
@@ -2881,7 +2882,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 expect(strip.textContent).toContain('2 rows removed by preprocessing');
                 done();
             }, 0);
-        });
+        }));
     });
 
     });
@@ -2906,14 +2907,14 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('plots the step 0 histogram with the default drop and no cohort filter', () => {
             const dose = { code: 'dose', label: 'Dose', type: 'real' };
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
                         { dataset: 'all datasets', variable: 'dose', data: { num_dtps: 100, num_na: 5, num_total: 105, mean: 12.5 } },
                     ],
                 },
             }));
-            mockExpService.getAlgorithmResults.and.returnValue(of({
+            mockExpService.getAlgorithmResults.mockReturnValue(of({
                 result: { histogram: [{ var: 'dose', bins: [0, 5, 10, 15], counts: [10, 40, 50] }] },
             }));
             (mockExpService.filterLogic as any).set({
@@ -2925,7 +2926,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             component.toggleSourcePreview();
             fixture.detectChanges();
-            mockExpService.getAlgorithmResults.calls.reset();
+            mockExpService.getAlgorithmResults.mockClear();
             component.setSummaryTab('source', 'Histogram');
             fixture.detectChanges();
 
@@ -2945,12 +2946,12 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.goToSection('filters');
             fixture.detectChanges();
             const pending = categoryFilter();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             component.previewFilterData(cohortModal(pending) as any);
             fixture.detectChanges();
 
-            expect(component.sectionOpen().raw).toBeTrue();
+            expect(component.sectionOpen().raw).toBe(true);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['age', 'sex'],
                 null,
@@ -2962,7 +2963,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(mockExpService.filterLogic()).toBeNull();
 
             // The pending filter is part of the cache key, so the same rules are free.
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
             component.previewFilterData(cohortModal(pending) as any);
             fixture.detectChanges();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
@@ -2972,13 +2973,13 @@ describe('StatisticAnalysisPanelComponent', () => {
             configureRawSummary();
             component.goToSection('filters');
             fixture.detectChanges();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             component.previewFilterData(cohortModal(null, 'A filter value is required') as any);
             fixture.detectChanges();
 
-            expect(component.sectionOpen().filters).toBeTrue();
-            expect(component.sectionOpen().raw).toBeFalse();
+            expect(component.sectionOpen().filters).toBe(true);
+            expect(component.sectionOpen().raw).toBe(false);
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
         });
 
@@ -2987,7 +2988,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             const pending = categoryFilter();
             component.previewFilterData(cohortModal(pending) as any);
             fixture.detectChanges();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             // The stored cohort moves underneath the preview. Falling back to it would swap
             // the cohort the user asked to see for an older one, so the pinned rules keep the
@@ -2996,7 +2997,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             (mockExpService.filterLogic as any).set(stored);
             fixture.detectChanges();
 
-            const cohorts = mockExpService.loadDescriptiveOverview.calls.allArgs().map((args) => args[3]);
+            const cohorts = mockExpService.loadDescriptiveOverview.mock.calls.map((args) => args[3]);
             expect(cohorts).not.toContain(stored);
         });
 
@@ -3017,7 +3018,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.transformationRuleModals = {
                 toArray: () => [ruleModal(filter), ruleModal(filter), ruleModal(null)],
             } as any;
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
                         { dataset: 'all datasets', variable: 'group_a', data: { counts: { a: 3 } } },
@@ -3032,11 +3033,11 @@ describe('StatisticAnalysisPanelComponent', () => {
             const transformation = workflowSection('Transformation');
             expect(transformation.querySelector('.row-error')).toBeNull();
             expect(transformation.querySelector('.glass-feedback-warning')).toBeNull();
-            expect(stationButton('Transformation', '.station-action-apply').disabled).toBeFalse();
+            expect(stationButton('Transformation', '.station-action-apply').disabled).toBe(false);
             expect(component.transformationDraftStatus(unfiltered).label).toBe('Not applied');
             expect(component.transformationStatusLabel).toBe('Not applied');
 
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
             component.finishTransformationRule(first, 0);
             fixture.detectChanges();
 
@@ -3061,12 +3062,12 @@ describe('StatisticAnalysisPanelComponent', () => {
                     ],
                 },
             };
-            mockExpService.appliedKMeansClusterCreator.and.returnValue(creator as any);
-            mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => ({
+            mockExpService.appliedKMeansClusterCreator.mockReturnValue(creator as any);
+            mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => ({
                 ...(config ?? {}),
                 kmeans_cluster_creator: creator,
             }));
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [{
                         dataset: 'all datasets',
@@ -3084,7 +3085,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             // The creator goes into the describe as a preprocessing step, read over its own
             // clustering variables, and the cluster column comes back as a variable with counts.
             const [columns, preprocessing, sourceCodes] =
-                mockExpService.loadDescriptiveOverview.calls.mostRecent().args;
+                mockExpService.loadDescriptiveOverview.mock.lastCall!;
             expect(columns).toEqual(['kmeans_cluster']);
             expect((preprocessing as any)?.['kmeans_cluster_creator']).toBe(creator);
             expect(sourceCodes).toContain('age');
@@ -3117,7 +3118,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 toArray: () => [ruleModal(null, 'A filter value is required')],
             } as any;
             fixture.detectChanges();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             draft.openRuleIndex = 0;
             // detectChanges refreshes the @ViewChildren query; re-stub the rejecting builder.
@@ -3156,7 +3157,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.transformationDrafts[0].code = 'pro';
             component.transformationRuleModals = { toArray: () => [] } as any;
             fixture.detectChanges();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             component.finishTransformationRule(component.transformationDrafts[0], 0);
             fixture.detectChanges();
@@ -3197,7 +3198,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             draft.code = 'cohort';
             draft.rules = [{ value: 'ACS', filter: categoryFilter() }];
 
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 status: 'error',
                 result: {
                     data: 'Something went wrong. Please inform the system administrator or try again later.',
@@ -3208,7 +3209,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.transformationStatisticsError).toBe('Failed to load category counts.');
             expect(component.transformationStatisticsError).not.toContain('insufficient data');
 
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 status: 'success',
                 result: {
                     featurewise: [{ variable: 'cohort', dataset: 'all datasets', data: null }],
@@ -3249,9 +3250,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             // slot is an enabled Apply, never a dimmed one, and Preview stays live too — the
             // read is what names the gap.
             const apply = stationButton('Transformation', '.station-action-apply');
-            expect(apply.disabled).toBeFalse();
+            expect(apply.disabled).toBe(false);
             expect(apply.textContent?.trim()).toBe('Apply');
-            expect(apply.classList.contains('is-quiet')).toBeFalse();
+            expect(apply.classList.contains('is-quiet')).toBe(false);
 
             // Once the category holds a rule the card is Applied, and its primary slot
             // becomes the quiet Close.
@@ -3262,8 +3263,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             fixture.detectChanges();
 
             expect(apply.textContent?.trim()).toBe('Close');
-            expect(apply.classList.contains('is-quiet')).toBeTrue();
-            expect(apply.disabled).toBeFalse();
+            expect(apply.classList.contains('is-quiet')).toBe(true);
+            expect(apply.disabled).toBe(false);
         });
 
         it('keeps the unfinished card open while its own Apply folds the complete one', () => {
@@ -3287,13 +3288,13 @@ describe('StatisticAnalysisPanelComponent', () => {
             // The complete card is committed and folds itself. The card whose Pending chip is
             // the only thing left saying that work remains keeps its editor — and its Apply.
             expect(component.transformationStatusLabel).toBe('Not applied');
-            expect(complete.open).toBeFalse();
-            expect(unfinished.open).toBeTrue();
-            expect(component.sectionOpen().transformation).toBeTrue();
+            expect(complete.open).toBe(false);
+            expect(unfinished.open).toBe(true);
+            expect(component.sectionOpen().transformation).toBe(true);
             const body = workflowSection('Transformation').querySelector('.workflow-section-body');
-            expect(body?.classList.contains('open')).toBeTrue();
-            expect(mockExpService.setTransformationPreprocessing.calls.mostRecent().args[0])
-                .toEqual([jasmine.objectContaining({ code: 'group_a' })]);
+            expect(body?.classList.contains('open')).toBe(true);
+            expect(mockExpService.setTransformationPreprocessing.mock.lastCall![0])
+                .toEqual([expect.objectContaining({ code: 'group_a' })]);
         });
 
         it('loads category counts once every started card is complete', () => {
@@ -3303,7 +3304,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             draft.code = 'group_a';
             draft.rules = [{ value: 'a', filter }];
             component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
-            mockExpService.loadDescriptiveOverview.and.returnValue(of({
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
                         { dataset: 'all datasets', variable: 'group_a', data: { counts: { a: 7 } } },
@@ -3311,7 +3312,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             }));
             fixture.detectChanges();
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             component.finishTransformationRule(draft, 0);
             fixture.detectChanges();
@@ -3319,8 +3320,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.countsDraftId).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
-                jasmine.objectContaining({
-                    categorical_column_creator: [jasmine.objectContaining({ code: 'group_a' })],
+                expect.objectContaining({
+                    categorical_column_creator: [expect.objectContaining({ code: 'group_a' })],
                 }),
                 ['age']
             );

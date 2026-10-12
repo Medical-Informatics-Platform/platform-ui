@@ -377,14 +377,14 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('validation_algo', ['y1'], ['x1']);
 
-    expect(body.analysis.inputdata).toEqual(jasmine.objectContaining({
+    expect(body.analysis.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: ['ds1'],
       validation_datasets: ['ds1'],
       variables: ['y1', 'x1'],
       filters: null,
     }));
-    expect(body.analysis.algorithm).toEqual(jasmine.objectContaining({
+    expect(body.analysis.algorithm).toEqual(expect.objectContaining({
       y: ['y1'],
       x: ['x1'],
     }));
@@ -443,10 +443,10 @@ describe('ExperimentStudioService', () => {
     const grouped = service.availableGroupedAlgorithms();
     const mock = Object.values(grouped).flat().find((algo) => algo.name === 'mock_algo');
 
-    expect(mock?.isDisabled).toBeTrue();
-    expect(mock?.availability?.available).toBeFalse();
+    expect(mock?.isDisabled).toBe(true);
+    expect(mock?.availability?.available).toBe(false);
     expect(mock?.availability?.summary).toBe('Outcome needs at least 1 (none assigned).');
-    expect(mock?.availability?.details.find((detail) => detail.role === 'y')).toEqual(jasmine.objectContaining({
+    expect(mock?.availability?.details.find((detail) => detail.role === 'y')).toEqual(expect.objectContaining({
       label: 'Outcome',
       minCount: 1,
       selectedCount: 0,
@@ -460,11 +460,11 @@ describe('ExperimentStudioService', () => {
     const selected = service.backendAlgorithms()['mock_algo'];
     service.selectedAlgorithm.set(selected);
 
-    expect(service.isAlgorithmAvailable('mock_algo')).toBeTrue();
+    expect(service.isAlgorithmAvailable('mock_algo')).toBe(true);
 
     service.setAlgorithmY([]);
 
-    expect(service.isAlgorithmAvailable('mock_algo')).toBeFalse();
+    expect(service.isAlgorithmAvailable('mock_algo')).toBe(false);
     expect(service.selectedAlgorithm()?.name).toBe('mock_algo');
   });
 
@@ -735,7 +735,7 @@ describe('ExperimentStudioService', () => {
     );
   });
 
-  it('loads outlier report previews with outlier parameters and upstream missing preprocessing', (done) => {
+  it('loads outlier report previews with outlier parameters and upstream missing preprocessing', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
     service.setVariables([
       { code: 'age', label: 'Age', type: 'real' } as any,
@@ -763,7 +763,7 @@ describe('ExperimentStudioService', () => {
 
     const req = httpMock.expectOne('/services/experiments/transient');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
       name: 'outlier_report',
       y: ['age'],
       x: ['bmi'],
@@ -773,11 +773,11 @@ describe('ExperimentStudioService', () => {
         folds: { age: 1.5, bmi: 0.05 },
       },
     }));
-    expect(req.request.body.analysis.inputdata).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: [],
       filters: null,
-      variables: jasmine.arrayContaining(['age', 'bmi']),
+      variables: expect.arrayContaining(['age', 'bmi']),
     }));
     expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
@@ -785,9 +785,9 @@ describe('ExperimentStudioService', () => {
       },
     }));
     req.flush({ featurewise: [] });
-  });
+  }));
 
-  it('keeps nominal variables and numeric covariates in distinct outlier report input roles', (done) => {
+  it('keeps nominal variables and numeric covariates in distinct outlier report input roles', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
     service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
     service.setAlgorithmY([{ code: 'sex', label: 'Sex', type: 'nominal' } as any]);
@@ -807,20 +807,20 @@ describe('ExperimentStudioService', () => {
 
     const req = httpMock.expectOne('/services/experiments/transient');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.analysis.inputdata).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: [],
       filters: null,
       variables: ['age'],
     }));
-    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
       y: ['age'],
       x: null,
     }));
     req.flush({ featurewise: [] });
-  });
+  }));
 
-  it('sends covariate-only outlier report codes through y only', (done) => {
+  it('sends covariate-only outlier report codes through y only', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
     service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
     service.setAlgorithmX([{ code: 'age', label: 'Age', type: 'real' } as any]);
@@ -838,12 +838,12 @@ describe('ExperimentStudioService', () => {
     });
 
     const req = httpMock.expectOne('/services/experiments/transient');
-    expect(req.request.body.analysis.algorithm).toEqual(jasmine.objectContaining({
+    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
       y: ['age'],
       x: null,
     }));
     req.flush({ featurewise: [] });
-  });
+  }));
 
   it('resetStudioStateForGuide restores the default pathology after clearing guide progress', () => {
     const defaultModel: DataModel = {
@@ -897,13 +897,13 @@ describe('ExperimentStudioService', () => {
     service.setVariables([{ code: 'age', label: 'Age' } as any]);
     service.setAlgorithmY([{ code: 'age', label: 'Age' } as any]);
 
-    const warn = spyOn(console, 'warn');
+    const warn = vi.spyOn(console, 'warn').mockReturnValue(undefined);
     service.setSelectedDatasets([]);
     TestBed.flushEffects();
 
     expect(service.selectedVariables()).toEqual([]);
     expect(service.algorithmY()).toEqual([]);
-    const resetWarnings = warn.calls.allArgs().filter((args) =>
+    const resetWarnings = warn.mock.calls.filter((args) =>
       String(args[0]).includes('No datasets selected')
     );
     expect(resetWarnings.length).toBe(1);
@@ -943,7 +943,7 @@ describe('ExperimentStudioService', () => {
       { code: 'event_type', label: 'Event Type', type: 'text' } as any,
     ]);
 
-    expect(service.isAlgorithmAvailable('mock_algo')).toBeTrue();
+    expect(service.isAlgorithmAvailable('mock_algo')).toBe(true);
   });
 
   it('coerces numeric parameter strings before building request payloads', () => {
@@ -1173,7 +1173,7 @@ describe('ExperimentStudioService', () => {
     expect(service.filterLogic()).toEqual(filters);
     expect(service.algorithmConfigurations()['mock_algo']).toEqual({ alpha: 0.01 });
     expect(service.appliedPreprocessingConfig()).toEqual(preprocessing);
-    expect(service.isShared()).toBeTrue();
+    expect(service.isShared()).toBe(true);
 
     // A column created after loading must reach the run: the saved preprocessing
     // must not shadow the shared applied config.
@@ -1218,7 +1218,7 @@ describe('ExperimentStudioService', () => {
     const assignable = service.algorithmAssignableVariables();
     const created = assignable.find((v) => v.code === 'derived_col');
     expect(created).toBeTruthy();
-    expect(created?.isCreatedColumn).toBeTrue();
+    expect(created?.isCreatedColumn).toBe(true);
     expect(created?.enumerations).toEqual([
       { code: 'A', label: 'A' },
       { code: 'B', label: 'B' },
@@ -1321,11 +1321,11 @@ describe('ExperimentStudioService', () => {
 
     // Loading never rewrites or fills in a stored rule…
     expect((service.filterLogic()?.rules as any[])[0])
-      .toEqual(jasmine.objectContaining({ field: 'sex', operator: 'in', value: ['1', '2'] }));
+      .toEqual(expect.objectContaining({ field: 'sex', operator: 'in', value: ['1', '2'] }));
     // …including a unary rule whose own client omitted the value key.
     expect((service.filterLogic()?.rules as any[])[1])
-      .toEqual(jasmine.objectContaining({ field: 'age', operator: 'is_not_null', type: 'integer' }));
-    expect('value' in ((service.filterLogic()?.rules as any[])[1])).toBeFalse();
+      .toEqual(expect.objectContaining({ field: 'age', operator: 'is_not_null', type: 'integer' }));
+    expect('value' in ((service.filterLogic()?.rules as any[])[1])).toBe(false);
 
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
@@ -1338,7 +1338,7 @@ describe('ExperimentStudioService', () => {
 
     const sentRules = service.buildRequestBody('mock_algo').analysis.inputdata.filters.rules as any[];
     expect(sentRules[0].value).toEqual(['1', '2']);
-    expect('value' in sentRules[1]).toBeFalse();
+    expect('value' in sentRules[1]).toBe(false);
   });
 
   it('hydrates every saved creator step, not just the last one with that name', () => {
@@ -1487,7 +1487,7 @@ describe('ExperimentStudioService', () => {
     expect(service.selectedVariables().map((v) => v.code)).toEqual(['age', 'sex']);
     expect(service.algorithmY().map((v) => v.code)).toEqual(['age']);
     expect(service.algorithmX().map((v) => v.code)).toEqual(['derived_col']);
-    expect(service.algorithmX()[0]?.isCreatedColumn).toBeTrue();
+    expect(service.algorithmX()[0]?.isCreatedColumn).toBe(true);
     expect(service.algorithmAssignableVariables().map((v) => v.code)).toEqual(['age', 'sex', 'derived_col']);
   });
 
@@ -1577,7 +1577,7 @@ describe('ExperimentStudioService', () => {
 
       const clusterNode = service.algorithmAssignableVariables().find((v) => v.code === 'kmeans_cluster');
       expect(clusterNode).toBeTruthy();
-      expect(clusterNode?.isCreatedColumn).toBeTrue();
+      expect(clusterNode?.isCreatedColumn).toBe(true);
       expect(clusterNode?.enumerations).toEqual([
         { code: 'cluster_0', label: 'Cluster 0' },
         { code: 'cluster_1', label: 'Cluster 1' },
@@ -1681,7 +1681,7 @@ describe('ExperimentStudioService', () => {
           },
           default_enumeration: '60_plus',
         },
-      }, { age: 'Age' })).toContain(jasmine.objectContaining({
+      }, { age: 'Age' })).toContainEqual(expect.objectContaining({
         label: 'Nominal column',
         value: 'age_band; under_60: Age < 60; else 60_plus',
       }));
@@ -1695,7 +1695,7 @@ describe('ExperimentStudioService', () => {
             ACS: { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' },
           },
         },
-      }, { clinical_sdr: 'Clinical syndrome' }, { clinical_sdr: { 1: 'TACS', 2: 'PACS' } })).toContain(jasmine.objectContaining({
+      }, { clinical_sdr: 'Clinical syndrome' }, { clinical_sdr: { 1: 'TACS', 2: 'PACS' } })).toContainEqual(expect.objectContaining({
         value: 'territory; ACS: Clinical syndrome IN TACS, PACS',
       }));
     });
@@ -1703,7 +1703,7 @@ describe('ExperimentStudioService', () => {
     it('summarizes an applied cluster creator as the cluster column it writes', () => {
       expect(service.formatPreprocessingEntries({
         kmeans_cluster_creator: { code: 'kmeans_cluster', reusable_preprocessing: {} },
-      })).toContain(jasmine.objectContaining({
+      })).toContainEqual(expect.objectContaining({
         label: 'K-means cluster column',
         value: 'kmeans_cluster',
       }));
@@ -1715,7 +1715,7 @@ describe('ExperimentStudioService', () => {
           code: 'kmeans_cluster',
           reusable_preprocessing: { cluster_variables: ['age', 'nihss_24h'] },
         },
-      }, { age: 'Age', nihss_24h: '24h score' })).toContain(jasmine.objectContaining({
+      }, { age: 'Age', nihss_24h: '24h score' })).toContainEqual(expect.objectContaining({
         label: 'K-means cluster column',
         lines: ['kmeans_cluster', 'Clustered on Age, 24h score'],
       }));
@@ -1744,7 +1744,7 @@ describe('ExperimentStudioService', () => {
       const req = httpMock.expectOne('/services/experiments/transient');
       expect(req.request.body.analysis.algorithm.name).toBe('kmeans');
       expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
-      expect(req.request.body.analysis.algorithm.parameters).toEqual(jasmine.objectContaining({
+      expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
         k_selection: 'manual',
         k: 4,
         maxiter: 100,
@@ -1801,7 +1801,7 @@ describe('ExperimentStudioService', () => {
       service.loadKMeansReport(['age'])!.subscribe();
 
       const req = httpMock.expectOne('/services/experiments/transient');
-      expect(req.request.body.analysis.algorithm.parameters).toEqual(jasmine.objectContaining({
+      expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
         k_selection: 'elbow',
         k_min: 2,
         k_max: 5,

@@ -1,3 +1,4 @@
+import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
@@ -7,6 +8,7 @@ import { ExperimentStudioService } from '../../../services/experiment-studio.ser
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 /**
  * Contract: a pipeline node is "active" only when the stage's work is either
@@ -16,14 +18,14 @@ import { PdfExportService } from '../../../services/pdf-export.service';
 describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     let component: StatisticAnalysisPanelComponent;
     let fixture: ComponentFixture<StatisticAnalysisPanelComponent>;
-    let mockExpService: jasmine.SpyObj<ExperimentStudioService>;
+    let mockExpService: MockedObject<ExperimentStudioService>;
 
     const age = { code: 'age', label: 'Age', type: 'real' };
 
     /** Round-trips the applied config the way the real service does. */
     function seedAppliedConfig(config: Record<string, unknown> | null): void {
         (mockExpService.appliedPreprocessingConfig as any).set(config);
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(config as never);
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(config as never);
     }
 
     /** A stage card of the pipeline canvas, as rendered. */
@@ -43,7 +45,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     }
 
     beforeEach(async () => {
-        mockExpService = jasmine.createSpyObj('ExperimentStudioService', [
+        mockExpService = createSpyObj('ExperimentStudioService', [
             'loadDescriptiveOverview',
             'loadOutlierReportPreview',
             'getAlgorithmResults',
@@ -73,24 +75,24 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             appliedPreprocessingConfig: signal<Record<string, unknown> | null>(null),
             backendAlgorithms: signal({})
         });
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({ result: { featurewise: [] } }));
-        mockExpService.loadOutlierReportPreview.and.returnValue(of({ result: { featurewise: [] } }));
-        mockExpService.getAlgorithmResults.and.returnValue(of({ result: { histogram: [] } }));
-        mockExpService.getAppliedDescriptivePreprocessing.and.returnValue(null);
-        mockExpService.getDatasetLabelMap.and.returnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.and.callFake(
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
+        mockExpService.loadOutlierReportPreview.mockReturnValue(of({ result: { featurewise: [] } }));
+        mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
+        mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
+        mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
+        mockExpService.appliedKMeansClusterCreator.mockImplementation(
             () => (mockExpService.appliedPreprocessingConfig() as any)?.['kmeans_cluster_creator'] ?? null,
         );
-        mockExpService.setKMeansClusterPreprocessing.and.callFake((creator: unknown) => {
+        mockExpService.setKMeansClusterPreprocessing.mockImplementation((creator: unknown) => {
             const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
             if (creator) next['kmeans_cluster_creator'] = creator;
             else delete next['kmeans_cluster_creator'];
             seedAppliedConfig(Object.keys(next).length ? next : null);
         });
-        mockExpService.requestDatasets.and.returnValue(['dataset-a']);
-        mockExpService.requestFilters.and.returnValue(null);
-        mockExpService.getActiveDataModelCode.and.returnValue('Stroke:3.7');
-        mockExpService.withKMeansClusterRequirements.and.callFake((config: any) => {
+        mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
+        mockExpService.requestFilters.mockReturnValue(null);
+        mockExpService.getActiveDataModelCode.mockReturnValue('Stroke:3.7');
+        mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => {
             const creator = mockExpService.appliedKMeansClusterCreator();
             if (!creator) return config ?? null;
             const next: Record<string, unknown> = { ...(config ?? {}) };
@@ -98,12 +100,12 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             next['kmeans_cluster_creator'] = creator;
             return next;
         });
-        mockExpService.appliedCategoricalCreators.and.callFake(() => {
+        mockExpService.appliedCategoricalCreators.mockImplementation(() => {
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
         });
         // Mirrors the real collector: a group walks its rules, a condition is its field.
-        mockExpService.filterVariableCodes.and.callFake((logic: any) => {
+        mockExpService.filterVariableCodes.mockImplementation((logic: any) => {
             const codes = new Set<string>();
             const walk = (node: any) => {
                 if (!node) return;
@@ -116,9 +118,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             walk(logic);
             return [...codes];
         });
-        mockExpService.setAppliedDescriptivePreprocessing.and.callFake((config: unknown) =>
+        mockExpService.setAppliedDescriptivePreprocessing.mockImplementation((config: unknown) =>
             seedAppliedConfig(config as Record<string, unknown> | null));
-        mockExpService.setTransformationPreprocessing.and.callFake((config: unknown) => {
+        mockExpService.setTransformationPreprocessing.mockImplementation((config: unknown) => {
             const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
             if (config) next['categorical_column_creator'] = config;
             else delete next['categorical_column_creator'];
@@ -132,8 +134,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 provideEchartsCore({ echarts: () => import('echarts') }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
                 { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
-                { provide: ChartBuilderService, useValue: (() => { const s = jasmine.createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']); s.getChartsForAlgorithm.and.returnValue([]); return s; })() },
-                { provide: PdfExportService, useValue: jasmine.createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']) }
+                { provide: ChartBuilderService, useValue: (() => { const s = createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']); s.getChartsForAlgorithm.mockReturnValue([]); return s; })() },
+                { provide: PdfExportService, useValue: createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']) }
             ]
         }).compileComponents();
 
@@ -147,7 +149,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.filterLogic as any).set(logic);
         fixture.detectChanges();
 
-        expect(component.isStepAdded('filters')).toBeTrue();
+        expect(component.isStepAdded('filters')).toBe(true);
         expect(component.activeStagesCount).toBe(1);
         expect(mockExpService.filterLogic()).toBe(logic);
         expect(mockExpService.setFilterLogic).not.toHaveBeenCalled();
@@ -158,7 +160,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        expect(component.isStepAdded('setup')).toBeTrue();
+        expect(component.isStepAdded('setup')).toBe(true);
         expect(component.activeStagesCount).toBe(1);
     });
 
@@ -173,16 +175,16 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        expect(component.isStepAdded('transformation')).toBeTrue();
-        expect(component.isStepAdded('setup')).toBeFalse();
+        expect(component.isStepAdded('transformation')).toBe(true);
+        expect(component.isStepAdded('setup')).toBe(false);
     });
 
     it('does not persist when Preprocessing is opened', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
-        mockExpService.setTransformationPreprocessing.calls.reset();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+        mockExpService.setTransformationPreprocessing.mockClear();
         component.addStep('setup');
         component.goToSection('setup');
         fixture.detectChanges();
@@ -200,15 +202,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         component.applyPreprocessing();
 
         expect(mockExpService.setAppliedDescriptivePreprocessing).toHaveBeenCalledWith(
-            jasmine.objectContaining({ missing_values_handler: { strategies: { age: 'mean' } } }),
+            expect.objectContaining({ missing_values_handler: { strategies: { age: 'mean' } } }),
         );
-        expect(component.isStepAdded('setup')).toBeTrue();
+        expect(component.isStepAdded('setup')).toBe(true);
 
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
         component.removeStep('setup');
 
         expect(mockExpService.setAppliedDescriptivePreprocessing).toHaveBeenCalledWith(null);
-        expect(component.isStepAdded('setup')).toBeFalse();
+        expect(component.isStepAdded('setup')).toBe(false);
     });
 
     it('shows what the next run will use in the terminal card', async () => {
@@ -257,17 +259,17 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('draws the untouched stage as a solid node tagged Default', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
 
         const preprocessing = pipelineCard('analysis-preprocessing');
-        expect(preprocessing.classList.contains('is-dormant')).toBeFalse();
+        expect(preprocessing.classList.contains('is-dormant')).toBe(false);
         expect(preprocessing.querySelector('.pipeline-node-header h3')?.textContent?.trim()).toBe('Preprocessing');
         expect(preprocessing.querySelector('.pipeline-node-subtitle')?.textContent).toContain('Decide what happens to missing values');
 
         const badge = preprocessing.querySelector('.pipeline-status-badge') as HTMLElement;
         expect(badge.textContent?.trim()).toBe('In run · Default');
-        expect(badge.classList.contains('default')).toBeTrue();
-        expect(badge.classList.contains('applied')).toBeFalse();
+        expect(badge.classList.contains('default')).toBe(true);
+        expect(badge.classList.contains('applied')).toBe(false);
 
         const rows = railRows(preprocessing);
         expect(rows.live.length).toBe(1);
@@ -292,16 +294,16 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeNull();
         const rows = railRows(pipelineCard('analysis-preprocessing'));
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add outlier clipping')]);
+        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add outlier clipping')]);
 
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
         (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().setup).toBeTrue();
-        expect(component.userEnabledOutliers()).toBeTrue();
-        expect(component.preprocessingStepOpen.outlier).toBeTrue();
-        expect(component.preprocessingStepOpen.missing).toBeFalse();
+        expect(component.sectionOpen().setup).toBe(true);
+        expect(component.userEnabledOutliers()).toBe(true);
+        expect(component.preprocessingStepOpen.outlier).toBe(true);
+        expect(component.preprocessingStepOpen.missing).toBe(false);
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeTruthy();
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
         expect(railRows(pipelineCard('analysis-preprocessing')).ghost).toEqual([]);
@@ -325,8 +327,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         component.commitOrCloseStep('outlier');
         fixture.detectChanges();
 
-        expect(component.preprocessingStepOpen.outlier).toBeFalse();
-        expect(component.sectionOpen().setup).toBeTrue();
+        expect(component.preprocessingStepOpen.outlier).toBe(false);
+        expect(component.sectionOpen().setup).toBe(true);
         expect(mockExpService.appliedPreprocessingConfig()).toBeNull();
 
         // Collapsed, the stage hands the step back to its rail: closing an untouched card
@@ -335,12 +337,12 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
         const rows = railRows(pipelineCard('analysis-preprocessing'));
         expect(rows.live.length).toBe(1);
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add outlier clipping')]);
+        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add outlier clipping')]);
 
         (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
-        expect(component.sectionOpen().setup).toBeTrue();
-        expect(component.preprocessingStepOpen.outlier).toBeTrue();
+        expect(component.sectionOpen().setup).toBe(true);
+        expect(component.preprocessingStepOpen.outlier).toBe(true);
     });
 
     it('opens the transformation stage from the collapsed rail without inventing a column', () => {
@@ -355,14 +357,14 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         const rows = railRows(pipelineCard('analysis-transformation'));
-        expect(rows.live.map((row) => row.textContent)).toEqual([jasmine.stringMatching('mrs_good_outcome')]);
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([jasmine.stringMatching('Add derived column')]);
+        expect(rows.live.map((row) => row.textContent)).toEqual([expect.stringMatching('mrs_good_outcome')]);
+        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add derived column')]);
 
-        mockExpService.setTransformationPreprocessing.calls.reset();
+        mockExpService.setTransformationPreprocessing.mockClear();
         (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.sectionOpen().transformation).toBe(true);
         // The dashed row only opens the stage now: the graph holds the stored column, and the
         // stage's own blank draft stays off screen until a type is chosen.
         const graphCards = () => (fixture.nativeElement as HTMLElement)
@@ -503,7 +505,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         component.addStep('transformation');
         fixture.detectChanges();
-        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.sectionOpen().transformation).toBe(true);
 
         // Echo the hydrated filters back so committing does not blank them.
         const committed = component.transformationDrafts.flatMap((draft) => draft.rules.map((rule) => rule.filter));
@@ -515,20 +517,20 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // stage stays open until its header Collapse folds it to the overview.
         component.transformationDrafts.forEach((draft) => component.commitTransformationDraft(draft));
         fixture.detectChanges();
-        expect(component.transformationDrafts.every((draft) => !draft.open)).toBeTrue();
-        expect(component.sectionOpen().transformation).toBeTrue();
+        expect(component.transformationDrafts.every((draft) => !draft.open)).toBe(true);
+        expect(component.sectionOpen().transformation).toBe(true);
 
         component.collapseStep('transformation');
         fixture.detectChanges();
 
-        expect(component.sectionOpen().transformation).toBeFalse();
+        expect(component.sectionOpen().transformation).toBe(false);
         const overview = Array.from(
             fixture.nativeElement.querySelectorAll('[data-guide="analysis-transformation"] .pipeline-subnodes-tree .pipeline-subnode-item')
         ) as HTMLElement[];
         expect(overview.map((item) => item.textContent)).toEqual([
-            jasmine.stringMatching('mrs_good_outcome'),
-            jasmine.stringMatching('mrs_bad_outcome'),
-            jasmine.stringMatching('Add derived column'),
+            expect.stringMatching('mrs_good_outcome'),
+            expect.stringMatching('mrs_bad_outcome'),
+            expect.stringMatching('Add derived column'),
         ]);
     });
 
@@ -541,34 +543,34 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         component.preprocessingStepOpen.missing = true;
         component.jumpToSubNode('setup', 'outlier');
 
-        expect(component.sectionOpen().setup).toBeTrue();
-        expect(component.preprocessingStepOpen.outlier).toBeTrue();
-        expect(component.preprocessingStepOpen.missing).toBeFalse();
-        expect(component.preprocessingStepOpen.longitudinal).toBeFalse();
+        expect(component.sectionOpen().setup).toBe(true);
+        expect(component.preprocessingStepOpen.outlier).toBe(true);
+        expect(component.preprocessingStepOpen.missing).toBe(false);
+        expect(component.preprocessingStepOpen.longitudinal).toBe(false);
 
         component.jumpToSubNode('transformation', 'transformation');
-        expect(component.sectionOpen().transformation).toBeTrue();
-        expect(component.preprocessingStepOpen.transformation).toBeTrue();
+        expect(component.sectionOpen().transformation).toBe(true);
+        expect(component.preprocessingStepOpen.transformation).toBe(true);
     });
 
     it('opens step 0 as a read that adds no stage and writes no config', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        mockExpService.setFilterLogic.calls.reset();
-        mockExpService.setAppliedDescriptivePreprocessing.calls.reset();
+        mockExpService.setFilterLogic.mockClear();
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
         component.toggleSourcePreview();
         fixture.detectChanges();
 
-        expect(component.sectionOpen().source).toBeTrue();
-        expect(component.sectionOpen().filters).toBeFalse();
-        expect(component.isStepAdded('filters')).toBeFalse();
+        expect(component.sectionOpen().source).toBe(true);
+        expect(component.sectionOpen().filters).toBe(false);
+        expect(component.isStepAdded('filters')).toBe(false);
         expect(component.activeStagesCount).toBe(0);
         expect(mockExpService.setFilterLogic).not.toHaveBeenCalled();
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
 
         component.toggleSourcePreview();
-        expect(component.sectionOpen().source).toBeFalse();
+        expect(component.sectionOpen().source).toBe(false);
     });
 
     it('describes step 0 without the cohort filter and refetches only on a new selection', () => {
@@ -576,27 +578,27 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.filterLogic as any).set({ condition: 'AND', rules: [{ field: 'age', operator: '>', value: 40 }] });
         fixture.detectChanges();
 
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
         component.toggleSourcePreview();
 
         // Filters are dropped from the request: the snapshot is the data as selected.
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age'], null, null, null);
 
         // Close and reopen: the snapshot still matches the selection, so it is free.
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
         component.toggleSourcePreview();
         component.toggleSourcePreview();
         expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
 
         // A new selection invalidates it, and an open snapshot refreshes at once.
-        mockExpService.loadDescriptiveOverview.calls.reset();
+        mockExpService.loadDescriptiveOverview.mockClear();
         (mockExpService.selectedVariables as any).set([age, { code: 'mmse', label: 'MMSE', type: 'real' }]);
         fixture.detectChanges();
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'mmse'], null, null, null);
     });
 
     it('renders the step 0 snapshot in the shared summary workspace', () => {
-        mockExpService.loadDescriptiveOverview.and.returnValue(of({
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
                     { dataset: 'dataset-a', variable: 'age', data: { num_dtps: 10, num_na: 2, num_total: 12, mean: 61 } },
@@ -649,7 +651,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             expect(rows[0].title).toContain('60');
             expect(rows[1].subtitle).toBe('Group · matches any of 2 conditions');
             expect(rows[1].title).toContain(' or ');
-            expect(component.cohortMatchesAny).toBeFalse();
+            expect(component.cohortMatchesAny).toBe(false);
             expect(component.filteringStatusLabel).toBe('In run · 3 rules');
         });
 
@@ -664,17 +666,17 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.goToSection('filters');
             component.collapseStep('filters');
 
-            expect(component.sectionOpen().filters).toBeFalse();
-            expect(component.sectionOpen().raw).toBeFalse();
-            expect(component.isStepAdded('filters')).toBeTrue();
+            expect(component.sectionOpen().filters).toBe(false);
+            expect(component.sectionOpen().raw).toBe(false);
+            expect(component.isStepAdded('filters')).toBe(true);
         });
 
         it('collapses transformations without removing the step', () => {
             component.goToSection('transformation');
             component.collapseStep('transformation');
 
-            expect(component.sectionOpen().transformation).toBeFalse();
-            expect(component.isStepAdded('transformation')).toBeTrue();
+            expect(component.sectionOpen().transformation).toBe(false);
+            expect(component.isStepAdded('transformation')).toBe(true);
         });
 
         it('closes a settled column card from its own footer without removing the step', () => {
@@ -687,16 +689,16 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 '[data-guide="analysis-transformation"] .station-card-footer .station-action-apply') as HTMLButtonElement;
 
             expect(apply.textContent?.trim()).toBe('Close');
-            expect(apply.disabled).toBeFalse();
-            expect(apply.classList.contains('is-quiet')).toBeTrue();
+            expect(apply.disabled).toBe(false);
+            expect(apply.classList.contains('is-quiet')).toBe(true);
 
             apply.click();
             fixture.detectChanges();
 
             // Close folds its own card and leaves the stage exactly where it was.
-            expect(component.transformationDrafts[0].open).toBeFalse();
-            expect(component.sectionOpen().transformation).toBeTrue();
-            expect(component.isStepAdded('transformation')).toBeTrue();
+            expect(component.transformationDrafts[0].open).toBe(false);
+            expect(component.sectionOpen().transformation).toBe(true);
+            expect(component.isStepAdded('transformation')).toBe(true);
         });
 
         it('opens a new transformation stage on the type chooser', () => {
@@ -710,7 +712,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                     '[data-guide="analysis-transformation"] .transformation-chooser .pipeline-subnode-content')
             ) as HTMLButtonElement[];
 
-            expect(component.transformationChooserOnly).toBeTrue();
+            expect(component.transformationChooserOnly).toBe(true);
             expect(graphCards().length).toBe(0);
             expect(chooserRows().length).toBe(2);
 
@@ -718,7 +720,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             fixture.detectChanges();
 
             expect(graphCards().length).toBe(1);
-            expect(component.transformationChooserOnly).toBeFalse();
+            expect(component.transformationChooserOnly).toBe(false);
 
             const kmeansRow = chooserRows().find((row) => row.textContent?.includes('K-means')) as HTMLButtonElement;
             kmeansRow.click();
@@ -729,14 +731,14 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
 
         it('counts pending preprocessing changes in the badge and apply label', () => {
-            const pending = spyOnProperty(component, 'pendingChangeCount', 'get').and.returnValue(2);
-            const missingPending = spyOnProperty(component, 'pendingMissingChangeCount', 'get').and.returnValue(2);
+            const pending = vi.spyOn(component, 'pendingChangeCount', 'get').mockReturnValue(2);
+            const missingPending = vi.spyOn(component, 'pendingMissingChangeCount', 'get').mockReturnValue(2);
 
             expect(component.preprocessingStatusLabel).toBe('In run · 2 changes not applied');
             expect(component.stepApplyLabel('missing')).toBe('Apply');
 
-            pending.and.returnValue(1);
-            missingPending.and.returnValue(0);
+            pending.mockReturnValue(1);
+            missingPending.mockReturnValue(0);
             expect(component.preprocessingStatusLabel).toBe('In run · 1 change not applied');
             // A card with nothing pending offers Close in its own footer instead of an Apply.
             expect(component.stepApplyLabel('missing')).toBe('Close');
@@ -790,7 +792,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-transformation"]');
             const strip = section?.querySelector('details.how-to-strip') as HTMLDetailsElement | null;
             expect(strip).toBeTruthy();
-            expect(strip?.open).toBeFalse();
+            expect(strip?.open).toBe(false);
             expect(strip?.querySelector('summary .how-to-label')?.textContent?.trim()).toBe('How to use');
 
             (strip as HTMLDetailsElement).open = true;
@@ -811,7 +813,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 .toEqual(['1', '2']);
 
             const ghost = section?.querySelector('.transformation-rules-list .transformation-add-category') as HTMLButtonElement | null;
-            expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBeTrue();
+            expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBe(true);
 
             const before = (component as any).transformationDrafts[0].rules.length as number;
             (ghost as HTMLButtonElement).click();
@@ -853,7 +855,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         it('focuses the table on the rule being edited, and Done folds back to the list', () => {
             const draft = openCardWithTwoCategories();
 
-            expect(rulesBlock().classList.contains('is-focused')).toBeTrue();
+            expect(rulesBlock().classList.contains('is-focused')).toBe(true);
             const editing = rulesBlock().querySelectorAll('.transformation-rule-row.is-editing');
             expect(editing.length).toBe(1);
             expect(editing[0].querySelector('.transformation-rule-number')?.textContent?.trim()).toBe('2');
@@ -864,13 +866,13 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
             const filter = { condition: 'AND', rules: [{ id: 'age', field: 'age', operator: 'greater', value: 60 }] };
             const modal = component.transformationRuleModals!.toArray()[1];
-            spyOn(modal, 'exportFilterLogic').and.returnValue(filter as any);
+            vi.spyOn(modal, 'exportFilterLogic').mockReturnValue(filter as any);
             (editing[0].querySelector('.transformation-rule-done') as HTMLButtonElement).click();
             fixture.detectChanges();
 
             expect(draft.rules[1].filter).toEqual(filter as any);
             expect(draft.openRuleIndex).toBeNull();
-            expect(rulesBlock().classList.contains('is-focused')).toBeFalse();
+            expect(rulesBlock().classList.contains('is-focused')).toBe(false);
             expect(rulesBlock().querySelectorAll('.transformation-rule-edit-link')[1].textContent?.trim()).toBe('Edit rule');
         });
 
@@ -880,8 +882,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             fixture.detectChanges();
 
             const modal = component.transformationRuleModals!.toArray()[0];
-            spyOn(modal, 'exportFilterLogic').and.returnValue(null);
-            spyOn(modal, 'filterError').and.returnValue('Pick a value');
+            vi.spyOn(modal, 'exportFilterLogic').mockReturnValue(null);
+            vi.spyOn(modal, 'filterError').mockReturnValue('Pick a value');
             component.finishTransformationRule(draft, 0);
 
             expect(draft.openRuleIndex).toBe(0);
@@ -901,8 +903,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.chooseTransformation('kmeans');
             component.kmeansClusterCardOpen.set(false);
 
-            expect(component.kmeansCardShown).toBeTrue();
-            expect(component.transformationChooserOnly).toBeFalse();
+            expect(component.kmeansCardShown).toBe(true);
+            expect(component.transformationChooserOnly).toBe(false);
         });
 
         it('Clear drops the K-means card and its preview, back to the chooser', () => {
@@ -914,14 +916,14 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.resetTransformation();
 
             expect(component.previewDraftId).toBeNull();
-            expect(component.kmeansCardShown).toBeFalse();
-            expect(component.transformationChooserOnly).toBeTrue();
+            expect(component.kmeansCardShown).toBe(false);
+            expect(component.transformationChooserOnly).toBe(true);
         });
 
         it('previewing the K-means card commits no categorical card', () => {
             component.addStep('transformation');
-            const commit = spyOn(component, 'commitTransformationRuleFilters');
-            spyOn(component, 'refreshTransformationStatistics');
+            const commit = vi.spyOn(component, 'commitTransformationRuleFilters').mockReturnValue(undefined);
+            vi.spyOn(component, 'refreshTransformationStatistics').mockReturnValue(undefined);
 
             component.previewTransformationCard();
 
@@ -961,13 +963,13 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.pendingPreprocessingRules = {
                 age: { variableCode: 'age', action: 'mean', value: '', enabled: true },
             } as any;
-            mockExpService.loadDescriptiveOverview.and.returnValue(throwError(() => new Error('boom')));
-            spyOn(console, 'error');
+            mockExpService.loadDescriptiveOverview.mockReturnValue(throwError(() => new Error('boom')));
+            vi.spyOn(console, 'error').mockReturnValue(undefined);
 
             component.commitOrCloseStep('missing');
 
-            expect(component.preprocessingStepOpen.missing).toBeTrue();
-            expect(component.sectionOpen().processed).toBeFalse();
+            expect(component.preprocessingStepOpen.missing).toBe(true);
+            expect(component.sectionOpen().processed).toBe(false);
             expect(component.preprocessingApplyError['missing']).toContain('Could not apply');
             expect(component.stepPendingCount('missing')).toBe(1);
 
@@ -987,11 +989,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.commitOrCloseStep('missing');
             TestBed.flushEffects();
 
-            expect(component.pendingOutlierRules['age'].enabled).toBeTrue();
+            expect(component.pendingOutlierRules['age'].enabled).toBe(true);
             expect(component.stepPendingCount('outlier')).toBe(1);
             expect(component.stepPendingCount('missing')).toBe(0);
-            const saved = mockExpService.setAppliedDescriptivePreprocessing.calls.mostRecent().args[0] as Record<string, unknown>;
-            expect(saved['missing_values_handler']).toEqual(jasmine.objectContaining({ strategies: { age: 'mean' } }));
+            const saved = mockExpService.setAppliedDescriptivePreprocessing.mock.lastCall![0] as Record<string, unknown>;
+            expect(saved['missing_values_handler']).toEqual(expect.objectContaining({ strategies: { age: 'mean' } }));
             expect(saved['outlier_winsorizer']).toBeUndefined();
         });
 
@@ -1003,13 +1005,13 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             component.pendingOutlierRules = {
                 age: { variableCode: 'age', enabled: true, strategy: 'iqr', tail: 'both', fold: null },
             };
-            mockExpService.loadDescriptiveOverview.calls.reset();
+            mockExpService.loadDescriptiveOverview.mockClear();
 
             component.previewProcessedData('missing');
 
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
-            const config = mockExpService.loadDescriptiveOverview.calls.mostRecent().args[1] as Record<string, unknown>;
-            expect(config['missing_values_handler']).toEqual(jasmine.objectContaining({ strategies: { age: 'mean' } }));
+            const config = mockExpService.loadDescriptiveOverview.mock.lastCall![1] as Record<string, unknown>;
+            expect(config['missing_values_handler']).toEqual(expect.objectContaining({ strategies: { age: 'mean' } }));
             expect(config['outlier_winsorizer']).toBeUndefined();
         });
     });

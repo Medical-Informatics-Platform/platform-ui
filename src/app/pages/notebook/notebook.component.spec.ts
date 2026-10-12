@@ -1,3 +1,4 @@
+import type { MockInstance } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { SafeResourceUrl } from '@angular/platform-browser';
@@ -58,7 +59,7 @@ function isSpawnRequest(url: string, init?: RequestInit): boolean {
 describe('NotebookComponent', () => {
   let component: NotebookComponent;
   let fixture: ComponentFixture<NotebookComponent>;
-  let fetchSpy: jasmine.Spy<typeof fetch>;
+  let fetchSpy: MockInstance<typeof fetch>;
 
   beforeEach(async () => {
     localStorage.clear();
@@ -67,7 +68,7 @@ describe('NotebookComponent', () => {
     };
     document.cookie = '_xsrf=test-token';
 
-    fetchSpy = spyOn(window, 'fetch').and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (isHubHomeRequest(url)) {
         return hubHomeResponse();
@@ -103,17 +104,17 @@ describe('NotebookComponent', () => {
 
   it('marks the notebook nav as visited on init', async () => {
     const notebookNav = TestBed.inject(NotebookNavService);
-    expect(notebookNav.hasVisited()).toBeFalse();
+    expect(notebookNav.hasVisited()).toBe(false);
 
     await settleComponent(fixture);
 
-    expect(notebookNav.hasVisited()).toBeTrue();
+    expect(notebookNav.hasVisited()).toBe(true);
   });
 
   it('embeds JupyterLab when the Hub session is available', async () => {
     await settleComponent(fixture);
 
-    const userCall = fetchSpy.calls.allArgs().find(([url]) => isHubUserRequest(String(url)));
+    const userCall = fetchSpy.mock.calls.find(([url]) => isHubUserRequest(String(url)));
     expect(userCall).toBeDefined();
     expect((userCall![1] as RequestInit).credentials).toBe('include');
     expect(unwrapSafeUrl(component.jupyterUrl())).toBe('/notebook/user/alice/lab');
@@ -123,7 +124,7 @@ describe('NotebookComponent', () => {
 
   it('retries opening JupyterLab after Hub session recovery succeeds', async () => {
     let hubUserCalls = 0;
-    fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (isHubHomeRequest(url)) {
         return hubHomeResponse();
@@ -150,7 +151,7 @@ describe('NotebookComponent', () => {
 
   it('starts the server when it is not running yet', async () => {
     let userPolls = 0;
-    fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (isHubHomeRequest(url)) {
         return hubHomeResponse();
@@ -175,13 +176,13 @@ describe('NotebookComponent', () => {
     await new Promise((resolve) => setTimeout(resolve, 4500));
     fixture.detectChanges();
 
-    const spawnCall = fetchSpy.calls.allArgs().find(([url, init]) => isSpawnRequest(String(url), init as RequestInit));
+    const spawnCall = fetchSpy.mock.calls.find(([url, init]) => isSpawnRequest(String(url), init as RequestInit));
     expect(spawnCall).toBeDefined();
     expect(unwrapSafeUrl(component.jupyterUrl())).toBe('/notebook/user/alice/lab');
   });
 
   it('surfaces timeout errors inside the loading overlay', async () => {
-    fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (isHubHomeRequest(url)) {
         return hubHomeResponse();
@@ -207,7 +208,7 @@ describe('NotebookComponent', () => {
   });
 
   it('keeps the loading overlay visible while spawn is in progress', async () => {
-    fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (isHubHomeRequest(url)) {
         return hubHomeResponse();
@@ -223,7 +224,7 @@ describe('NotebookComponent', () => {
 
     await settleComponent(fixture, 3);
 
-    expect(component.isLoading()).toBeTrue();
+    expect(component.isLoading()).toBe(true);
     expect(component.loadingMessage().toLowerCase()).toContain('notebook server');
   });
 
@@ -240,7 +241,7 @@ describe('NotebookComponent', () => {
 
   it('shows an error when the Hub session never becomes available', async () => {
     sessionStorage.setItem('mip_notebook_hub_login_redirect_ts', String(Date.now()));
-    fetchSpy.and.callFake(async (input: RequestInfo | URL) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes('/hub/api/user') || url.includes('/hub/home')) {
         return new Response(null, { status: 401 });
@@ -259,7 +260,7 @@ describe('NotebookComponent', () => {
   it('waits longer when returning from a pending Hub login', async () => {
     sessionStorage.setItem('mip_notebook_hub_login_pending', '1');
     let apiCalls = 0;
-    fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+    fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/hub/home')) {
         return hubHomeResponse();

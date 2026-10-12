@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -28,7 +29,7 @@ describe('ExperimentFolderComponent', () => {
   let component: ExperimentFolderComponent;
   let foldersService: FakeExperimentFoldersService;
   let loaded: ReturnType<typeof signal<Experiment[]>>;
-  let fetchSpy: jasmine.Spy;
+  let fetchSpy: Mock;
   let pending: Subject<Experiment>;
 
   const root = () => fixture.nativeElement as HTMLElement;
@@ -74,7 +75,7 @@ describe('ExperimentFolderComponent', () => {
     foldersService = new FakeExperimentFoldersService();
     loaded = signal<Experiment[]>([]);
     pending = new Subject<Experiment>();
-    fetchSpy = jasmine.createSpy('fetchExperimentById').and.returnValue(pending);
+    fetchSpy = vi.fn().mockReturnValue(pending);
 
     await TestBed.configureTestingModule({
       imports: [ExperimentFolderComponent],
@@ -213,7 +214,7 @@ describe('ExperimentFolderComponent', () => {
     openFolder(['a']);
     fixture.detectChanges();
 
-    expect((root().querySelector('.folder-compare-btn') as HTMLButtonElement).disabled).toBeTrue();
+    expect((root().querySelector('.folder-compare-btn') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('renames the folder through the service', () => {
@@ -266,12 +267,12 @@ describe('ExperimentFolderComponent', () => {
     fixture.detectChanges();
 
     expect(foldersService.folderById(folder.id)).toBeNull();
-    expect(component.isConfirmingDelete()).toBeFalse();
+    expect(component.isConfirmingDelete()).toBe(false);
     expect(back).toEqual([1]);
   });
 
   it('holds the canvas, and the confirmation, when the delete never reached the server', () => {
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined);
     loaded.set([experiment('a')]);
     const folder = openFolder(['a']);
     foldersService.failWith('deleteFolder');
@@ -292,7 +293,7 @@ describe('ExperimentFolderComponent', () => {
   });
 
   it('tells a server that did not answer apart from a name that is taken', () => {
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined);
     loaded.set([experiment('a')]);
     openFolder(['a']);
     fixture.detectChanges();
@@ -313,7 +314,7 @@ describe('ExperimentFolderComponent', () => {
   });
 
   it('keeps the row and says so when removing the run did not reach the server', () => {
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined);
     loaded.set([experiment('a'), experiment('b')]);
     const folder = openFolder(['a', 'b']);
     foldersService.failWith('removeExperiment');
@@ -365,16 +366,16 @@ describe('ExperimentFolderComponent', () => {
     fixture.detectChanges();
 
     // Without preventDefault the browser never fires drop, so the ring would be a lie.
-    expect(hover.defaultPrevented).toBeTrue();
-    expect(canvas().classList.contains('folder-canvas--receiving')).toBeTrue();
+    expect(hover.defaultPrevented).toBe(true);
+    expect(canvas().classList.contains('folder-canvas--receiving')).toBe(true);
 
     dropWith(canvas(), dataTransfer);
     fixture.detectChanges();
 
     expect(foldersService.folderById(folder.id)!.experimentIds).toEqual(['a', 'c']);
     expect(notice()!.textContent).toContain('Added to Q3 meta');
-    expect(canvas().classList.contains('folder-canvas--receiving')).toBeFalse();
-    expect(rowsOf()[1].classList.contains('member-row--landed')).toBeTrue();
+    expect(canvas().classList.contains('folder-canvas--receiving')).toBe(false);
+    expect(rowsOf()[1].classList.contains('member-row--landed')).toBe(true);
   });
 
   it('names a re-drop instead of adding the run twice or removing it', () => {
@@ -387,12 +388,12 @@ describe('ExperimentFolderComponent', () => {
 
     expect(foldersService.folders()[0].experimentIds).toEqual(['a']);
     expect(notice()!.textContent).toContain('Already in Q3 meta');
-    expect(notice()!.classList.contains('folder-drop-notice--duplicate')).toBeTrue();
+    expect(notice()!.classList.contains('folder-drop-notice--duplicate')).toBe(true);
     expect(root().querySelector('.member-row--landed')).toBeNull();
   });
 
   it('withholds the "added" report from a drop the server refused', () => {
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined);
     loaded.set([experiment('a'), experiment('c')]);
     const folder = openFolder(['a']);
     foldersService.failWith('addExperiment');
@@ -413,8 +414,8 @@ describe('ExperimentFolderComponent', () => {
     const dataTransfer = dataTransferWith('text/plain', 'a');
     const hover = dragOverWith(canvas(), dataTransfer);
     fixture.detectChanges();
-    expect(hover.defaultPrevented).toBeFalse();
-    expect(canvas().classList.contains('folder-canvas--receiving')).toBeFalse();
+    expect(hover.defaultPrevented).toBe(false);
+    expect(canvas().classList.contains('folder-canvas--receiving')).toBe(false);
 
     dropWith(canvas(), dataTransfer);
     fixture.detectChanges();
@@ -435,7 +436,7 @@ describe('ExperimentFolderComponent', () => {
   });
 
   it('fades its own drop report, with the newest drop holding the clock', () => {
-    jasmine.clock().install();
+    vi.useFakeTimers();
     try {
       loaded.set([experiment('a'), experiment('c')]);
       openFolder(['a']);
@@ -447,14 +448,14 @@ describe('ExperimentFolderComponent', () => {
 
       dropWith(canvas(), runDrag('c'));
       fixture.detectChanges();
-      jasmine.clock().tick(2100);
+      vi.advanceTimersByTime(2100);
       expect(notice()!.textContent).toContain('Already in');
 
-      jasmine.clock().tick(200);
+      vi.advanceTimersByTime(200);
       fixture.detectChanges();
       expect(notice()).toBeNull();
     } finally {
-      jasmine.clock().uninstall();
+      vi.useRealTimers();
     }
   });
 
@@ -592,7 +593,7 @@ describe('ExperimentFolderComponent', () => {
     });
 
     it('says so when a new set never made it to the server', () => {
-      spyOn(console, 'error');
+      vi.spyOn(console, 'error').mockReturnValue(undefined);
       loaded.set([experiment('a')]);
       const folder = openFolder(['a']);
       foldersService.failWith('createSet');
@@ -689,7 +690,7 @@ describe('ExperimentFolderComponent', () => {
     it('keeps a set assignment out of the detail view', () => {
       loaded.set([experiment('a'), experiment('b')]);
       openFolder(['a', 'b']);
-      const openExperiment = spyOn(fixture.componentInstance, 'onRowClick');
+      const openExperiment = vi.spyOn(fixture.componentInstance, 'onRowClick').mockReturnValue(undefined);
       fixture.detectChanges();
 
       setTrigger(0).click();

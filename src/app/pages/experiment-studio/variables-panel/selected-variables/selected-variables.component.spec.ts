@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
@@ -7,18 +8,18 @@ describe('SelectedVariablesComponent', () => {
   let experimentStudioService: {
     selectedVariables: ReturnType<typeof signal<any[]>>;
     selectedDatasets: ReturnType<typeof signal<string[]>>;
-    setVariables: jasmine.Spy;
-    addVariableAndEnrich: jasmine.Spy;
+    setVariables: Mock;
+    addVariableAndEnrich: Mock;
   };
 
   beforeEach(() => {
     experimentStudioService = {
       selectedVariables: signal<any[]>([]),
       selectedDatasets: signal<string[]>([]),
-      setVariables: jasmine.createSpy('setVariables').and.callFake((vars: any[]) =>
+      setVariables: vi.fn().mockImplementation((vars: any[]) =>
         experimentStudioService.selectedVariables.set(vars),
       ),
-      addVariableAndEnrich: jasmine.createSpy('addVariableAndEnrich'),
+      addVariableAndEnrich: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -189,12 +190,12 @@ describe('SelectedVariablesComponent', () => {
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
     openPopover(fixture);
-    expect(fixture.componentInstance.isOpen()).toBeTrue();
+    expect(fixture.componentInstance.isOpen()).toBe(true);
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.isOpen()).toBeFalse();
+    expect(fixture.componentInstance.isOpen()).toBe(false);
     expect(fixture.nativeElement.querySelector('.selected-variables-popover')).toBeNull();
   });
 
@@ -207,10 +208,10 @@ describe('SelectedVariablesComponent', () => {
     const popover = fixture.nativeElement.querySelector('.selected-variables-popover') as HTMLElement;
     popover.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
-    expect(fixture.componentInstance.isOpen()).toBeTrue();
+    expect(fixture.componentInstance.isOpen()).toBe(true);
 
     document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
-    expect(fixture.componentInstance.isOpen()).toBeFalse();
+    expect(fixture.componentInstance.isOpen()).toBe(false);
   });
 });

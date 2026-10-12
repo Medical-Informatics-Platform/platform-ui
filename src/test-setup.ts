@@ -24,3 +24,6 @@ console.error = (...args: unknown[]) => {
   if (isNoisyMessage(args)) return;
   originalError(...args);
 };
+
+// Restore vi.spyOn spies after each test, so one spec's stubs never leak into the next.
+afterEach(() => vi.restoreAllMocks());

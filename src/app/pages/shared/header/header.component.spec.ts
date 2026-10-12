@@ -1,3 +1,4 @@
+import type { MockedObject } from 'vitest';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -8,6 +9,7 @@ import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { NotebookNavService } from '../../../services/notebook-nav.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { User } from '../../../models/user.interface';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 @Component({ template: '' })
 class StubStudioComponent {}
@@ -15,14 +17,14 @@ class StubStudioComponent {}
 describe('HeaderComponent', () => {
   let fixture: ComponentFixture<HeaderComponent>;
   let component: HeaderComponent;
-  let authService: jasmine.SpyObj<AuthService>;
+  let authService: MockedObject<AuthService>;
   let runtimeEnv: { notebookEnabled: boolean };
-  let notebookNav: jasmine.SpyObj<NotebookNavService>;
+  let notebookNav: MockedObject<NotebookNavService>;
   let router: Router;
 
   beforeEach(async () => {
-    authService = jasmine.createSpyObj<AuthService>('AuthService', ['isLoggedIn', 'login', 'logout']);
-    authService.isLoggedIn.and.returnValue(true);
+    authService = createSpyObj<AuthService>('AuthService', ['isLoggedIn', 'login', 'logout']);
+    authService.isLoggedIn.mockReturnValue(true);
     // currentUser is a getter on the real service; the spy needs the property itself.
     Object.defineProperty(authService, 'currentUser', {
       value: {
@@ -33,8 +35,8 @@ describe('HeaderComponent', () => {
       } satisfies User,
     });
 
-    notebookNav = jasmine.createSpyObj<NotebookNavService>('NotebookNavService', ['hasVisited']);
-    notebookNav.hasVisited.and.returnValue(true);
+    notebookNav = createSpyObj<NotebookNavService>('NotebookNavService', ['hasVisited']);
+    notebookNav.hasVisited.mockReturnValue(true);
 
     runtimeEnv = { notebookEnabled: true };
 
@@ -140,7 +142,7 @@ describe('HeaderComponent', () => {
 
     // A fresh fixture, not a re-render: the slot is OnPush behind a plain method call,
     // so flipping the spy after the first check is not something the app can do either.
-    authService.isLoggedIn.and.returnValue(false);
+    authService.isLoggedIn.mockReturnValue(false);
     const signedOut = TestBed.createComponent(HeaderComponent);
     signedOut.detectChanges();
 
@@ -287,7 +289,7 @@ describe('HeaderComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.header-guide')).toBeNull();
 
-    const start = jasmine.createSpy('startGuide');
+    const start = vi.fn();
     const launchers = TestBed.inject(GuideLauncherService);
     const handle = { label: 'Guide', start };
     launchers.register(handle);
@@ -307,7 +309,7 @@ describe('HeaderComponent', () => {
 
   it('delegates to studio navigation when clicking My experiments', async () => {
     const studioNav = TestBed.inject(ExperimentStudioNavigationService);
-    spyOn(studioNav, 'backToDashboard');
+    vi.spyOn(studioNav, 'backToDashboard').mockReturnValue(undefined);
 
     await router.navigateByUrl('/experiment-studio');
     fixture.detectChanges();
@@ -326,7 +328,7 @@ describe('HeaderComponent', () => {
 
   it('leaves modifier and middle clicks to the browser', async () => {
     const studioNav = TestBed.inject(ExperimentStudioNavigationService);
-    const back = spyOn(studioNav, 'backToDashboard');
+    const back = vi.spyOn(studioNav, 'backToDashboard').mockReturnValue(undefined);
 
     await router.navigateByUrl('/experiment-studio');
     fixture.detectChanges();

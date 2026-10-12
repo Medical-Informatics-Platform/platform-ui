@@ -1,3 +1,4 @@
+import type { MockedObject, Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -6,15 +7,16 @@ import { EXPERIMENT_STUDIO_GUIDE_STEPS } from './experiment-studio-guide.content
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
 import { ExperimentStudioGuideStateService } from './experiment-studio-guide-state.service';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 describe('ExperimentStudioGuideComponent', () => {
   let component: ExperimentStudioGuideComponent;
-  let router: jasmine.SpyObj<Router>;
-  let guideOnboarding: jasmine.SpyObj<GuideOnboardingService>;
+  let router: MockedObject<Router>;
+  let guideOnboarding: MockedObject<GuideOnboardingService>;
   let experimentStudioService: {
-    resetStudioState: jasmine.Spy;
-    resetStudioStateForGuide: jasmine.Spy;
-    hasPersistedStudioWork: jasmine.Spy;
+    resetStudioState: Mock;
+    resetStudioStateForGuide: Mock;
+    hasPersistedStudioWork: Mock;
     pathologyAccessWarning: ReturnType<typeof signal>;
     selectedVariables: ReturnType<typeof signal>;
     algorithmY: ReturnType<typeof signal>;
@@ -25,20 +27,20 @@ describe('ExperimentStudioGuideComponent', () => {
   };
 
   beforeEach(() => {
-    router = jasmine.createSpyObj<Router>('Router', ['navigate']);
-    router.navigate.and.returnValue(Promise.resolve(true));
+    router = createSpyObj<Router>('Router', ['navigate']);
+    router.navigate.mockReturnValue(Promise.resolve(true));
 
-    guideOnboarding = jasmine.createSpyObj<GuideOnboardingService>(
+    guideOnboarding = createSpyObj<GuideOnboardingService>(
       'GuideOnboardingService',
       ['hasSeenStudioGuide', 'markStudioGuideSeen'],
     );
-    guideOnboarding.hasSeenStudioGuide.and.returnValue(false);
-    guideOnboarding.markStudioGuideSeen.and.stub();
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(false);
+    guideOnboarding.markStudioGuideSeen.mockReturnValue(undefined);
 
     experimentStudioService = {
-      resetStudioState: jasmine.createSpy('resetStudioState'),
-      resetStudioStateForGuide: jasmine.createSpy('resetStudioStateForGuide'),
-      hasPersistedStudioWork: jasmine.createSpy('hasPersistedStudioWork').and.returnValue(false),
+      resetStudioState: vi.fn(),
+      resetStudioStateForGuide: vi.fn(),
+      hasPersistedStudioWork: vi.fn().mockReturnValue(false),
       pathologyAccessWarning: signal(null),
       selectedVariables: signal([]),
       algorithmY: signal([]),
@@ -68,11 +70,11 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('does not auto-open the guide on first visit', () => {
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
 
     component.startGuide();
 
-    expect(component.isOpen()).toBeTrue();
+    expect(component.isOpen()).toBe(true);
     component.closeGuide();
   });
 
@@ -85,8 +87,8 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('does not reset studio state until the user continues past the launcher step', () => {
-    guideOnboarding.hasSeenStudioGuide.and.returnValue(true);
-    experimentStudioService.hasPersistedStudioWork.and.returnValue(true);
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(true);
+    experimentStudioService.hasPersistedStudioWork.mockReturnValue(true);
 
     component.startGuide();
     component.currentIndex.set(1);
@@ -100,8 +102,8 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('shows a reset warning on the launcher step when an existing session would be cleared', () => {
-    guideOnboarding.hasSeenStudioGuide.and.returnValue(true);
-    experimentStudioService.hasPersistedStudioWork.and.returnValue(true);
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(true);
+    experimentStudioService.hasPersistedStudioWork.mockReturnValue(true);
 
     component.startGuide();
     component.currentIndex.set(1);
@@ -124,7 +126,7 @@ describe('ExperimentStudioGuideComponent', () => {
     document.body.appendChild(input);
     input.focus();
 
-    const guideFocus = jasmine.createSpy('guideFocus');
+    const guideFocus = vi.fn();
     (component as any).guideCard = { nativeElement: { focus: guideFocus } };
     component.activeSteps.set([
       {
@@ -147,7 +149,7 @@ describe('ExperimentStudioGuideComponent', () => {
   it('tracks the highlighted target rectangle for the active step', () => {
     const target = document.createElement('section');
     target.setAttribute('data-guide', 'variable-selection');
-    spyOn(target, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
       top: 140,
       right: 760,
       bottom: 540,
@@ -172,7 +174,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     (component as any).updateLayout();
 
-    expect(component.highlightRect()).toEqual(jasmine.objectContaining({
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
       top: 130,
       left: 210,
     }));
@@ -183,7 +185,7 @@ describe('ExperimentStudioGuideComponent', () => {
   it('keeps the highlight aligned when the target scrolls above the viewport', () => {
     const target = document.createElement('section');
     target.setAttribute('data-guide', 'analysis-section');
-    spyOn(target, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
       top: -24,
       right: 760,
       bottom: 140,
@@ -208,7 +210,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     (component as any).updateLayout();
 
-    expect(component.highlightRect()).toEqual(jasmine.objectContaining({
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
       top: -34,
       left: 210,
       bottom: 150,
@@ -243,7 +245,7 @@ describe('ExperimentStudioGuideComponent', () => {
   it('scrolls the analysis section guide step to the top of the viewport', () => {
     const analysisSection = document.createElement('section');
     analysisSection.setAttribute('data-guide', 'analysis-section');
-    spyOn(analysisSection, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(analysisSection, 'getBoundingClientRect').mockReturnValue({
       top: 320,
       right: 920,
       bottom: 880,
@@ -254,9 +256,9 @@ describe('ExperimentStudioGuideComponent', () => {
       y: 320,
       toJSON: () => ({}),
     } as DOMRect);
-    const scrollSpy = spyOn(analysisSection, 'scrollIntoView');
+    const scrollSpy = vi.spyOn(analysisSection, 'scrollIntoView').mockReturnValue(undefined);
     document.body.appendChild(analysisSection);
-    spyOn(component as any, 'scheduleLayoutUpdate').and.stub();
+    vi.spyOn(component as any, 'scheduleLayoutUpdate').mockReturnValue(undefined);
 
     component.activeSteps.set([
       {
@@ -270,7 +272,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     (component as any).syncStepLayout();
 
-    expect(scrollSpy).toHaveBeenCalledWith(jasmine.objectContaining({
+    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({
       behavior: 'smooth',
       block: 'start',
       inline: 'nearest',
@@ -278,7 +280,7 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('keeps the guide collapsed when navigating to the next step from collapsed mode', () => {
-    spyOn(component as any, 'syncStepLayout').and.stub();
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
     component.activeSteps.set([
       { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
       { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
@@ -289,11 +291,11 @@ describe('ExperimentStudioGuideComponent', () => {
     component.goToNextStep();
 
     expect(component.currentIndex()).toBe(1);
-    expect(component.isCollapsed()).toBeTrue();
+    expect(component.isCollapsed()).toBe(true);
   });
 
   it('disables Back when the previous step requires action', () => {
-    spyOn(component as any, 'syncStepLayout').and.stub();
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
     component.activeSteps.set([
       { id: 'step-1', section: 'Explore', title: 'Step 1', body: '', requirement: 'selected-sex' },
       { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
@@ -301,7 +303,7 @@ describe('ExperimentStudioGuideComponent', () => {
     component.isOpen.set(true);
     component.currentIndex.set(1);
 
-    expect(component.canGoToPrevious()).toBeFalse();
+    expect(component.canGoToPrevious()).toBe(false);
 
     component.goToPreviousStep();
 
@@ -309,7 +311,7 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('keeps Back available when the previous step is informational', () => {
-    spyOn(component as any, 'syncStepLayout').and.stub();
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
     component.activeSteps.set([
       { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
       { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
@@ -317,7 +319,7 @@ describe('ExperimentStudioGuideComponent', () => {
     component.isOpen.set(true);
     component.currentIndex.set(1);
 
-    expect(component.canGoToPrevious()).toBeTrue();
+    expect(component.canGoToPrevious()).toBe(true);
 
     component.goToPreviousStep();
 
@@ -325,7 +327,7 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('keeps the guide expanded when navigating onto compact-title steps', () => {
-    spyOn(component as any, 'syncStepLayout').and.stub();
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
     component.activeSteps.set([
       { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
       { id: 'step-2', section: 'Explore', title: 'Step 2', body: '', compactTitle: true },
@@ -336,13 +338,13 @@ describe('ExperimentStudioGuideComponent', () => {
     component.goToNextStep();
 
     expect(component.currentIndex()).toBe(1);
-    expect(component.isCollapsed()).toBeFalse();
+    expect(component.isCollapsed()).toBe(false);
 
     component.isCollapsed.set(true);
     component.goToNextStep();
 
     expect(component.currentIndex()).toBe(2);
-    expect(component.isCollapsed()).toBeTrue();
+    expect(component.isCollapsed()).toBe(true);
   });
 
   it('replaces exact Sex and Age guide copy with the configured guide labels', () => {
@@ -363,14 +365,14 @@ describe('ExperimentStudioGuideComponent', () => {
       { code: 'age', label: 'Age' },
     ]);
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'variable-age' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'variable-age' })).toBe(true);
   });
 
   it('unlocks the algorithm selection guide step when any algorithm is selected', () => {
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBe(false);
 
     experimentStudioService.selectedAlgorithm.set({ name: 'linear_regression', label: 'Linear Regression' });
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBe(true);
   });
 
   it('marks the add-sex and add-age guide steps as requiring action until the variables are added', () => {
@@ -380,29 +382,29 @@ describe('ExperimentStudioGuideComponent', () => {
     ] as any);
 
     component.currentIndex.set(0);
-    expect(component.stepNeedsAction()).toBeTrue();
+    expect(component.stepNeedsAction()).toBe(true);
     expect(component.nextButtonLabel()).toBe('Action required');
 
     experimentStudioService.selectedVariables.set([{ code: 'sex', label: 'Sex' }]);
-    expect(component.stepNeedsAction()).toBeFalse();
+    expect(component.stepNeedsAction()).toBe(false);
 
     component.currentIndex.set(1);
-    expect(component.stepNeedsAction()).toBeTrue();
+    expect(component.stepNeedsAction()).toBe(true);
     expect(component.nextButtonLabel()).toBe('Action required');
 
     experimentStudioService.selectedVariables.set([
       { code: 'sex', label: 'Sex' },
       { code: 'age', label: 'Age' },
     ]);
-    expect(component.stepNeedsAction()).toBeFalse();
+    expect(component.stepNeedsAction()).toBe(false);
   });
 
   it('requires the guide variable (Age) in y and the guide covariate (Sex) in x', () => {
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
 
     // Guide covariate (Sex) in x only; Age not yet assigned.
     experimentStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
 
     // Both targets in y (wrong mix) does not satisfy the requirement.
     experimentStudioService.algorithmY.set([
@@ -410,7 +412,7 @@ describe('ExperimentStudioGuideComponent', () => {
       { code: 'sex', label: 'Sex' },
     ]);
     experimentStudioService.algorithmX.set([]);
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
 
     // Guide variable (Age) in x (wrong mix) does not satisfy the requirement.
     experimentStudioService.algorithmY.set([]);
@@ -418,20 +420,20 @@ describe('ExperimentStudioGuideComponent', () => {
       { code: 'sex', label: 'Sex' },
       { code: 'age', label: 'Age' },
     ]);
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
 
     // Guide variable (Age) in y and guide covariate (Sex) in x satisfies it.
     experimentStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
     experimentStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(true);
   });
 
   it('keeps future experiment steps in the guide flow even before the save flow is opened', () => {
     const steps = (component as any).resolveSteps();
 
-    expect(steps.some((step: any) => step.id === 'experiment-set-parameters')).toBeFalse();
-    expect(steps.some((step: any) => step.id === 'experiment-wait-for-save')).toBeTrue();
-    expect(steps.some((step: any) => step.id === 'experiment-finish')).toBeTrue();
+    expect(steps.some((step: any) => step.id === 'experiment-set-parameters')).toBe(false);
+    expect(steps.some((step: any) => step.id === 'experiment-wait-for-save')).toBe(true);
+    expect(steps.some((step: any) => step.id === 'experiment-finish')).toBe(true);
   });
 
   it('lets the algorithm selection step interact with the algorithm catalog', () => {
@@ -439,7 +441,7 @@ describe('ExperimentStudioGuideComponent', () => {
     const algorithmStep = steps.find((step: any) => step.id === 'experiment-select-algorithm');
 
     expect(algorithmStep?.selector).toBe('[data-guide="algorithm-selection"]');
-    expect(algorithmStep?.allowTargetInteraction).toBeTrue();
+    expect(algorithmStep?.allowTargetInteraction).toBe(true);
   });
 
   it('marks the Save as step as requiring action until the save form is opened', () => {
@@ -456,13 +458,13 @@ describe('ExperimentStudioGuideComponent', () => {
       },
     ] as any);
 
-    expect(component.stepNeedsAction()).toBeTrue();
+    expect(component.stepNeedsAction()).toBe(true);
     expect(component.nextButtonLabel()).toBe('Action required');
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBe(false);
 
     const saveForm = document.createElement('div');
     saveForm.setAttribute('data-guide', 'save-as-form');
-    spyOn(saveForm, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(saveForm, 'getBoundingClientRect').mockReturnValue({
       top: 240,
       right: 420,
       bottom: 320,
@@ -475,13 +477,13 @@ describe('ExperimentStudioGuideComponent', () => {
     } as DOMRect);
     document.body.appendChild(saveForm);
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBe(true);
   });
 
-  it('moves to the next step after clicking the Save as target', (done) => {
+  it('moves to the next step after clicking the Save as target', () => new Promise<void>((done) => {
     const saveButton = document.createElement('button');
     saveButton.setAttribute('data-guide', 'save-as-action');
-    spyOn(saveButton, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(saveButton, 'getBoundingClientRect').mockReturnValue({
       top: 240,
       right: 360,
       bottom: 280,
@@ -496,7 +498,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     const saveForm = document.createElement('div');
     saveForm.setAttribute('data-guide', 'save-as-form');
-    spyOn(saveForm, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(saveForm, 'getBoundingClientRect').mockReturnValue({
       top: 240,
       right: 460,
       bottom: 330,
@@ -509,7 +511,7 @@ describe('ExperimentStudioGuideComponent', () => {
     } as DOMRect);
     document.body.appendChild(saveForm);
 
-    spyOn(component as any, 'syncStepLayout').and.callFake(() => undefined);
+    vi.spyOn(component as any, 'syncStepLayout').mockImplementation(() => undefined);
     component.isOpen.set(true);
     component.activeSteps.set([
       {
@@ -539,7 +541,7 @@ describe('ExperimentStudioGuideComponent', () => {
       expect(component.currentIndex()).toBe(1);
       done();
     }, 320);
-  });
+  }));
 
   it('places the result action familiarization steps before the save-complete waiting step', () => {
     const steps = (component as any).resolveSteps();
@@ -562,14 +564,14 @@ describe('ExperimentStudioGuideComponent', () => {
     const steps = (component as any).resolveSteps();
     const editStep = steps.find((step: any) => step.id === 'experiment-edit-parameters');
 
-    expect(editStep?.allowTargetInteraction).toBeFalse();
+    expect(editStep?.allowTargetInteraction).toBe(false);
   });
 
   it('keeps the Analysis filtering step interactive and optional', () => {
     const steps = (component as any).resolveSteps();
     const filteringStep = steps.find((step: any) => step.id === 'analysis-filtering');
 
-    expect(filteringStep?.allowTargetInteraction).toBeTrue();
+    expect(filteringStep?.allowTargetInteraction).toBe(true);
     expect(filteringStep?.body).toContain('Optional');
     expect(filteringStep?.body).toContain('Add Filtering');
   });
@@ -578,7 +580,7 @@ describe('ExperimentStudioGuideComponent', () => {
     const steps = (component as any).resolveSteps();
     const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
 
-    expect(preprocessingStep?.allowTargetInteraction).toBeTrue();
+    expect(preprocessingStep?.allowTargetInteraction).toBe(true);
     expect(preprocessingStep?.body).toContain('Optional');
     expect(preprocessingStep?.body).toContain('missing values are already dropped');
   });
@@ -590,9 +592,9 @@ describe('ExperimentStudioGuideComponent', () => {
 
     expect(rawStatisticsStep?.selector).toBe('[data-guide="analysis-raw-summary"]');
     expect(processedStep?.selector).toBe('[data-guide="analysis-processed-summary"]');
-    expect(rawStatisticsStep?.allowTargetInteraction).toBeTrue();
-    expect(processedStep?.allowTargetInteraction).toBeTrue();
-    expect(steps.some((step: any) => step.id === 'analysis-raw-charts')).toBeFalse();
+    expect(rawStatisticsStep?.allowTargetInteraction).toBe(true);
+    expect(processedStep?.allowTargetInteraction).toBe(true);
+    expect(steps.some((step: any) => step.id === 'analysis-raw-charts')).toBe(false);
   });
 
   it('points the experiment summary step at the visible summary panel', () => {
@@ -600,14 +602,14 @@ describe('ExperimentStudioGuideComponent', () => {
     const summaryStep = steps.find((step: any) => step.id === 'experiment-result-actions');
 
     expect(summaryStep?.selector).toBe('[data-guide="save-as-flow"]');
-    expect(summaryStep?.allowTargetInteraction).toBeTrue();
+    expect(summaryStep?.allowTargetInteraction).toBe(true);
   });
 
   it('keeps the final experiment step open to page interaction', () => {
     const steps = (component as any).resolveSteps();
     const finishStep = steps.find((step: any) => step.id === 'experiment-finish');
 
-    expect(finishStep?.allowTargetInteraction).toBeTrue();
+    expect(finishStep?.allowTargetInteraction).toBe(true);
     expect(finishStep?.selector).toBe('[data-guide="dashboard-nav"]');
     expect(finishStep?.body).toContain('header compass');
     expect(finishStep?.body).not.toContain('the tour moves');
@@ -630,17 +632,17 @@ describe('ExperimentStudioGuideComponent', () => {
     component.goToNextStep();
 
     expect(router.navigate).toHaveBeenCalledWith(['/experiments-dashboard']);
-    expect(component.isOpen()).toBeFalse();
+    expect(component.isOpen()).toBe(false);
   });
 
   it('keeps the run step locked until an experiment result is rendered', () => {
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-result-ready' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-result-ready' })).toBe(false);
 
     // Service state, not DOM: the Execution view can be display:none while the Run step
     // still owns Algorithm Selection, so a target-size check would miss a finished run.
     experimentStudioService.runResult.set({ algorithm: 'chi-square' });
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-result-ready' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-result-ready' })).toBe(true);
   });
 
   it('keeps the save-wait step locked until Save as creates a new experiment and returns to parameters', () => {
@@ -658,7 +660,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     const resultSection = document.createElement('section');
     resultSection.setAttribute('data-guide', 'experiment-result');
-    spyOn(resultSection, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(resultSection, 'getBoundingClientRect').mockReturnValue({
       top: 240,
       right: 1080,
       bottom: 760,
@@ -671,37 +673,37 @@ describe('ExperimentStudioGuideComponent', () => {
     } as DOMRect);
     document.body.appendChild(resultSection);
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(false);
 
     experimentStudioService.currentExperimentUUID.set('saved-experiment-uuid');
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBeFalse();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(false);
 
     resultSection.remove();
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBeTrue();
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(true);
   });
 
   it('auto-advances after an algorithm is selected', () => {
-    expect((component as any).shouldAutoAdvance({ requirement: 'algorithm-selected' })).toBeTrue();
+    expect((component as any).shouldAutoAdvance({ requirement: 'algorithm-selected' })).toBe(true);
   });
 
   it('auto-advances after the experiment result becomes available', () => {
-    expect((component as any).shouldAutoAdvance({ requirement: 'experiment-result-ready' })).toBeTrue();
+    expect((component as any).shouldAutoAdvance({ requirement: 'experiment-result-ready' })).toBe(true);
   });
 
   it('auto-advances after Save as opens the save form', () => {
-    expect((component as any).shouldAutoAdvance({ requirement: 'save-as-opened' })).toBeTrue();
+    expect((component as any).shouldAutoAdvance({ requirement: 'save-as-opened' })).toBe(true);
   });
 
   it('auto-advances after Save as creates a new experiment', () => {
-    expect((component as any).shouldAutoAdvance({ requirement: 'experiment-saved-as' })).toBeTrue();
+    expect((component as any).shouldAutoAdvance({ requirement: 'experiment-saved-as' })).toBe(true);
   });
 
   it('tracks interaction cutouts for variable selection and details panels', () => {
     const browser = document.createElement('div');
     browser.setAttribute('data-guide', 'variable-browser');
-    spyOn(browser, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(browser, 'getBoundingClientRect').mockReturnValue({
       top: 120,
       right: 620,
       bottom: 640,
@@ -715,7 +717,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     const details = document.createElement('section');
     details.setAttribute('data-guide', 'variable-details');
-    spyOn(details, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(details, 'getBoundingClientRect').mockReturnValue({
       top: 360,
       right: 1180,
       bottom: 760,
@@ -755,19 +757,19 @@ describe('ExperimentStudioGuideComponent', () => {
 
     expect(exploreStep?.title).toBe('Explore Variable Views');
     expect(exploreStep?.selector).toBe('[data-guide="variable-selection"]');
-    expect(exploreStep?.allowTargetInteraction).toBeTrue();
+    expect(exploreStep?.allowTargetInteraction).toBe(true);
     expect(exploreStep?.body).toContain('Map');
     expect(exploreStep?.body).toContain('List');
     expect(exploreStep?.body).toContain('Graph');
     expect(exploreStep?.body).toContain('Next');
     expect(exploreStep?.interactionSelectors).toBeUndefined();
-    expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBeFalse();
+    expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBe(false);
   });
 
   it('builds click-through blockers around interactive guide targets', () => {
     const target = document.createElement('div');
     target.setAttribute('data-guide', 'variable-selection');
-    spyOn(target, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
       top: 180,
       right: 620,
       bottom: 640,
@@ -794,14 +796,14 @@ describe('ExperimentStudioGuideComponent', () => {
     (component as any).updateLayout();
 
     expect(component.blockingMaskRects().length).toBeGreaterThan(0);
-    expect(component.blockingMaskRects().some((rect) => rect.top === 0 && rect.bottom === 170)).toBeTrue();
+    expect(component.blockingMaskRects().some((rect) => rect.top === 0 && rect.bottom === 170)).toBe(true);
   });
 
   it('keeps the Sex selection step interactive without highlighting variable details', () => {
     const steps = (component as any).resolveSteps();
     const selectSexStep = steps.find((step: any) => step.id === 'select-sex-variable');
 
-    expect(selectSexStep?.allowTargetInteraction).toBeTrue();
+    expect(selectSexStep?.allowTargetInteraction).toBe(true);
     expect(selectSexStep?.selector).toBe('[data-guide="variable-selection"]');
     expect(selectSexStep?.interactionSelectors).toBeUndefined();
   });
@@ -820,7 +822,7 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(previewAgeIndex).toBe(selectAgeIndex + 1);
     expect(addAgeIndex).toBe(previewAgeIndex + 1);
     expect(steps[previewSexIndex].selector).toBe('[data-guide="variable-details"]');
-    expect(steps[previewAgeIndex].allowTargetInteraction).toBeTrue();
+    expect(steps[previewAgeIndex].allowTargetInteraction).toBe(true);
   });
 
   it('points every content step with a selector at its data-guide target', () => {
@@ -832,7 +834,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
       const target = document.createElement('div');
       const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
-      expect(guideValue).withContext(step.id).toBeTruthy();
+      expect(guideValue, step.id).toBeTruthy();
       target.setAttribute('data-guide', guideValue!);
       Object.defineProperty(target, 'getBoundingClientRect', {
         configurable: true,
@@ -855,14 +857,14 @@ describe('ExperimentStudioGuideComponent', () => {
       (component as any).updateLayout();
 
       const highlight = component.highlightRect();
-      expect(highlight).withContext(step.id).not.toBeNull();
-      expect(highlight!.width).withContext(step.id).toBeGreaterThan(0);
-      expect(highlight!.height).withContext(step.id).toBeGreaterThan(0);
+      expect(highlight, step.id).not.toBeNull();
+      expect(highlight!.width, step.id).toBeGreaterThan(0);
+      expect(highlight!.height, step.id).toBeGreaterThan(0);
       // Pathology & Datasets contract: target center sits inside the spotlight.
       const centerX = 230;
       const centerY = 160;
-      expect(highlight!.left <= centerX && centerX <= highlight!.right).withContext(step.id).toBeTrue();
-      expect(highlight!.top <= centerY && centerY <= highlight!.bottom).withContext(step.id).toBeTrue();
+      expect(highlight!.left <= centerX && centerX <= highlight!.right, step.id).toBe(true);
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom, step.id).toBe(true);
     }
   });
 
@@ -883,7 +885,7 @@ describe('ExperimentStudioGuideComponent', () => {
     component.currentIndex.set(0);
 
     const input = document.createElement('input');
-    const preventDefault = jasmine.createSpy('preventDefault');
+    const preventDefault = vi.fn();
     const typingEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
     Object.defineProperty(typingEvent, 'target', { configurable: true, value: input });
     typingEvent.preventDefault = preventDefault;
@@ -904,7 +906,7 @@ describe('ExperimentStudioGuideComponent', () => {
   });
 
   it('spots a target that renders after the step and bounds its retries', () => {
-    jasmine.clock().install();
+    vi.useFakeTimers();
     const late = document.createElement('div');
     late.setAttribute('data-guide', 'late-target');
     late.style.cssText = 'position:fixed;top:0;left:0;width:120px;height:40px;';
@@ -917,13 +919,13 @@ describe('ExperimentStudioGuideComponent', () => {
       component.currentIndex.set(0);
 
       (component as any).syncStepLayout();
-      jasmine.clock().tick(1);
+      vi.advanceTimersByTime(1);
       expect(component.highlightRect()).toBeNull();
 
       // The owning view rendered late: the pending retry must pick the target up.
       document.body.appendChild(late);
-      jasmine.clock().tick(150);
-      jasmine.clock().tick(260);
+      vi.advanceTimersByTime(150);
+      vi.advanceTimersByTime(260);
       expect(component.highlightRect()).not.toBeNull();
 
       // Attempts are bounded: an unreachable target stops polling.
@@ -931,14 +933,14 @@ describe('ExperimentStudioGuideComponent', () => {
         { id: 'never', section: 'Explore', title: 'Gone', body: '', selector: '[data-guide="never"]' },
       ] as any);
       (component as any).syncStepLayout();
-      jasmine.clock().tick(150 * 12);
+      vi.advanceTimersByTime(150 * 12);
 
       expect((component as any).targetRetryTimer).toBeNull();
       expect(component.highlightRect()).toBeNull();
-      expect(component.canGoToNext()).toBeTrue();
+      expect(component.canGoToNext()).toBe(true);
     } finally {
       late.remove();
-      jasmine.clock().uninstall();
+      vi.useRealTimers();
     }
 
     component.closeGuide();

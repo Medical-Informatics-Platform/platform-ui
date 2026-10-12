@@ -1,8 +1,8 @@
 name: Static checks
 
 # Typecheck, dead-code scan and a production build — the three checks that need no
-# backend, browser or secrets. `npm test` stays out of CI: Karma needs a browser and
-# the repo's test guardrails (see docs/context/testing.md).
+# backend, browser or secrets. The Vitest unit tests (`npm test`) need Chromium and
+# do not run here (see docs/context/testing.md).
 on:
   pull_request:
   workflow_dispatch:

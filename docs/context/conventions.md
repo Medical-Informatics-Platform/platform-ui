@@ -7,7 +7,7 @@
 - `app.config.ts` provides router, HTTP client, XSRF, zoneless change detection, and ECharts.
 - TypeScript is strict. `tsconfig.json` enables strict templates, no unused locals/parameters, no implicit returns, and related checks.
 - Component style language is CSS.
-- Tests use Jasmine/Karma and Angular `TestBed`.
+- Tests use Vitest and Angular `TestBed`.
 
 ### State and Services
 - Signals are the dominant state primitive for feature state.

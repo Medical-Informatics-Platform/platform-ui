@@ -2,7 +2,7 @@ name: Experiment studio e2e
 
 # Playwright flows for the experiment studio. Backend calls are mocked in the
 # browser (every same-origin /services request). No live API and no secrets.
-# Karma `npm test` stays out of CI; see .github/workflows/checks.yml.
+# The Vitest unit tests (`npm test`) are not part of this workflow.
 on:
   pull_request:
   workflow_dispatch:

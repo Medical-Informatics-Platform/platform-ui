@@ -1,4 +1,1 @@
-[[IgnoredVulns]]
-id = "GHSA-vfj7-8cjw-p6xm"
-ignoreUntil = 2027-01-04
-reason = "braces@3.0.3 (CVE-2026-93687) has no published fixed release (latest on npm is still 3.0.3; upstream PR micromatch/braces#72 is unmerged). It is only pulled in by the karma test runner (directly and through chokidar 3). Drop this ignore once braces >3.0.3 is published or karma is replaced."
+# Ignored vulnerabilities for osv-scanner. Add [[IgnoredVulns]] entries with id, ignoreUntil and reason.

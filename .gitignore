@@ -84,3 +84,6 @@ experiment-studio-review/
 /e2e/test-results/
 /playwright-report/
 /test-results/
+
+# Vitest browser-mode attachments (screenshots of failing tests)
+/.vitest/

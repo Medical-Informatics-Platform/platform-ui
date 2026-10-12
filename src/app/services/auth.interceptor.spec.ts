@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -8,10 +9,10 @@ import { withCredentialsInterceptor } from './auth.interceptor';
 describe('withCredentialsInterceptor', () => {
   let http: HttpClient;
   let httpMock: HttpTestingController;
-  let login: jasmine.Spy;
+  let login: Mock;
 
   beforeEach(() => {
-    login = jasmine.createSpy('login');
+    login = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([withCredentialsInterceptor])),
@@ -36,39 +37,39 @@ describe('withCredentialsInterceptor', () => {
   it('sends cookies on same-origin API calls', () => {
     http.get('/services/experiment-folders').subscribe();
     const request = httpMock.expectOne('/services/experiment-folders');
-    expect(request.request.withCredentials).toBeTrue();
+    expect(request.request.withCredentials).toBe(true);
     request.flush({});
   });
 
   it('sends the browser session back to Keycloak when the session died (status 0)', () => {
-    expect(failWith(0)()).toBeTrue();
+    expect(failWith(0)()).toBe(true);
     expect(login).toHaveBeenCalled();
   });
 
   it('sends the browser session back to Keycloak on 401', () => {
-    expect(failWith(401)()).toBeTrue();
+    expect(failWith(401)()).toBe(true);
     expect(login).toHaveBeenCalled();
   });
 
   it('leaves real backend failures to the caller', () => {
-    expect(failWith(500)()).toBeTrue();
+    expect(failWith(500)()).toBe(true);
     expect(login).not.toHaveBeenCalled();
   });
 
   it('leaves the first-load auth check to AuthGuard', () => {
-    expect(failWith(401, '/services/activeUser')()).toBeTrue();
+    expect(failWith(401, '/services/activeUser')()).toBe(true);
     expect(login).not.toHaveBeenCalled();
   });
 
   it('leaves the first-load auth check to AuthGuard when it carries query params', () => {
-    expect(failWith(401, '/services/activeUser?cache=1')()).toBeTrue();
+    expect(failWith(401, '/services/activeUser?cache=1')()).toBe(true);
     expect(login).not.toHaveBeenCalled();
   });
 
   it('does not treat an offline zero-status failure as an expired session', () => {
-    spyOnProperty(navigator, 'onLine', 'get').and.returnValue(false);
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
 
-    expect(failWith(0)()).toBeTrue();
+    expect(failWith(0)()).toBe(true);
     expect(login).not.toHaveBeenCalled();
   });
 });

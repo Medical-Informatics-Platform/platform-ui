@@ -29,7 +29,7 @@ This repository contains `fl-platform`, the Angular 22 standalone frontend for t
 - Framework: Angular 22 standalone application, Angular Router, Angular Material/CDK, Angular Signals, zoneless change detection.
 - Data/async: Angular `HttpClient`, RxJS, browser localStorage/sessionStorage.
 - Visualization/export: ECharts via `ngx-echarts`, D3, html2canvas, jsPDF, jsPDF AutoTable.
-- Test framework: Jasmine/Karma through Angular CLI.
+- Test framework: Vitest through the Angular CLI `unit-test` builder, in headless Chromium (Vitest browser mode with Playwright); Playwright for e2e flows in `e2e/`.
 - Package manager: npm with `package-lock.json`; use `npm ci` for clean installs.
 - Container/runtime: Docker multi-stage Node 22 build served by nginx alpine; runtime config injected into `assets/env.js`.
 
@@ -70,7 +70,7 @@ docker run -e PLATFORM_BACKEND_SERVER=platform-backend-service:8080 -e PLATFORM_
 ```bash
 npm test
 ```
-Runs Jasmine/Karma unit tests through Angular CLI.
+Runs the Vitest unit tests through Angular CLI in headless Chromium. Use `npm test -- --watch=false` for a single run, and `--include <spec path>` to focus. Chromium comes from `npx playwright install chromium`, or set `CHROME_BIN` to an installed Chrome.
 
 Manual browser QA is required for authenticated experiment workflows and backend-dependent chart/result rendering. The checklist lives in `docs/context/testing.md` (Frontend Manual QA).
 
@@ -79,7 +79,7 @@ No ESLint/Prettier setup; `npm run build` remains the template/type check that m
 
 ```bash
 npm run verify          # typecheck + dead-code scan + build
-npm test                # Jasmine/Karma (needs a browser; see docs/context/testing.md)
+npm test                # Vitest in headless Chromium (see docs/context/testing.md)
 ```
 
 `scripts/check-dead-code.mjs` is a plain Node script, so a finding is a bug in the code or in its allowlist (`RUNTIME_CLASS_PREFIXES`) — never a reason to delete a runtime class Angular applies. Its header explains how emulated encapsulation, `@import` and `@keyframes` scoping are decided; the individual commands are listed in `docs/context/testing.md`.
@@ -91,7 +91,7 @@ Agents must not run high-output or long-running commands on their own unless the
 
 Require explicit confirmation before running:
 - Long-running app/watch commands: `npm start`, `npm run watch`, `ng serve`, `ng build --watch`, persistent browser automation, or any command expected to keep running.
-- Full interactive test/watch commands: `npm test`, `ng test`, or Karma watch mode. Prefer a non-watch/focused test command when available; if not verified, ask first.
+- Full interactive test/watch commands: `npm test`, `ng test`, or Vitest watch mode. Prefer a non-watch/focused test command when available; if not verified, ask first.
 - Container-heavy commands: `docker build`, `docker run`, `docker compose ...`, and unbounded `docker logs`.
 - Dependency/network audits: `npm ci`, `npm install`, `npm audit`, `npm audit --json`, `npm outdated`, unless dependency setup/update is the explicit task.
 - Broad output commands: `find .`, `ls -R`, `tree`, recursive `grep`, unrestricted `rg`, `cat package-lock.json`, `cat dist/*`, `cat coverage/*`, `git diff` without path/stat limits, `git log -p`, or `git show` on large commits.
@@ -125,7 +125,7 @@ When a high-output command is justified, announce why it is needed, say it may c
 - Keep backend API paths relative (`/services/...`) so proxy/nginx routing continues to work.
 - Handle backend errors explicitly through local state or `ErrorService`; avoid hiding failures.
 - Use existing mapper, label, and registry helpers before adding new presentation logic.
-- Add or update Jasmine specs near the changed code when behavior changes.
+- Add or update Vitest specs near the changed code when behavior changes.
 
 ## Forbidden Patterns
 - Do not silently swallow exceptions or failed HTTP calls.

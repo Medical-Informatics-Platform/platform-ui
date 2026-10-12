@@ -1,3 +1,4 @@
+import type { MockedObject, Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -11,10 +12,11 @@ import { SessionStorageService } from '../../../services/session-storage.service
 import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { AlgorithmPanelComponent } from './algorithm-panel.component';
 import { of } from 'rxjs';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 describe('AlgorithmPanelComponent', () => {
   let fixture: ComponentFixture<AlgorithmPanelComponent>;
-  let studioNavigation: jasmine.SpyObj<ExperimentStudioNavigationService>;
+  let studioNavigation: MockedObject<ExperimentStudioNavigationService>;
   let experimentStudioService: {
     selectedAlgorithm: ReturnType<typeof signal<AlgorithmConfig | null>>;
     selectedVariables: ReturnType<typeof signal<any[]>>;
@@ -36,29 +38,29 @@ describe('AlgorithmPanelComponent', () => {
     hasRunStarted: ReturnType<typeof signal<boolean>>;
     runStatusText: ReturnType<typeof signal<string>>;
     variableLabelMap: ReturnType<typeof signal<Record<string, string>>>;
-    notifySaveSucceeded: jasmine.Spy;
+    notifySaveSucceeded: Mock;
     availableDatasets: ReturnType<typeof signal<any[]>>;
-    getCategoricalEnumMaps: jasmine.Spy;
-    isCrossValidationOnly: jasmine.Spy;
-    getCrossValidationBase: jasmine.Spy;
-    getCrossValidationVariant: jasmine.Spy;
-    getTransformationBase: jasmine.Spy;
-    getTransformationVariant: jasmine.Spy;
-    hasAppliedDescriptivePreprocessing: jasmine.Spy;
-    hasRequestPreprocessingForRun: jasmine.Spy;
-    isAlgorithmAvailable: jasmine.Spy;
-    getAlgorithmAvailability: jasmine.Spy;
-    setAlgorithm: jasmine.Spy;
-    setRunning: jasmine.Spy;
-    runSelectedAlgorithmTransient: jasmine.Spy;
-    runSelectedAlgorithm: jasmine.Spy;
-    captureRunSetup: jasmine.Spy;
-    getEffectivePreprocessingSummary: jasmine.Spy;
-    getDatasetLabelMap: jasmine.Spy;
-    getAppliedDescriptivePreprocessing: jasmine.Spy;
-    formatPreprocessingEntries: jasmine.Spy;
+    getCategoricalEnumMaps: Mock;
+    isCrossValidationOnly: Mock;
+    getCrossValidationBase: Mock;
+    getCrossValidationVariant: Mock;
+    getTransformationBase: Mock;
+    getTransformationVariant: Mock;
+    hasAppliedDescriptivePreprocessing: Mock;
+    hasRequestPreprocessingForRun: Mock;
+    isAlgorithmAvailable: Mock;
+    getAlgorithmAvailability: Mock;
+    setAlgorithm: Mock;
+    setRunning: Mock;
+    runSelectedAlgorithmTransient: Mock;
+    runSelectedAlgorithm: Mock;
+    captureRunSetup: Mock;
+    getEffectivePreprocessingSummary: Mock;
+    getDatasetLabelMap: Mock;
+    getAppliedDescriptivePreprocessing: Mock;
+    formatPreprocessingEntries: Mock;
     filterLogic: ReturnType<typeof signal<any>>;
-    isCrossValidationAlgorithm: jasmine.Spy;
+    isCrossValidationAlgorithm: Mock;
   };
 
   const algorithm: AlgorithmConfig = {
@@ -79,7 +81,7 @@ describe('AlgorithmPanelComponent', () => {
   };
 
   beforeEach(async () => {
-    studioNavigation = jasmine.createSpyObj<ExperimentStudioNavigationService>(
+    studioNavigation = createSpyObj<ExperimentStudioNavigationService>(
       'ExperimentStudioNavigationService',
       ['navigateToSection', 'goToPreprocessing', 'publishState'],
     );
@@ -105,35 +107,35 @@ describe('AlgorithmPanelComponent', () => {
       hasRunStarted: signal(false),
       runStatusText: signal('Processing experiment...'),
       variableLabelMap: signal<Record<string, string>>({}),
-      notifySaveSucceeded: jasmine.createSpy('notifySaveSucceeded'),
+      notifySaveSucceeded: vi.fn(),
       availableDatasets: signal<any[]>([]),
-      getCategoricalEnumMaps: jasmine.createSpy('getCategoricalEnumMaps').and.returnValue({}),
-      isCrossValidationOnly: jasmine.createSpy('isCrossValidationOnly').and.returnValue(false),
-      getCrossValidationBase: jasmine.createSpy('getCrossValidationBase').and.returnValue(null),
-      getCrossValidationVariant: jasmine.createSpy('getCrossValidationVariant').and.returnValue(null),
-      getTransformationBase: jasmine.createSpy('getTransformationBase').and.returnValue(null),
-      getTransformationVariant: jasmine.createSpy('getTransformationVariant').and.returnValue(null),
-      hasAppliedDescriptivePreprocessing: jasmine.createSpy('hasAppliedDescriptivePreprocessing').and.returnValue(true),
-      hasRequestPreprocessingForRun: jasmine.createSpy('hasRequestPreprocessingForRun').and.returnValue(false),
-      isAlgorithmAvailable: jasmine.createSpy('isAlgorithmAvailable').and.returnValue(true),
-      getAlgorithmAvailability: jasmine.createSpy('getAlgorithmAvailability').and.returnValue({
+      getCategoricalEnumMaps: vi.fn().mockReturnValue({}),
+      isCrossValidationOnly: vi.fn().mockReturnValue(false),
+      getCrossValidationBase: vi.fn().mockReturnValue(null),
+      getCrossValidationVariant: vi.fn().mockReturnValue(null),
+      getTransformationBase: vi.fn().mockReturnValue(null),
+      getTransformationVariant: vi.fn().mockReturnValue(null),
+      hasAppliedDescriptivePreprocessing: vi.fn().mockReturnValue(true),
+      hasRequestPreprocessingForRun: vi.fn().mockReturnValue(false),
+      isAlgorithmAvailable: vi.fn().mockReturnValue(true),
+      getAlgorithmAvailability: vi.fn().mockReturnValue({
         available: true,
         summary: '',
         details: [],
       }),
-      setAlgorithm: jasmine.createSpy('setAlgorithm').and.callFake((next: AlgorithmConfig) => {
+      setAlgorithm: vi.fn().mockImplementation((next: AlgorithmConfig) => {
         experimentStudioService.selectedAlgorithm.set(next);
       }),
-      setRunning: jasmine.createSpy('setRunning'),
-      runSelectedAlgorithmTransient: jasmine.createSpy('runSelectedAlgorithmTransient'),
-      runSelectedAlgorithm: jasmine.createSpy('runSelectedAlgorithm'),
-      captureRunSetup: jasmine.createSpy('captureRunSetup'),
-      getEffectivePreprocessingSummary: jasmine.createSpy('getEffectivePreprocessingSummary').and.returnValue(null),
-      getDatasetLabelMap: jasmine.createSpy('getDatasetLabelMap').and.returnValue({}),
-      getAppliedDescriptivePreprocessing: jasmine.createSpy('getAppliedDescriptivePreprocessing').and.returnValue(null),
-      formatPreprocessingEntries: jasmine.createSpy('formatPreprocessingEntries').and.returnValue([]),
+      setRunning: vi.fn(),
+      runSelectedAlgorithmTransient: vi.fn(),
+      runSelectedAlgorithm: vi.fn(),
+      captureRunSetup: vi.fn(),
+      getEffectivePreprocessingSummary: vi.fn().mockReturnValue(null),
+      getDatasetLabelMap: vi.fn().mockReturnValue({}),
+      getAppliedDescriptivePreprocessing: vi.fn().mockReturnValue(null),
+      formatPreprocessingEntries: vi.fn().mockReturnValue([]),
       filterLogic: signal(null),
-      isCrossValidationAlgorithm: jasmine.createSpy('isCrossValidationAlgorithm').and.returnValue(false),
+      isCrossValidationAlgorithm: vi.fn().mockReturnValue(false),
     };
 
     await TestBed.configureTestingModule({
@@ -142,9 +144,9 @@ describe('AlgorithmPanelComponent', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: ExperimentStudioService, useValue: experimentStudioService },
-        { provide: ErrorService, useValue: { clearError: jasmine.createSpy('clearError') } },
+        { provide: ErrorService, useValue: { clearError: vi.fn() } },
         { provide: AuthService, useValue: { currentUser: null } },
-        { provide: PdfExportService, useValue: { exportExperimentPdf: jasmine.createSpy('exportExperimentPdf') } },
+        { provide: PdfExportService, useValue: { exportExperimentPdf: vi.fn() } },
         { provide: RuntimeEnvService, useValue: { mipVersion: 'test' } },
         { provide: SessionStorageService, useValue: {} },
         { provide: ExperimentStudioNavigationService, useValue: studioNavigation },
@@ -163,12 +165,12 @@ describe('AlgorithmPanelComponent', () => {
     const nativeElement = fixture.nativeElement as HTMLElement;
     const details = nativeElement.querySelector('.config-advanced') as HTMLDetailsElement | null;
     expect(details).toBeTruthy();
-    expect(details?.open).toBeFalse();
+    expect(details?.open).toBe(false);
     expect(details?.textContent).toContain('Advanced (4)');
     expect(nativeElement.querySelectorAll('.config-field').length).toBe(4);
     expect(nativeElement.textContent).toContain('Fourth');
-    expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBeFalse();
-    expect(fixture.componentInstance.canRun()).toBeTrue();
+    expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBe(false);
+    expect(fixture.componentInstance.canRun()).toBe(true);
   });
 
   it('keeps required parameters in the primary list and knows the friendly needs copy', async () => {
@@ -218,7 +220,7 @@ describe('AlgorithmPanelComponent', () => {
     const advancedText = root.querySelector('.config-advanced')?.textContent ?? '';
     expect(primaryLabels).toContain('Number of clusters');
     expect(advancedText).toContain('Max iterations');
-    expect((root.querySelector('.config-advanced') as HTMLDetailsElement)?.open).toBeFalse();
+    expect((root.querySelector('.config-advanced') as HTMLDetailsElement)?.open).toBe(false);
   });
 
   it('renders selected algorithm documentation separately from the short description', async () => {
@@ -233,7 +235,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.textContent).toContain('How this method works');
     expect(details?.textContent).toContain('Line one.');
     expect(details?.textContent).toContain('Line two.');
-    expect(details?.open).toBeFalse();
+    expect(details?.open).toBe(false);
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
@@ -367,8 +369,8 @@ describe('AlgorithmPanelComponent', () => {
     };
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
     experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
-    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
-    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => name === 'unavailable_algorithm'
+    experimentStudioService.isAlgorithmAvailable.mockImplementation((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.mockImplementation((name: string) => name === 'unavailable_algorithm'
       ? unavailableAlgorithm.availability
       : { available: true, summary: '', details: [] });
 
@@ -392,7 +394,7 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(experimentStudioService.selectedAlgorithm()?.name).toBe('unavailable_algorithm');
     expect(details?.textContent).toContain('Unavailable docs.');
-    expect(details?.open).toBeFalse();
+    expect(details?.open).toBe(false);
     details?.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     fixture.componentInstance.setStudioSubstep('parameters');
@@ -406,9 +408,9 @@ describe('AlgorithmPanelComponent', () => {
     expect(requirementsPanel?.textContent).toContain('Outcome type must be one of nominal.');
     expect(requirementsPanel?.textContent).not.toContain('text');
     expect(fieldset).toBeTruthy();
-    expect(fieldset.disabled).toBeTrue();
+    expect(fieldset.disabled).toBe(true);
     expect(getComputedStyle(fieldset).pointerEvents).toBe('none');
-    expect(fixture.componentInstance.canRun()).toBeFalse();
+    expect(fixture.componentInstance.canRun()).toBe(false);
 
     fixture.componentInstance.onClickRunExp();
     expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
@@ -528,7 +530,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(root.textContent).toContain('Select the event level mapped to 1');
 
     const component = fixture.componentInstance;
-    expect(component.visibleConfigSchema().find((field) => field.key === 'positive_class')?.required).toBeTrue();
+    expect(component.visibleConfigSchema().find((field) => field.key === 'positive_class')?.required).toBe(true);
     const values = (component as any).normalizeFormValues(
       { event_var: 'procedure', positive_class: 'yes' },
       component.visibleConfigSchema()
@@ -587,7 +589,7 @@ describe('AlgorithmPanelComponent', () => {
     component.onClickRunExp();
 
     expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
-    expect(component.configForm().get('positive_class')?.invalid).toBeTrue();
+    expect(component.configForm().get('positive_class')?.invalid).toBe(true);
   });
 
   it('shows covariate hint for empty input_var_names selects', async () => {
@@ -654,8 +656,8 @@ describe('AlgorithmPanelComponent', () => {
       { code: 'sex', label: 'Sex', type: 'nominal' },
       { code: 'bmi', label: 'BMI', type: 'real' },
     ]);
-    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
-    experimentStudioService.runSelectedAlgorithmTransient.and.returnValue(of({
+    experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
+    experimentStudioService.runSelectedAlgorithmTransient.mockReturnValue(of({
       status: 'success',
       result: { featurewise: [] },
     }));
@@ -697,14 +699,14 @@ describe('AlgorithmPanelComponent', () => {
     experimentStudioService.selectedAlgorithm.set(outlierAlgorithm);
     experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
     experimentStudioService.algorithmAssignableVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
-    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const component = fixture.componentInstance;
     component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
     component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.5);
-    experimentStudioService.runSelectedAlgorithmTransient.calls.reset();
+    experimentStudioService.runSelectedAlgorithmTransient.mockClear();
 
     component.onClickRunExp();
 
@@ -736,14 +738,14 @@ describe('AlgorithmPanelComponent', () => {
 
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
     experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
-    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
-    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => (
+    experimentStudioService.isAlgorithmAvailable.mockImplementation((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.mockImplementation((name: string) => (
       name === 'unavailable_algorithm'
         ? unavailableAlgorithm.availability!
         : { available: true, summary: '', details: [] }
     ));
     experimentStudioService.selectedAlgorithm.set(unavailableAlgorithm);
-    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
     fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
@@ -783,8 +785,8 @@ describe('AlgorithmPanelComponent', () => {
 
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [unavailableAlgorithm] });
     experimentStudioService.backendAlgorithms.set({ unavailable_algorithm: unavailableAlgorithm });
-    experimentStudioService.isAlgorithmAvailable.and.callFake((name: string) => name !== 'unavailable_algorithm');
-    experimentStudioService.getAlgorithmAvailability.and.callFake((name: string) => (
+    experimentStudioService.isAlgorithmAvailable.mockImplementation((name: string) => name !== 'unavailable_algorithm');
+    experimentStudioService.getAlgorithmAvailability.mockImplementation((name: string) => (
       name === 'unavailable_algorithm'
         ? unavailableAlgorithm.availability!
         : { available: true, summary: '', details: [] }
@@ -805,7 +807,7 @@ describe('AlgorithmPanelComponent', () => {
   });
 
   it('navigates to preprocessing from the requirements list', async () => {
-    experimentStudioService.hasAppliedDescriptivePreprocessing.and.returnValue(false);
+    experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
     experimentStudioService.selectedAlgorithm.set({ ...algorithm });
     fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
@@ -832,14 +834,14 @@ describe('AlgorithmPanelComponent', () => {
     };
 
     experimentStudioService.availableGroupedAlgorithms.set({ Test: [disabledAlgorithm] });
-    experimentStudioService.getAlgorithmAvailability.and.returnValue({
+    experimentStudioService.getAlgorithmAvailability.mockReturnValue({
       available: false,
       summary: 'Needs an outcome',
       details: [],
     });
     fixture.componentInstance.showOnlyActive.set(false);
     fixture.detectChanges();
-    expect(fixture.componentInstance.showOnlyActive()).toBeFalse();
+    expect(fixture.componentInstance.showOnlyActive()).toBe(false);
 
     // The group holds the selected method, so it is open even with nothing runnable.
     const tile = (fixture.nativeElement as HTMLElement).querySelector('.algo-tile');
@@ -878,11 +880,11 @@ describe('AlgorithmPanelComponent', () => {
     const workspace = root.querySelector('.algorithm-workspace');
     // The pool is the full-width top band, a direct child under the card header.
     expect(pool?.querySelector('app-algorithm-role-assignment')).toBeTruthy();
-    expect(pool?.parentElement?.classList.contains('algorithm-roles-board')).toBeTrue();
+    expect(pool?.parentElement?.classList.contains('algorithm-roles-board')).toBe(true);
     expect(
       !!pool && !!workspace &&
       !!(pool.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING)
-    ).toBeTrue();
+    ).toBe(true);
     // The bottom row is the master–detail split: catalog left, configuration right.
     expect(workspace?.querySelector('app-algorithm-role-assignment')).toBeNull();
     expect(workspace?.querySelector('[data-guide="algorithm-selection"]')).toBeTruthy();
@@ -908,9 +910,9 @@ describe('AlgorithmPanelComponent', () => {
 
     expect(fixture.componentInstance.studioSubstep()).toBe('parameters');
     const details = root.querySelector('.documentation-panel') as HTMLDetailsElement | null;
-    expect(details?.open).toBeFalse();
+    expect(details?.open).toBe(false);
     details?.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(details?.open).toBeTrue();
+    expect(details?.open).toBe(true);
     expect(details?.textContent).toContain('Line one.');
     expect(root.querySelector('.config-form')).toBeTruthy();
     // Setup stays on screen: the method grid is still rendered above the board.
@@ -927,7 +929,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(boards.length).toBe(1);
     expect(boards[0]?.querySelector('.algo-tile')).toBeTruthy();
     const paramsPane = root.querySelector('[data-guide="algorithm-settings"]');
-    expect(boards[0]?.contains(paramsPane)).toBeTrue();
+    expect(boards[0]?.contains(paramsPane)).toBe(true);
 
     // The parameters pane must not paint its own card frame on top of the unified
     // card, otherwise the workspace reads as separate cards again.
@@ -949,7 +951,7 @@ describe('AlgorithmPanelComponent', () => {
     // Nothing selected: the column still offers guidance instead of a parameter form.
     expect(params?.querySelector('.algorithm-params__empty')).toBeTruthy();
     expect(root.querySelector('.algorithm-details')).toBeNull();
-    expect(column?.contains(params ?? null)).toBeTrue();
+    expect(column?.contains(params ?? null)).toBe(true);
 
     fixture.componentInstance.onAlgorithmClick(algorithm);
     fixture.detectChanges();
@@ -960,11 +962,11 @@ describe('AlgorithmPanelComponent', () => {
     // Details head the column and the parameters follow them, both beside the catalog.
     const details = root.querySelector('.algorithm-details');
     expect(details).toBeTruthy();
-    expect(column?.contains(details)).toBeTrue();
-    expect(catalog?.contains(details ?? null)).toBeFalse();
+    expect(column?.contains(details)).toBe(true);
+    expect(catalog?.contains(details ?? null)).toBe(false);
     expect(
       !!(details!.compareDocumentPosition(params!) & Node.DOCUMENT_POSITION_FOLLOWING)
-    ).toBeTrue();
+    ).toBe(true);
   });
 
   it('keeps matching methods visible on setup until a method is chosen', () => {
@@ -997,7 +999,7 @@ describe('AlgorithmPanelComponent', () => {
 
     modeTabs()[0].click();
     fixture.detectChanges();
-    expect(fixture.componentInstance.showOnlyActive()).toBeTrue();
+    expect(fixture.componentInstance.showOnlyActive()).toBe(true);
     expect(modeTabs()[0].getAttribute('aria-pressed')).toBe('true');
     expect(modeTabs()[0].textContent).toContain('Runnable');
     expect(root.querySelector('.algo-tile')).toBeNull();
@@ -1146,7 +1148,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.querySelector('.documentation-panel')).toBeTruthy();
     expect(details?.querySelector('.config-form')).toBeNull();
     expect(root.querySelector('[data-guide="run-experiment"]')).toBeNull();
-    expect(component.canRun()).toBeTrue();
+    expect(component.canRun()).toBe(true);
   });
 
   it('shows parameters on Parameter selection', () => {
@@ -1160,7 +1162,7 @@ describe('AlgorithmPanelComponent', () => {
     const labels = Array.from(root.querySelectorAll('.config-field > label')).map(
       (label) => label.textContent?.trim(),
     );
-    expect(labels).toEqual(jasmine.arrayContaining(['First optional', 'Second optional', 'Third optional', 'Fourth optional']));
+    expect(labels).toEqual(expect.arrayContaining(['First optional', 'Second optional', 'Third optional', 'Fourth optional']));
     expect(component.configForm().get('first')?.value).toBe(1);
   });
 
