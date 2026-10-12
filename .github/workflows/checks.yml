@@ -1,8 +1,7 @@
 name: Static checks
 
 # Typecheck, dead-code scan and a production build — the three checks that need no
-# backend, browser or secrets. The Vitest unit tests (`npm test`) need Chromium and
-# do not run here (see docs/context/testing.md).
+# backend, browser or secrets. The Vitest unit tests run in unit-tests.yml.
 on:
   pull_request:
   workflow_dispatch:

@@ -27,7 +27,7 @@ npm test -- --watch=false                                   # whole suite
 npm test -- --watch=false --include src/app/services/x.spec.ts  # one spec
 ```
 
-The tests need Chromium: run `npx playwright install chromium` once, or set `CHROME_BIN` to an installed Chrome.
+The tests need Chromium: run `npx playwright install chromium` once, or set `CHROME_BIN` to an installed Chrome. CI runs the whole suite on pull requests (`.github/workflows/unit-tests.yml`).
 
 ## Static Checks (no browser, no backend)
 ```bash
