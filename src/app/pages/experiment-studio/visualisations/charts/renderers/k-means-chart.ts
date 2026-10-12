@@ -1,8 +1,13 @@
 import { EChartsOption } from 'echarts';
+import { formatSummaryNumber } from '../../result-format';
+
+const AXIS_COLOR = '#475569';
+const TEXT_COLOR = '#0f172a';
+// Signed distance from the overall mean: red below, neutral grey at the mean, primary blue above.
+const DEVIATION_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
 
 export function buildKMeansChart(output: any): EChartsOption[] {
   const clusters = output?.clusters;
-  const title = 'K-Means Centers';
 
   if (!Array.isArray(clusters) || clusters.length === 0) return [];
 
@@ -11,11 +16,11 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
   const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
-  // Legend entries carry each cluster's size, so the centres table is not needed on screen.
-  const legendNames = names.map((name, i) => (sizes[i] === null ? name : `${name} · ~${Math.round(sizes[i]!).toLocaleString('en-US')}`));
+  // Each cluster's name carries its size, so the centres table is not needed on screen.
+  const sizedNames = names.map((name, i) => (sizes[i] === null ? name : `${name} · ~${Math.round(sizes[i]!).toLocaleString('en-US')}`));
   const charts = variables.length === 2
-    ? buildKMeans2DChart(centers as [number, number][], names, legendNames, variables, sizes)
-    : buildKMeansParallelCoordinatesChart(centers, legendNames, variables, title);
+    ? buildKMeans2DChart(centers as [number, number][], names, sizedNames, variables, sizes)
+    : buildKMeansCentresHeatmap(centers, sizedNames, variables, sizes);
 
   if (output.elbow) {
     charts.push(buildKMeansElbowChart(output.elbow));
@@ -83,54 +88,95 @@ function buildKMeans2DChart(
   ];
 }
 
-function buildKMeansParallelCoordinatesChart(
+/**
+ * Three or more variables: one row per cluster, one column per variable, each cell the centre's
+ * value. Rows name the clusters, so no colour has to tell five or more lines apart (no categorical
+ * palette stays distinct across every pair at that count). Shading compares each centre with the
+ * variable's overall mean (centres weighted by cluster size), scaled per column because units differ.
+ */
+function buildKMeansCentresHeatmap(
   centers: number[][],
   names: string[],
   variables: string[],
-  title: string
+  sizes: (number | null)[]
 ): EChartsOption[] {
-  if (!centers.length || !Array.isArray(centers[0])) return [];
+  if (!centers.length || !variables.length) return [];
 
-  const dims = centers[0].length;
-  const parallelAxis = Array.from({ length: dims }, (_, i) => ({
-    dim: i,
-    name: variables[i],
-  }));
+  const weights = sizes.every((size) => size !== null && size > 0) ? (sizes as number[]) : centers.map(() => 1);
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const deviations = variables.map((_, v) => {
+    const mean = centers.reduce((sum, center, c) => sum + weights[c] * Number(center[v]), 0) / totalWeight;
+    const raw = centers.map((center) => Number(center[v]) - mean);
+    const largest = Math.max(...raw.map(Math.abs));
+    return raw.map((value) => (largest > 0 ? value / largest : 0));
+  });
+
+  const data = centers.flatMap((center, c) =>
+    variables.map((_, v) => {
+      const shade = deviations[v][c];
+      return {
+        value: [v, c, shade, Number(center[v])],
+        // White text on the saturated ends, ink on the pale middle.
+        label: { color: Math.abs(shade) >= 0.6 ? '#ffffff' : TEXT_COLOR },
+      };
+    })
+  );
 
   return [
     {
-      // Each axis keeps its own scale, so variables in different units share one profile line per cluster.
-      mipChartHeight: 380,
-      title: {
-        text: `${title} (Parallel Coordinates)`,
-        show: false,
-      },
+      mipChartHeight: 110 + 44 * centers.length,
+      // The section heading names the chart and the colour bar under it says what the shading means.
+      title: { text: 'Cluster centres', show: false },
       tooltip: {
-        trigger: 'item',
-        formatter: (p: any) => `${p.seriesName}<br/>` +
-          variables.map((variable, d) => `${variable}: <b>${Number(p.value?.[d]).toFixed(2)}</b>`).join('<br/>'),
-      },
-      legend: {
-        top: 0,
-        type: 'scroll',
-      },
-      parallel: {
-        top: 64,
-        left: 70,
-        right: 70,
-        bottom: 60,
-      },
-      parallelAxis,
-      series: centers.map((center, i) => ({
-        type: 'parallel',
-        name: names[i],
-        data: [center],
-        lineStyle: {
-          width: 2,
-          opacity: 0.85,
+        position: 'top',
+        formatter: (p: any) => {
+          const [v, c, shade, value] = p.value;
+          const side = shade > 0 ? 'above' : shade < 0 ? 'below' : 'at';
+          return `${names[c]}<br/>${variables[v]}: <b>${formatSummaryNumber(value)}</b><br/>${side} the overall mean`;
         },
-      })),
-    },
+      },
+      grid: { top: 8, left: 8, right: 16, bottom: 48, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: variables,
+        position: 'top',
+        axisLine: { show: false },
+        axisTick: { show: false },
+        // Narrow enough to wrap two-word names before they meet in a 360px compare column.
+        axisLabel: { color: AXIS_COLOR, interval: 0, width: 72, overflow: 'break', lineHeight: 15 },
+      },
+      yAxis: {
+        type: 'category',
+        data: names,
+        inverse: true,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        // Name over size ("Cluster 0" / "~66,245"): one long line got clipped at the chart's left edge.
+        axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 16, formatter: (name: string) => name.replace(' · ', '\n') },
+      },
+      visualMap: {
+        dimension: 2,
+        min: -1,
+        max: 1,
+        orient: 'horizontal',
+        left: 'center',
+        bottom: 4,
+        itemWidth: 12,
+        itemHeight: 160,
+        text: ['Above mean', 'Below mean'],
+        textStyle: { color: AXIS_COLOR },
+        inRange: { color: DEVIATION_COLORS },
+      },
+      series: [
+        {
+          name: 'Cluster centres',
+          type: 'heatmap',
+          data,
+          itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
+          label: { show: true, fontSize: 12, formatter: (p: any) => formatSummaryNumber(p.value[3]) },
+        },
+      ],
+    } as EChartsOption,
   ];
 }
 
@@ -140,14 +186,16 @@ function buildKMeansElbowChart(elbow: any): EChartsOption {
 
   return {
     mipChartHeight: 340,
+    // The y-axis measure is the subtitle: as an axis name it ran into the title in a 360px column.
     title: {
       text: 'Elbow Curve',
+      subtext: 'Within-cluster sum of squares for each k',
       left: 'center',
     },
     tooltip: {
       trigger: 'axis',
     },
-    grid: { top: 56, right: 32, bottom: 48, left: 88 },
+    grid: { top: 64, right: 32, bottom: 48, left: 88 },
     xAxis: {
       type: 'category',
       name: 'k',
@@ -155,7 +203,6 @@ function buildKMeansElbowChart(elbow: any): EChartsOption {
     },
     yAxis: {
       type: 'value',
-      name: 'Within-cluster sum of squares',
     },
     series: [
       {

@@ -10,13 +10,15 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
   }
 
   const series: LineSeriesOption[] = [];
+  // Short legend entries ("Fold 1 · 0.864", the AUC after the dot) so five folds fit one row.
+  const aucByName: Record<string, string> = {};
 
   for (const fold of rocCurves) {
     const fpr = fold.fpr;
     const tpr = fold.tpr;
     const auc = fold.auc;
-    const name = fold.name || `Fold`;
-    const label = (typeof auc === 'number' && !isNaN(auc)) ? `${name} (AUC: ${auc.toFixed(3)})` : name;
+    const name = String(fold.name || 'Fold').replace(/^fold_?(\d+)$/i, 'Fold $1');
+    if (typeof auc === 'number' && !isNaN(auc)) aucByName[name] = auc.toFixed(3);
 
     if (!Array.isArray(fpr) || !Array.isArray(tpr) || fpr.length !== tpr.length) {
       console.warn(`[ROC Chart] Invalid data for ${name}`);
@@ -26,7 +28,7 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
     const points = fpr.map((x, i) => [x, tpr[i]]);
 
     series.push({
-      name: label,
+      name,
       type: 'line' as const,
       data: points,
       showSymbol: false,
@@ -90,6 +92,7 @@ export function buildRocCurveChart(result: any): EChartsOption[] {
         top: 32,
         type: 'scroll',
         textStyle: { color: '#475569' },
+        formatter: (name: string) => (aucByName[name] ? `${name} · ${aucByName[name]}` : name),
       },
       series,
     },

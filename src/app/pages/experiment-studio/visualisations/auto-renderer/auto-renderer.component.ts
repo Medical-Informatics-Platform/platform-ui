@@ -3,6 +3,8 @@ import { CsvExportService } from '../../../../services/csv-export.service';
 import { getAlgorithmTableBuilder, TableSpec, TableTrim, trimTable } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 
+// 'Kept range' holds "a to b": left-aligned it stays clear of the right-aligned count beside it.
+const TEXT_COLUMNS = new Set(['Role', 'Categories', 'Dataset', 'Rule', 'Kept range', 'Compactness', 'Profile', 'Type', 'Note']);
 
 @Component({
   selector: 'app-auto-renderer',
@@ -115,9 +117,9 @@ export class AutoRendererComponent {
     return colCount <= 3 && rowCount <= 12;
   }
 
-  /** Name columns read left-aligned; every other column holds numbers and aligns right. */
+  /** Name and prose columns read left-aligned; every other column holds numbers and aligns right. */
   isTextColumn(column: string | undefined): boolean {
-    return column === 'Role' || column === 'Categories' || column === 'Dataset' || column === 'Rule' || !!column?.startsWith('Variable');
+    return !!column && (TEXT_COLUMNS.has(column) || column.startsWith('Variable'));
   }
 
   /** On screen: thousands grouped (111,854; 1,065,587), trailing zeros trimmed, a typographic minus;

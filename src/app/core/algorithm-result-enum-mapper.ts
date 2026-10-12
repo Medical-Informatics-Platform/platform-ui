@@ -447,11 +447,21 @@ export function mapAlgorithmResultEnums(
     }
     case 'kmeans': {
       if (!labelMap || !Array.isArray(result?.variables)) return result;
+      // Each profile line starts with a variable code: "nihss_adm_score is below the overall mean".
+      const profileLine = (line: unknown) => {
+        const text = String(line ?? '');
+        const code = result.variables.find((v: string) => text.startsWith(`${v} `));
+        return code && labelMap[code] ? labelMap[code] + text.slice(code.length) : text;
+      };
       return {
         ...result,
         variables: result.variables.map((code: string) => labelMap[code] ?? code),
         clusters: Array.isArray(result.clusters)
-          ? result.clusters.map((cluster: any) => ({ ...cluster, center: mapObjectKeys(cluster?.center ?? {}, labelMap) }))
+          ? result.clusters.map((cluster: any) => ({
+            ...cluster,
+            center: mapObjectKeys(cluster?.center ?? {}, labelMap),
+            ...(Array.isArray(cluster?.profile) ? { profile: cluster.profile.map(profileLine) } : {}),
+          }))
           : result.clusters,
       };
     }

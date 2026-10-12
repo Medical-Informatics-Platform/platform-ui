@@ -36,10 +36,10 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   naive_bayes_categorical: { build: buildNaiveBayesPriorsChart, title: 'Class priors', replaces: [{ title: 'Class Summary' }] },
   naive_bayes_gaussian_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance', replaces: [{ title: 'Confusion Matrix (Combined)' }] },
   naive_bayes_categorical_cv: { build: buildNaiveBayesConfusionChart, title: 'Classification performance', replaces: [{ title: 'Confusion Matrix (Combined)' }] },
-  // r is in the heatmap; the pairs table keeps each pair's CI and p.
-  pearson_correlation: { build: buildMatrixChart, title: 'Correlation matrix', replaces: [{ title: 'Correlation pairs', columns: ['r'] }] },
-  pca: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: [{ title: 'PCA Summary' }, { title: 'Loadings' }] },
-  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: [{ title: 'PCA Summary' }, { title: 'Loadings' }] },
+  // The pairs table keeps r: it is sorted by strength, and the value it is sorted by belongs in it.
+  pearson_correlation: { build: buildMatrixChart, title: 'Correlation matrix' },
+  pca: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: [{ title: 'PCA Summary' }, { title: 'Component weights' }] },
+  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: [{ title: 'PCA Summary' }, { title: 'Component weights' }] },
   anova_oneway: { build: buildMeanPlotChart, title: 'Group means' },
   linear_svm: { build: buildSVMChart, title: 'Model weights' },
   describe: { build: buildBoxPlotChart, title: 'Distributions' },

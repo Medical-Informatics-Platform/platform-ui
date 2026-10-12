@@ -99,5 +99,6 @@ describe('buildSummaryFigures', () => {
 
     const mwu = byLabel(buildSummaryFigures('binned_mann_whitney_u_test', { u_stat: 70, p_value: 0.01, n1: 10, n2: 10 }, context)!);
     expect(mwu['Group sizes'].note).toBe('yes · no');
+    expect(mwu['P(A > B)'].note).toBe('Medium effect · chance a value from yes ranks above one from no, ties half');
   });
 });

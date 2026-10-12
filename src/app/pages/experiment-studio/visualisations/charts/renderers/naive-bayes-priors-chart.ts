@@ -112,7 +112,7 @@ export function buildNaiveBayesProfileChart(result: any): EChartsOption[] {
 
   return [
     {
-      mipChartHeight: 96 + 44 * features.length,
+      mipChartHeight: 112 + 44 * features.length,
       title: {
         text: 'Class profiles',
         subtext: 'Class mean minus overall mean, in pooled within-class SDs',
@@ -127,7 +127,8 @@ export function buildNaiveBayesProfileChart(result: any): EChartsOption[] {
           return `${features[f]} · ${classes[c]}<br/>Mean: <b>${Number(theta[c][f]).toFixed(2)}</b> (SD ${Math.sqrt(Number(variance[c][f])).toFixed(2)})<br/>${p.value[0] >= 0 ? '+' : '−'}${Math.abs(p.value[0]).toFixed(2)} SD from the overall mean`;
         },
       },
-      grid: { top: 56, left: 8, right: 24, bottom: 36, containLabel: true },
+      // Room above the first row for its class-name labels.
+      grid: { top: 72, left: 8, right: 24, bottom: 36, containLabel: true },
       xAxis: {
         type: 'value',
         axisLabel: { color: '#475569', formatter: (v: number) => `${v > 0 ? '+' : ''}${v}` },
@@ -146,6 +147,9 @@ export function buildNaiveBayesProfileChart(result: any): EChartsOption[] {
         type: 'scatter',
         symbolSize: 12,
         itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
+        // Class names on the first row's dots, so colour alone never tells the classes apart.
+        label: { show: true, position: 'top', color: '#0f172a', formatter: (p: any) => (p.dataIndex === 0 ? name : '') },
+        labelLayout: { hideOverlap: true },
         data: features.map((_, f) => [standardized[f][c], f]),
         ...(c === 0
           ? { markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: '#94a3b8', type: 'dashed' }, data: [{ xAxis: 0 }] } }

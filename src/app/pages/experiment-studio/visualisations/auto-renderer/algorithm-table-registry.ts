@@ -11,7 +11,7 @@ import {
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
-import { formatPValue, readable } from '../result-format';
+import { formatPValue, readable, toFiniteNumber } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 
 export interface TableSpec {
@@ -436,9 +436,10 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       columns: ['Cluster', 'Size', ...variables],
       rows: clusters.map(c => [c.label, c.size_interval, ...variables.map(v => formatDecimal(c.center[v]))]),
     }, {
+      // The interpretation sentence only restates the profile and the compactness.
       title: 'Cluster Profiles',
-      columns: ['Cluster', 'Compactness', 'Profile', 'Interpretation'],
-      rows: clusters.map(c => [c.label, c.quality?.compactness ?? '-', (c.profile ?? []).join('; '), c.interpretation]),
+      columns: ['Cluster', 'Compactness', 'Profile'],
+      rows: clusters.map(c => [c.label, c.quality?.compactness ?? '-', (c.profile ?? []).join('; ')]),
     }];
 
     const noteRows: any[][] = [];
@@ -778,8 +779,9 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     };
     // A class the confusion matrix never saw (an unused enumeration) has no metrics worth a row.
     const shown = confusion ? classes.filter((cls) => (support(cls) ?? 0) > 0) : classes;
+    // Fixed decimals, so "0.710 ± 0.007" lines up with "0.832 ± 0.011" (the ± text is shown as written).
     const meanSd = (block: Record<string, number> | undefined) =>
-      block?.['average'] === undefined ? '' : `${formatDecimal(block['average'])} ± ${formatDecimal(block['stdev'] ?? 0)}`;
+      block?.['average'] === undefined ? '' : `${Number(block['average']).toFixed(3)} ± ${Number(block['stdev'] ?? 0).toFixed(3)}`;
 
     const tables: TableSpec[] = [{
       title: 'Per-class metrics (mean ± SD over folds)',
@@ -796,9 +798,10 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     // Accuracy is one number per fold, repeated under every class key.
     const accuracy = summary.accuracy[classes[0]];
     const folds = Object.keys(accuracy).filter((key) => key !== 'average' && key !== 'stdev');
+    // n_obs per fold counts the rows the model trained on, not the held-out fold.
     tables.push({
       title: 'Accuracy per fold',
-      columns: ['Fold', 'Accuracy', 'Observations'],
+      columns: ['Fold', 'Accuracy', 'Training rows'],
       layout: 'compact',
       rows: [
         ...folds.map((fold) => [fold.replace(/^fold(\d+)$/, (_, n) => `Fold ${Number(n) + 1}`), formatDecimal(accuracy[fold]), formatDecimal(summary.n_obs?.[fold] ?? '')]),
@@ -875,10 +878,12 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const s = result.summary;
 
     const n = s.n_obs.length;
+    const rowLabel = (name: string) =>
+      name === 'average' ? 'Mean' : name === 'stdev' ? 'SD' : name.replace(/^fold_?(\d+)$/i, 'Fold $1');
     const rows = [];
     for (let i = 0; i < n; i++) {
       rows.push([
-        s.row_names[i],
+        rowLabel(String(s.row_names[i])),
         formatDecimal(s.n_obs[i]),
         formatDecimal(s.accuracy[i]),
         formatDecimal(s.precision[i]),
@@ -889,7 +894,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
     return [{
       title: 'Logistic Regression CV Summary',
-      columns: ['Fold', 'Observations', 'Accuracy', 'Precision', 'Recall', 'F-Score'],
+      // n_obs per fold counts the rows the model trained on, not the held-out fold.
+      columns: ['Fold', 'Training rows', 'Accuracy', 'Precision', 'Recall', 'F-Score'],
       rows
     }];
   },
@@ -992,7 +998,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     if (nVariables) {
       const names: unknown[] = Array.isArray((result as any).variable_names) ? (result as any).variable_names : [];
       tables.push({
-        title: 'Loadings',
+        title: 'Component weights',
         columns: ['Variable', ...vectors.map((_, i) => `PC${i + 1}`)],
         rows: Array.from({ length: nVariables }, (_, j) => [
           String(names[j] ?? `Var${j + 1}`),
@@ -1288,13 +1294,17 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const strategyLabels: Record<string, string> = { gaussian: 'Mean ± SD', iqr: 'IQR', mad: 'MAD', quantile: 'Quantile' };
     const tailLabels: Record<string, string> = { left: 'lower tail', right: 'upper tail', both: 'both tails' };
     const bound = (value: unknown) => (value === null || value === undefined ? '—' : formatDecimal(value));
+    const share = (value: unknown) => {
+      const percent = toFiniteNumber(value);
+      return percent === null ? 'Unavailable' : `${percent.toFixed(1)}%`;
+    };
     const rows = featurewise.filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets');
     const variableOrder = [...new Set(rows.map((row: any) => row?.variable))];
     rows.sort((a: any, b: any) => variableOrder.indexOf(a?.variable) - variableOrder.indexOf(b?.variable));
 
     return [{
       title: 'Outlier Report',
-      columns: ['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Outlier %'],
+      columns: ['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Share'],
       rows: rows.map((row: any) => {
         const data = row?.data ?? {};
         const strategy = data.strategy ? strategyLabels[data.strategy] ?? data.strategy : 'Unavailable';
@@ -1308,7 +1318,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           formatNullableOutlierValue(data.lower_outlier_count),
           formatNullableOutlierValue(data.upper_outlier_count),
           formatNullableOutlierValue(data.total_outlier_count),
-          formatNullableOutlierValue(data.total_outlier_percentage),
+          // Exaflow sends the share as a percentage (8.917 for 8.9%).
+          share(data.total_outlier_percentage),
         ];
       }),
     }];

@@ -150,6 +150,8 @@
 
 .ar-table td:not(:first-child),
 .ar-table thead th:not(:first-child) {
+  /* A gap before every column, so neighbours never touch ("0 11,130", "COMPACTNESSPROFILE"). */
+  padding-left: 8px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

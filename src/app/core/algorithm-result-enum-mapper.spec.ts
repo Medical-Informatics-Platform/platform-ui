@@ -117,6 +117,21 @@ describe('mapAlgorithmResultEnums', () => {
     expect(mapped.clusters[0].center).toEqual({ Age: 79.5, '24h score': 2 });
   });
 
+  it('labels the variable that opens each k-means profile line', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'kmeans',
+      {
+        variables: ['nihss', 'nihss_24h'],
+        clusters: [{ label: 'Cluster 0', center: {}, profile: ['nihss_24h is above the overall mean', 'nihss is below the overall mean'] }],
+      },
+      {},
+      {},
+      { nihss: 'Admission score', nihss_24h: '24h score' }
+    );
+
+    expect(mapped.clusters[0].profile).toEqual(['24h score is above the overall mean', 'Admission score is below the overall mean']);
+  });
+
   it('labels a mixed model grouping variable sent as a list', () => {
     const mapped = mapAlgorithmResultEnums(
       'lmm',

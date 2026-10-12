@@ -113,6 +113,8 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
           label: {
             show: true,
             fontSize: 13,
+            // ECharts' default line height sets the count and its share line on top of each other.
+            lineHeight: 18,
             formatter: (params: any) => `${params.data.count.toLocaleString('en-US')}\n${(params.value[2] * 100).toFixed(1)}%`,
           },
         },

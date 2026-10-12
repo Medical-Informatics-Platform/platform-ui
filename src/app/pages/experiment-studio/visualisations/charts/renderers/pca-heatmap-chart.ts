@@ -3,7 +3,7 @@ import { CHART_SERIES_COLORS } from '../chart-palette';
 
 const AXIS_COLOR = '#475569';
 const TEXT_COLOR = '#0f172a';
-// Loadings are signed, so the scale diverges: red below zero, neutral grey at zero, primary blue above.
+// Weights are signed, so the scale diverges: red below zero, neutral grey at zero, primary blue above.
 const LOADING_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
 
 /** Share of total variance per component, in percent. */
@@ -67,8 +67,9 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
   charts.push({
     mipChartHeight: 150 + 40 * nVariables,
     title: {
-      text: 'Loadings',
-      subtext: 'Weight of each variable in each component, with the variance the component explains',
+      // Unit eigenvectors, not loadings (eigenvector × √eigenvalue): named for what they are.
+      text: 'Component weights',
+      subtext: "Each variable's eigenvector weight per component",
       left: 'center',
     },
     tooltip: {
@@ -115,7 +116,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
     },
     series: [
       {
-        name: 'Loadings',
+        name: 'Component weights',
         type: 'heatmap',
         data: heatmapData,
         itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
@@ -167,7 +168,8 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
           barMaxWidth: 48,
           data: shares.map(round1),
           itemStyle: { color: CHART_SERIES_COLORS[0] },
-          label: { show: true, position: 'top', color: TEXT_COLOR, formatter: '{c}%' },
+          // One decimal like the weights' column headers: "14.0%", not "14%".
+          label: { show: true, position: 'top', color: TEXT_COLOR, formatter: (p: any) => `${Number(p.value).toFixed(1)}%` },
         },
         {
           name: 'Cumulative',

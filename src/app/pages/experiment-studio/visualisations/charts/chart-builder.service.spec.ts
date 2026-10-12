@@ -40,7 +40,7 @@ describe('ChartBuilderService', () => {
     });
 
     expect(charts.length).toBe(2);
-    expect((charts[0] as any).title?.text).toBe('Loadings');
+    expect((charts[0] as any).title?.text).toBe('Component weights');
     expect((charts[1] as any).title?.text).toBe('Variance explained');
     expect((charts[1] as any).series[0].data).toEqual([66.7, 33.3]);
   });

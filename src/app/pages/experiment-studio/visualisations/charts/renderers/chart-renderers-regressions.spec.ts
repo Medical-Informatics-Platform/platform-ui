@@ -31,21 +31,26 @@ describe('Chart renderers regressions', () => {
     expect(shares).toEqual([0.75, 0.25, 0.25, 0.75]);
   });
 
-  it('falls back to parallel coordinates for high-dimensional kmeans clusters', () => {
+  it('draws three or more kmeans variables as a centres heatmap shaded around the size-weighted mean', () => {
     const charts = buildKMeansChart({
-      variables: ['v1', 'v2', 'v3', 'v4'],
+      variables: ['v1', 'v2', 'v3'],
       clusters: [
-        { label: 'Cluster 0', center: { v1: 0.1, v2: 0.2, v3: 0.3, v4: 0.4 } },
-        { label: 'Cluster 1', center: { v1: 0.5, v2: 0.6, v3: 0.7, v4: 0.8 } },
+        { label: 'Cluster 0', size_interval: '30-30', center: { v1: 10, v2: 1, v3: 5 } },
+        { label: 'Cluster 1', size_interval: '10-10', center: { v1: 50, v2: 1, v3: 1 } },
       ],
       elbow: null,
     });
 
     expect(charts.length).toBe(1);
-    expect((charts[0] as any).title?.text).toContain('Parallel Coordinates');
-    expect((charts[0] as any).series?.length).toBe(2);
-    expect((charts[0] as any).parallelAxis.map((a: any) => a.name)).toEqual(['v1', 'v2', 'v3', 'v4']);
-    expect((charts[0] as any).series?.[0]?.name).toBe('Cluster 0');
+    const chart = charts[0] as any;
+    expect(chart.xAxis.data).toEqual(['v1', 'v2', 'v3']);
+    expect(chart.yAxis.data).toEqual(['Cluster 0 · ~30', 'Cluster 1 · ~10']);
+    // v1 overall mean (3·10 + 1·50) / 4 = 20: deviations −10 and +30, scaled by the larger.
+    const cells = chart.series[0].data.map((cell: any) => cell.value);
+    expect(cells[0]).toEqual([0, 0, -1 / 3, 10]);
+    expect(cells[3]).toEqual([0, 1, 1, 50]);
+    // A variable equal in every cluster sits at the mean.
+    expect(cells[1][2]).toBe(0);
   });
 
   it('sizes two-variable kmeans bubbles by the midpoint of each size interval', () => {

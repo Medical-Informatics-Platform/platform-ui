@@ -108,7 +108,8 @@ function mannWhitneyFigures(result: any, context?: SummaryContext): KeyFigure[] 
     figures.push({
       label: 'P(A > B)',
       value: probability.toFixed(2),
-      note: `${probabilityMagnitude(probability)} effect · chance a ${a} value ranks above a ${b} value, ties half`,
+      // "a value from ACS", not "a ACS value": no article to agree with an arbitrary group name.
+      note: `${probabilityMagnitude(probability)} effect · chance a value from ${a} ranks above one from ${b}, ties half`,
     });
   }
   if (n1 !== null && n2 !== null) {
@@ -300,21 +301,8 @@ function classificationCvFigures(result: any): KeyFigure[] {
     }
   }
 
-  // Logistic regression CV also reports positive-class precision, recall and F1 per fold.
-  const rows: unknown[] = Array.isArray(result?.summary?.row_names) ? result.summary.row_names : [];
-  const foldMean = (key: string) => {
-    const values: unknown[] = Array.isArray(result?.summary?.[key]) ? result.summary[key] : [];
-    const mean = toFiniteNumber(values[rows.indexOf('average')]);
-    const sd = toFiniteNumber(values[rows.indexOf('stdev')]);
-    return mean === null ? null : `${mean.toFixed(3)}${sd === null ? '' : ` ± ${sd.toFixed(3)}`}`;
-  };
-  const f1 = foldMean('fscore');
-  if (f1 !== null) {
-    const [value, spread] = f1.split(' ± ');
-    const parts = [spread ? `± ${spread}` : '', foldMean('precision') ? `precision ${foldMean('precision')}` : '', foldMean('recall') ? `recall ${foldMean('recall')}` : ''];
-    figures.push({ label: 'Positive-class F1', value, note: `Fold mean ${parts.filter(Boolean).join(' · ')}` });
-  }
-
+  // Logistic regression's positive-class precision, recall and F1 stay in its fold table
+  // (with their mean and SD rows): a sixth figure wraps the strip onto a second line.
   const aucs = (Array.isArray(result?.roc_curves) ? result.roc_curves : [])
     .map((curve: any) => toFiniteNumber(curve?.auc))
     .filter((auc: number | null): auc is number => auc !== null);
@@ -397,7 +385,6 @@ export const TABLES_SHOWN_AS_FIGURES: Record<string, TableTrim[]> = {
   // Fold means and SDs are in the figures; the per-fold rows stay.
   naive_bayes_gaussian_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
   naive_bayes_categorical_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
-  logistic_regression_cv: [{ title: 'Logistic Regression CV Summary', rows: ['average', 'stdev'] }],
 };
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */
