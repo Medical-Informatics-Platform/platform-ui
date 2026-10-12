@@ -1,3 +1,6 @@
 vulnerabilities:
   - id: CVE-2026-54515
     statement: "False positive, not reachable code path"
+  - id: CVE-2026-93687
+    expired_at: 2027-01-04
+    statement: "braces@3.0.3 has no published fixed release. Only the karma test runner pulls it in (directly and through chokidar 3). Same ignore as GHSA-vfj7-8cjw-p6xm in suppress_osv_scanner.toml."
