@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { cellLabelColor } from '../chart-palette';
 
 export interface ConfusionMatrix {
   labels: string[];
@@ -53,7 +54,7 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
       return {
         value: [j, i, share],
         count,
-        label: { color: share >= 0.5 ? '#ffffff' : '#0f172a' },
+        label: { color: cellLabelColor(share) },
       };
     });
   });

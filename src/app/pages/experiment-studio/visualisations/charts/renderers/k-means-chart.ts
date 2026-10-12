@@ -1,10 +1,8 @@
 import { EChartsOption } from 'echarts';
 import { formatSummaryNumber } from '../../result-format';
+import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
 
 const AXIS_COLOR = '#475569';
-const TEXT_COLOR = '#0f172a';
-// Signed distance from the overall mean: red below, neutral grey at the mean, primary blue above.
-const DEVIATION_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
 
 export function buildKMeansChart(output: any): EChartsOption[] {
   const clusters = output?.clusters;
@@ -16,10 +14,16 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
   const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
+  // A range prints as its midpoint ("~66,245"); "<10" and an empty cluster's "0" print as sent.
+  const sizeTexts: (string | null)[] = clusters.map((c: any, i: number) => {
+    const interval = String(c.size_interval ?? '').trim();
+    if (sizes[i] === null) return null;
+    return interval.includes('-') ? `~${Math.round(sizes[i]!).toLocaleString('en-US')}` : interval;
+  });
   // Each cluster's name carries its size, so the centres table is not needed on screen.
-  const sizedNames = names.map((name, i) => (sizes[i] === null ? name : `${name} · ~${Math.round(sizes[i]!).toLocaleString('en-US')}`));
+  const sizedNames = names.map((name, i) => (sizeTexts[i] === null ? name : `${name} · ${sizeTexts[i]}`));
   const charts = variables.length === 2
-    ? buildKMeans2DChart(centers as [number, number][], names, sizedNames, variables, sizes)
+    ? buildKMeans2DChart(centers as [number, number][], names, sizedNames, variables, sizes, sizeTexts)
     : buildKMeansCentresHeatmap(centers, sizedNames, variables, sizes);
 
   if (output.elbow) {
@@ -29,10 +33,13 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   return charts;
 }
 
-/** Cluster sizes arrive as privacy-safe intervals ("87520-87529"); the midpoint is close enough to scale a bubble. */
+/** Cluster sizes arrive as privacy-safe intervals ("87520-87529", "<10"); the midpoint is close
+ *  enough to scale a bubble or weight a mean. */
 function intervalMidpoint(interval: unknown): number | null {
   const match = String(interval ?? '').match(/^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*$/);
   if (match) return (Number(match[1]) + Number(match[2])) / 2;
+  const below = String(interval ?? '').match(/^\s*<\s*(\d+(?:\.\d+)?)\s*$/);
+  if (below) return Number(below[1]) / 2;
   const single = Number(interval);
   return Number.isFinite(single) ? single : null;
 }
@@ -43,7 +50,8 @@ function buildKMeans2DChart(
   names: string[],
   legendNames: string[],
   variables: string[],
-  sizes: (number | null)[]
+  sizes: (number | null)[],
+  sizeTexts: (string | null)[]
 ): EChartsOption[] {
   const largest = Math.max(1, ...sizes.map((size) => size ?? 0));
   const radius = (size: number | null) => (size === null ? 18 : 12 + 36 * Math.sqrt(size / largest));
@@ -68,9 +76,9 @@ function buildKMeans2DChart(
       tooltip: {
         trigger: 'item',
         formatter: (p: any) => {
-          const size = sizes[p.seriesIndex];
+          const size = sizeTexts[p.seriesIndex];
           return `${names[p.seriesIndex]}<br/>${variables[0]}: <b>${p.value[0].toFixed(2)}</b><br/>${variables[1]}: <b>${p.value[1].toFixed(2)}</b>` +
-            (size === null ? '' : `<br/>~${Math.round(size).toLocaleString('en-US')} rows`);
+            (size === null ? '' : `<br/>${size} rows`);
         },
       },
       grid: { top: 64, left: 24, right: 32, bottom: 48, containLabel: true },
@@ -102,7 +110,9 @@ function buildKMeansCentresHeatmap(
 ): EChartsOption[] {
   if (!centers.length || !variables.length) return [];
 
-  const weights = sizes.every((size) => size !== null && size > 0) ? (sizes as number[]) : centers.map(() => 1);
+  // An empty cluster ("0") weighs nothing; an unreadable size drops the weighting for every cluster.
+  const sized = sizes.every((size) => size !== null) && sizes.some((size) => size! > 0);
+  const weights = sized ? (sizes as number[]) : centers.map(() => 1);
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
   const deviations = variables.map((_, v) => {
     const mean = centers.reduce((sum, center, c) => sum + weights[c] * Number(center[v]), 0) / totalWeight;
@@ -116,8 +126,7 @@ function buildKMeansCentresHeatmap(
       const shade = deviations[v][c];
       return {
         value: [v, c, shade, Number(center[v])],
-        // White text on the saturated ends, ink on the pale middle.
-        label: { color: Math.abs(shade) >= 0.6 ? '#ffffff' : TEXT_COLOR },
+        label: { color: cellLabelColor(shade) },
       };
     })
   );
@@ -165,7 +174,7 @@ function buildKMeansCentresHeatmap(
         itemHeight: 160,
         text: ['Above mean', 'Below mean'],
         textStyle: { color: AXIS_COLOR },
-        inRange: { color: DEVIATION_COLORS },
+        inRange: { color: DIVERGING_COLORS },
       },
       series: [
         {

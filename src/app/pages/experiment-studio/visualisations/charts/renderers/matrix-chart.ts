@@ -1,10 +1,8 @@
 import { EChartsOption } from 'echarts';
 import { formatPValue } from '../../result-format';
+import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
 
 const AXIS_COLOR = '#475569';
-const TEXT_COLOR = '#0f172a';
-// r is signed: red below zero, neutral grey at zero, primary blue above.
-const CORRELATION_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
 
 type Matrix = Record<string, unknown> & { variables?: string[] };
 
@@ -49,7 +47,7 @@ export function buildMatrixChart(result: any): EChartsOption[] {
       if (square && j > i) return [];
       const r = cell(correlations, row, col);
       if (r === null) return [];
-      return [{ value: [j, i, r], label: { color: Math.abs(r) >= 0.5 ? '#ffffff' : TEXT_COLOR } }];
+      return [{ value: [j, i, r], label: { color: cellLabelColor(r) } }];
     })
   );
 
@@ -97,7 +95,7 @@ export function buildMatrixChart(result: any): EChartsOption[] {
       itemHeight: 160,
       text: ['r = +1', '−1'],
       textStyle: { color: AXIS_COLOR },
-      inRange: { color: CORRELATION_COLORS },
+      inRange: { color: DIVERGING_COLORS },
     },
     series: [{
       name: 'Pearson r',

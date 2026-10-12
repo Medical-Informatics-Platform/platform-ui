@@ -15,3 +15,16 @@ export const CHART_SERIES_COLORS = [
   '#008300',
   '#1baf7a',
 ];
+
+/** Signed heatmap scale from -1 to 1: red below zero, neutral grey at zero, primary blue above. */
+export const DIVERGING_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
+
+/**
+ * Text colour for a value printed on a cell shaded by DIVERGING_COLORS (or its grey-to-blue half),
+ * given the cell's place on that scale. Ink stays at 4.5:1 or better across the red half, so white
+ * only takes over on the deep blue end, where it beats ink.
+ */
+export function cellLabelColor(scalePosition: number): string {
+  // ponytail: both colours dip to ~4.2:1 right at 0.7; a darker blue stop would close that gap.
+  return scalePosition >= 0.7 ? '#ffffff' : '#0f172a';
+}

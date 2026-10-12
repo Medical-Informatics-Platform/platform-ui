@@ -1,10 +1,8 @@
 import { EChartsOption } from "echarts";
-import { CHART_SERIES_COLORS } from '../chart-palette';
+import { CHART_SERIES_COLORS, DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
 
 const AXIS_COLOR = '#475569';
 const TEXT_COLOR = '#0f172a';
-// Weights are signed, so the scale diverges: red below zero, neutral grey at zero, primary blue above.
-const LOADING_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
 
 /** Share of total variance per component, in percent. */
 function varianceShares(eigenvalues: unknown): number[] {
@@ -58,8 +56,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
   const heatmapData = matrix.flatMap((row: number[], component: number) =>
     row.map((value, variable) => ({
       value: [component, variable, value],
-      // White text on the saturated ends, ink on the pale middle.
-      label: { color: Math.abs(value) >= 0.5 ? '#ffffff' : TEXT_COLOR },
+      label: { color: cellLabelColor(value) },
     }))
   );
 
@@ -112,7 +109,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       itemHeight: 160,
       text: ['+1', '−1'],
       textStyle: { color: AXIS_COLOR },
-      inRange: { color: LOADING_COLORS },
+      inRange: { color: DIVERGING_COLORS },
     },
     series: [
       {

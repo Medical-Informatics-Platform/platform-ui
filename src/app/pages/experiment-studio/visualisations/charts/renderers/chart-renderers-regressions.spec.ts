@@ -51,6 +51,28 @@ describe('Chart renderers regressions', () => {
     expect(cells[3]).toEqual([0, 1, 1, 50]);
     // A variable equal in every cluster sits at the mean.
     expect(cells[1][2]).toBe(0);
+    // White text only on the deep blue end; ink reads better on the whole red half.
+    const labelColors = chart.series[0].data.map((cell: any) => cell.label.color);
+    expect(cells[5][2]).toBe(-1);
+    expect(labelColors[5]).toBe('#0f172a');
+    expect(labelColors[3]).toBe('#ffffff');
+  });
+
+  it('weights a kmeans cluster under the privacy threshold by half the threshold', () => {
+    const chart = buildKMeansChart({
+      variables: ['v1', 'v2', 'v3'],
+      clusters: [
+        { label: 'Cluster 0', size_interval: '30-30', center: { v1: 0, v2: 1, v3: 1 } },
+        { label: 'Cluster 1', size_interval: '<10', center: { v1: 70, v2: 1, v3: 1 } },
+      ],
+      elbow: null,
+    })[0] as any;
+
+    expect(chart.yAxis.data).toEqual(['Cluster 0 · ~30', 'Cluster 1 · <10']);
+    // Weights 30 and 5: v1 mean (30·0 + 5·70) / 35 = 10, so deviations −10 and +60.
+    const cells = chart.series[0].data.map((cell: any) => cell.value);
+    expect(cells[0][2]).toBeCloseTo(-1 / 6, 10);
+    expect(cells[3][2]).toBe(1);
   });
 
   it('sizes two-variable kmeans bubbles by the midpoint of each size interval', () => {
