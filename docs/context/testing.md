@@ -65,11 +65,11 @@ npm run e2e -- e2e/dashboard.spec.ts     # one file
 npm run e2e -- -g "save shows"           # tests whose name matches
 ```
 
-- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, run and save lifecycle, result rendering.
+- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, histogram and describe previews, run and save lifecycle, result rendering.
 - `dashboard.spec.ts`: rename, share, delete (with rollback), compare, duplicate.
 - `access.spec.ts`: Keycloak redirect, terms acceptance, notebook route on and off.
 - `fixtures.ts`: the `test` every spec imports. It installs the mock (`api`), and fails the test if the app called a `/services` endpoint the mock does not answer.
-- `experiment-studio-api.ts`: the mock and its data. `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
+- `experiment-studio-api.ts`: the mock and its data. Linear regression, `describe` and `histogram` answers follow the shapes Exaflow returns (see the expected outputs under `exaflow/tests/prod_env_tests/expected/`). `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
 - `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, run, save).
 
 Failed tests keep a trace and a screenshot in `e2e/test-results/`; CI uploads that folder as the `e2e-test-results` artifact. Open a trace with `npx playwright show-trace <trace.zip>`. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.

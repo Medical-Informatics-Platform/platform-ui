@@ -195,23 +195,115 @@ function dataModel() {
   };
 }
 
-function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inputdata?: { variables?: string[] } } }) {
-  const codes = body?.analysis?.algorithm?.y?.length
+interface NumericalStats {
+  num_dtps: number;
+  num_na: number;
+  num_total: number;
+  mean: number;
+  std: number;
+  min: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  max: number;
+}
+
+/**
+ * Per-dataset summaries in the shape of Exaflow's `describe` (exaflow
+ * algorithms/exareme3/statistics/describe.py). Unknown numerical codes reuse `age`.
+ */
+const NUMERICAL_STATS: Record<string, Record<string, NumericalStats>> = {
+  age: {
+    chuv: { num_dtps: 48, num_na: 2, num_total: 50, mean: 71.6, std: 7.9, min: 52, q1: 66, q2: 72, q3: 77, max: 91 },
+    adni: { num_dtps: 47, num_na: 3, num_total: 50, mean: 73.1, std: 8.4, min: 55, q1: 67, q2: 73, q3: 79, max: 94 },
+  },
+  mmse: {
+    chuv: { num_dtps: 45, num_na: 5, num_total: 50, mean: 24.6, std: 3.9, min: 13, q1: 22, q2: 25, q3: 28, max: 30 },
+    adni: { num_dtps: 49, num_na: 1, num_total: 50, mean: 25.3, std: 3.4, min: 15, q1: 23, q2: 26, q3: 28, max: 30 },
+  },
+};
+
+/** Category counts per dataset, for nominal variables and the columns the studio derives. */
+const NOMINAL_COUNTS: Record<string, Record<string, Record<string, number>>> = {
+  sex: { chuv: { M: 22, F: 28 }, adni: { M: 24, F: 26 } },
+  apoe: { chuv: { e3: 36, e4: 14 }, adni: { e3: 33, e4: 17 } },
+  sex_group: { chuv: { female: 28, other: 22 }, adni: { female: 26, other: 24 } },
+  kmeans_cluster: { chuv: { '0': 23, '1': 25 }, adni: { '0': 22, '1': 25 } },
+};
+
+/** The `all datasets` row: summed counts, pooled mean and standard deviation, no quartiles. */
+function globalStats(rows: NumericalStats[]) {
+  const n = rows.reduce((sum, row) => sum + row.num_dtps, 0);
+  const sx = rows.reduce((sum, row) => sum + row.mean * row.num_dtps, 0);
+  const sxx = rows.reduce((sum, row) => sum + (row.num_dtps - 1) * row.std ** 2 + row.num_dtps * row.mean ** 2, 0);
+  const mean = sx / n;
+  return {
+    num_dtps: n,
+    num_na: rows.reduce((sum, row) => sum + row.num_na, 0),
+    num_total: rows.reduce((sum, row) => sum + row.num_total, 0),
+    mean,
+    std: Math.sqrt((sxx - n * mean ** 2) / (n - 1)),
+    min: Math.min(...rows.map((row) => row.min)),
+    max: Math.max(...rows.map((row) => row.max)),
+  };
+}
+
+function nominalTotals(rows: { num_dtps: number; num_na: number; num_total: number; counts: Record<string, number> }[]) {
+  const counts: Record<string, number> = {};
+  for (const row of rows) for (const [level, count] of Object.entries(row.counts)) counts[level] = (counts[level] ?? 0) + count;
+  return {
+    num_dtps: rows.reduce((sum, row) => sum + row.num_dtps, 0),
+    num_na: rows.reduce((sum, row) => sum + row.num_na, 0),
+    num_total: rows.reduce((sum, row) => sum + row.num_total, 0),
+    counts,
+  };
+}
+
+/** Exaflow `describe`: one row per variable and dataset, then one `all datasets` row per variable. */
+function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inputdata?: { variables?: string[]; datasets?: string[] } } }) {
+  const codes = (body?.analysis?.algorithm?.y?.length
     ? body.analysis.algorithm.y
-    : body?.analysis?.inputdata?.variables ?? [];
-  const featurewise = codes
-    .filter((code) => code && code !== 'dataset')
-    .map((code) => {
-      const nominal = code === 'sex' || code === 'apoe';
-      return {
-        variable: code,
-        dataset: 'chuv',
-        data: nominal
-          ? { num_dtps: 100, num_na: 0, num_total: 100, counts: code === 'sex' ? { M: 40, F: 60 } : { e3: 70, e4: 30 } }
-          : { num_dtps: 90, num_na: 10, num_total: 100, mean: 72, std: 8, min: 50, q1: 66, q2: 72, q3: 78, max: 95 },
-      };
-    });
-  return { featurewise, dataset_labels: { chuv: 'CHUV', adni: 'ADNI' } };
+    : body?.analysis?.inputdata?.variables ?? []
+  ).filter((code) => code && code !== 'dataset');
+  const datasets = body?.analysis?.inputdata?.datasets?.length ? body.analysis.inputdata.datasets : ['chuv', 'adni'];
+
+  const perDataset: { variable: string; dataset: string; data: object | null }[] = [];
+  const global: typeof perDataset = [];
+  for (const code of codes) {
+    const nominal = NOMINAL_COUNTS[code];
+    if (nominal) {
+      const rows = datasets.flatMap((dataset) => {
+        const counts = nominal[dataset];
+        if (!counts) return [];
+        const num_dtps = Object.values(counts).reduce((sum, count) => sum + count, 0);
+        return [{ dataset, data: { num_dtps, num_na: 0, num_total: num_dtps, counts } }];
+      });
+      rows.forEach((row) => perDataset.push({ variable: code, ...row }));
+      global.push({ variable: code, dataset: 'all datasets', data: rows.length ? nominalTotals(rows.map((row) => row.data)) : null });
+    } else {
+      const table = NUMERICAL_STATS[code] ?? NUMERICAL_STATS['age'];
+      const rows = datasets.flatMap((dataset) => (table[dataset] ? [{ dataset, data: table[dataset] }] : []));
+      rows.forEach((row) => perDataset.push({ variable: code, ...row }));
+      global.push({ variable: code, dataset: 'all datasets', data: rows.length ? globalStats(rows.map((row) => row.data)) : null });
+    }
+  }
+  return { featurewise: [...perDataset, ...global] };
+}
+
+/**
+ * Exaflow `histogram` (exaflow tests/prod_env_tests/expected/histogram_expected.json):
+ * bin edges for numerical variables, levels for nominal ones, and `null` where a count
+ * is too small to share.
+ */
+const HISTOGRAMS: Record<string, { bins: (number | string)[]; counts: (number | null)[] }> = {
+  age: { bins: [50, 55, 60, 65, 70, 75, 80, 85, 90, 95], counts: [null, 11, 14, 18, 20, 14, 10, null, null] },
+  sex: { bins: ['M', 'F'], counts: [46, 54] },
+};
+
+function histogramPayload(body: { analysis?: { algorithm?: { y?: string[] } } }) {
+  const code = body?.analysis?.algorithm?.y?.[0] ?? 'age';
+  const histogram = HISTOGRAMS[code] ?? HISTOGRAMS['age'];
+  return { histogram: [{ var: code, grouping_var: null, grouping_enum: null, ...histogram }] };
 }
 
 /**
@@ -379,7 +471,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       const body = readBody();
       const name = body?.analysis?.algorithm?.name;
       if (name === 'histogram') {
-        return json(route, { bins: [50, 70, 90], counts: [10, 20], variable: body?.analysis?.algorithm?.y?.[0] ?? 'age' });
+        return json(route, histogramPayload(body));
       }
       // Describe and outlier previews need featurewise rows. A real run needs status plus result.
       if (!name || name === 'describe' || name === 'outlier_report') {

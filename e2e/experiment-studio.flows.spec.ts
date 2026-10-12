@@ -370,6 +370,34 @@ test.describe('filters and transformations', () => {
   });
 });
 
+test.describe('statistics previews', () => {
+  test('variable details show the Exaflow histogram', async ({ page, api }) => {
+    await openNewStudio(page);
+    const histogram = page.locator('#histogram-tab-panel');
+    for (const [label, ticks] of [['Age', ['55', '80', 'Count']], ['Sex', ['Male', 'Female']]] as const) {
+      await page.getByRole('button', { name: 'Search variables or groups' }).click();
+      await page.locator('#search-bar').fill(label);
+      await page.locator('.search-result-item', { hasText: label }).first().click();
+      for (const tick of ticks) await expect(histogram).toContainText(tick);
+      expect(lastRequest(api, 'POST', TRANSIENT, 'histogram').analysis.algorithm.y).toEqual([label.toLowerCase()]);
+    }
+  });
+
+  test('raw data preview shows the Exaflow describe statistics', async ({ page }) => {
+    await openAgeAndSex(page);
+    await page.getByRole('button', { name: 'Preview raw data' }).click();
+    const raw = page.locator('section.pipeline-node').first();
+    const cells = (metric: RegExp) => raw.getByRole('row', { name: metric }).locator('th, td');
+    // Two datasets, then the federated "all datasets" column Exaflow adds.
+    await expect(raw.getByRole('row').first()).toContainText(/CHUV.*ADNI.*All datasets/s);
+    await expect(cells(/^Datapoints/)).toHaveText(['Datapoints', '48', '47', '95']);
+    await expect(cells(/^Mean/)).toHaveText(['Mean', '71.6', '73.1', '72.34']);
+    await expect(cells(/^Standard Deviation/)).toHaveText(['Standard Deviation', '7.9', '8.4', '8.14']);
+    // Exaflow reports quartiles per dataset only.
+    await expect(cells(/^Q1/)).toHaveText(['Q1', '66', '67', 'N/A']);
+  });
+});
+
 test.describe('run and save lifecycle', () => {
   /** Answer the polled experiment with `answers` in order, then fall back to the mock. */
   async function answerPolls(page: Page, answers: Record<string, unknown>[]) {
