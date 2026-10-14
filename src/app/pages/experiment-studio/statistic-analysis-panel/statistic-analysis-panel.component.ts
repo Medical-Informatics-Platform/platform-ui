@@ -69,6 +69,7 @@ import {
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
 type SectionKey = 'source' | 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
+type PipelineStep = 'source' | 'filters' | 'setup' | 'transformation';
 type PrepStep = 'missing' | 'outlier' | 'longitudinal';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
@@ -327,7 +328,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     source: false,
     raw: false,
     setup: false,
-    filters: true,
+    filters: false,
     processed: false,
     transformation: false,
   });
@@ -403,7 +404,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /**
    * The station footer's primary slot commits pending conditions. An empty builder has
    * nothing to commit and nothing to keep — an optional step with no rules is exactly the
-   * dormant card — so the same slot closes the station and hands the pipeline back.
+   * default collapsed step — so the same slot closes the station and hands the pipeline back.
    */
   commitOrCloseFilterStation(modal: FilterConfigModalComponent): void {
     if (modal.activeRulesCount() > 0) {
@@ -414,13 +415,38 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.requestSectionScroll('filters');
   }
 
-  /** Header Collapse: folds the stage's editor and preview; nothing is removed or discarded. */
+  /** Folds the stage's editor and preview; nothing is removed or discarded. */
   collapseStep(step: 'filters' | 'setup' | 'transformation'): void {
     if (step === 'filters') return this.foldFilterStation();
     if (step === 'setup') return this.foldPreprocessingStation();
     this.sectionOpen.update((open) => ({ ...open, transformation: false }));
     this.cdr.markForCheck();
     this.requestSectionScroll('transformation');
+  }
+
+  /** A click anywhere on a step's header toggles it, except on the header's own buttons
+   *  (the title, Remove, Revert, Customize) and at the end of a text selection. */
+  onStepHeaderClick(step: PipelineStep, event: Event): void {
+    if ((event.target as Element).closest('button')) return;
+    if (window.getSelection()?.toString()) return;
+    this.toggleStep(step);
+  }
+
+  /** Folds an open step and opens a folded one; opening an optional step adds it. */
+  toggleStep(step: PipelineStep): void {
+    if (step === 'source') return this.toggleSourcePreview();
+    if (this.isStepOpen(step)) this.collapseStep(step);
+    else this.addStep(step);
+  }
+
+  /** A step outside the pipeline is never open, whatever its section flag says. */
+  isStepOpen(step: PipelineStep): boolean {
+    const open = this.sectionOpen();
+    if (step === 'source') return open.source;
+    if (!this.isStepAdded(step)) return false;
+    if (step === 'filters') return open.filters || open.raw;
+    if (step === 'setup') return open.setup || open.processed;
+    return open.transformation;
   }
 
   /** Apply saved the rules; fold the editor. Preview data is what opens the tables. */
@@ -2018,13 +2044,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (total <= 0) return null;
     const missing = Math.min(this.statisticMissingValue(block), total);
     return { total, missing, share: missing / total };
-  }
-
-  /** The Total row's count for one dataset column, for the header's `n =` line. */
-  datasetTotalLabel(block: PivotBlock, dataset: string): string | null {
-    const total = block.rows.find((row) => row.metric === 'Total')?.values[dataset];
-    if (total === undefined || total === null || total === '') return null;
-    return this.displayNumber(total);
   }
 
   /** Display form of a canonical pivot value: parse the stored string, then

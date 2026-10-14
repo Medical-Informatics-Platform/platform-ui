@@ -103,17 +103,12 @@
   gap: 0;
 }
 
-/* Dashed is a statement about the request, not about effort: only a stage that will
-   contribute nothing to the next run wears it. Preprocessing never qualifies - default
-   NaN removal runs whether or not anyone opens it - so that node is always a solid card
-   and the rail says Default instead of Applied.
-   Overview rows carry a single line of copy plus one action, so they read as a
-   compact flowchart at `--studio-pipeline-overview-max`. An added node re-expands
-   to the full rail width, which is what the QueryBuilder, summary tables and
-   charts need. `align-self` opts the row out of the shell's cross-axis stretch.
-   A collapsed added step (`is-compact`) shows only its overview rail, so it takes
-   the same compact width. */
-.pipeline-node.is-dormant,
+/* Every step renders as a solid card; one that adds nothing to the next run says so
+   in its status chip. A collapsed step (`is-compact`) shows only its overview rail,
+   so it reads as a compact flowchart at `--studio-pipeline-overview-max`. An open
+   step re-expands to the full rail width, which is what the QueryBuilder, summary
+   tables and charts need. `align-self` opts the row out of the shell's cross-axis
+   stretch. */
 .pipeline-node.is-compact,
 .pipeline-terminal-card {
   align-self: center;
@@ -168,24 +163,7 @@
   overflow: hidden;
 }
 
-.pipeline-node.is-active {
-  border-color: var(--studio-card-border);
-  box-shadow: var(--studio-card-shadow);
-}
-
-.pipeline-node.is-dormant {
-  background: #ffffff;
-  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 25%, transparent);
-  box-shadow: none;
-}
-
-.pipeline-node.is-dormant:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 55%, transparent);
-  background: var(--card-bg);
-  box-shadow: none;
-}
-
-/* Step 0 is permanent, so it borrows the compact width of the dormant rows
+/* Step 0 is permanent, so it borrows the compact width of the collapsed rows
    rather than the full rail; only its snapshot needs the wide pivot table, and
    widening then keeps the card and the table on the same two edges. */
 .pipeline-node.is-readonly {
@@ -202,28 +180,6 @@
 /* No body to divide from while the snapshot is hidden. */
 .pipeline-node.is-readonly:not(.is-active) .pipeline-node-header {
   border-bottom: none;
-}
-
-.pipeline-node-dormant {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 18px;
-  gap: 14px;
-}
-
-.dormant-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.dormant-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
 }
 
 .btn-add-step {
@@ -289,6 +245,7 @@
   background: var(--studio-card-header-bg);
   border-bottom: 1px solid rgba(43, 51, 233, 0.08);
   gap: 12px;
+  cursor: pointer;
 }
 
 .pipeline-node-header-left {
@@ -296,6 +253,35 @@
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+
+/* The step title is the header's keyboard and screen-reader toggle; it keeps the h3 look. */
+.pipeline-node-toggle {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+/* Fold cue: the whole header toggles its step. */
+.pipeline-node-chevron {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+/* Outranks `.stats-panel-shell i`, whose 1px nudge it keeps. */
+.pipeline-node-header .pipeline-node-chevron.is-open {
+  transform: translateY(1px) rotate(180deg);
+}
+
+.pipeline-node-header:hover .pipeline-node-chevron {
+  color: var(--primary-color);
 }
 
 .pipeline-node-icon {
@@ -311,10 +297,6 @@
   flex-shrink: 0;
   border: 0;
   box-shadow: inset 0 0 0 1px var(--studio-card-border);
-}
-
-.pipeline-node.is-dormant .pipeline-node-icon {
-  color: var(--text-muted);
 }
 
 .pipeline-node-title-group h3 {

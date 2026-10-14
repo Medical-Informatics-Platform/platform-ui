@@ -118,13 +118,11 @@ export async function saveExperiment(page: Page, name: string) {
 }
 
 export async function collapsePreprocessing(page: Page) {
-  // After Apply the step is either still open ("Collapse") or folded into its step list.
-  const section = page.locator('section.pipeline-node').filter({
-    has: page.getByRole('heading', { name: 'Preprocessing', exact: true }),
-  });
-  const collapse = section.getByRole('button', { name: 'Collapse', exact: true });
-  await expect(collapse.or(section.getByRole('list', { name: 'Preprocessing steps' }))).toBeVisible();
-  if (await collapse.isVisible()) await collapse.click();
+  // After Apply the step is either still open or folded into its step list; its title folds it.
+  const section = page.locator('[data-guide="analysis-preprocessing"]');
+  const open = section.locator('.pipeline-node-toggle[aria-expanded="true"]');
+  await expect(open.or(section.getByRole('list', { name: 'Preprocessing steps' }))).toBeVisible();
+  if (await open.isVisible()) await open.click();
 }
 
 export async function openMissingValues(page: Page) {
@@ -193,7 +191,7 @@ async function addCondition(scope: Locator, variable: string) {
 
 /** Filter rows to Age >= 60 (and Sex = Female when `female` is set). */
 export async function applyFilters(page: Page, { female = false } = {}) {
-  await page.getByRole('button', { name: 'Add filtering' }).click();
+  await page.getByTitle('Open the rule builder').click();
   const modal = page.locator('app-filter-config-modal:visible');
   const age = await addCondition(modal, 'Age');
   const operator = age.locator('select.filter-field-input').first();
@@ -208,7 +206,7 @@ export async function applyFilters(page: Page, { female = false } = {}) {
 }
 
 export async function addNominalColumn(page: Page, code: string, category: string, fallback: string) {
-  await page.getByRole('button', { name: 'Add transformation' }).click();
+  await page.getByTitle('Add and open a derived column').click();
   await page.getByRole('button', { name: /Nominal column from rules/ }).click();
   await page.getByPlaceholder('e.g. mrs_good_outcome').fill(code);
   await page.getByRole('button', { name: /Add the first category/ }).click();
@@ -224,7 +222,7 @@ export async function addNominalColumn(page: Page, code: string, category: strin
 
 /** `stepAdded`: the transformation step is already open (another column was added first). */
 export async function addKMeansColumn(page: Page, { stepAdded = false } = {}) {
-  if (!stepAdded) await page.getByRole('button', { name: 'Add transformation' }).click();
+  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
   await page.getByRole('button', { name: /K-means cluster column/ }).click();
   const source = page.locator('app-kmeans-cluster-source');
   await source.getByRole('button', { name: 'Run K-means report' }).click();

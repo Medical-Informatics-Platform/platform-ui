@@ -202,9 +202,6 @@
                           @for (ds of selectedBlock.columns; track ds) {
                           <th [class.statistics-col-rollup]="isRollupColumn(ds)">
                             {{ datasetLabel(ds) }}
-                            @if (datasetTotalLabel(selectedBlock, ds); as total) {
-                            <small>n = {{ total }}</small>
-                            }
                           </th>
                           }
                         </tr>
@@ -438,12 +435,12 @@
         [class.is-active]="sectionOpen().source"
         data-guide="analysis-source-data"
       >
-        <header class="pipeline-node-header">
+        <header class="pipeline-node-header" (click)="onStepHeaderClick('source', $event)">
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 1 · Always on</span>
-              <h3>Raw data</h3>
+              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('source')" (click)="toggleStep('source')">Raw data</button></h3>
               <span class="pipeline-node-subtitle">Look at your selected variables exactly as stored. Nothing is changed here.</span>
             </div>
           </div>
@@ -452,19 +449,7 @@
             <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.source!.toLocaleString() }}</span></span>
             }
             <span class="pipeline-status-badge readonly"><i class="fas fa-lock" aria-hidden="true"></i> Read only</span>
-            <button
-              type="button"
-              class="station-preview-toggle"
-              [attr.aria-expanded]="sectionOpen().source"
-              (click)="toggleSourcePreview()">
-              @if (sectionOpen().source) {
-              <i class="fas fa-chevron-up" aria-hidden="true"></i>
-              <span>Collapse</span>
-              } @else {
-              <i class="fas fa-eye" aria-hidden="true"></i>
-              <span>Preview raw data</span>
-              }
-            </button>
+            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('source')" aria-hidden="true"></i>
           </div>
         </header>
         <div class="pipeline-node-body">
@@ -494,38 +479,15 @@
       <section
         #filtersSection
         class="pipeline-node filter-workflow-section"
-        [class.is-active]="isStepAdded('filters')"
-        [class.is-dormant]="!isStepAdded('filters')"
-        [class.is-compact]="isStepAdded('filters') && !sectionOpen().filters && !sectionOpen().raw"
+        [class.is-compact]="!sectionOpen().filters && !sectionOpen().raw"
         data-guide="analysis-filtering"
       >
-        @if (!isStepAdded('filters')) {
-        <!-- DORMANT / UN-ADDED STATE -->
-        <div class="pipeline-node-dormant">
-          <div class="dormant-left">
-            <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 2 · Optional</span>
-              <h3>Cohort filtering</h3>
-              <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
-            </div>
-          </div>
-          <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Skipped · not in run</span>
-            <button type="button" class="btn-add-step" (click)="addStep('filters')">
-              <i class="fas fa-plus" aria-hidden="true"></i>
-              <span>Add filtering</span>
-            </button>
-          </div>
-        </div>
-        } @else {
-        <!-- EXPANDED / ADDED STATE -->
-        <header class="pipeline-node-header">
+        <header class="pipeline-node-header" (click)="onStepHeaderClick('filters', $event)">
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 2 · Optional</span>
-              <h3>Cohort filtering</h3>
+              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('filters')" (click)="toggleStep('filters')">Cohort filtering</button></h3>
               <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
             </div>
           </div>
@@ -536,21 +498,7 @@
             <span class="pipeline-status-badge" [class.applied]="filterRuleCount() > 0" [class.optional]="filterRuleCount() === 0">
               {{ filteringStatusLabel }}
             </span>
-            @if (!sectionOpen().filters && !sectionOpen().raw) {
-            <button
-              type="button"
-              class="station-preview-toggle"
-              title="Edit rules"
-              (click)="goToSection('filters')">
-              <i class="fas fa-pencil-alt" aria-hidden="true"></i>
-              <span>Edit rules</span>
-            </button>
-            } @else {
-            <button type="button" class="station-preview-toggle" (click)="collapseStep('filters')">
-              <i class="fas fa-chevron-up" aria-hidden="true"></i>
-              <span>Collapse</span>
-            </button>
-            }
+            @if (isStepAdded('filters')) {
             <button
               type="button"
               class="btn-remove-step-node"
@@ -559,6 +507,8 @@
               <i class="fas fa-trash-can" aria-hidden="true"></i>
               <span>Remove Step</span>
             </button>
+            }
+            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('filters')" aria-hidden="true"></i>
           </div>
         </header>
 
@@ -590,13 +540,14 @@
                   <span class="pipeline-subnode-title">Add condition</span>
                   <span class="pipeline-subnode-subtitle">Narrow the cohort further</span>
                 </span>
-                <span class="pipeline-subnode-cta">Add <i class="fas fa-plus" aria-hidden="true"></i></span>
+                <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
               </button>
             </div>
           </div>
         </div>
         }
 
+        @if (isStepAdded('filters')) {
         <div class="pipeline-node-body">
           <!-- Outside the padded body so the strip spans the node right under its header. -->
           @if (sectionOpen().filters) {
@@ -638,7 +589,7 @@
             </div>
           </div>
         </div>
-      }
+        }
     </section>
 
       <!-- CONNECTOR 1 -> 2 -->
@@ -649,9 +600,8 @@
 
       <!-- NODE 2: PREPROCESSING -->
       <!-- MIP drops rows with missing values whether or not anyone configured it, so this
-           stage is part of the request from the first render. It is therefore drawn like an
-           added node and the rail tags the untouched handler Default; the dashed card stays
-           reserved for stages that contribute nothing yet (Filtering, Transformations). -->
+           stage is part of the request from the first render and its rail tags the
+           untouched handler Default. -->
       <section
         #setupSection
         class="pipeline-node preprocessing-section"
@@ -659,12 +609,12 @@
         [class.is-compact]="!sectionOpen().setup && !sectionOpen().processed"
         data-guide="analysis-preprocessing"
       >
-        <header class="pipeline-node-header">
+        <header class="pipeline-node-header" (click)="onStepHeaderClick('setup', $event)">
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 3 · Always on</span>
-              <h3>Preprocessing</h3>
+              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('setup')" (click)="toggleStep('setup')">Preprocessing</button></h3>
               <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
             </div>
           </div>
@@ -680,12 +630,6 @@
             >
               {{ preprocessingStatusLabel }}
             </span>
-            @if (sectionOpen().setup || sectionOpen().processed) {
-            <button type="button" class="station-preview-toggle" (click)="collapseStep('setup')">
-              <i class="fas fa-chevron-up" aria-hidden="true"></i>
-              <span>Collapse</span>
-            </button>
-            }
             @if (isStepAdded('setup')) {
             <button
               type="button"
@@ -701,6 +645,7 @@
               <span>Customize rules</span>
             </button>
             }
+            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('setup')" aria-hidden="true"></i>
           </div>
         </header>
 
@@ -1496,38 +1441,15 @@
       <section
         #transformationSection
         class="pipeline-node preprocessing-section"
-        [class.is-active]="isStepAdded('transformation')"
-        [class.is-dormant]="!isStepAdded('transformation')"
-        [class.is-compact]="isStepAdded('transformation') && !sectionOpen().transformation"
+        [class.is-compact]="!sectionOpen().transformation"
         data-guide="analysis-transformation"
       >
-        @if (!isStepAdded('transformation')) {
-        <!-- DORMANT / UN-ADDED STATE -->
-        <div class="pipeline-node-dormant">
-          <div class="dormant-left">
-            <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 4 · Optional</span>
-              <h3>Data transformations</h3>
-              <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
-            </div>
-          </div>
-          <div class="dormant-right">
-            <span class="pipeline-status-badge optional">Skipped · not in run</span>
-            <button type="button" class="btn-add-step" (click)="addStep('transformation')">
-              <i class="fas fa-plus" aria-hidden="true"></i>
-              <span>Add transformation</span>
-            </button>
-          </div>
-        </div>
-        } @else {
-        <!-- EXPANDED / ADDED STATE -->
-        <header class="pipeline-node-header">
+        <header class="pipeline-node-header" (click)="onStepHeaderClick('transformation', $event)">
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 4 · Optional</span>
-              <h3>Data transformations</h3>
+              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('transformation')" (click)="toggleStep('transformation')">Data transformations</button></h3>
               <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
             </div>
           </div>
@@ -1535,12 +1457,7 @@
             <span class="pipeline-status-badge" [class.applied]="transformationStatusLabel === 'Applied'" [class.optional]="transformationStatusLabel !== 'Applied'">
               {{ transformationBadgeLabel }}
             </span>
-            @if (sectionOpen().transformation) {
-            <button type="button" class="station-preview-toggle" (click)="collapseStep('transformation')">
-              <i class="fas fa-chevron-up" aria-hidden="true"></i>
-              <span>Collapse</span>
-            </button>
-            }
+            @if (isStepAdded('transformation')) {
             <button
               type="button"
               class="btn-remove-step-node"
@@ -1549,6 +1466,8 @@
               <i class="fas fa-trash-can" aria-hidden="true"></i>
               <span>Remove Step</span>
             </button>
+            }
+            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('transformation')" aria-hidden="true"></i>
           </div>
         </header>
 
@@ -1583,6 +1502,7 @@
         </div>
         }
 
+        @if (isStepAdded('transformation')) {
         <div class="pipeline-node-body">
           @if (sectionOpen().transformation) {
           <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.transformation }"></ng-container>
