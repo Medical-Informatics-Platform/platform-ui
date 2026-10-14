@@ -987,6 +987,75 @@ describe('ExperimentStudioService', () => {
     expect(result).toBeNull();
   });
 
+  it('runs the selected algorithm through the kept-run endpoint', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.selectedAlgorithm.set(service.backendAlgorithms()['mock_algo']);
+    let response: any;
+
+    service.runSelectedAlgorithm()!.subscribe((res) => (response = res));
+
+    const req = httpMock.expectOne('/services/experiments/runs');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body.analysis.algorithm.name).toBe('mock_algo');
+    req.flush({ uuid: 'run-1', status: 'success', result: { value: 1 } });
+    expect(response).toEqual({ uuid: 'run-1', status: 'success', result: { value: 1 } });
+  });
+
+  it('runs describe through the kept-run endpoint so it can be saved too', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.selectedAlgorithm.set(service.backendAlgorithms()['describe']);
+
+    service.runSelectedAlgorithm()!.subscribe();
+
+    const req = httpMock.expectOne('/services/experiments/runs');
+    expect(req.request.body.analysis.algorithm.name).toBe('describe');
+    req.flush({ uuid: 'run-describe', status: 'success', result: { featurewise: [] } });
+  });
+
+  it('saves the kept run without running the experiment again', () => {
+    service.runResult.set({ value: 1 });
+    service.runId.set('run-1');
+
+    service.saveRun('My experiment');
+
+    expect(service.isSaving()).toBe(true);
+    const req = httpMock.expectOne('/services/experiments/runs/run-1/save');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ name: 'My experiment' });
+    req.flush({ uuid: 'experiment-1', shared: false, status: 'success' });
+
+    httpMock.expectNone('/services/experiments');
+    expect(service.isSaving()).toBe(false);
+    expect(service.currentExperimentUUID()).toBe('experiment-1');
+    expect(service.saveSucceeded()).toBe(true);
+  });
+
+  it('asks for a fresh run when the kept run has expired', () => {
+    service.runResult.set({ value: 1 });
+    service.runId.set('run-1');
+
+    service.saveRun('My experiment');
+    httpMock
+      .expectOne('/services/experiments/runs/run-1/save')
+      .flush({ message: 'gone' }, { status: 404, statusText: 'Not Found' });
+
+    expect(service.isSaving()).toBe(false);
+    expect(service.saveSucceeded()).toBe(false);
+    expect(service.saveError()).toContain('Run the experiment again');
+  });
+
+  it('does not save when no run result is on screen', () => {
+    service.runId.set('run-1');
+
+    service.saveRun('My experiment');
+
+    httpMock.expectNone('/services/experiments/runs/run-1/save');
+    expect(service.saveError()).toContain('Run the experiment');
+  });
+
   it('keeps an algorithm available when multiple filter variables are selected', () => {
     service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'real' } as any]);
     service.setFilters([

@@ -34,6 +34,12 @@ import {
  */
 
 const TRANSIENT = '/services/experiments/transient';
+const RUNS = '/services/experiments/runs';
+
+/** Save must persist the kept run, never post the analysis to be run a second time. */
+function expectNoRerun(api: StudioApi) {
+  expect(api.requests.some((request) => request.method === 'POST' && request.path === '/services/experiments')).toBe(false);
+}
 
 /** One preprocessing step from the latest Data review preview (`describe`). */
 function previewStep(api: StudioApi, name: string) {
@@ -83,8 +89,10 @@ test.describe('experiment studio', () => {
     await saveExperiment(page, 'Edited age model');
     await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
 
-    const body = lastRequest(api, 'POST', '/services/experiments');
+    expectNoRerun(api);
+    const body = api.experiments[0] as any;
     expect(body.name).toBe('Edited age model');
+    expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
     expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
     // The saved preprocessing comes back unchanged.
     expect(body.analysis.preprocessing).toContainEqual({
@@ -119,7 +127,12 @@ test.describe('experiment studio', () => {
     await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
     await expect(page.getByText('Saved as “Age by sex”')).toBeVisible();
 
-    const body = lastRequest(api, 'POST', '/services/experiments');
+    // Save sends only the name; the kept run supplies the analysis and result.
+    expectNoRerun(api);
+    const save = api.requests.find((request) => request.method === 'POST' && /^\/services\/experiments\/runs\/[^/]+\/save$/.test(request.path));
+    expect(save?.body).toEqual({ name: 'Age by sex' });
+    const body = api.experiments[0] as any;
+    expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
     expect(body.name).toBe('Age by sex');
     expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
     expect(body.analysis.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['chuv', 'adni'], filters: null });
@@ -328,7 +341,7 @@ test.describe('filters and transformations', () => {
     await expect(page.getByText('Age >= 60 · 1 rule')).toBeVisible();
     await expect(page.getByText('Age: median imputation, Sex: remove rows')).toBeVisible();
 
-    const run = lastRequest(api, 'POST', TRANSIENT, 'linear_regression').analysis;
+    const run = lastRequest(api, 'POST', RUNS, 'linear_regression').analysis;
     expect(run.algorithm).toMatchObject({ y: ['age'], x: ['sex'] });
     expect(run.inputdata.filters.rules).toEqual([expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 })]);
     expect(run.preprocessing).toContainEqual({
@@ -399,52 +412,38 @@ test.describe('statistics previews', () => {
 });
 
 test.describe('run and save lifecycle', () => {
-  /** Answer the polled experiment with `answers` in order, then fall back to the mock. */
-  async function answerPolls(page: Page, answers: Record<string, unknown>[]) {
-    let polls = 0;
-    await page.route(/\/services\/experiments\/exp-created-\d+$/, async (route) => {
-      if (route.request().method() !== 'GET') return route.fallback();
-      const answer = answers[polls++];
-      return answer ? route.fulfill({ json: answer }) : route.fallback();
-    });
-    return () => polls;
-  }
-
   async function runLinearModel(page: Page) {
     await prepareLinearRun(page);
     await runExperiment(page);
     await expect(page.getByText('age ~ sex').first()).toBeVisible();
   }
 
-  test('save keeps polling while the engine reports pending', async ({ page }) => {
-    const polls = await answerPolls(page, [{ uuid: 'pending', status: 'pending' }]);
-    await runLinearModel(page);
-    await saveExperiment(page, 'Slow save');
-    // The studio polls every 5 s; the second answer is the stored success.
-    await expect(page.getByText('Experiment saved successfully!')).toBeVisible({ timeout: 15_000 });
-    expect(polls()).toBeGreaterThanOrEqual(2);
-  });
+  /** Answer the save of the kept run with `status`, as the backend does when it fails or the run expired. */
+  async function failSave(page: Page, status: number) {
+    await page.route(/\/services\/experiments\/runs\/[^/]+\/save$/, (route) => route.fulfill({ status, json: {} }));
+  }
 
-  test('save shows the engine error', async ({ page }) => {
-    await answerPolls(page, [{ uuid: 'failed', status: 'error', result: { message: 'Engine crashed' } }]);
+  test('save asks for a fresh run once the kept run has expired', async ({ page }) => {
+    await failSave(page, 404);
     await runLinearModel(page);
-    await saveExperiment(page, 'Broken save');
-    await expect(page.getByRole('alert').filter({ hasText: 'Saving failed: Engine crashed' })).toBeVisible();
+    await saveExperiment(page, 'Expired save');
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Saving failed: This result is no longer available to save. Run the experiment again.' }),
+    ).toBeVisible();
     await expect(page.getByText('Experiment saved successfully!')).toHaveCount(0);
   });
 
   test('save shows a failed request', async ({ page }) => {
-    await page.route('**/services/experiments', (route) =>
-      route.request().method() === 'POST' ? route.fulfill({ status: 500, json: {} }) : route.fallback(),
-    );
+    await failSave(page, 500);
     await runLinearModel(page);
     await saveExperiment(page, 'Rejected save');
-    await expect(page.getByText('Failed to run experiment. Please try again.')).toBeVisible();
-    await expect(page.getByRole('alert').filter({ hasText: 'Saving failed: Experiment request failed.' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Saving failed: Failed to save the experiment. Please try again.' })).toBeVisible();
+    // The reviewed result stays on screen, so the user can retry without running again.
+    await expect(page.getByText('age ~ sex').first()).toBeVisible();
   });
 
   test('run shows the engine error', async ({ page }) => {
-    await page.route('**/services/experiments/transient', (route) =>
+    await page.route('**/services/experiments/runs', (route) =>
       route.request().postDataJSON()?.analysis?.algorithm?.name === 'linear_regression'
         ? route.fulfill({ json: { status: 'error', result: { message: 'Singular matrix' } } })
         : route.fallback(),

@@ -135,6 +135,8 @@ export class ExperimentStudioService {
 
   private selectedDatasetsSignal = signal<string[]>(this.sessionStorage.getItem('selectedDatasets') || []);
   private transientUrl = '/services/experiments/transient';
+  /** Studio runs: the backend keeps a successful result here so saving never re-executes it. */
+  private runsUrl = '/services/experiments/runs';
 
   lastUsedAlgorithm = signal<string | null>(this.sessionStorage.getItem('lastUsedAlgorithm') || null);
   selectedDatasets = computed(() => this.selectedDatasetsSignal());
@@ -157,11 +159,19 @@ export class ExperimentStudioService {
   private readonly _isRunning = signal(false);
   readonly isRunning = this._isRunning.asReadonly();
 
+  private readonly _isSaving = signal(false);
+  readonly isSaving = this._isSaving.asReadonly();
+
   /**
    * Run outcome for the Execution Results step. Lives here (not on the algorithm panel)
    * because the result outlives the parameters view and is read from another step.
    */
   readonly runResult = signal<any | null>(null);
+  /**
+   * Backend id of the kept run that produced `runResult`. Saving persists that run as it is,
+   * so the saved experiment is exactly the reviewed result and nothing is executed again.
+   */
+  readonly runId = signal<string | null>(null);
   readonly runError = signal<string | null>(null);
   readonly lastRunSchema = signal<any[]>([]);
   /** Execution unlocks the first time a run is dispatched in this studio session. */
@@ -1907,35 +1917,11 @@ export class ExperimentStudioService {
     );
   }
 
+  /**
+   * Runs the selected algorithm for review. The backend keeps a successful result under the
+   * returned `uuid`, which `saveRun` persists without running the analysis again.
+   */
   runSelectedAlgorithm(
-    algorithmNameOverride: string | null = null,
-    effectiveAlgorithmName: string | null = null,
-    customName: string | null = null
-  ): Observable<any> | null {
-    const selectedAlgo = this.selectedAlgorithm();
-    if (!selectedAlgo) {
-      console.error('No algorithm selected.');
-      return null;
-    }
-
-    const baseAlgorithmName = algorithmNameOverride ?? selectedAlgo.name;
-    const requestAlgorithmName = effectiveAlgorithmName ?? baseAlgorithmName;
-
-    if (baseAlgorithmName === 'describe') {
-      const variableCodes = this.selectedVariables().map((v) => v.code);
-      if (!variableCodes.length) {
-        console.warn('Descriptive stats: no variables selected.');
-        return null;
-      }
-      return this.loadDescriptiveOverview(variableCodes);
-    }
-
-    const requestBody = this.buildRequestBody(baseAlgorithmName, null, null, requestAlgorithmName, customName);
-
-    return this.submitRequest(requestBody);
-  }
-
-  runSelectedAlgorithmTransient(
     algorithmNameOverride: string | null = null,
     effectiveAlgorithmName: string | null = null
   ): Observable<any> | null {
@@ -1954,9 +1940,7 @@ export class ExperimentStudioService {
         console.warn('Descriptive stats: no variables selected.');
         return null;
       }
-      return this.loadDescriptiveOverview(variableCodes).pipe(
-        map(resp => this.normalizeTransientResponse(resp))
-      );
+      return this.submitRunRequest(this.buildDescriptiveRequestBody(variableCodes));
     }
 
     const requestBody = this.buildRequestBody(
@@ -1966,9 +1950,45 @@ export class ExperimentStudioService {
       requestAlgorithmName
     );
 
-    return this.submitTransientRequest(requestBody).pipe(
-      map(resp => this.normalizeTransientResponse(resp))
+    return this.submitRunRequest(requestBody);
+  }
+
+  private submitRunRequest(requestBody: ExperimentCreateRequest): Observable<any> {
+    return this.http.post<any>(this.runsUrl, requestBody).pipe(
+      map((resp) => this.normalizeTransientResponse(resp))
     );
+  }
+
+  /**
+   * Saves the run behind the current result under `name`. Only the run id travels: the backend
+   * copies the result it kept, so saving is instant and stores exactly what was reviewed.
+   */
+  saveRun(name: string): void {
+    const runId = this.runId();
+    if (!runId || !this.runResult()) {
+      this.saveError.set('Run the experiment before saving it.');
+      return;
+    }
+
+    this.saveError.set(null);
+    this._isSaving.set(true);
+    this.http
+      .post<BackendExperiment>(`${this.runsUrl}/${runId}/save`, { name })
+      .pipe(finalize(() => this._isSaving.set(false)))
+      .subscribe({
+        next: (saved) => {
+          this.currentExperimentUUIDSignal.set(saved?.uuid ?? null);
+          this.isShared.set(!!saved?.shared);
+          this.notifySaveSucceeded();
+        },
+        error: (err) => {
+          this.saveError.set(
+            err?.status === 404
+              ? 'This result is no longer available to save. Run the experiment again.'
+              : 'Failed to save the experiment. Please try again.'
+          );
+        },
+      });
   }
 
 
@@ -2351,6 +2371,7 @@ export class ExperimentStudioService {
 
     // execution step state (results are session-scoped, see hasRunStarted)
     this.runResult.set(null);
+    this.runId.set(null);
     this.runError.set(null);
     this.runSetup.set(null);
     this.lastRunSchema.set([]);

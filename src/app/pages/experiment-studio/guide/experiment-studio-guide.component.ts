@@ -657,10 +657,11 @@ export class ExperimentStudioGuideComponent implements OnInit, OnDestroy {
       case 'experiment-saved-as': {
         const baselineUuid = this.experimentSaveBaselineUuid();
         const currentUuid = this.experimentStudioService.currentExperimentUUID();
+        // Saving no longer re-runs the experiment, so the result stays on screen: the new
+        // experiment id alone marks a successful save.
         return baselineUuid !== undefined
           && !!currentUuid
-          && currentUuid !== baselineUuid
-          && !this.findTarget('[data-guide="experiment-result"]');
+          && currentUuid !== baselineUuid;
       }
       default:
         // Compile-time net: a requirement added to the union without a case fails the build.

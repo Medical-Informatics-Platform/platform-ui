@@ -93,7 +93,8 @@ test.describe('experiments dashboard', () => {
     await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
 
     // A new experiment is created; the original is not touched.
-    const body = lastRequest(api, 'POST', '/services/experiments');
+    const body = api.experiments[0] as any;
+    expect(body.analysis).toEqual(lastRequest(api, 'POST', '/services/experiments/runs', 'linear_regression').analysis);
     expect(body.name).toBe('Copy of baseline');
     expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.05 } });
     expect(api.requests.some((request) => request.method === 'PATCH')).toBe(false);

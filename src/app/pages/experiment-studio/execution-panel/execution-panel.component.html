@@ -84,8 +84,8 @@
             placeholder="Experiment name" class="save-as-input" />
           <button type="button" class="result-action" (click)="cancelSaveAs()">Cancel</button>
           <button type="button" class="result-action result-action--primary" (click)="onSaveAs()"
-            [disabled]="!saveAsName().trim() || isRunning()">
-            {{ isRunning() ? "Saving…" : "Save" }}
+            [disabled]="!saveAsName().trim() || isRunning() || isSaving()">
+            {{ isSaving() ? "Saving…" : "Save" }}
           </button>
         </div>
         }

@@ -1317,6 +1317,7 @@ export class AlgorithmPanelComponent {
     this.experimentStudioService.hasRunStarted.set(true);
     this.experimentStudioService.runError.set(null);
     this.experimentStudioService.runResult.set(null);
+    this.experimentStudioService.runId.set(null);
     this.experimentStudioService.setRunning(true);
 
     if (!algo) {
@@ -1380,7 +1381,7 @@ export class AlgorithmPanelComponent {
     // this snapshot, and parameter edits after the run must not rewrite it.
     this.experimentStudioService.captureRunSetup(finalAlgorithmName);
 
-    const result$ = this.experimentStudioService.runSelectedAlgorithmTransient(
+    const result$ = this.experimentStudioService.runSelectedAlgorithm(
       baseAlgorithmName,
       finalAlgorithmName
     );
@@ -1409,11 +1410,15 @@ export class AlgorithmPanelComponent {
         this.experimentStudioService.runResult.set({
           ...res?.result ?? { message: "No result returned" },
         });
+        // Save persists this kept run, so the saved experiment is the result shown here.
+        this.experimentStudioService.runId.set(res?.uuid ?? null);
         this.lastUsedAlgorithm = finalAlgorithmName;
         this.experimentStudioService.lastRunSchema.set(schema);
       },
       error: () => {
         this.experimentStudioService.runError.set('Unable to run experiment. Please try again.');
+        // An errored stream never completes, so the run state is released here too.
+        this.experimentStudioService.setRunning(false);
       },
       complete: () => {
         this.experimentStudioService.setRunning(false);
@@ -1729,97 +1734,6 @@ export class AlgorithmPanelComponent {
 
     const unique = Array.from(new Set(normalized));
     return unique.length ? unique : null;
-  }
-
-  onSaveAs(name: string) {
-    const experimentName = name.trim();
-    if (!experimentName) {
-      this.errorMsg.set('Please provide a name for the experiment.');
-      return;
-    }
-
-    this.errorMsg.set(null);
-    this.errorService.clearError();
-    this.experimentStudioService.saveError.set(null);
-
-    const algo = this.experimentStudioService.selectedAlgorithm();
-    if (!algo) return;
-
-    if (!this.validateOutlierReportConfig()) return;
-
-    this.experimentStudioService.setRunning(true);
-
-    const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const baseAlgorithmName = isCvOnly
-      ? algo.name
-      : this.experimentStudioService.getCrossValidationBase(algo.name) ??
-      this.experimentStudioService.getTransformationBase(algo.name) ??
-      algo.name;
-
-    const cvVariant = this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
-    const shouldIncludeSplits = this.crossValidationEnabled() || this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const useCrossValidation = shouldIncludeSplits && !!cvVariant;
-    const transformationVariant = this.experimentStudioService.getTransformationVariant(baseAlgorithmName);
-    const useTransformation = this.transformationEnabled() && !!transformationVariant;
-    const effectiveAlgorithmName = useCrossValidation
-      ? cvVariant
-      : useTransformation
-        ? transformationVariant
-        : baseAlgorithmName;
-
-    const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
-    let configValues = this.normalizeFormValues(this.configForm().getRawValue(), this.visibleConfigSchema());
-    configValues = this.mergeOutlierReportConfig(configValues);
-    if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
-      delete configValues['n_splits'];
-    }
-    if (useTransformation) {
-      configValues['data_transformation'] = this.buildTransformationPayload();
-    } else if (configValues['data_transformation']) {
-      delete configValues['data_transformation'];
-    }
-    this.experimentStudioService.algorithmConfigurations.set({
-      ...this.experimentStudioService.algorithmConfigurations(),
-      [baseAlgorithmName]: configValues,
-      ...(effectiveAlgorithmName !== baseAlgorithmName ? { [effectiveAlgorithmName]: configValues } : {})
-    });
-
-    const result$ = this.experimentStudioService.runSelectedAlgorithm(
-      baseAlgorithmName,
-      finalAlgorithmName,
-      experimentName
-    );
-
-    this.experimentStudioService.runStatusText.set('Saving experiment...');
-
-    if (!result$) {
-      this.errorMsg.set('Unable to start the save process.');
-      this.experimentStudioService.setRunning(false);
-      return;
-    }
-
-    result$.subscribe({
-      next: (res) => {
-        const status = res?.status;
-        const payload = res?.result ?? {};
-
-        if (status === 'error') {
-          const msg = payload?.message || 'Failed to save experiment results.';
-          this.errorMsg.set(msg);
-          this.experimentStudioService.saveError.set(msg);
-          return;
-        }
-
-        this.experimentStudioService.notifySaveSucceeded();
-      },
-      error: () => {
-        this.errorMsg.set('Failed to save experiment.');
-        this.experimentStudioService.saveError.set('Failed to save experiment.');
-      },
-      complete: () => {
-        this.experimentStudioService.setRunning(false);
-      }
-    });
   }
 
   onExportResult(section: HTMLElement) {

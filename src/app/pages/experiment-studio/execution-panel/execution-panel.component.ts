@@ -12,8 +12,9 @@ import { ExperimentSetupSummaryComponent } from './experiment-setup-summary/expe
 /**
  * Execution Results step: the run skeleton, its error state, and the result view with
  * its docked setup summary.
- * It owns no run configuration — Save As / Export stay on the algorithm panel, which owns
- * the parameter form, and are emitted back to it by the studio shell.
+ * It owns no run configuration — Export stays on the algorithm panel, which owns the parameter
+ * form, and is emitted back to it by the studio shell. Saving needs no configuration: it
+ * persists the kept run behind the result through the studio service.
  */
 @Component({
   selector: 'app-execution-panel',
@@ -27,6 +28,7 @@ export class ExecutionPanelComponent {
   private studioNavigation = inject(ExperimentStudioNavigationService);
 
   readonly isRunning = this.expStudioService.isRunning;
+  readonly isSaving = this.expStudioService.isSaving;
   readonly result = this.expStudioService.runResult;
   /** Setup behind the result; the summary aside is only rendered when a run captured one. */
   readonly setupSnapshot = this.expStudioService.runSetup;
@@ -58,8 +60,7 @@ export class ExecutionPanelComponent {
   readonly xVar = computed(() => this.expStudioService.algorithmX()[0]?.code ?? null);
   readonly labelMap = this.expStudioService.variableLabelMap;
 
-  /** Save As and PDF export need the parameter form, so the algorithm panel keeps them. */
-  readonly saveAs = output<string>();
+  /** PDF and ZIP export need the parameter form, so the algorithm panel keeps them. */
   readonly exportPdf = output<HTMLElement>();
   readonly exportZip = output<void>();
 
@@ -71,8 +72,8 @@ export class ExecutionPanelComponent {
   private runningSince: number | null = null;
 
   constructor() {
-    // The save itself runs on the algorithm panel (it owns the parameter form); its success
-    // flag is the shared signal that closes this panel's inline Save As form.
+    // The save completes in the studio service; its success flag is the shared signal that
+    // closes this panel's inline Save As form.
     // Only the success flag is tracked: the flag stays up for 8s, and re-running on a name edit
     // in that window would close a fresh "Save a copy" form and mark it saved.
     effect(() => {
@@ -128,8 +129,9 @@ export class ExecutionPanelComponent {
 
   onSaveAs(): void {
     const name = this.saveAsName().trim();
-    if (!name) return;
-    this.saveAs.emit(name);
+    if (!name || this.isSaving()) return;
+    // Saves the run already on screen; the analysis is not executed again.
+    this.expStudioService.saveRun(name);
   }
 
   readonly savedText = computed(() => {
