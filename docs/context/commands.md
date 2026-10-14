@@ -41,7 +41,7 @@ npm run watch
 npm test
 ```
 
-Runs Angular CLI Karma tests with Jasmine.
+Runs the Vitest specs through Angular CLI in headless Chromium. `npm test -- --watch=false` runs once.
 
 ## Typecheck / Static Checks
 No lint or format script is defined in `package.json`. `npm run verify` runs the typecheck, the dead-code scan and a production build; `docs/context/testing.md` says what each one covers.
@@ -66,7 +66,7 @@ Runtime env values are written to `assets/env.js` by `docker-entrypoint.sh`.
 
 Do not run these without explicit user confirmation unless the user directly requested them and the cost is stated first:
 - `npm start`, `npm run watch`, `ng serve`, `ng build --watch`: long-running server/watch commands.
-- `npm test` / `ng test`: Karma may launch a browser and watch indefinitely; prefer a verified non-watch focused command when available.
+- `npm test` / `ng test`: Vitest watches in a terminal; use `--watch=false` and `--include <spec path>` for a bounded run.
 - `docker build`, `docker run`, `docker compose ...`, unbounded `docker logs`: heavy or noisy container operations.
 - `npm ci`, `npm install`, `npm audit`, `npm audit --json`, `npm outdated`: network/dependency operations that can be slow or noisy.
 - Broad repository output: `find .`, `ls -R`, `tree`, recursive `grep`, unrestricted `rg`, `cat package-lock.json`, `cat dist/*`, `cat coverage/*`, full `git diff`, `git log -p`, or large `git show`.

@@ -21,7 +21,7 @@ than mid-build.
 | `npm run check:dead-code` | unused exports, orphan CSS/keyframes, unused `:root` tokens |
 | `npm run build` | production build to `dist/fl-platform` |
 | `npm run watch` | development build watch |
-| `npm test` | Karma unit tests (needs a browser; ask before running) |
+| `npm test` | Vitest unit tests in headless Chromium (ask before running) |
 
 ## Key Files
 

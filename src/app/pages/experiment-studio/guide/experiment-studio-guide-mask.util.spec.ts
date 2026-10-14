@@ -6,14 +6,14 @@ describe('computeGuideBlockingRects', () => {
     const blockers = computeGuideBlockingRects([hole], { right: 1200, bottom: 800 });
 
     expect(blockers.length).toBeGreaterThan(0);
-    expect(blockers.some((rect) => rect.top === 0 && rect.bottom === hole.top)).toBeTrue();
-    expect(blockers.some((rect) => rect.top === hole.bottom && rect.bottom === 800)).toBeTrue();
+    expect(blockers.some((rect) => rect.top === 0 && rect.bottom === hole.top)).toBe(true);
+    expect(blockers.some((rect) => rect.top === hole.bottom && rect.bottom === 800)).toBe(true);
     expect(blockers.every((rect) =>
       rect.right <= hole.left
       || rect.left >= hole.right
       || rect.bottom <= hole.top
       || rect.top >= hole.bottom
-    )).toBeTrue();
+    )).toBe(true);
   });
 
   it('keeps separate holes open for multi-target interaction steps', () => {
@@ -29,9 +29,9 @@ describe('computeGuideBlockingRects', () => {
         && blocker.bottom > rect.top
       );
 
-    expect(intersects(browser)).toBeFalse();
-    expect(intersects(details)).toBeFalse();
-    expect(blockers.some((rect) => rect.left === 620 && rect.right === 660)).toBeTrue();
+    expect(intersects(browser)).toBe(false);
+    expect(intersects(details)).toBe(false);
+    expect(blockers.some((rect) => rect.left === 620 && rect.right === 660)).toBe(true);
   });
 
   it('expands interaction holes to include visible search suggestions', () => {
@@ -43,7 +43,7 @@ describe('computeGuideBlockingRects', () => {
     host.appendChild(search);
     host.appendChild(suggestions);
 
-    spyOn(host, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({
       top: 120,
       right: 620,
       bottom: 220,
@@ -54,7 +54,7 @@ describe('computeGuideBlockingRects', () => {
       y: 120,
       toJSON: () => ({}),
     } as DOMRect);
-    spyOn(suggestions, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(suggestions, 'getBoundingClientRect').mockReturnValue({
       top: 228,
       right: 620,
       bottom: 420,

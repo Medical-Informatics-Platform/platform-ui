@@ -43,7 +43,7 @@ describe('CollapsibleTreeBrowserComponent', () => {
     const age = model.children![1];
     fixture.componentRef.setInput('data', model);
     fixture.detectChanges();
-    spyOn(component.selectedNodeChange, 'emit');
+    vi.spyOn(component.selectedNodeChange, 'emit').mockReturnValue(undefined);
 
     const variableNode = findRenderedNode(fixture.nativeElement, 'Age');
     variableNode.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -57,7 +57,7 @@ describe('CollapsibleTreeBrowserComponent', () => {
     const age = model.children![1];
     fixture.componentRef.setInput('data', model);
     fixture.detectChanges();
-    spyOn(component.nodeDoubleClicked, 'emit');
+    vi.spyOn(component.nodeDoubleClicked, 'emit').mockReturnValue(undefined);
 
     const variableNode = findRenderedNode(fixture.nativeElement, 'Age');
     variableNode.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
@@ -115,14 +115,14 @@ describe('CollapsibleTreeBrowserComponent', () => {
       const svg = fixture.nativeElement.querySelector('svg.collapsible-tree-svg');
       expect(svg).toBeTruthy();
       const renderer = (component as any).renderer;
-      spyOn(renderer, 'resize');
+      vi.spyOn(renderer, 'resize').mockReturnValue(undefined);
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
       // The component compares each observer size against the box it actually drew
       // into, so the fake observer and the measured box have to agree.
       const canvas = fixture.nativeElement.querySelector('.chart-canvas') as HTMLElement;
       let measuredBox = { width: 0, height: 0 };
-      spyOn(canvas, 'getBoundingClientRect').and.callFake(() => ({
+      vi.spyOn(canvas, 'getBoundingClientRect').mockImplementation(() => ({
         width: measuredBox.width,
         height: measuredBox.height,
         top: 0,
@@ -169,6 +169,6 @@ describe('CollapsibleTreeBrowserComponent', () => {
 function findRenderedNode(host: HTMLElement, label: string): SVGGElement {
   const nodes = Array.from(host.querySelectorAll<SVGGElement>('g.collapsible-node'));
   const node = nodes.find((item) => item.textContent?.includes(label));
-  expect(node).withContext(`Expected rendered node for ${label}`).toBeDefined();
+  expect(node, `Expected rendered node for ${label}`).toBeDefined();
   return node!;
 }

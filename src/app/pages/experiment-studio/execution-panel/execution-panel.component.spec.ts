@@ -27,6 +27,7 @@ describe('ExecutionPanelComponent', () => {
     lastRunSchema: signal<unknown>(null),
     runStatusText: signal('Running the experiment…'),
     saveSucceeded: signal(false),
+    saveError: signal<string | null>(null),
     lastUsedAlgorithm: signal('flat_algo'),
     backendAlgorithms: signal<Record<string, { label: string }>>({ flat_algo: { label: 'Flat Algo' } }),
     algorithmY: signal<never[]>([]),
@@ -34,7 +35,7 @@ describe('ExecutionPanelComponent', () => {
     variableLabelMap: signal<Record<string, string>>({}),
     getCategoricalEnumMaps: () => ({}),
   };
-  const studioNavigation = { navigateToSection: jasmine.createSpy('navigateToSection') };
+  const studioNavigation = { navigateToSection: vi.fn() };
 
   /** Zoneless: every state is a signal write, so rendering is driven through the stub. */
   function render(state: Partial<{ running: boolean; result: Record<string, unknown> | null; error: string | null }> = {}): HTMLElement {
@@ -49,7 +50,8 @@ describe('ExecutionPanelComponent', () => {
     studio.isRunning.set(false);
     studio.runResult.set(null);
     studio.runError.set(null);
-    studioNavigation.navigateToSection.calls.reset();
+    studio.saveError.set(null);
+    studioNavigation.navigateToSection.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ExecutionPanelComponent],
@@ -67,6 +69,13 @@ describe('ExecutionPanelComponent', () => {
     });
 
     fixture = TestBed.createComponent(ExecutionPanelComponent);
+  });
+
+  it('shows why the last save failed next to the result', () => {
+    studio.saveError.set('Engine crashed');
+    const html = render({ result: { title: 'Saved run' } });
+
+    expect(html.querySelector('[role="alert"].result-save-error')?.textContent).toContain('Saving failed: Engine crashed');
   });
 
   it('asks for a run while there is no result', () => {
@@ -140,7 +149,7 @@ describe('ExecutionPanelComponent', () => {
 
     fixture.componentInstance.backToAlgorithm();
 
-    expect(fixture.componentInstance.saveAsMode()).toBeFalse();
+    expect(fixture.componentInstance.saveAsMode()).toBe(false);
     expect(studioNavigation.navigateToSection).toHaveBeenCalledWith('algorithm-section');
   });
 

@@ -61,16 +61,16 @@ describe('ExperimentFoldersService', () => {
       const read = httpMock.expectOne(apiUrl);
 
       expect(read.request.method).toBe('GET');
-      expect(service.loading()).toBeTrue();
+      expect(service.loading()).toBe(true);
 
       read.flush({
         folders: [folder(), folder({ id: 'folder-2', name: 'PCA', experimentIds: ['exp-2', 'exp-3'] })],
       });
 
-      expect(service.loading()).toBeFalse();
+      expect(service.loading()).toBe(false);
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['folder-1', 'folder-2']);
       expect(service.folderById('folder-2')?.name).toBe('PCA');
-      expect(service.isMember('folder-2', 'exp-3')).toBeTrue();
+      expect(service.isMember('folder-2', 'exp-3')).toBe(true);
     });
 
     it('carries the sets across with the folder that holds them', () => {
@@ -113,7 +113,7 @@ describe('ExperimentFoldersService', () => {
       service.setActiveUser(null);
 
       expect(service.folders()).toEqual([]);
-      expect(service.loading()).toBeFalse();
+      expect(service.loading()).toBe(false);
       httpMock.expectNone(apiUrl);
     });
 
@@ -138,10 +138,10 @@ describe('ExperimentFoldersService', () => {
     });
 
     it('says out loud when the read fails, rather than showing an empty list as if it were the truth', () => {
-      spyOn(console, 'error');
+      vi.spyOn(console, 'error').mockReturnValue(undefined);
       signIn().flush('database down', { status: 500, statusText: 'Server Error' });
 
-      expect(service.loading()).toBeFalse();
+      expect(service.loading()).toBe(false);
       expect(service.loadError()).toContain('Could not load your folders');
     });
 
@@ -170,7 +170,7 @@ describe('ExperimentFoldersService', () => {
 
       write.flush(folder({ id: 'folder-2', name: 'Q3 meta two', experimentIds: [] }));
 
-      expect(created.values[0]).toEqual(jasmine.objectContaining({ id: 'folder-2', name: 'Q3 meta two' }));
+      expect(created.values[0]).toEqual(expect.objectContaining({ id: 'folder-2', name: 'Q3 meta two' }));
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['folder-1', 'folder-2']);
     });
 
@@ -258,7 +258,7 @@ describe('ExperimentFoldersService', () => {
 
       write.flush(folder({ experimentIds: ['exp-1', 'exp-2'] }));
 
-      expect(added.values[0]).toEqual(jasmine.objectContaining({ id: 'folder-1' }));
+      expect(added.values[0]).toEqual(expect.objectContaining({ id: 'folder-1' }));
       expect(service.folderById('folder-1')?.experimentIds).toEqual(['exp-1', 'exp-2']);
     });
 
@@ -282,8 +282,8 @@ describe('ExperimentFoldersService', () => {
       expect(added.request.method).toBe('POST');
       added.flush(folder({ experimentIds: ['exp-2'] }));
 
-      expect(service.isMember('folder-1', 'exp-1')).toBeFalse();
-      expect(service.isMember('folder-1', 'exp-2')).toBeTrue();
+      expect(service.isMember('folder-1', 'exp-1')).toBe(false);
+      expect(service.isMember('folder-1', 'exp-2')).toBe(true);
     });
 
     it('a drop the server refused is an error the canvas hears, not a silent no-op', () => {
@@ -394,7 +394,7 @@ describe('ExperimentFoldersService', () => {
       write.flush(folder({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: [] }] }));
 
       expect(service.setOf('folder-1', 'exp-1')).toBeNull();
-      expect(service.isMember('folder-1', 'exp-1')).toBeTrue();
+      expect(service.isMember('folder-1', 'exp-1')).toBe(true);
     });
   });
 

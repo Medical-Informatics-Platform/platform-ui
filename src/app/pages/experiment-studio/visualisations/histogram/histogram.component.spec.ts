@@ -81,7 +81,7 @@ describe('HistogramComponent', () => {
     host.config.set({ ...VERTICAL });
     await settle(RENDER_MS);
 
-    expect(svg()).withContext('chart drawn').not.toBeNull();
+    expect(svg(), 'chart drawn').not.toBeNull();
     expect(bars()).toBe(OVERALL.bins.length);
     expect(drawnHeight()).toBeGreaterThan(150);
   });
@@ -92,7 +92,7 @@ describe('HistogramComponent', () => {
     host.config.set({ ...VERTICAL });
     await settle(RENDER_MS);
 
-    expect(svg()).withContext('nothing measured, nothing drawn').toBeNull();
+    expect(svg(), 'nothing measured, nothing drawn').toBeNull();
   });
 
   it('draws as soon as the hidden step becomes visible again', async () => {
@@ -105,7 +105,7 @@ describe('HistogramComponent', () => {
     wrapper.style.display = '';
     await settle(RESIZE_MS);
 
-    expect(svg()).withContext('redrawn on reveal').not.toBeNull();
+    expect(svg(), 'redrawn on reveal').not.toBeNull();
     expect(bars()).toBe(OVERALL.bins.length);
     expect(drawnHeight()).toBeGreaterThan(150);
   });

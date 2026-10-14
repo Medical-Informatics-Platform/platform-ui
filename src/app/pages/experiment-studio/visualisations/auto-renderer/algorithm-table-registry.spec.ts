@@ -91,9 +91,9 @@ describe('AlgorithmTableRegistry', () => {
     } as any);
 
     const summary = tables[1].rows;
-    expect(summary).toContain(['F-statistic', 'Perfect fit']);
-    expect(summary).toContain(['p-value (F-stat)', '<0.001']);
-    expect(summary).toContain(['F-statistic note', 'Residual sum of squares is zero.']);
+    expect(summary).toContainEqual(['F-statistic', 'Perfect fit']);
+    expect(summary).toContainEqual(['p-value (F-stat)', '<0.001']);
+    expect(summary).toContainEqual(['F-statistic note', 'Residual sum of squares is zero.']);
   });
 
   it('includes ll/aic/bic and dependent variable in linear_regression summary', () => {
@@ -154,7 +154,7 @@ describe('AlgorithmTableRegistry', () => {
       },
     });
 
-    expect(tables.some((t) => t.title === 'Group Min/Max')).toBeTrue();
+    expect(tables.some((t) => t.title === 'Group Min/Max')).toBe(true);
   });
 
   it('renders linear_svm via canonical key', () => {
@@ -167,7 +167,7 @@ describe('AlgorithmTableRegistry', () => {
 
     const canonical = AlgorithmTableRegistry['linear_svm'](payload);
     expect(canonical.length).toBeGreaterThan(0);
-    expect(canonical[0].rows.some((row) => row[0] === 'Intercept')).toBeTrue();
+    expect(canonical[0].rows.some((row) => row[0] === 'Intercept')).toBe(true);
   });
 
   it('renders category_log_prob tables for naive_bayes_categorical', () => {
@@ -181,7 +181,7 @@ describe('AlgorithmTableRegistry', () => {
       category_log_prob: { sex: [[-0.69, -0.69], [-0.65, -0.65]] },
     });
 
-    expect(tables.some((t) => t.title?.startsWith('Category Log Probabilities'))).toBeTrue();
+    expect(tables.some((t) => t.title?.startsWith('Category Log Probabilities'))).toBe(true);
   });
 
   it('renders pca summary and keeps pca_with_transformation alias', () => {
@@ -223,11 +223,11 @@ describe('AlgorithmTableRegistry', () => {
     });
 
     expect(tables.length).toBe(1);
-    expect(tables[0].rows).toContain(['U statistic', '163.5']);
-    expect(tables[0].rows).toContain(['p-value', '8.437e-6']);
-    expect(tables[0].rows).toContain(['z-score', '4.454']);
-    expect(tables[0].rows).toContain(['Group A sample size', '15']);
-    expect(tables[0].rows).toContain(['Group B sample size', '80']);
+    expect(tables[0].rows).toContainEqual(['U statistic', '163.5']);
+    expect(tables[0].rows).toContainEqual(['p-value', '8.437e-6']);
+    expect(tables[0].rows).toContainEqual(['z-score', '4.454']);
+    expect(tables[0].rows).toContainEqual(['Group A sample size', '15']);
+    expect(tables[0].rows).toContainEqual(['Group B sample size', '80']);
   });
 
   it('renders standardized mean difference comparisons', () => {
@@ -276,9 +276,9 @@ describe('AlgorithmTableRegistry', () => {
       ],
     });
 
-    expect(tables.some((t) => t.title === 'Featurewise Summary — Numeric')).toBeTrue();
-    expect(tables.some((t) => t.title === 'Featurewise Summary — Nominal')).toBeTrue();
-    expect(tables.some((t) => t.title?.includes('Model-based'))).toBeFalse();
+    expect(tables.some((t) => t.title === 'Featurewise Summary — Numeric')).toBe(true);
+    expect(tables.some((t) => t.title === 'Featurewise Summary — Nominal')).toBe(true);
+    expect(tables.some((t) => t.title?.includes('Model-based'))).toBe(false);
     const numericRows = tables.find((t) => t.title === 'Featurewise Summary — Numeric')?.rows ?? [];
     expect(numericRows[0][9]).toBe('52.5');
     expect(numericRows[1][9]).toBe('171');
@@ -351,10 +351,10 @@ describe('AlgorithmTableRegistry', () => {
       ci_lower: 0.033494668591674485,
     });
 
-    expect(tables[0].rows).toContain(['T-statistic', '3.888']);
-    expect(tables[0].rows).toContain(['Degrees of Freedom', '12.000']);
-    expect(tables[0].rows).toContain(['p-value', '0.000']);
-    expect(tables[0].rows).toContain(['Mean Difference', '0.068']);
+    expect(tables[0].rows).toContainEqual(['T-statistic', '3.888']);
+    expect(tables[0].rows).toContainEqual(['Degrees of Freedom', '12.000']);
+    expect(tables[0].rows).toContainEqual(['p-value', '0.000']);
+    expect(tables[0].rows).toContainEqual(['Mean Difference', '0.068']);
   });
 
   it('renders classical Cox regression coefficients and summary', () => {
@@ -395,10 +395,10 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][0]).toBe('Age');
     expect(tables[0].rows[0][1]).toBe('0.741');
     expect(tables[0].rows[0][3]).toBe('0.002');
-    expect(tables[1].rows).toContain(['Follow-up time', 'Sex']);
-    expect(tables[1].rows).toContain(['Event indicator', 'Age']);
-    expect(tables[1].rows).toContain(['Tied events handling', 'breslow']);
-    expect(tables[1].rows).toContain(['Model converged', 'Yes']);
+    expect(tables[1].rows).toContainEqual(['Follow-up time', 'Sex']);
+    expect(tables[1].rows).toContainEqual(['Event indicator', 'Age']);
+    expect(tables[1].rows).toContainEqual(['Tied events handling', 'breslow']);
+    expect(tables[1].rows).toContainEqual(['Model converged', 'Yes']);
   });
 
   it('renders stacked Cox regression summary metrics', () => {
@@ -437,8 +437,8 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables.length).toBe(2);
     expect(tables[0].rows.length).toBe(1);
     expect(tables[0].rows[0][0]).toBe('Gender[Male]');
-    expect(tables[1].rows).toContain(['Analysis rows', '900']);
-    expect(tables[1].rows).toContain(['AIC', '194']);
+    expect(tables[1].rows).toContainEqual(['Analysis rows', '900']);
+    expect(tables[1].rows).toContainEqual(['AIC', '194']);
   });
 
   it('renders LMM fixed effects and model summary', () => {
@@ -473,7 +473,7 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][0]).toBe('Intercept');
     expect(tables[0].rows[0][4]).toBe('<0.001');
     expect(tables[0].rows[1][4]).toBe('0.002');
-    expect(tables.some(table => table.title === 'Model Summary')).toBeTrue();
+    expect(tables.some(table => table.title === 'Model Summary')).toBe(true);
   });
 
   it('falls back to formatted LMM p-values when display values are absent', () => {
@@ -528,9 +528,9 @@ describe('AlgorithmTableRegistry', () => {
       converged: true,
     });
 
-    expect(binary.some(table => table.title === 'Fixed Effects')).toBeTrue();
-    expect(ordinal.some(table => table.title === 'Ordinal Category Order')).toBeTrue();
-    expect(ordinal.some(table => table.title === 'Cutpoints')).toBeTrue();
+    expect(binary.some(table => table.title === 'Fixed Effects')).toBe(true);
+    expect(ordinal.some(table => table.title === 'Ordinal Category Order')).toBe(true);
+    expect(ordinal.some(table => table.title === 'Cutpoints')).toBe(true);
   });
 
   it('renders chi-squared and fisher exact tables', () => {
@@ -556,9 +556,9 @@ describe('AlgorithmTableRegistry', () => {
       },
     });
 
-    expect(chiSquared.some(table => table.title === 'Expected Frequencies')).toBeTrue();
-    expect(chiSquared.some(table => table.title === 'Contingency Table Categories')).toBeTrue();
-    expect(fisher.some(table => table.title === "Fisher's Exact Test Summary")).toBeTrue();
+    expect(chiSquared.some(table => table.title === 'Expected Frequencies')).toBe(true);
+    expect(chiSquared.some(table => table.title === 'Contingency Table Categories')).toBe(true);
+    expect(fisher.some(table => table.title === "Fisher's Exact Test Summary")).toBe(true);
 
     const fisherCategories = fisher.find(table => table.title === 'Contingency Table Categories');
     expect(fisherCategories?.columns).toEqual(['Role', 'Variable', 'Categories']);
@@ -614,9 +614,9 @@ describe('AlgorithmTableRegistry', () => {
       'Notes',
     ]);
     expect(tables[1].columns).toEqual(['Cluster', 'Size', 'a', 'b']);
-    expect(tables[0].rows).toContain(['Observations', '100-200']);
-    expect(tables[3].rows).toContain(['Warning', 'w1']);
-    expect(tables[3].rows).toContain(['Limitation', 'l1']);
+    expect(tables[0].rows).toContainEqual(['Observations', '100-200']);
+    expect(tables[3].rows).toContainEqual(['Warning', 'w1']);
+    expect(tables[3].rows).toContainEqual(['Limitation', 'l1']);
   });
 
   it('returns no kmeans tables without clusters', () => {

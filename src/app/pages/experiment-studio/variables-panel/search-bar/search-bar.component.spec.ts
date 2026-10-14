@@ -80,7 +80,7 @@ describe('SearchBarComponent', () => {
     component.setFilterType('groups');
 
     expect(component.filteredItems.length).toBeGreaterThan(0);
-    expect(component.filteredItems.every((item) => item.kind === 'group')).toBeTrue();
+    expect(component.filteredItems.every((item) => item.kind === 'group')).toBe(true);
     const groupLabels = component.filteredItems.map((item) => item.label);
     expect(groupLabels).toContain('Demographics');
   });
@@ -112,7 +112,7 @@ describe('SearchBarComponent', () => {
 
     expect(selected).toBeDefined();
     expect(selected?.label).toBe('Gender');
-    expect(component.searchSuggestionsVisible).toBeFalse();
+    expect(component.searchSuggestionsVisible).toBe(false);
   });
 
   it('supports keyboard navigation with arrow keys and Enter', () => {
@@ -138,10 +138,10 @@ describe('SearchBarComponent', () => {
   it('closes suggestions on Escape key', () => {
     const { component } = setupComponent();
     component.onSearchFocus();
-    expect(component.searchSuggestionsVisible).toBeTrue();
+    expect(component.searchSuggestionsVisible).toBe(true);
 
     component.onSearchKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(component.searchSuggestionsVisible).toBeFalse();
+    expect(component.searchSuggestionsVisible).toBe(false);
   });
 
   it('highlights matched substring within label', () => {

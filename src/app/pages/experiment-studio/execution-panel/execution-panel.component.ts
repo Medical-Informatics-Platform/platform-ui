@@ -38,6 +38,7 @@ export class ExecutionPanelComponent {
   readonly saveAsMode = signal(false);
   readonly saveAsName = signal('');
   readonly showSuccessNotification = this.expStudioService.saveSucceeded;
+  readonly saveError = this.expStudioService.saveError;
 
   readonly resultAlgorithmLabel = computed(() => {
     const algoKey = this.expStudioService.lastUsedAlgorithm() ?? '';
@@ -93,8 +94,11 @@ export class ExecutionPanelComponent {
       const running = this.isRunning();
       if (running) {
         this.runningSince = Date.now();
-        // A new run produces a new, unsaved result.
-        untracked(() => this.savedName.set(null));
+        // A new run produces a new, unsaved result, with no earlier save failure.
+        untracked(() => {
+          this.savedName.set(null);
+          this.saveError.set(null);
+        });
         return;
       }
       if (this.runningSince === null) return;

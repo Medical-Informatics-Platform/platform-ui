@@ -65,8 +65,8 @@ describe('ExperimentsListComponent list pane', () => {
             historyTruncated: signal(false),
             fullHistoryCap: 2500,
             isLoading: signal(false),
-            getUserExperiments: jasmine.createSpy('getUserExperiments'),
-            toggleExperimentShare: jasmine.createSpy('toggleExperimentShare').and.returnValue(of({ shared: true })),
+            getUserExperiments: vi.fn(),
+            toggleExperimentShare: vi.fn().mockReturnValue(of({ shared: true })),
           },
         },
         {
@@ -138,8 +138,8 @@ describe('ExperimentsListComponent list pane', () => {
 
     // fa-object-group: fa-layer-group already means domain in this pane and is the compare placeholder.
     const rowTriggerIcon = root().querySelector('.folder-menu-anchor .icon-btn i')!;
-    expect(rowTriggerIcon.classList.contains('fa-object-group')).toBeTrue();
-    expect(rowTriggerIcon.classList.contains('fa-layer-group')).toBeFalse();
+    expect(rowTriggerIcon.classList.contains('fa-object-group')).toBe(true);
+    expect(rowTriggerIcon.classList.contains('fa-layer-group')).toBe(false);
   });
 
   it('tells the dashboard which folder is open, and "All folders" is the clear', () => {
@@ -204,26 +204,26 @@ describe('ExperimentsListComponent list pane', () => {
 
     const items = root().querySelectorAll<HTMLElement>('.folder-menu__item');
     expect(items.length).toBe(2); // the folder plus "New folder…"
-    expect(items[0].querySelector('.folder-menu__check')!.classList.contains('folder-menu__check--off')).toBeTrue();
+    expect(items[0].querySelector('.folder-menu__check')!.classList.contains('folder-menu__check--off')).toBe(true);
 
     items[0].click();
     fixture.detectChanges();
-    expect(foldersService.isMember(folder.id, 'a')).toBeTrue();
+    expect(foldersService.isMember(folder.id, 'a')).toBe(true);
 
     // A pick is a tick, not a navigation: the menu stays open so a run can join a second folder.
     const checks = root().querySelectorAll<HTMLElement>('.folder-menu__item .folder-menu__check');
-    expect(checks[0].classList.contains('folder-menu__check--off')).toBeFalse();
+    expect(checks[0].classList.contains('folder-menu__check--off')).toBe(false);
     expect(root().querySelector('.folder-menu')).toBeTruthy();
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
 
     (checks[0].closest('.folder-menu__item') as HTMLElement).click();
     fixture.detectChanges();
-    expect(foldersService.isMember(folder.id, 'a')).toBeFalse();
+    expect(foldersService.isMember(folder.id, 'a')).toBe(false);
   });
 
   it('treats a folder pick as a folder choice, not as a row selection', () => {
     foldersService.seedFolder('ANOVA');
-    const selectExperiment = spyOn(fixture.componentInstance, 'selectExperiment');
+    const selectExperiment = vi.spyOn(fixture.componentInstance, 'selectExperiment').mockReturnValue(undefined);
     fixture.detectChanges();
 
     rowTrigger().click();
@@ -305,7 +305,7 @@ describe('ExperimentsListComponent list pane', () => {
   });
 
   it('keeps the name form open when the create never reached the server', () => {
-    spyOn(console, 'error');
+    vi.spyOn(console, 'error').mockReturnValue(undefined);
     foldersService.failWith('createFolder');
     fixture.detectChanges();
 
@@ -355,7 +355,7 @@ describe('ExperimentsListComponent list pane', () => {
     // Sort sits inside the filter panel, so the panel is opened before the orders are looked for.
     const trigger = () => root().querySelector<HTMLButtonElement>('.sort-overflow__trigger')!;
 
-    // A sort pick writes the query, and Karma keeps one page across specs: start clean, leave clean.
+    // A sort pick writes the query, and the test browser keeps one page across specs: start clean, leave clean.
     beforeEach(() => {
       history.replaceState(null, '', '/experiments-dashboard');
       component.sort.set('created-desc');
@@ -391,7 +391,7 @@ describe('ExperimentsListComponent list pane', () => {
       openFilters();
 
       expect(trigger().title).toBe('Sort: Newest');
-      expect(details().open).toBeFalse();
+      expect(details().open).toBe(false);
 
       trigger().click();
       fixture.detectChanges();
@@ -404,9 +404,9 @@ describe('ExperimentsListComponent list pane', () => {
         'Status',
         'Algorithm',
       ]);
-      expect(checkOf(orders()[0])).toBeFalse();
-      expect(checkOf(orders()[1])).toBeTrue();
-      expect(details().open).toBeTrue();
+      expect(checkOf(orders()[0])).toBe(false);
+      expect(checkOf(orders()[1])).toBe(true);
+      expect(details().open).toBe(true);
     });
 
     it('folds back into the icon once an order is taken, and says which one is on', () => {
@@ -418,7 +418,7 @@ describe('ExperimentsListComponent list pane', () => {
       fixture.detectChanges();
 
       expect(component.sort()).toBe('name-asc');
-      expect(details().open).toBeFalse();
+      expect(details().open).toBe(false);
       expect(trigger().title).toBe('Sort: Name A–Z');
     });
   });

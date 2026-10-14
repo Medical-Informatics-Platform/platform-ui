@@ -1,3 +1,4 @@
+import type { MockInstance } from 'vitest';
 import {
     HubApiError,
     buildLabUrl,
@@ -24,10 +25,10 @@ function hubUserResponse(name: string, ready: boolean, pending: string | null = 
 }
 
 describe('jupyterhub-api', () => {
-    let fetchSpy: jasmine.Spy<typeof fetch>;
+    let fetchSpy: MockInstance<typeof fetch>;
 
     beforeEach(() => {
-        fetchSpy = spyOn(window, 'fetch');
+        fetchSpy = vi.spyOn(window, 'fetch').mockReturnValue(undefined as any);
         document.cookie = '_xsrf=test-token';
     });
 
@@ -40,38 +41,38 @@ describe('jupyterhub-api', () => {
     });
 
     it('getHubUser loads the current hub user', async () => {
-        fetchSpy.and.resolveTo(hubUserResponse('alice', true));
+        fetchSpy.mockResolvedValue(hubUserResponse('alice', true));
 
         const user = await getHubUser('/notebook');
 
         expect(user.name).toBe('alice');
-        expect(isServerReady(user)).toBeTrue();
+        expect(isServerReady(user)).toBe(true);
     });
 
     it('startServer sends POST with XSRF header', async () => {
-        fetchSpy.and.resolveTo(new Response(null, { status: 202 }));
+        fetchSpy.mockResolvedValue(new Response(null, { status: 202 }));
 
         await startServer('/notebook', 'alice');
 
         expect(fetchSpy).toHaveBeenCalled();
-        const [, init] = fetchSpy.calls.mostRecent().args as [string, RequestInit];
+        const [, init] = fetchSpy.mock.lastCall! as [string, RequestInit];
         expect(init.method).toBe('POST');
         expect((init.headers as Headers).get('X-XSRFToken')).toBe('test-token');
     });
 
     it('ensureServerRunning skips POST when server is already ready', async () => {
-        fetchSpy.and.resolveTo(hubUserResponse('alice', true));
+        fetchSpy.mockResolvedValue(hubUserResponse('alice', true));
 
         const user = await ensureServerRunning('/notebook');
 
         expect(user.name).toBe('alice');
-        const userCalls = fetchSpy.calls.allArgs().filter(([url]) => String(url).includes('/hub/api/user'));
+        const userCalls = fetchSpy.mock.calls.filter(([url]) => String(url).includes('/hub/api/user'));
         expect(userCalls.length).toBe(1);
     });
 
     it('ensureServerRunning does not repeat start POST while polling', async () => {
         let userCalls = 0;
-        fetchSpy.and.callFake(async (input: RequestInfo | URL, init?: RequestInit) => {
+        fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = String(input);
             if (url.includes('/hub/api/users/alice/server') && init?.method === 'POST') {
                 return new Response(null, { status: 202 });
@@ -88,7 +89,7 @@ describe('jupyterhub-api', () => {
             timeoutMs: 200,
         });
 
-        const startCalls = fetchSpy.calls.allArgs().filter(([url, init]) => (
+        const startCalls = fetchSpy.mock.calls.filter(([url, init]) => (
             String(url).includes('/hub/api/users/alice/server')
             && (init as RequestInit | undefined)?.method === 'POST'
         ));
@@ -97,21 +98,21 @@ describe('jupyterhub-api', () => {
     });
 
     it('waitForServer times out when server never becomes ready', async () => {
-        fetchSpy.and.callFake(async () => hubUserResponse('alice', false, 'spawn'));
+        fetchSpy.mockImplementation(async () => hubUserResponse('alice', false, 'spawn'));
 
-        await expectAsync(waitForServer('/notebook', {
+        await expect(waitForServer('/notebook', {
             pollIntervalMs: 10,
             timeoutMs: 50,
-        })).toBeRejectedWith(jasmine.objectContaining({
+        })).rejects.toEqual(expect.objectContaining({
             name: 'HubApiError',
             status: 408,
         }));
     });
 
     it('getHubUser throws HubApiError on 401', async () => {
-        fetchSpy.and.resolveTo(new Response(null, { status: 401 }));
+        fetchSpy.mockResolvedValue(new Response(null, { status: 401 }));
 
-        await expectAsync(getHubUser('/notebook')).toBeRejectedWith(
+        await expect(getHubUser('/notebook')).rejects.toEqual(
             new HubApiError('Hub session is not authenticated', 401),
         );
     });

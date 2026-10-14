@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
@@ -33,6 +33,13 @@ export class NotebookComponent implements OnInit {
     readonly loadingMessage = signal('Preparing your notebook…');
     readonly spawnError = signal<string | null>(null);
 
+    /** False once the user leaves the page, so a slow Hub check never redirects a page they moved away from. */
+    private active = true;
+
+    constructor() {
+        inject(DestroyRef).onDestroy(() => (this.active = false));
+    }
+
     ngOnInit() {
         if (this.redirectTopLevelLabToShell()) {
             return;
@@ -61,7 +68,7 @@ export class NotebookComponent implements OnInit {
         this.beginLoading('Preparing your notebook…');
 
         this.loadingMessage.set('Connecting to your notebook…');
-        const hubState = await ensureHubSession(this.jupyterBasePath);
+        const hubState = await ensureHubSession(this.jupyterBasePath, () => this.active);
         if (hubState === 'redirected') {
             return;
         }
@@ -92,7 +99,7 @@ export class NotebookComponent implements OnInit {
             ));
         } catch (error) {
             if (error instanceof HubApiError && error.status === 401) {
-                const hubState = await ensureHubSession(this.jupyterBasePath);
+                const hubState = await ensureHubSession(this.jupyterBasePath, () => this.active);
                 if (hubState === 'redirected') {
                     return;
                 }

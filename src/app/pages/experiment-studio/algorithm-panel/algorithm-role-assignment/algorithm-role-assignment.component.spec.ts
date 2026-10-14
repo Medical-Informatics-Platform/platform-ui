@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
@@ -9,8 +10,8 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     algorithmAssignableVariables: ReturnType<typeof signal<any[]>>;
     algorithmY: ReturnType<typeof signal<any[]>>;
     algorithmX: ReturnType<typeof signal<any[]>>;
-    setAlgorithmY: jasmine.Spy;
-    setAlgorithmX: jasmine.Spy;
+    setAlgorithmY: Mock;
+    setAlgorithmX: Mock;
   };
 
   const age = { code: 'age', label: 'Age', type: 'real' };
@@ -23,10 +24,10 @@ describe('AlgorithmRoleAssignmentComponent', () => {
       algorithmAssignableVariables: signal<any[]>([age, sex, bmi, derived]),
       algorithmY: signal<any[]>([]),
       algorithmX: signal<any[]>([]),
-      setAlgorithmY: jasmine.createSpy('setAlgorithmY').and.callFake((nodes: any[]) => {
+      setAlgorithmY: vi.fn().mockImplementation((nodes: any[]) => {
         experimentStudioService.algorithmY.set(nodes);
       }),
-      setAlgorithmX: jasmine.createSpy('setAlgorithmX').and.callFake((nodes: any[]) => {
+      setAlgorithmX: vi.fn().mockImplementation((nodes: any[]) => {
         experimentStudioService.algorithmX.set(nodes);
       }),
     };
@@ -49,7 +50,7 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.setAlgorithmY).toHaveBeenCalledWith([age]);
     expect(experimentStudioService.algorithmY()).toEqual([age]);
     // The assigned member leaves the available source list.
-    expect(fixture.componentInstance.source()).not.toContain(jasmine.objectContaining({ code: 'age' }));
+    expect(fixture.componentInstance.source()).not.toContainEqual(expect.objectContaining({ code: 'age' }));
   });
 
   it('assigns a pool member to x via setAlgorithmX', () => {
@@ -57,7 +58,7 @@ describe('AlgorithmRoleAssignmentComponent', () => {
 
     expect(experimentStudioService.setAlgorithmX).toHaveBeenCalledWith([sex]);
     expect(experimentStudioService.algorithmX()).toEqual([sex]);
-    expect(fixture.componentInstance.source()).not.toContain(jasmine.objectContaining({ code: 'sex' }));
+    expect(fixture.componentInstance.source()).not.toContainEqual(expect.objectContaining({ code: 'sex' }));
   });
 
   it('removes a member from a role via setAlgorithmY/setAlgorithmX', () => {
@@ -78,8 +79,8 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     experimentStudioService.algorithmY.set([derived]);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.isCreated(derived)).toBeTrue();
-    expect(fixture.componentInstance.isCreated(age)).toBeFalse();
+    expect(fixture.componentInstance.isCreated(derived)).toBe(true);
+    expect(fixture.componentInstance.isCreated(age)).toBe(false);
     const nativeElement = fixture.nativeElement as HTMLElement;
     expect(nativeElement.textContent).toContain('Derived column');
     expect(nativeElement.querySelector('.role-chip-created')).toBeTruthy();
@@ -96,8 +97,8 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.algorithmX()).toEqual([]);
     expect(experimentStudioService.algorithmY()).toEqual([age]);
     // The node is not in both roles.
-    expect(fixture.componentInstance.isAssigned(age, 'x')).toBeFalse();
-    expect(fixture.componentInstance.isAssigned(age, 'y')).toBeTrue();
+    expect(fixture.componentInstance.isAssigned(age, 'x')).toBe(false);
+    expect(fixture.componentInstance.isAssigned(age, 'y')).toBe(true);
   });
 
   it('assigning to x removes the node from y (disjoint roles)', () => {
@@ -110,15 +111,15 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     expect(experimentStudioService.setAlgorithmX).toHaveBeenCalledWith([bmi]);
     expect(experimentStudioService.algorithmY()).toEqual([]);
     expect(experimentStudioService.algorithmX()).toEqual([bmi]);
-    expect(fixture.componentInstance.isAssigned(bmi, 'y')).toBeFalse();
-    expect(fixture.componentInstance.isAssigned(bmi, 'x')).toBeTrue();
+    expect(fixture.componentInstance.isAssigned(bmi, 'y')).toBe(false);
+    expect(fixture.componentInstance.isAssigned(bmi, 'x')).toBe(true);
   });
 
   it('assigning an already-assigned node is a no-op and keeps it out of the other role', () => {
     experimentStudioService.algorithmY.set([sex]);
     fixture.detectChanges();
-    experimentStudioService.setAlgorithmY.calls.reset();
-    experimentStudioService.setAlgorithmX.calls.reset();
+    experimentStudioService.setAlgorithmY.mockClear();
+    experimentStudioService.setAlgorithmX.mockClear();
 
     fixture.componentInstance.assignTo('y', sex);
 
@@ -132,7 +133,7 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     experimentStudioService.algorithmY.set([age]);
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.filteredPool().some((node) => node.code === 'age')).toBeFalse();
+    expect(fixture.componentInstance.filteredPool().some((node) => node.code === 'age')).toBe(false);
     expect(fixture.componentInstance.roleOf(age)).toBe('y');
     expect((fixture.nativeElement as HTMLElement).querySelector('.roster')?.textContent).not.toContain('Age');
   });

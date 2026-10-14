@@ -10,7 +10,7 @@ describe('CsvExportService', () => {
   it('zips one CSV per table, the raw result and a README describing the setup', async () => {
     const service = new CsvExportService();
     let saved: { blob: Blob; name: string } | null = null;
-    spyOn(service as any, 'download').and.callFake((blob: Blob, name: string) => (saved = { blob, name }));
+    vi.spyOn(service as any, 'download').mockImplementation((blob: any, name: any) => (saved = { blob, name }));
 
     await service.exportExperimentZip({
       filename: 'My experiment',

@@ -43,16 +43,16 @@ describe('ExperimentSetupSummaryComponent', () => {
     }),
   };
   const navigation = {
-    navigateToSection: jasmine.createSpy('navigateToSection'),
-    navigateToDescriptiveStep: jasmine.createSpy('navigateToDescriptiveStep'),
-    goToPreprocessing: jasmine.createSpy('goToPreprocessing'),
+    navigateToSection: vi.fn(),
+    navigateToDescriptiveStep: vi.fn(),
+    goToPreprocessing: vi.fn(),
   };
 
   beforeEach(async () => {
     studio.runSetup.set(null);
-    navigation.navigateToSection.calls.reset();
-    navigation.navigateToDescriptiveStep.calls.reset();
-    navigation.goToPreprocessing.calls.reset();
+    navigation.navigateToSection.mockClear();
+    navigation.navigateToDescriptiveStep.mockClear();
+    navigation.goToPreprocessing.mockClear();
 
     await TestBed.configureTestingModule({
       imports: [ExperimentSetupSummaryComponent],

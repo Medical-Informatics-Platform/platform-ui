@@ -89,6 +89,9 @@
           </button>
         </div>
         }
+        @if (saveError(); as error) {
+        <p class="result-save-error" role="alert">Saving failed: {{ error }}</p>
+        }
       </header>
       <div class="result-section-body">
         <app-algorithm-result [result]="result()" [schema]="schema()" [algorithm]="resultAlgorithmKey()"

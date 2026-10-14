@@ -102,7 +102,7 @@ describe('collapsible tree renderer helpers', () => {
 
   it('schedules auto-fit when opening without a highlighted node', () => {
     const container = createContainer();
-    const onAutoFitScheduled = jasmine.createSpy('onAutoFitScheduled');
+    const onAutoFitScheduled = vi.fn();
     const renderer = createCollapsibleTree(model, container, {
       onNodeClick: () => undefined,
       onNodeDoubleClick: () => undefined,
@@ -117,8 +117,8 @@ describe('collapsible tree renderer helpers', () => {
   it('centers a highlighted group instead of scheduling initial auto-fit', () => {
     const group = model.children![0];
     const container = createContainer();
-    const onAutoFitScheduled = jasmine.createSpy('onAutoFitScheduled');
-    const onNodeCentered = jasmine.createSpy('onNodeCentered');
+    const onAutoFitScheduled = vi.fn();
+    const onNodeCentered = vi.fn();
 
     const renderer = createCollapsibleTree(model, container, {
       highlightNode: group,
@@ -136,7 +136,7 @@ describe('collapsible tree renderer helpers', () => {
 
   it('cancels pending auto-fit when expanding to a selected node', () => {
     const container = createContainer();
-    const onAutoFitCanceled = jasmine.createSpy('onAutoFitCanceled');
+    const onAutoFitCanceled = vi.fn();
     const renderer = createCollapsibleTree(model, container, {
       onNodeClick: () => undefined,
       onNodeDoubleClick: () => undefined,
@@ -172,7 +172,7 @@ describe('collapsible tree renderer helpers', () => {
   it('resizes the svg in place without rebuilding the tree', () => {
     const rect = { width: 900, height: 600 };
     const container = document.createElement('div');
-    spyOn(container, 'getBoundingClientRect').and.callFake(() => ({
+    vi.spyOn(container, 'getBoundingClientRect').mockImplementation(() => ({
       ...rect,
       x: 0,
       y: 0,
@@ -210,7 +210,7 @@ describe('collapsible tree renderer helpers', () => {
 
   it('cancels pending auto-fit when destroyed before the next animation frame', () => {
     const container = createContainer();
-    const onAutoFitCanceled = jasmine.createSpy('onAutoFitCanceled');
+    const onAutoFitCanceled = vi.fn();
     const renderer = createCollapsibleTree(model, container, {
       onNodeClick: () => undefined,
       onNodeDoubleClick: () => undefined,
@@ -226,7 +226,7 @@ describe('collapsible tree renderer helpers', () => {
 
 function createContainer(): HTMLElement {
   const container = document.createElement('div');
-  spyOn(container, 'getBoundingClientRect').and.returnValue({
+  vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
     x: 0,
     y: 0,
     top: 0,

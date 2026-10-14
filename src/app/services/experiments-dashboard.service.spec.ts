@@ -96,7 +96,7 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       }));
 
       expect(service.fullHistoryCap).toBe(2500);
-      expect(service.historyTruncated()).toBeTrue();
+      expect(service.historyTruncated()).toBe(true);
     });
 
     it('does not claim a truncated history the snapshot actually covered', () => {
@@ -108,7 +108,7 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
         currentPage: 0,
       });
 
-      expect(service.historyTruncated()).toBeFalse();
+      expect(service.historyTruncated()).toBe(false);
     });
 
     it('invalidates the client-filter snapshot on demand', () => {

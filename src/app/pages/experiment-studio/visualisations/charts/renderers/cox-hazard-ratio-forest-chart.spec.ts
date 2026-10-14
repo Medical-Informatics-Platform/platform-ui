@@ -20,7 +20,7 @@ describe('cox-hazard-ratio-forest-chart', () => {
 
     expect(rows.length).toBe(1);
     expect(rows[0].label).toBe('Age');
-    expect(isCoxInterceptTerm('Intercept')).toBeTrue();
+    expect(isCoxInterceptTerm('Intercept')).toBe(true);
   });
 
   it('shortens bracketed factor names for the y-axis', () => {
@@ -48,6 +48,6 @@ describe('cox-hazard-ratio-forest-chart', () => {
     });
 
     expect(charts.length).toBe(1);
-    expect(charts[0].title).toEqual(jasmine.objectContaining({ text: 'Hazard ratios (95% CI)' }));
+    expect(charts[0].title).toEqual(expect.objectContaining({ text: 'Hazard ratios (95% CI)' }));
   });
 });

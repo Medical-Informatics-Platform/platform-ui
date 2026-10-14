@@ -54,7 +54,7 @@ Open only after a targeted lookup:
 
 - Static gate: `npm run verify` (typecheck + dead-code scan + build)
 - Narrowest static check: `npm run typecheck`, or `npm run check:dead-code`
-- Unit tests: `npm test` (Karma, needs a browser)
+- Unit tests: `npm test -- --watch=false` (Vitest, headless Chromium)
 - Dev server: `npm start`
 
 Run the narrowest check that proves the change.

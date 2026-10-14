@@ -13,10 +13,10 @@ describe('Chart renderers regressions', () => {
     expect(charts.length).toBe(1);
     const heatmap = (charts[0] as any).series?.[0]?.data ?? [];
 
-    expect(heatmap).toContain([0, 0, 5]); // TP
-    expect(heatmap).toContain([1, 0, 2]); // FN
-    expect(heatmap).toContain([0, 1, 1]); // FP
-    expect(heatmap).toContain([1, 1, 7]); // TN
+    expect(heatmap).toContainEqual([0, 0, 5]); // TP
+    expect(heatmap).toContainEqual([1, 0, 2]); // FN
+    expect(heatmap).toContainEqual([0, 1, 1]); // FP
+    expect(heatmap).toContainEqual([1, 1, 7]); // TN
   });
 
   it('renders linear regression CV metrics when payload uses mean/std objects', () => {

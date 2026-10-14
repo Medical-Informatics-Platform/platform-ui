@@ -23,7 +23,7 @@ describe('hub-http', () => {
     });
 
     it('hubFetch parses xsrf_token from /hub/home when the cookie is not readable', async () => {
-        const fetchSpy = spyOn(window, 'fetch').and.callFake(async (input: RequestInfo | URL) => {
+        const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (url.includes('/hub/home')) {
                 return new Response(HUB_HOME_HTML, { status: 200 });
@@ -36,24 +36,24 @@ describe('hub-http', () => {
 
         await hubFetch('/notebook', '/hub/api/user');
 
-        const homeCall = fetchSpy.calls.allArgs().find(([url]) => String(url).includes('/hub/home'));
-        const apiCall = fetchSpy.calls.allArgs().find(([url]) => String(url).includes('/hub/api/user'));
+        const homeCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/hub/home'));
+        const apiCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/hub/api/user'));
         expect(homeCall).toBeDefined();
         expect(apiCall).toBeDefined();
         expect(String(apiCall![0])).toContain('_xsrf=page-xsrf-token');
-        expect((apiCall![1] as RequestInit).headers).toEqual(jasmine.any(Headers));
+        expect((apiCall![1] as RequestInit).headers).toEqual(expect.any(Headers));
         expect(((apiCall![1] as RequestInit).headers as Headers).get('X-XSRFToken')).toBe('page-xsrf-token');
     });
 
     it('hubFetch uses the readable cookie token when available', async () => {
         document.cookie = '_xsrf=cookie-xsrf-token';
-        const fetchSpy = spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 200 }));
+        const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
 
         await hubFetch('/notebook', '/hub/api/user');
 
-        const apiCall = fetchSpy.calls.allArgs().find(([url]) => String(url).includes('/hub/api/user'));
+        const apiCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/hub/api/user'));
         expect(String(apiCall![0])).toContain('_xsrf=cookie-xsrf-token');
         expect(((apiCall![1] as RequestInit).headers as Headers).get('X-XSRFToken')).toBe('cookie-xsrf-token');
-        expect(fetchSpy.calls.allArgs().some(([url]) => String(url).includes('/hub/home'))).toBeFalse();
+        expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/hub/home'))).toBe(false);
     });
 });

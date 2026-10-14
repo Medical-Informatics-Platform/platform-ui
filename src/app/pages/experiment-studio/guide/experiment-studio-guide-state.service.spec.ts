@@ -31,15 +31,15 @@ describe('ExperimentStudioGuideStateService', () => {
   it('matches the intended sex tutorial variable by exact tutorial aliases', () => {
     service = TestBed.inject(ExperimentStudioGuideStateService);
 
-    expect(service.matchesTutorialCovariate({ code: 'sex', label: 'Sex' }, 'sex')).toBeTrue();
-    expect(service.matchesTutorialCovariate({ code: 'biol_sex', label: 'Biological Sex' }, 'sex')).toBeTrue();
+    expect(service.matchesTutorialCovariate({ code: 'sex', label: 'Sex' }, 'sex')).toBe(true);
+    expect(service.matchesTutorialCovariate({ code: 'biol_sex', label: 'Biological Sex' }, 'sex')).toBe(true);
   });
 
   it('does not match unrelated variables that only contain the target as a substring', () => {
     service = TestBed.inject(ExperimentStudioGuideStateService);
 
-    expect(service.matchesTutorialCovariate({ code: 'timemetrics', label: 'Timemetrics' }, 'sex')).toBeFalse();
-    expect(service.matchesTutorialCovariate({ code: 'sextraction_flag', label: 'Sextraction Flag' }, 'sex')).toBeFalse();
+    expect(service.matchesTutorialCovariate({ code: 'timemetrics', label: 'Timemetrics' }, 'sex')).toBe(false);
+    expect(service.matchesTutorialCovariate({ code: 'sextraction_flag', label: 'Sextraction Flag' }, 'sex')).toBe(false);
   });
 
   it('maps the add-age-variable step to the Age tutorial target', () => {
@@ -58,10 +58,10 @@ describe('ExperimentStudioGuideStateService', () => {
 
     service.setActiveStep('add-sex-covariate');
     expect(service.expectedTutorialCovariate()).toBe('biol_sex');
-    expect(service.matchesTutorialCovariate({ code: 'biol_sex', label: 'Biological Sex' })).toBeTrue();
+    expect(service.matchesTutorialCovariate({ code: 'biol_sex', label: 'Biological Sex' })).toBe(true);
 
     service.setActiveStep('add-age-variable');
     expect(service.expectedTutorialCovariate()).toBe('age_years');
-    expect(service.matchesTutorialCovariate({ code: 'age_years', label: 'Age Years' })).toBeTrue();
+    expect(service.matchesTutorialCovariate({ code: 'age_years', label: 'Age Years' })).toBe(true);
   });
 });

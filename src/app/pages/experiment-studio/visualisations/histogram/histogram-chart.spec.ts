@@ -113,11 +113,11 @@ describe('orderHorizontalBarRows', () => {
 
 describe('shouldClipNullEdges', () => {
   it('returns true for numeric bins', () => {
-    expect(shouldClipNullEdges([0, 1, 2, 3])).toBeTrue();
+    expect(shouldClipNullEdges([0, 1, 2, 3])).toBe(true);
   });
 
   it('returns false for nominal bins', () => {
-    expect(shouldClipNullEdges(['yes', 'no', 'unknown'])).toBeFalse();
+    expect(shouldClipNullEdges(['yes', 'no', 'unknown'])).toBe(false);
   });
 });
 

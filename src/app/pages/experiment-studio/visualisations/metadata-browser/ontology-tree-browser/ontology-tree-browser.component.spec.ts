@@ -58,7 +58,7 @@ describe('OntologyTreeBrowserComponent', () => {
     fixture.detectChanges();
 
     const event = new KeyboardEvent('keydown', { key: 'ArrowDown' });
-    spyOn(event, 'preventDefault');
+    vi.spyOn(event, 'preventDefault').mockReturnValue(undefined);
     component.onTreeKeydown(event, component.visibleTreeRows()[0], 0);
 
     expect(event.preventDefault).toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe('OntologyTreeBrowserComponent', () => {
     const component = fixture.componentInstance;
     fixture.componentRef.setInput('data', model);
     fixture.detectChanges();
-    spyOn(component.selectedNodeChange, 'emit');
+    vi.spyOn(component.selectedNodeChange, 'emit').mockReturnValue(undefined);
 
     const variable = Object.values(component.index().variablesById).find((item) => item.code === 'sex');
     expect(variable).toBeDefined();
@@ -98,8 +98,8 @@ describe('OntologyTreeBrowserComponent', () => {
     const demographics = Object.values(component.index().groupsById).find((item) => item.code === 'demographics')!;
     component.selectGroup(demographics);
     fixture.detectChanges();
-    spyOn(component.selectedNodeChange, 'emit');
-    spyOn(component.variablePoolToggle, 'emit');
+    vi.spyOn(component.selectedNodeChange, 'emit').mockReturnValue(undefined);
+    vi.spyOn(component.variablePoolToggle, 'emit').mockReturnValue(undefined);
 
     (fixture.nativeElement.querySelector('.row-add') as HTMLElement).click();
 

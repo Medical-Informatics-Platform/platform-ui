@@ -124,7 +124,11 @@ export function redirectToHubLogin(
     navigate(buildHubLoginUrl(basePath, returnPath));
 }
 
-export async function ensureHubSession(basePath: string): Promise<EnsureHubSessionResult> {
+/** `canRedirect` lets a caller that has gone away (a destroyed component) skip the Hub login redirect. */
+export async function ensureHubSession(
+    basePath: string,
+    canRedirect: () => boolean = () => true,
+): Promise<EnsureHubSessionResult> {
     if (await hasHubSession(basePath)) {
         clearHubLoginState();
         return 'ready';
@@ -141,7 +145,7 @@ export async function ensureHubSession(basePath: string): Promise<EnsureHubSessi
         return 'ready';
     }
 
-    if (!shouldRedirectToHubLogin()) {
+    if (!shouldRedirectToHubLogin() || !canRedirect()) {
         return 'failed';
     }
 

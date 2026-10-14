@@ -75,7 +75,7 @@ describe('ExperimentsDashboardGuideComponent', () => {
   it('keeps the highlight aligned when the target scrolls above the viewport', () => {
     const target = document.createElement('section');
     target.setAttribute('data-guide', 'dashboard-workspace');
-    spyOn(target, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
       top: -18,
       right: 680,
       bottom: 212,
@@ -100,7 +100,7 @@ describe('ExperimentsDashboardGuideComponent', () => {
 
     (component as any).updateLayout();
 
-    expect(component.highlightRect()).toEqual(jasmine.objectContaining({
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
       top: -28,
       left: 38,
       bottom: 222,
@@ -117,7 +117,7 @@ describe('ExperimentsDashboardGuideComponent', () => {
 
       const target = document.createElement('div');
       const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
-      expect(guideValue).withContext(step.id).toBeTruthy();
+      expect(guideValue, step.id).toBeTruthy();
       target.setAttribute('data-guide', guideValue!);
       Object.defineProperty(target, 'getBoundingClientRect', {
         configurable: true,
@@ -140,11 +140,11 @@ describe('ExperimentsDashboardGuideComponent', () => {
       (component as any).updateLayout();
 
       const highlight = component.highlightRect();
-      expect(highlight).withContext(step.id).not.toBeNull();
+      expect(highlight, step.id).not.toBeNull();
       const centerX = 230;
       const centerY = 160;
-      expect(highlight!.left <= centerX && centerX <= highlight!.right).withContext(step.id).toBeTrue();
-      expect(highlight!.top <= centerY && centerY <= highlight!.bottom).withContext(step.id).toBeTrue();
+      expect(highlight!.left <= centerX && centerX <= highlight!.right, step.id).toBe(true);
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom, step.id).toBe(true);
     }
   });
 

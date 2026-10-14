@@ -437,6 +437,15 @@
   min-width: 0;
 }
 
+.result-save-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+  /* Dark danger ink: --danger is a fill colour, too light for text (DESIGN.md). */
+  color: #991b1b;
+  overflow-wrap: anywhere;
+}
+
 .result-save-form .save-as-input {
   width: 260px;
   max-width: 100%;

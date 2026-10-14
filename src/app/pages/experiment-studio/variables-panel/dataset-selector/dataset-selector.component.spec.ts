@@ -1,12 +1,14 @@
+import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { DatasetSelectorComponent } from './dataset-selector.component';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
+import { createSpyObj } from '../../../../testing/spy-obj.testing';
 
 describe('DatasetSelectorComponent', () => {
   let fixture: ComponentFixture<DatasetSelectorComponent>;
   let component: DatasetSelectorComponent;
-  let expStudioService: jasmine.SpyObj<ExperimentStudioService>;
+  let expStudioService: MockedObject<ExperimentStudioService>;
 
   const setInputs = (inputs: {
     datasets?: { code: string; label: string }[];
@@ -19,7 +21,7 @@ describe('DatasetSelectorComponent', () => {
   };
 
   beforeEach(async () => {
-    expStudioService = jasmine.createSpyObj('ExperimentStudioService', ['setSelectedDatasets']);
+    expStudioService = createSpyObj('ExperimentStudioService', ['setSelectedDatasets']);
 
     await TestBed.configureTestingModule({
       imports: [DatasetSelectorComponent],
@@ -54,15 +56,15 @@ describe('DatasetSelectorComponent', () => {
       ],
     });
 
-    expect(component.isDatasetSelected('ds1')).toBeFalse();
-    expect(component.isDatasetSelected('ds2')).toBeTrue();
+    expect(component.isDatasetSelected('ds1')).toBe(false);
+    expect(component.isDatasetSelected('ds2')).toBe(true);
     expect(expStudioService.setSelectedDatasets).not.toHaveBeenCalled();
   });
 
   it('renders a chip per dataset and toggles the selection on click', () => {
-    expStudioService.setSelectedDatasets.calls.reset();
+    expStudioService.setSelectedDatasets.mockClear();
     // Mirror the real service: writing the selection is what feeds the input back.
-    expStudioService.setSelectedDatasets.and.callFake((codes: string[]) =>
+    expStudioService.setSelectedDatasets.mockImplementation((codes: string[]) =>
       fixture.componentRef.setInput('selectedDatasetCodes', codes)
     );
     setInputs({
@@ -75,13 +77,13 @@ describe('DatasetSelectorComponent', () => {
 
     const chips = fixture.nativeElement.querySelectorAll('.studio-chip') as NodeListOf<HTMLElement>;
     expect(chips.length).toBe(2);
-    expect(chips[0].classList.contains('is-selected')).toBeTrue();
-    expect(chips[1].classList.contains('is-selected')).toBeFalse();
+    expect(chips[0].classList.contains('is-selected')).toBe(true);
+    expect(chips[1].classList.contains('is-selected')).toBe(false);
 
     chips[1].click();
     fixture.detectChanges();
 
-    expect(component.isDatasetSelected('ds2')).toBeTrue();
+    expect(component.isDatasetSelected('ds2')).toBe(true);
     expect(expStudioService.setSelectedDatasets).toHaveBeenCalledWith(['ds1', 'ds2']);
   });
 

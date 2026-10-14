@@ -23,7 +23,7 @@ The Platform UI for the Medical Informatics Platform (MIP). An Angular 22 standa
 - `npm start` – dev server (`ng serve`) with proxy.
 - `npm run build` – production build to `dist/fl-platform`.
 - `npm run watch` – development build in watch mode.
-- `npm test` – unit tests via Karma.
+- `npm test` – unit tests via Vitest (headless Chromium).
 
 ## Result code → label mappings
 
@@ -71,7 +71,7 @@ docker run \
 Nginx always proxies `/${PLATFORM_BACKEND_CONTEXT}/` to the backend.
 
 ## Testing
-- Unit: `npm test` (Karma).
+- Unit: `npm test` (Vitest, headless Chromium).
 - Manual: run `npm start`, authenticate, and exercise Experiment Studio and Dashboard against a running backend.
 
 ## Notes

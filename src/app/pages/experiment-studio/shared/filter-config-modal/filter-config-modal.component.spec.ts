@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { FilterConfigModalComponent } from './filter-config-modal.component';
@@ -39,8 +40,8 @@ describe('FilterConfigModalComponent block builder', () => {
         { code: 'mrs_score', label: 'mRS score', type: 'integer' },
         { code: 'notes', label: 'Notes', type: 'text' },
       ]),
-      setFilters: jasmine.createSpy('setFilters'),
-      setFilterLogic: jasmine.createSpy('setFilterLogic'),
+      setFilters: vi.fn(),
+      setFilterLogic: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -142,12 +143,12 @@ describe('FilterConfigModalComponent block builder', () => {
     component.saveFilters();
 
     expect(expStudio.setFilters).toHaveBeenCalledWith([
-      jasmine.objectContaining({ code: 'age' }),
-      jasmine.objectContaining({ code: 'sex' }),
+      expect.objectContaining({ code: 'age' }),
+      expect.objectContaining({ code: 'sex' }),
     ]);
-    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
+    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
       condition: 'OR',
-      rules: jasmine.any(Array),
+      rules: expect.any(Array),
       valid: true,
     }));
   });
@@ -174,8 +175,8 @@ describe('FilterConfigModalComponent block builder', () => {
 
     component.saveFilters();
 
-    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
-      rules: [jasmine.objectContaining({
+    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
+      rules: [expect.objectContaining({
         field: 'sex',
         value: 'female',
       })],
@@ -214,8 +215,8 @@ describe('FilterConfigModalComponent block builder', () => {
     component.saveFilters();
 
     expect(component.filterError()).toBeNull();
-    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
-      rules: [jasmine.objectContaining({
+    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
+      rules: [expect.objectContaining({
         field: 'age',
         operator: 'is_null',
         value: null,
@@ -257,20 +258,22 @@ describe('FilterConfigModalComponent block builder', () => {
 
     component.saveFilters();
 
-    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
+    expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
       condition: 'AND',
       rules: [
-        jasmine.objectContaining({ field: 'age', value: 10 }),
-        jasmine.objectContaining({
+        expect.objectContaining({ field: 'age', value: 10 }),
+        expect.objectContaining({
           condition: 'OR',
-          rules: jasmine.arrayWithExactContents([
-            jasmine.objectContaining({ field: 'sex', value: 'female' }),
-            jasmine.objectContaining({ field: 'sex', value: 'male' }),
+          rules: expect.arrayContaining([
+            expect.objectContaining({ field: 'sex', value: 'female' }),
+            expect.objectContaining({ field: 'sex', value: 'male' }),
           ]),
         }),
       ],
       valid: true,
     }));
+    // arrayContaining ignores extra entries; the OR group must hold exactly these two.
+    expect((vi.mocked(expStudio.setFilterLogic).mock.lastCall![0] as any).rules[1].rules).toHaveLength(2);
   });
 
   it('renders as an inline builder with no modal chrome', () => {
@@ -353,7 +356,7 @@ describe('FilterConfigModalComponent block builder', () => {
       const condition = component.rootGroup().rules[0] as any;
       expect(condition.operator).toBe('IN');
       expect(condition.values).toEqual(['female', 'male']);
-      expect(component.isCategorySelected(condition, 'female')).toBeTrue();
+      expect(component.isCategorySelected(condition, 'female')).toBe(true);
       expect(component.previewExpression()).toBe('Sex IN Female, Male');
     });
 
@@ -370,10 +373,10 @@ describe('FilterConfigModalComponent block builder', () => {
       component.saveFilters();
 
       expect(component.filterError()).toBeNull();
-      expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
+      expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
         rules: [
-          jasmine.objectContaining({ field: 'sex', operator: 'in', value: ['female'] }),
-          jasmine.objectContaining({ field: 'sex', operator: 'not_in', value: ['male'] }),
+          expect.objectContaining({ field: 'sex', operator: 'in', value: ['female'] }),
+          expect.objectContaining({ field: 'sex', operator: 'not_in', value: ['male'] }),
         ],
       }));
     });
@@ -410,8 +413,8 @@ describe('FilterConfigModalComponent block builder', () => {
 
       component.saveFilters();
 
-      expect(expStudio.setFilterLogic).toHaveBeenCalledWith(jasmine.objectContaining({
-        rules: [jasmine.objectContaining({ field: 'age', operator: 'in', value: [20, 35.5] })],
+      expect(expStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
+        rules: [expect.objectContaining({ field: 'age', operator: 'in', value: [20, 35.5] })],
       }));
     });
 
@@ -449,8 +452,8 @@ describe('FilterConfigModalComponent block builder', () => {
 
       // A single-value operator reads the first entry, so nothing had to be reshaped.
       component.saveFilters();
-      const saved = (expStudio.setFilterLogic as jasmine.Spy).calls.mostRecent().args[0];
-      expect(saved.rules[0]).toEqual(jasmine.objectContaining({ field: 'sex', operator: 'equal', value: 'female' }));
+      const saved = (expStudio.setFilterLogic as Mock).mock.lastCall![0];
+      expect(saved.rules[0]).toEqual(expect.objectContaining({ field: 'sex', operator: 'equal', value: 'female' }));
     });
   });
 
@@ -480,9 +483,9 @@ describe('FilterConfigModalComponent block builder', () => {
 
     const logic = component.exportFilterLogic();
 
-    expect(logic).toEqual(jasmine.objectContaining({
-      condition: jasmine.any(String),
-      rules: jasmine.any(Array),
+    expect(logic).toEqual(expect.objectContaining({
+      condition: expect.any(String),
+      rules: expect.any(Array),
       valid: true,
     }));
     expect(expStudio.setFilters).not.toHaveBeenCalled();

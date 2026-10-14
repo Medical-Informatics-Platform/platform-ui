@@ -50,7 +50,7 @@ describe('DataModelSelectorComponent', () => {
   });
 
   it('replaces an equivalent persisted model with the catalog option instance without re-emitting', () => {
-    spyOn(component.dataModelChange, 'emit');
+    vi.spyOn(component.dataModelChange, 'emit').mockReturnValue(undefined);
     component.selectedDataModel = persistedModel;
     fixture.componentRef.setInput('crossSectionalModels', [catalogModel]);
     fixture.componentRef.setInput('defaultModel', catalogModel);
@@ -70,13 +70,13 @@ describe('DataModelSelectorComponent', () => {
     const chips = fixture.nativeElement.querySelectorAll('.studio-chip');
     expect(chips.length).toBe(3);
     expect(chips[0].textContent).toContain('Stroke 3.7');
-    expect(chips[0].classList.contains('is-selected')).toBeTrue();
-    expect(chips[0].querySelector('input')!.checked).toBeTrue();
-    expect(chips[1].querySelector('input')!.checked).toBeFalse();
+    expect(chips[0].classList.contains('is-selected')).toBe(true);
+    expect(chips[0].querySelector('input')!.checked).toBe(true);
+    expect(chips[1].querySelector('input')!.checked).toBe(false);
   });
 
   it('selects a model via its chip and emits the change', () => {
-    const emitSpy = spyOn(component.dataModelChange, 'emit');
+    const emitSpy = vi.spyOn(component.dataModelChange, 'emit').mockReturnValue(undefined);
     fixture.componentRef.setInput('crossSectionalModels', [catalogModel, tbiModel]);
     fixture.componentRef.setInput('defaultModel', catalogModel);
     fixture.detectChanges();

@@ -39,25 +39,25 @@ describe('hub-session', () => {
     });
 
     it('hasHubSession returns true when /hub/api/user responds with 200', async () => {
-        const fetchSpy = spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 200 }));
+        const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
 
-        await expectAsync(hasHubSession('/notebook')).toBeResolvedTo(true);
+        await expect(hasHubSession('/notebook')).resolves.toEqual(true);
 
-        const apiCall = fetchSpy.calls.allArgs().find(([url]) => isHubUserRequest(String(url)));
+        const apiCall = fetchSpy.mock.calls.find(([url]) => isHubUserRequest(String(url)));
         expect(apiCall).toBeDefined();
         expect(String(apiCall![0])).toContain('_xsrf=');
         expect((apiCall![1] as RequestInit).credentials).toBe('include');
     });
 
     it('hasHubSession returns false when /hub/api/user is unauthorized', async () => {
-        spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 401 }));
+        vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
 
-        await expectAsync(hasHubSession('/notebook')).toBeResolvedTo(false);
+        await expect(hasHubSession('/notebook')).resolves.toEqual(false);
     });
 
     it('waitForHubSession retries until the Hub session is available', async () => {
         let apiCalls = 0;
-        spyOn(window, 'fetch').and.callFake(async (input: RequestInfo | URL) => {
+        vi.spyOn(window, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (isHubUserRequest(url)) {
                 apiCalls += 1;
@@ -72,13 +72,13 @@ describe('hub-session', () => {
             return new Response(null, { status: 404 });
         });
 
-        await expectAsync(waitForHubSession('/notebook', { retries: 4, delayMs: 0 }))
-            .toBeResolvedTo(true);
+        await expect(waitForHubSession('/notebook', { retries: 4, delayMs: 0 }))
+            .resolves.toBe(true);
         expect(apiCalls).toBe(3);
     });
 
     it('redirectToHubLogin marks pending state and calls navigate', () => {
-        const navigate = jasmine.createSpy('navigate');
+        const navigate = vi.fn();
 
         redirectToHubLogin('/notebook', undefined, navigate);
 
@@ -89,7 +89,7 @@ describe('hub-session', () => {
     it('shouldRedirectToHubLogin blocks repeated redirects within the cooldown window', () => {
         markHubLoginRedirect();
 
-        expect(shouldRedirectToHubLogin()).toBeFalse();
+        expect(shouldRedirectToHubLogin()).toBe(false);
     });
 
     it('clearHubLoginState allows another redirect attempt', () => {
@@ -97,20 +97,20 @@ describe('hub-session', () => {
         markHubLoginPending();
         clearHubLoginState();
 
-        expect(shouldRedirectToHubLogin()).toBeTrue();
+        expect(shouldRedirectToHubLogin()).toBe(true);
         expect(sessionStorage.getItem('mip_notebook_hub_login_pending')).toBeNull();
     });
 
     it('ensureHubSession returns ready when the Hub session already exists', async () => {
-        spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 200 }));
+        vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
 
-        await expectAsync(ensureHubSession('/notebook')).toBeResolvedTo('ready');
+        await expect(ensureHubSession('/notebook')).resolves.toEqual('ready');
     });
 
     it('ensureHubSession uses extended wait when login is pending', async () => {
         markHubLoginPending();
         let apiCalls = 0;
-        spyOn(window, 'fetch').and.callFake(async (input: RequestInfo | URL) => {
+        vi.spyOn(window, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (isHubUserRequest(url)) {
                 apiCalls += 1;
@@ -125,14 +125,22 @@ describe('hub-session', () => {
             return new Response(null, { status: 404 });
         });
 
-        await expectAsync(ensureHubSession('/notebook')).toBeResolvedTo('ready');
+        await expect(ensureHubSession('/notebook')).resolves.toEqual('ready');
         expect(apiCalls).toBe(5);
     }, 15000);
 
     it('ensureHubSession returns failed when redirect is throttled', async () => {
         markHubLoginRedirect();
-        spyOn(window, 'fetch').and.resolveTo(new Response(null, { status: 401 }));
+        vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
 
-        await expectAsync(ensureHubSession('/notebook')).toBeResolvedTo('failed');
+        await expect(ensureHubSession('/notebook')).resolves.toEqual('failed');
+    }, 15000);
+
+    it('ensureHubSession returns failed without redirecting once the caller is gone', async () => {
+        vi.spyOn(window, 'fetch').mockResolvedValue(new Response(null, { status: 401 }));
+
+        await expect(ensureHubSession('/notebook', () => false)).resolves.toEqual('failed');
+        // No redirect was recorded, so the page was never sent to the Hub login.
+        expect(shouldRedirectToHubLogin()).toBe(true);
     }, 15000);
 });
