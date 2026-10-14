@@ -78,7 +78,7 @@ describe('AutoRendererComponent', () => {
   });
 
   it('caches identical inputs to avoid redundant work', () => {
-    const spy = spyOn(AlgorithmTableRegistry, 'kmeans').and.callThrough();
+    const spy = vi.spyOn(AlgorithmTableRegistry, 'kmeans');
 
     setInputs({ algorithm: 'kmeans', value: kmeansResult });
     fixture.detectChanges();
@@ -88,7 +88,7 @@ describe('AutoRendererComponent', () => {
   });
 
   it('recomputes when mapping inputs change even if value is unchanged', () => {
-    const spy = spyOn(AlgorithmTableRegistry, 'kmeans').and.callThrough();
+    const spy = vi.spyOn(AlgorithmTableRegistry, 'kmeans');
 
     setInputs({ algorithm: 'kmeans', value: kmeansResult });
     setInputs({ labelMap: { x1: 'X 1' } });
@@ -148,7 +148,7 @@ describe('AutoRendererComponent', () => {
       ],
     };
 
-    expect(cmp.isCompactTable(table)).toBeFalse();
+    expect(cmp.isCompactTable(table)).toBe(false);
   });
 
   it('has renderers for new Exaflow algorithms', () => {

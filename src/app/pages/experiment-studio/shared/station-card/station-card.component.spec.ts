@@ -91,13 +91,13 @@ describe('StationCardComponent', () => {
     render();
     const header = html().querySelector<HTMLButtonElement>('.station-card-header');
     expect(header?.getAttribute('aria-expanded')).toBe('false');
-    expect(html().querySelector<HTMLDivElement>('.station-card')!.classList.contains('is-open')).toBeFalse();
+    expect(html().querySelector<HTMLDivElement>('.station-card')!.classList.contains('is-open')).toBe(false);
 
     header!.click();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.open()).toBeTrue();
-    expect(html().querySelector<HTMLDivElement>('.station-card')!.classList.contains('is-open')).toBeTrue();
+    expect(fixture.componentInstance.open()).toBe(true);
+    expect(html().querySelector<HTMLDivElement>('.station-card')!.classList.contains('is-open')).toBe(true);
     expect(html().querySelector('.station-card-header')?.getAttribute('aria-expanded')).toBe('true');
   });
 

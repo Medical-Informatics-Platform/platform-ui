@@ -1740,6 +1740,7 @@ export class AlgorithmPanelComponent {
 
     this.errorMsg.set(null);
     this.errorService.clearError();
+    this.experimentStudioService.saveError.set(null);
 
     const algo = this.experimentStudioService.selectedAlgorithm();
     if (!algo) return;
@@ -1805,6 +1806,7 @@ export class AlgorithmPanelComponent {
         if (status === 'error') {
           const msg = payload?.message || 'Failed to save experiment results.';
           this.errorMsg.set(msg);
+          this.experimentStudioService.saveError.set(msg);
           return;
         }
 
@@ -1812,6 +1814,7 @@ export class AlgorithmPanelComponent {
       },
       error: () => {
         this.errorMsg.set('Failed to save experiment.');
+        this.experimentStudioService.saveError.set('Failed to save experiment.');
       },
       complete: () => {
         this.experimentStudioService.setRunning(false);

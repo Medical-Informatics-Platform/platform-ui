@@ -176,8 +176,11 @@ export class ExperimentStudioService {
   readonly runSetup = signal<ExperimentRunSetup | null>(null);
   /** Save As toast host: rendered by the Execution step, triggered from anywhere. */
   readonly saveSucceeded = signal(false);
+  /** Why the last save failed, shown next to the Save As form; null while none failed. */
+  readonly saveError = signal<string | null>(null);
 
   notifySaveSucceeded(): void {
+    this.saveError.set(null);
     this.saveSucceeded.set(true);
     setTimeout(() => this.saveSucceeded.set(false), 8000);
   }
@@ -246,9 +249,11 @@ export class ExperimentStudioService {
     return acc;
   }, {} as Record<string, string>);
 
+  /** The specifications request, made once. Edit hydration waits on it before it resolves the saved algorithm. */
+  private readonly catalogLoaded$ = this.loadBackendAlgorithms().pipe(shareReplay(1));
 
   constructor() {
-    this.loadBackendAlgorithms().subscribe();
+    this.catalogLoaded$.subscribe();
 
 
 
@@ -2105,9 +2110,10 @@ export class ExperimentStudioService {
 
     this.setFilterLogic(filters);
 
-    this.loadAllDataModels()
+    // The experiment can arrive before the specifications; resolving the algorithm then would find nothing.
+    forkJoin([this.loadAllDataModels(), this.catalogLoaded$])
       .pipe(takeUntil(this.destroy$))
-      .subscribe((models) => {
+      .subscribe(([models]) => {
         if (!models || !models.length) {
           console.warn('No data models available for hydration.');
           return;

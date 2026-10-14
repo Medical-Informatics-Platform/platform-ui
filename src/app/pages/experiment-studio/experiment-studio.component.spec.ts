@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -24,15 +25,15 @@ describe('ExperimentStudioComponent view switching', () => {
     selectedVariables: ReturnType<typeof signal<any[]>>;
     dataExclusionWarnings: ReturnType<typeof signal<string[]>>;
     pathologyAccessWarning: ReturnType<typeof signal<any>>;
-    clearDataExclusionWarnings: jasmine.Spy;
-    setEditingExistingExperiment: jasmine.Spy;
-    loadAndCategorizeModels: jasmine.Spy;
-    resetStudioState: jasmine.Spy;
+    clearDataExclusionWarnings: Mock;
+    setEditingExistingExperiment: Mock;
+    loadAndCategorizeModels: Mock;
+    resetStudioState: Mock;
     filterLogic: any;
     algorithmY: ReturnType<typeof signal<any[]>>;
     algorithmX: ReturnType<typeof signal<any[]>>;
     availableDatasets: ReturnType<typeof signal<any[]>>;
-    getDatasetLabelMap: jasmine.Spy;
+    getDatasetLabelMap: Mock;
   };
 
   beforeEach(async () => {
@@ -46,15 +47,15 @@ describe('ExperimentStudioComponent view switching', () => {
       selectedVariables: signal<any[]>([]),
       dataExclusionWarnings: signal<string[]>([]),
       pathologyAccessWarning: signal<any>(null),
-      clearDataExclusionWarnings: jasmine.createSpy('clearDataExclusionWarnings'),
-      setEditingExistingExperiment: jasmine.createSpy('setEditingExistingExperiment'),
-      loadAndCategorizeModels: jasmine.createSpy('loadAndCategorizeModels').and.returnValue(of([])),
-      resetStudioState: jasmine.createSpy('resetStudioState'),
+      clearDataExclusionWarnings: vi.fn(),
+      setEditingExistingExperiment: vi.fn(),
+      loadAndCategorizeModels: vi.fn().mockReturnValue(of([])),
+      resetStudioState: vi.fn(),
       filterLogic: signal<any>(null),
       algorithmY: signal<any[]>([]),
       algorithmX: signal<any[]>([]),
       availableDatasets: signal([]),
-      getDatasetLabelMap: jasmine.createSpy('getDatasetLabelMap').and.returnValue({}),
+      getDatasetLabelMap: vi.fn().mockReturnValue({}),
     };
 
     await TestBed.configureTestingModule({
@@ -63,8 +64,8 @@ describe('ExperimentStudioComponent view switching', () => {
         provideRouter([]),
         ExperimentStudioNavigationService,
         { provide: ExperimentStudioService, useValue: experimentStudioService },
-        { provide: ExperimentsDashboardService, useValue: { getExperiment: jasmine.createSpy('getExperiment') } },
-        { provide: ErrorService, useValue: { error: signal(null), clearError: jasmine.createSpy('clearError') } },
+        { provide: ExperimentsDashboardService, useValue: { getExperiment: vi.fn() } },
+        { provide: ErrorService, useValue: { error: signal(null), clearError: vi.fn() } },
         { provide: AuthService, useValue: {} },
       ],
     })
@@ -99,7 +100,7 @@ describe('ExperimentStudioComponent view switching', () => {
   });
 
   it('switchSection activates the requested view', () => {
-    spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+    vi.spyOn(router, 'navigate').mockReturnValue(Promise.resolve(true));
 
     experimentStudioService.selectedDataModel.set({ code: 'm', version: '1' });
     experimentStudioService.selectedDatasets.set(['d']);
@@ -111,7 +112,7 @@ describe('ExperimentStudioComponent view switching', () => {
   });
 
   it('switchSection ignores clicks on locked steps (hard lock)', () => {
-    spyOn(router, 'navigate');
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     component.switchSection('statistics-section');
     expect(component.activeSection()).toBe('variables-top');
@@ -205,7 +206,7 @@ describe('ExperimentStudioComponent view switching', () => {
   });
 
   it('activateGuideTarget opens the matching statistics sub-tab for Analysis steps', () => {
-    const goToSection = jasmine.createSpy('goToSection');
+    const goToSection = vi.fn();
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
@@ -224,17 +225,17 @@ describe('ExperimentStudioComponent view switching', () => {
     expect(goToSection).toHaveBeenCalledWith('processed');
 
     component.activateGuideTarget('Explore');
-    expect(goToSection.calls.count()).toBe(4);
+    expect(goToSection.mock.calls.length).toBe(4);
   });
 
   it('goToDescriptiveStep ignores in-step anchors while statistics is locked', () => {
-    const goToSection = jasmine.createSpy('goToSection');
+    const goToSection = vi.fn();
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
     const statisticPanel = { goToSection, sectionOpen };
     (component as any).statisticPanel = signal(statisticPanel);
-    spyOn(router, 'navigate');
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     component.goToDescriptiveStep('setup');
 
@@ -244,14 +245,14 @@ describe('ExperimentStudioComponent view switching', () => {
   });
 
   it('goToDescriptiveStep activates the statistics view and scrolls the panel', async () => {
-    const goToSection = jasmine.createSpy('goToSection');
+    const goToSection = vi.fn();
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
     const statisticPanel = { goToSection, sectionOpen };
     (component as any).statisticPanel = signal(statisticPanel);
-    spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
-    spyOn(window, 'requestAnimationFrame').and.callFake((callback: FrameRequestCallback): number => {
+    vi.spyOn(router, 'navigate').mockReturnValue(Promise.resolve(true));
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
       queueMicrotask(() => callback(0));
       return 0;
     });
@@ -373,7 +374,7 @@ describe('ExperimentStudioComponent view switching', () => {
 
   describe('unlock announcement', () => {
     it('announces once when statistics goes from locked to unlocked', () => {
-      jasmine.clock().install();
+      vi.useFakeTimers();
       try {
         fixture.detectChanges();
         expect(component.unlockAnnouncement()).toBeNull();
@@ -387,10 +388,10 @@ describe('ExperimentStudioComponent view switching', () => {
           'Data Handling and Algorithm Selection are now available.'
         );
 
-        jasmine.clock().tick(1600);
+        vi.advanceTimersByTime(1600);
         expect(component.unlockAnnouncement()).toBeNull();
       } finally {
-        jasmine.clock().uninstall();
+        vi.useRealTimers();
       }
     });
   });

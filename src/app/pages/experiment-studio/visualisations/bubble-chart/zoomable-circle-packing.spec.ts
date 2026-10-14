@@ -6,7 +6,7 @@ describe('createZoomableCirclePacking', () => {
 
   beforeEach(() => {
     container = document.createElement('div');
-    spyOn(container, 'getBoundingClientRect').and.returnValue({
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
       width: 420,
       height: 420,
       top: 0,
@@ -54,7 +54,7 @@ describe('createZoomableCirclePacking', () => {
     expect(svg?.getAttribute('aria-label')).toContain('1 group and 2 variables');
   });
 
-  it('clears the previous tutorial highlight when the next step has no resolved highlight code yet', (done) => {
+  it('clears the previous tutorial highlight when the next step has no resolved highlight code yet', () => new Promise<void>((done) => {
     expect(container.querySelector('circle[fill="#22c55e"]')).not.toBeNull();
 
     chart.refreshColors({ tutorialHighlightCode: null });
@@ -63,5 +63,5 @@ describe('createZoomableCirclePacking', () => {
       expect(container.querySelector('circle[fill="#22c55e"]')).toBeNull();
       done();
     }, 260);
-  });
+  }));
 });

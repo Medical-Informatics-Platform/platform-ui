@@ -16,7 +16,7 @@ describe('RuntimeEnvService', () => {
 
   beforeEach(() => {
     originalEnv = (window as RuntimeWindow).__env;
-    spyOn(console, 'warn');
+    vi.spyOn(console, 'warn').mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -92,7 +92,7 @@ describe('RuntimeEnvService', () => {
 
     const service = new RuntimeEnvService();
 
-    expect(service.notebookEnabled).toBeTrue();
+    expect(service.notebookEnabled).toBe(true);
   });
 
   it('normalizes the notebook context path from the runtime env', () => {

@@ -70,7 +70,7 @@ describe('StationActionBarComponent', () => {
     expect(html.querySelector('.station-action-preview i')?.className).toContain('fa-eye');
     expect(html.querySelector('.station-action-apply')?.textContent?.trim()).toContain('Apply Preprocessing');
     expect(html.querySelector('.station-action-apply i')?.className).toContain('fa-magic');
-    expect(html.querySelector('.station-action-bar')?.classList.contains('tone-pending')).toBeTrue();
+    expect(html.querySelector('.station-action-bar')?.classList.contains('tone-pending')).toBe(true);
   });
 
   it('emits reset and apply', () => {
@@ -88,15 +88,15 @@ describe('StationActionBarComponent', () => {
 
     expect(html.querySelector('.station-action-status')).toBeFalsy();
     expect(html.querySelector('.station-action-reset')).toBeFalsy();
-    expect(html.querySelector<HTMLButtonElement>('.station-action-apply')!.disabled).toBeTrue();
-    expect(html.querySelector('.station-action-bar')?.classList.contains('tone-applied')).toBeTrue();
+    expect(html.querySelector<HTMLButtonElement>('.station-action-apply')!.disabled).toBe(true);
+    expect(html.querySelector('.station-action-bar')?.classList.contains('tone-applied')).toBe(true);
   });
 
   it('draws the primary slot as a solid button by default and as an outline when quiet', () => {
     const primary = render();
-    expect(primary.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBeFalse();
+    expect(primary.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBe(false);
 
     const quiet = render({ variant: 'quiet' });
-    expect(quiet.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBeTrue();
+    expect(quiet.querySelector('.station-action-apply')?.classList.contains('is-quiet')).toBe(true);
   });
 });

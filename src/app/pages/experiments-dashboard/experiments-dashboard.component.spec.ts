@@ -108,16 +108,16 @@ describe('ExperimentsDashboardComponent folders', () => {
 
     component.onFolderSelected(folder.id);
     expect(component.selectedFolderId()).toBe(folder.id);
-    expect(component.compareMode()).toBeFalse();
+    expect(component.compareMode()).toBe(false);
 
     component.onFolderCompare(['a', 'b']);
-    expect(component.compareMode()).toBeFalse();
+    expect(component.compareMode()).toBe(false);
 
     httpMock.expectOne(`${apiUrl}/b`).flush(backendExperiment('b'));
 
     // The off-page member had to join the loaded list: the workspace reads that page only.
     expect(component.compareIds()).toEqual(['a', 'b']);
-    expect(component.compareMode()).toBeTrue();
+    expect(component.compareMode()).toBe(true);
     expect(component.selectedFolderId()).toBeNull();
     expect(dashboardService.experiments().map((exp) => exp.id).sort()).toEqual(['a', 'b']);
     expect(component.experimentsForCompare().map((exp) => exp.id).sort()).toEqual(['a', 'b']);
@@ -130,7 +130,7 @@ describe('ExperimentsDashboardComponent folders', () => {
 
     component.onFolderSelected(folder.id);
 
-    expect(component.compareMode()).toBeFalse();
+    expect(component.compareMode()).toBe(false);
     expect(component.compareIds()).toEqual([]);
     expect(component.selectedFolderId()).toBe(folder.id);
   });
@@ -145,7 +145,7 @@ describe('ExperimentsDashboardComponent folders', () => {
     component.compareIds.set(['a', 'b']);
     component.openCompare();
 
-    expect(component.compareMode()).toBeTrue();
+    expect(component.compareMode()).toBe(true);
     expect(component.selectedFolderId()).toBeNull();
   });
 
@@ -173,7 +173,7 @@ describe('ExperimentsDashboardComponent folders', () => {
     component.onBackToOriginFolder();
 
     expect(component.selectedFolderId()).toBe(folder.id);
-    expect(component.compareMode()).toBeFalse();
+    expect(component.compareMode()).toBe(false);
   });
 
   it('forgets the origin folder once compare is entered by hand', () => {
@@ -201,7 +201,7 @@ describe('ExperimentsDashboardComponent folders', () => {
 
       component.ngOnInit();
 
-      expect(component.compareMode()).toBeTrue();
+      expect(component.compareMode()).toBe(true);
       expect(component.compareIds()).toEqual(['a', 'b']);
       expect(component.selectedFolderId()).toBeNull();
       expect(component.compareOriginFolderId()).toBe(folder.id);
@@ -209,7 +209,7 @@ describe('ExperimentsDashboardComponent folders', () => {
       component.onBackToOriginFolder();
 
       expect(component.selectedFolderId()).toBe(folder.id);
-      expect(component.compareMode()).toBeFalse();
+      expect(component.compareMode()).toBe(false);
     } finally {
       window.history.replaceState({}, '', originalUrl);
     }
@@ -278,7 +278,7 @@ describe('ExperimentsDashboardComponent folders', () => {
       component.onCompareToggled('d');
 
       expect(component.compareIds()).toEqual(['a', 'b', 'c']);
-      expect(component.compareMode()).toBeFalse();
+      expect(component.compareMode()).toBe(false);
     });
 
     it('drops a checked run when its checkbox is pressed again', () => {

@@ -19,8 +19,8 @@ describe('algorithm input counts', () => {
       x: { label: 'X', desc: '', types: ['real'], required: true },
     }, 'glmm_binary');
 
-    expect(inputdata['y']).toEqual(jasmine.objectContaining({ max_count: 1 }));
-    expect(inputdata['x']).toEqual(jasmine.objectContaining({ min_count: 2 }));
+    expect(inputdata['y']).toEqual(expect.objectContaining({ max_count: 1 }));
+    expect(inputdata['x']).toEqual(expect.objectContaining({ min_count: 2 }));
   });
 
   it('resolves Binary GLMM availability counts', () => {

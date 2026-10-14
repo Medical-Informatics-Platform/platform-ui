@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal, ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
@@ -13,13 +14,13 @@ describe('VariablesPanelComponent bubble selection', () => {
     selectedVariables: ReturnType<typeof signal<any[]>>;
     selectedDatasets: ReturnType<typeof signal<string[]>>;
     availableGroupedAlgorithms: ReturnType<typeof signal<any[]>>;
-    getAllDataModels: jasmine.Spy;
-    categorizeDataModels: jasmine.Spy;
-    getAlgorithmResults: jasmine.Spy;
-    setVariables: jasmine.Spy;
-    setSelectedDatasets: jasmine.Spy;
-    addVariableAndEnrich: jasmine.Spy;
-    clearSelectionsForDataModelChange: jasmine.Spy;
+    getAllDataModels: Mock;
+    categorizeDataModels: Mock;
+    getAlgorithmResults: Mock;
+    setVariables: Mock;
+    setSelectedDatasets: Mock;
+    addVariableAndEnrich: Mock;
+    clearSelectionsForDataModelChange: Mock;
     editingExistingExperiment: () => boolean;
   };
 
@@ -29,16 +30,16 @@ describe('VariablesPanelComponent bubble selection', () => {
       selectedVariables: signal<any[]>([]),
       selectedDatasets: signal<string[]>(['dataset-a']),
       availableGroupedAlgorithms: signal<any[]>([]),
-      getAllDataModels: jasmine.createSpy('getAllDataModels').and.returnValue(of([])),
-      categorizeDataModels: jasmine.createSpy('categorizeDataModels').and.returnValue({
+      getAllDataModels: vi.fn().mockReturnValue(of([])),
+      categorizeDataModels: vi.fn().mockReturnValue({
         crossSectional: [],
         longitudinal: [],
       }),
-      getAlgorithmResults: jasmine.createSpy('getAlgorithmResults').and.returnValue(of({ result: { histogram: [] } })),
-      setVariables: jasmine.createSpy('setVariables'),
-      setSelectedDatasets: jasmine.createSpy('setSelectedDatasets'),
-      addVariableAndEnrich: jasmine.createSpy('addVariableAndEnrich'),
-      clearSelectionsForDataModelChange: jasmine.createSpy('clearSelectionsForDataModelChange'),
+      getAlgorithmResults: vi.fn().mockReturnValue(of({ result: { histogram: [] } })),
+      setVariables: vi.fn(),
+      setSelectedDatasets: vi.fn(),
+      addVariableAndEnrich: vi.fn(),
+      clearSelectionsForDataModelChange: vi.fn(),
       editingExistingExperiment: () => false,
     };
 
@@ -51,12 +52,12 @@ describe('VariablesPanelComponent bubble selection', () => {
           provide: ExperimentStudioGuideStateService,
           useValue: {
             activeStepId: signal<string | null>(null),
-            setSelectedHierarchyNode: jasmine.createSpy('setSelectedHierarchyNode'),
+            setSelectedHierarchyNode: vi.fn(),
           },
         },
         { provide: ErrorService, useValue: {} },
-        { provide: PdfExportService, useValue: { exportHistogramPdf: jasmine.createSpy('exportHistogramPdf') } },
-        { provide: CsvExportService, useValue: { exportHistogramCsv: jasmine.createSpy('exportHistogramCsv') } },
+        { provide: PdfExportService, useValue: { exportHistogramPdf: vi.fn() } },
+        { provide: CsvExportService, useValue: { exportHistogramCsv: vi.fn() } },
       ],
     });
 
@@ -71,8 +72,8 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     const node = { code: 'age_value', label: 'Age', type: 'real' };
 
-    const selectSpy = spyOn(component, 'onSelectedNodeChange');
-    const addSpy = spyOn(component, 'addVariableFromBubble');
+    const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
+    const addSpy = vi.spyOn(component, 'addVariableFromBubble').mockReturnValue(undefined);
 
     component.onBubbleNodeSelected(node);
 
@@ -86,8 +87,8 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     const node = { code: 'age_value', label: 'Age', type: 'real' };
 
-    const selectSpy = spyOn(component, 'onSelectedNodeChange');
-    const addSpy = spyOn(component, 'addVariableFromBubble');
+    const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
+    const addSpy = vi.spyOn(component, 'addVariableFromBubble').mockReturnValue(undefined);
 
     component.onNodeDoubleClicked(node);
 
@@ -558,7 +559,7 @@ describe('VariablesPanelComponent bubble selection', () => {
 
   it('shows the backend insufficient-data message neutrally instead of as an error', async () => {
     experimentStudioService.getAlgorithmResults
-      .and.returnValue(of({ result: { data: 'insufficient data' } }));
+      .mockReturnValue(of({ result: { data: 'insufficient data' } }));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
 
@@ -570,7 +571,7 @@ describe('VariablesPanelComponent bubble selection', () => {
 
   it('keeps a red error message when the histogram request fails', async () => {
     experimentStudioService.getAlgorithmResults
-      .and.returnValue(throwError(() => new Error('network')));
+      .mockReturnValue(throwError(() => new Error('network')));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
 

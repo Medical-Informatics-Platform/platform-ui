@@ -1,9 +1,10 @@
 # Testing
 
 ## Frameworks Detected
-- Unit/component tests: Jasmine and Karma through Angular CLI.
+- Unit/component tests: Vitest through the Angular CLI `unit-test` builder, in headless Chromium (Vitest browser mode with Playwright, 1280x720 viewport).
 - Test configuration: `angular.json` test target and `tsconfig.spec.json`.
-- Test setup file: `src/test-console-filter.ts`, which suppresses known noisy console messages during tests.
+- Test setup file: `src/test-setup.ts`. It suppresses known noisy console messages and restores `vi.spyOn` spies after each test.
+- `createSpyObj` in `src/app/testing/spy-obj.testing.ts` builds a typed object of `vi.fn()` methods.
 
 ## Test Structure
 - Specs live beside source files as `*.spec.ts`.
@@ -12,14 +13,21 @@
 - Visualization registry/renderer specs are under `src/app/pages/experiment-studio/visualisations`.
 
 ## Test Output Guardrails
-Full Karma runs can be noisy or long-running because `npm test` maps to `ng test`. Do not start full interactive/watch test runs unless the user requested them or has confirmed after being told they may consume substantial runtime/tokens. Prefer focused specs or a verified non-watch command when available.
+`npm test` maps to `ng test`, which watches when run in a terminal. Do not start full interactive/watch test runs unless the user requested them or has confirmed after being told they may consume substantial runtime/tokens. Prefer focused specs or a verified non-watch command when available.
 
 ## Unit Test Command
 ```bash
 npm test
 ```
 
-This is the available unit test command, but agents should not start it autonomously unless the user requested tests or confirmed the token/runtime cost. Angular/Karma normally launches a browser and may watch; prefer a verified non-watch or focused command when available.
+Agents should not start it autonomously unless the user requested tests or confirmed the token/runtime cost. A bounded run:
+
+```bash
+npm test -- --watch=false                                   # whole suite
+npm test -- --watch=false --include src/app/services/x.spec.ts  # one spec
+```
+
+The tests need Chromium: run `npx playwright install chromium` once, or set `CHROME_BIN` to an installed Chrome. CI runs the whole suite on pull requests (`.github/workflows/unit-tests.yml`).
 
 ## Static Checks (no browser, no backend)
 ```bash
@@ -49,12 +57,27 @@ There is no separate QA checklist file; the list below is it. Walk the affected 
 Not applicable in this frontend repository. Backend behavior must be validated in the backend repository or against a deployed/local backend.
 
 ## E2E Tests
-Unknown / TODO: verify. No e2e runner is configured in this repository.
+Playwright flows live in `e2e/`. They run headless and in parallel against `ng serve`, with every `/services` call mocked in the browser, so they need no backend and no secrets. CI runs them on pull requests (`.github/workflows/e2e-experiment-studio.yml`).
+
+```bash
+npm run e2e                              # every spec in e2e/
+npm run e2e -- e2e/dashboard.spec.ts     # one file
+npm run e2e -- -g "save shows"           # tests whose name matches
+```
+
+- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, histogram and describe previews, run and save lifecycle, result rendering.
+- `dashboard.spec.ts`: rename, share, delete (with rollback), compare, duplicate.
+- `access.spec.ts`: Keycloak redirect, terms acceptance, notebook route on and off.
+- `fixtures.ts`: the `test` every spec imports. It installs the mock (`api`), and fails the test if the app called a `/services` endpoint the mock does not answer.
+- `experiment-studio-api.ts`: the mock and its data. Linear regression, `describe` and `histogram` answers follow the shapes Exaflow returns (see the expected outputs under `exaflow/tests/prod_env_tests/expected/`). `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
+- `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, run, save).
+
+Failed tests keep a trace and a screenshot in `e2e/test-results/`; CI uploads that folder as the `e2e-test-results` artifact. Open a trace with `npx playwright show-trace <trace.zip>`. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.
 
 ## Fixtures and Mocks
 - Existing unit tests define local fixtures inside specs.
 - Component tests commonly provide service stubs and Angular Signals through `TestBed`.
-- No central fixture directory was detected.
+- Shared unit-test helpers live in `src/app/testing/` (for example `createSpyObj`); e2e fixtures and the `/services` mock live in `e2e/`.
 
 ## Critical Paths That Need Strong Coverage
 - Auth and redirect handling.
