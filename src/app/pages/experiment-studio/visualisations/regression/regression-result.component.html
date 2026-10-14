@@ -26,36 +26,36 @@
       </div>
     </header>
 
-    <div class="coef-table" [class.is-all-columns]="coefficientColumns() === 'all'"
+    <div class="coef-table" role="table" aria-label="Coefficients" [class.is-all-columns]="coefficientColumns() === 'all'"
       [class.has-coefficient]="!!model.coefficientLabel">
       <div class="coef-row coef-row--head" role="row">
-        <span>Variable</span>
-        <span class="is-numeric">{{ model.estimateLabel }}</span>
+        <span role="columnheader">Variable</span>
+        <span role="columnheader" class="is-numeric">{{ model.estimateLabel }}</span>
         @if (coefficientColumns() === 'all') {
         @if (model.coefficientLabel) {
-        <span class="is-numeric">{{ model.coefficientLabel }}</span>
+        <span role="columnheader" class="is-numeric">{{ model.coefficientLabel }}</span>
         }
-        <span class="is-numeric">Std. error</span>
-        <span class="is-numeric">{{ model.statLabel }}</span>
+        <span role="columnheader" class="is-numeric">Std. error</span>
+        <span role="columnheader" class="is-numeric">{{ model.statLabel }}</span>
         }
-        <span class="is-numeric">95% CI</span>
-        <span class="is-center">Interval vs {{ model.nullValue }}</span>
-        <span class="is-numeric">p</span>
+        <span role="columnheader" class="is-numeric">95% CI</span>
+        <span role="columnheader" class="is-center">Interval vs {{ model.nullValue }}</span>
+        <span role="columnheader" class="is-numeric">p</span>
       </div>
 
       @for (row of model.rows; track row.variable) {
       <div class="coef-row" [class.is-intercept]="row.isIntercept" role="row">
-        <span class="coef-variable">{{ row.term }}@if (row.level) {<span class="coef-level"> · {{ row.level }}</span>}</span>
-        <span class="is-numeric coef-estimate">{{ row.estimateText }}</span>
+        <span role="cell" class="coef-variable">{{ row.term }}@if (row.level) {<span class="coef-level"> · {{ row.level }}</span>}</span>
+        <span role="cell" class="is-numeric coef-estimate">{{ row.estimateText }}</span>
         @if (coefficientColumns() === 'all') {
         @if (model.coefficientLabel) {
-        <span class="is-numeric coef-muted">{{ row.coefficientText }}</span>
+        <span role="cell" class="is-numeric coef-muted">{{ row.coefficientText }}</span>
         }
-        <span class="is-numeric coef-muted">{{ row.stdErrText }}</span>
-        <span class="is-numeric coef-muted">{{ row.statText }}</span>
+        <span role="cell" class="is-numeric coef-muted">{{ row.stdErrText }}</span>
+        <span role="cell" class="is-numeric coef-muted">{{ row.statText }}</span>
         }
-        <span class="is-numeric coef-muted">{{ row.ciText }}</span>
-        <span class="coef-plot-cell">
+        <span role="cell" class="is-numeric coef-muted">{{ row.ciText }}</span>
+        <span role="cell" class="coef-plot-cell">
           @if (!row.isIntercept) {
           <span class="coef-plot" aria-hidden="true">
             <span class="coef-plot-zero"></span>
@@ -66,7 +66,7 @@
           </span>
           }
         </span>
-        <span class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
+        <span role="cell" class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
       </div>
       }
     </div>
