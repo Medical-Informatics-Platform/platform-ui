@@ -239,6 +239,21 @@ describe('ExperimentStudioService', () => {
     expect(body.analysis.inputdata.variables).toEqual(['inr']);
   });
 
+  it('keeps dataset on histogram preview variables and the missing-values drop', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+
+    const body = service.buildRequestBody('histogram', ['dataset']);
+
+    expect(body.analysis.algorithm.y).toEqual(['dataset']);
+    expect(body.analysis.inputdata.variables).toEqual(['dataset']);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { dataset: 'drop' },
+      },
+    }));
+  });
+
   it('unions the previewed histogram variable with existing pool CDEs', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
@@ -406,6 +421,26 @@ describe('ExperimentStudioService', () => {
     }));
   });
 
+  it('keeps dataset in variables and the missing-values drop when it is an algorithm role', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setVariables([
+      { code: 'age', label: 'Age' },
+      { code: 'dataset', label: 'Dataset Registry origin' },
+    ]);
+
+    const body = service.buildRequestBody('mock_algo', ['age'], ['dataset']);
+
+    expect(body.analysis.algorithm.y).toEqual(['age']);
+    expect(body.analysis.algorithm.x).toEqual(['dataset']);
+    expect(body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { age: 'drop', dataset: 'drop' },
+      },
+    }));
+  });
+
   it('does not add default preprocessing for describe requests', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
@@ -477,6 +512,22 @@ describe('ExperimentStudioService', () => {
     const req = httpMock.expectOne('/services/experiments/transient');
     expect(req.request.body.analysis.algorithm.name).toBe('describe');
     expect(req.request.body.analysis.preprocessing).toBeNull();
+    req.flush({ result: { featurewise: [] } });
+  });
+
+  it('keeps dataset on descriptive overview variables when it is in the pool', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    service.setVariables([
+      { code: 'age', label: 'Age' },
+      { code: 'dataset', label: 'Dataset Registry origin' },
+    ]);
+
+    service.loadDescriptiveOverview(['age', 'dataset']).subscribe();
+
+    const req = httpMock.expectOne('/services/experiments/transient');
+    expect(req.request.body.analysis.algorithm.y).toEqual(['age', 'dataset']);
+    expect(req.request.body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
     req.flush({ result: { featurewise: [] } });
   });
 

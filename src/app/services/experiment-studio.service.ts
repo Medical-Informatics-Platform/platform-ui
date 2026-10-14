@@ -873,7 +873,7 @@ export class ExperimentStudioService {
           ...this.toArray(extraCodes),
         ]
           .map((code) => String(code).trim())
-          .filter((code) => code && code !== 'dataset' && !derived.has(code)),
+          .filter((code) => code && !derived.has(code)),
       ),
     );
   }
@@ -1224,7 +1224,7 @@ export class ExperimentStudioService {
       new Set(
         [...this.toArray(yPayload), ...this.toArray(xPayload)]
           .map((code) => String(code).trim())
-          .filter((code) => code && code !== 'dataset' && !derived.has(code))
+          .filter((code) => code && !derived.has(code))
       )
     );
     const dropDefault = {
