@@ -385,7 +385,7 @@ test.describe('statistics previews', () => {
 
   test('raw data preview shows the Exaflow describe statistics', async ({ page }) => {
     await openAgeAndSex(page);
-    await page.getByRole('button', { name: 'Preview raw data' }).click();
+    await page.locator('[data-guide="analysis-source-data"] .pipeline-node-toggle').click();
     const raw = page.locator('section.pipeline-node').first();
     const cells = (metric: RegExp) => raw.getByRole('row', { name: metric }).locator('th, td');
     // Two datasets, then the federated "all datasets" column Exaflow adds.

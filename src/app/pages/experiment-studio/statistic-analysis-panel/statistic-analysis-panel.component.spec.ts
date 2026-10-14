@@ -156,7 +156,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     }
 
     /**
-     * Pipeline nodes render dormant until they hold work or were opened this visit,
+     * Pipeline nodes render collapsed until they hold work or were opened this visit,
      * so a spec that reads a station's editor has to open it first. Opening is a read.
      */
     function openStation(step: 'filters' | 'setup' | 'transformation'): HTMLElement {
@@ -230,10 +230,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         apply.click();
         fixture.detectChanges();
 
-        // An optional station with no conditions has nothing to keep: it returns to its card.
+        // An optional station with no conditions has nothing to keep: it folds to its rail.
         expect(component.isStepAdded('filters')).toBe(false);
         expect(component.sectionOpen().filters).toBe(false);
-        expect(workflowSection('Filtering').textContent).toContain('Add filtering');
+        expect(workflowSection('Filtering').querySelector('.btn-remove-step-node')).toBeNull();
     });
 
     it('labels the filtering primary action Apply once conditions exist', () => {
@@ -1301,8 +1301,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(bars[1].querySelector('span')?.getAttribute('style')).toContain('90.9091%');
         expect(bars[1].getAttribute('data-severity')).toBe('none');
 
-        // The dataset header carries its own n from the Total row.
-        expect(workspace.querySelector('.statistics-table th small')?.textContent).toContain('n = 10');
+        // The Total row carries n; the dataset header does not repeat it.
+        expect(workspace.querySelector('.statistics-table th small')).toBeNull();
     });
 
     it('keeps CSV to the Table tab and opens PDF from the merged Export menu', () => {

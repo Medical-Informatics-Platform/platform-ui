@@ -573,7 +573,7 @@ describe('ExperimentStudioGuideComponent', () => {
 
     expect(filteringStep?.allowTargetInteraction).toBe(true);
     expect(filteringStep?.body).toContain('Optional');
-    expect(filteringStep?.body).toContain('Add Filtering');
+    expect(filteringStep?.body).toContain('Add condition');
   });
 
   it('keeps the Analysis preprocessing step interactive and optional', () => {

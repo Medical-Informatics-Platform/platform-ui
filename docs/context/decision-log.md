@@ -92,7 +92,7 @@ Date: 2026-09-08.
 
 ### Decision: The dashed pipeline card means "contributes nothing", not "not customised"
 
-Status: Accepted
+Status: Deprecated — superseded by "Every pipeline step is a solid card that toggles from its header".
 
 Context: Preprocessing rendered as a dashed dormant card until the user opened it, carrying a `Default: Missing NaN removal` pill and a `Default Active` badge. That was visually indistinguishable from Filtering and Transformation, which really do nothing until added, even though MIP drops rows with missing values on every run whether or not anyone opens the stage. Growing a stage also required expanding it first to reach the dashed add button inside the station.
 
@@ -159,3 +159,17 @@ Consequences: An unfinished card now behaves like every other optional station: 
 Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/shared/station-action-bar/station-action-bar.component.*`, `docs/context/decision-log.md`, `docs/context/risk-register.md`.
 
 Date: 2026-09-14.
+
+### Decision: Every pipeline step is a solid card that toggles from its header
+
+Status: Accepted
+
+Context: Browser feedback on the Data Handling pipeline. Each step carried a `Collapse` pill (or `Preview raw data` / `Edit rules`) next to its status chip, and Filtering and Transformations sat behind a dashed dormant card whose only way in was an `Add filtering` / `Add transformation` button. The dormant card did not react to a click on its title, so the first click a user tried did nothing.
+
+Decision: Remove the header toggle buttons and the dormant cards. Every step renders as a solid card; an optional step that is not added shows its collapsed rail (`Add condition`, `Add derived column`) and the `Not in run yet` chip. A click anywhere on the header folds an open step or opens a folded one (`onStepHeaderClick` → `toggleStep`); opening an optional step adds it, which is a read, as before. The step title is a `<button class="pipeline-node-toggle">` inside its `h3`, so the toggle is reachable by keyboard and screen readers without losing the heading. Clicks on the header's own buttons and at the end of a text selection do not toggle. A chevron marks the fold state. Remove Step shows only while the step is added. Step bodies stay gated on `isStepAdded`, so an un-added step mounts no editor and Remove Step still destroys unapplied builder state. Cohort filtering's `sectionOpen.filters` starts `false`, and `isStepOpen` reports a step outside the pipeline as closed.
+
+Consequences: `is-dormant`, `.pipeline-node-dormant`, `.dormant-left`, `.dormant-right`, the no-op `.pipeline-node.is-active` rule and the header `station-preview-toggle` buttons are gone; the summary `Close` buttons keep that class. Solid versus dashed no longer separates a step that changes the run from one that does not — the status chip does. The guide copy names `Add condition`, the column-type choice and the header click. No request payload, endpoint, or guard changes; authenticated pipeline behaviour still needs manual browser QA.
+
+Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.pipeline.spec.ts`, `src/app/pages/experiment-studio/guide/experiment-studio-guide.content.ts`, `src/app/pages/experiment-studio/experiment-studio.component.css`, `docs/context/decision-log.md`.
+
+Date: 2026-10-14.

@@ -163,8 +163,8 @@
   /* Full-width step surfaces (Data Handling pipeline rail) — narrower than the
      1320px panel so a wide summary table does not stretch every station card. */
   --studio-step-max: 1160px;
-  /* Compact width for the pipeline's overview rows (header, dormant nodes,
-     terminal). A dormant row only carries a title and one action, so the full
+  /* Compact width for the pipeline's overview rows (header, collapsed nodes,
+     terminal). A collapsed row only carries a title and its rail, so the full
      1160px rail left ~600px of dead space between them. */
   --studio-pipeline-overview-max: 860px;
 }

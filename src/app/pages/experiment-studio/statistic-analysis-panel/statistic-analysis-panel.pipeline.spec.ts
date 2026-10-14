@@ -11,9 +11,9 @@ import { PdfExportService } from '../../../services/pdf-export.service';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 /**
- * Contract: a pipeline node is "active" only when the stage's work is either
- * opened this visit or present in the persisted request config. Opening a
- * stage must never write that config.
+ * Contract: a stage counts as added only when its work is either opened this
+ * visit or present in the persisted request config. Opening a stage must never
+ * write that config.
  */
 describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     let component: StatisticAnalysisPanelComponent;
@@ -252,9 +252,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     });
 
     /**
-     * Default NaN removal is in the request from the first render, so the stage is drawn like
-     * an added node whose rail says Default. The dashed card is reserved for stages that will
-     * contribute nothing to the next run, so calling this one dormant would be a lie.
+     * Default NaN removal is in the request from the first render, so the stage's rail says
+     * Default before anyone opens it.
      */
     it('draws the untouched stage as a solid node tagged Default', () => {
         (mockExpService.selectedVariables as any).set([age]);
@@ -262,7 +261,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.setAppliedDescriptivePreprocessing.mockClear();
 
         const preprocessing = pipelineCard('analysis-preprocessing');
-        expect(preprocessing.classList.contains('is-dormant')).toBe(false);
         expect(preprocessing.querySelector('.pipeline-node-header h3')?.textContent?.trim()).toBe('Preprocessing');
         expect(preprocessing.querySelector('.pipeline-node-subtitle')?.textContent).toContain('Decide what happens to missing values');
 
@@ -514,7 +512,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         } as any;
 
         // Every card answers for itself: its own Apply commits it and folds it, and the
-        // stage stays open until its header Collapse folds it to the overview.
+        // stage stays open until a click on its header folds it to the overview.
         component.transformationDrafts.forEach((draft) => component.commitTransformationDraft(draft));
         fixture.detectChanges();
         expect(component.transformationDrafts.every((draft) => !draft.open)).toBe(true);
@@ -573,6 +571,85 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.sectionOpen().source).toBe(false);
     });
 
+    it('renders un-added optional steps collapsed, with no editor mounted', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        (mockExpService.filterLogic as any).set(null);
+        fixture.detectChanges();
+        const root = fixture.nativeElement as HTMLElement;
+
+        for (const guide of ['analysis-filtering', 'analysis-transformation']) {
+            const section = root.querySelector(`[data-guide="${guide}"]`)!;
+            expect(section.classList.contains('is-compact'), guide).toBe(true);
+            expect(section.querySelector('.btn-remove-step-node'), guide).toBeNull();
+            expect(section.querySelector('.pipeline-node-body'), guide).toBeNull();
+            expect(section.querySelector('.pipeline-node-toggle')?.getAttribute('aria-expanded'), guide).toBe('false');
+        }
+        expect(root.querySelector('[data-guide="analysis-filtering"]')?.textContent).toContain('Add condition');
+        expect(root.querySelector('[data-guide="analysis-transformation"]')?.textContent).toContain('Add derived column');
+    });
+
+    it('opens and folds every step from its title button', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        (mockExpService.filterLogic as any).set(null);
+        fixture.detectChanges();
+        const toggle = (guide: string) => (fixture.nativeElement as HTMLElement)
+            .querySelector(`[data-guide="${guide}"] .pipeline-node-toggle`) as HTMLButtonElement;
+
+        for (const [guide, isOpen] of [
+            ['analysis-source-data', () => component.sectionOpen().source],
+            ['analysis-filtering', () => component.sectionOpen().filters],
+            ['analysis-preprocessing', () => component.sectionOpen().setup],
+            ['analysis-transformation', () => component.sectionOpen().transformation],
+        ] as const) {
+            toggle(guide).click();
+            fixture.detectChanges();
+            expect(isOpen(), guide).toBe(true);
+            expect(toggle(guide).getAttribute('aria-expanded'), guide).toBe('true');
+
+            toggle(guide).click();
+            fixture.detectChanges();
+            expect(isOpen(), guide).toBe(false);
+        }
+        expect(component.isStepAdded('filters')).toBe(true);
+        expect(component.isStepAdded('transformation')).toBe(true);
+    });
+
+    it('folds a step from its header, but not from its buttons or a text selection', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        component.goToSection('filters');
+        fixture.detectChanges();
+        const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-filtering"]')!;
+        const subtitle = section.querySelector('.pipeline-node-header .pipeline-node-subtitle') as HTMLElement;
+
+        vi.spyOn(component, 'removeStep').mockImplementation(() => undefined);
+        (section.querySelector('.btn-remove-step-node') as HTMLButtonElement).click();
+        expect(component.removeStep).toHaveBeenCalledWith('filters');
+        expect(component.sectionOpen().filters).toBe(true);
+
+        const selection = vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Keep only' } as Selection);
+        subtitle.click();
+        expect(component.sectionOpen().filters).toBe(true);
+
+        selection.mockRestore();
+        subtitle.click();
+        expect(component.sectionOpen().filters).toBe(false);
+    });
+
+    it('drops unapplied filter conditions with the removed step', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        (mockExpService.filterLogic as any).set(null);
+        component.goToSection('filters');
+        fixture.detectChanges();
+        const section = (fixture.nativeElement as HTMLElement).querySelector('[data-guide="analysis-filtering"]')!;
+        expect(section.querySelector('app-filter-config-modal')).not.toBeNull();
+
+        component.removeStep('filters');
+        fixture.detectChanges();
+
+        // The builder is destroyed, so pending rules cannot survive into the next open.
+        expect(section.querySelector('app-filter-config-modal')).toBeNull();
+    });
+
     it('describes step 0 without the cohort filter and refetches only on a new selection', () => {
         (mockExpService.selectedVariables as any).set([age]);
         (mockExpService.filterLogic as any).set({ condition: 'AND', rules: [{ field: 'age', operator: '>', value: 40 }] });
@@ -625,7 +702,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
     /**
      * The collapsed stage header is the only copy the overview shows, so it must read the
-     * stored request rather than the editor, and Collapse must fold a stage without ever
+     * stored request rather than the editor, and folding must close a stage without ever
      * taking it out of the run.
      */
     describe('stage header copy and collapse', () => {
