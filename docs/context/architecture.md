@@ -43,6 +43,8 @@ flowchart TD
   - `GET /services/experiments/:id`
   - `POST /services/experiments`
   - `POST /services/experiments/transient`
+  - `POST /services/experiments/runs` (studio Run; keeps the result for saving)
+  - `POST /services/experiments/runs/:runId/save` (Save experiment without re-running)
   - `PATCH /services/experiments/:id`
   - `DELETE /services/experiments/:id`
   - `GET|POST|PATCH|DELETE /services/experiment-folders/**` (folders, members, and sets)

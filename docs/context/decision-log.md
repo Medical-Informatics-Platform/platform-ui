@@ -173,3 +173,17 @@ Consequences: `is-dormant`, `.pipeline-node-dormant`, `.dormant-left`, `.dormant
 Files affected: `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.component.*`, `src/app/pages/experiment-studio/statistic-analysis-panel/statistic-analysis-panel.pipeline.spec.ts`, `src/app/pages/experiment-studio/guide/experiment-studio-guide.content.ts`, `src/app/pages/experiment-studio/experiment-studio.component.css`, `docs/context/decision-log.md`.
 
 Date: 2026-10-14.
+
+### Decision: Save experiment persists the reviewed run instead of running it again
+
+Status: Accepted
+
+Context: Run experiment used `/services/experiments/transient`, which discards the result, so Save experiment rebuilt the request from the live parameter form and posted it to `/services/experiments`, then polled for a second run. The saved experiment could differ from the result on screen (parameters edited after the run, randomised algorithms), saving took as long as running, and `describe` never saved at all because its save path also went through `/transient`. Save also flipped `isRunning`, so the Execution header reset its run time and Unsaved/Saved state mid-save.
+
+Decision: Run posts to `/services/experiments/runs`; the backend keeps a successful result and returns its id, which the algorithm panel stores as `runId` next to `runResult`. Save sends only that id and a name to `/services/experiments/runs/:runId/save`, through `ExperimentStudioService.saveRun`, called directly by the Execution panel (saving no longer needs the parameter form, so the algorithm panel's `onSaveAs` and the shell's `(saveAs)` relay are gone). Saving has its own `isSaving` flag and never touches `isRunning`. Failures show next to the Save As form through `saveError`; a 404 (the kept run expired after 24h) asks the user to run again. The guide's `experiment-saved-as` step now waits only for the new experiment id, since the result no longer disappears during a save.
+
+Consequences: The old persisted-run path (`runSelectedAlgorithm` posting to `/services/experiments` and polling) is removed; the transient run method took its name. `/services/experiments/transient` stays for previews (histogram, describe overview, outlier report, K-means report). Needs the backend endpoints from the matching platform-backend change.
+
+Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/pages/experiment-studio/algorithm-panel/algorithm-panel.component.ts`, `src/app/pages/experiment-studio/execution-panel/execution-panel.component.*`, `src/app/pages/experiment-studio/experiment-studio.component.html`, `src/app/pages/experiment-studio/guide/experiment-studio-guide.component.ts`, and their specs.
+
+Date: 2026-10-14.

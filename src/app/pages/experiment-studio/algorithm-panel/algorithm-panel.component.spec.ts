@@ -11,7 +11,7 @@ import { ExperimentStudioNavigationService } from '../../../services/experiment-
 import { SessionStorageService } from '../../../services/session-storage.service';
 import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { AlgorithmPanelComponent } from './algorithm-panel.component';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
 
 describe('AlgorithmPanelComponent', () => {
@@ -33,6 +33,7 @@ describe('AlgorithmPanelComponent', () => {
     currentExperimentUUID: ReturnType<typeof signal<string | null>>;
     lastUsedAlgorithm: ReturnType<typeof signal<string>>;
     runResult: ReturnType<typeof signal<any>>;
+    runId: ReturnType<typeof signal<string | null>>;
     runError: ReturnType<typeof signal<string | null>>;
     lastRunSchema: ReturnType<typeof signal<any[]>>;
     hasRunStarted: ReturnType<typeof signal<boolean>>;
@@ -52,7 +53,6 @@ describe('AlgorithmPanelComponent', () => {
     getAlgorithmAvailability: Mock;
     setAlgorithm: Mock;
     setRunning: Mock;
-    runSelectedAlgorithmTransient: Mock;
     runSelectedAlgorithm: Mock;
     captureRunSetup: Mock;
     getEffectivePreprocessingSummary: Mock;
@@ -102,6 +102,7 @@ describe('AlgorithmPanelComponent', () => {
       currentExperimentUUID: signal<string | null>(null),
       lastUsedAlgorithm: signal(''),
       runResult: signal<any>(null),
+      runId: signal<string | null>(null),
       runError: signal<string | null>(null),
       lastRunSchema: signal<any[]>([]),
       hasRunStarted: signal(false),
@@ -127,7 +128,6 @@ describe('AlgorithmPanelComponent', () => {
         experimentStudioService.selectedAlgorithm.set(next);
       }),
       setRunning: vi.fn(),
-      runSelectedAlgorithmTransient: vi.fn(),
       runSelectedAlgorithm: vi.fn(),
       captureRunSetup: vi.fn(),
       getEffectivePreprocessingSummary: vi.fn().mockReturnValue(null),
@@ -414,7 +414,6 @@ describe('AlgorithmPanelComponent', () => {
 
     fixture.componentInstance.onClickRunExp();
     expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
-    expect(experimentStudioService.runSelectedAlgorithmTransient).not.toHaveBeenCalled();
   });
 
   it('keeps fields after the old advanced cutoff in the persisted form config', async () => {
@@ -657,7 +656,9 @@ describe('AlgorithmPanelComponent', () => {
       { code: 'bmi', label: 'BMI', type: 'real' },
     ]);
     experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
-    experimentStudioService.runSelectedAlgorithmTransient.mockReturnValue(of({
+    experimentStudioService.runId.set('stale-run');
+    experimentStudioService.runSelectedAlgorithm.mockReturnValue(of({
+      uuid: 'kept-run',
       status: 'success',
       result: { featurewise: [] },
     }));
@@ -676,9 +677,25 @@ describe('AlgorithmPanelComponent', () => {
       folds: { age: 0.05 },
     });
     expect(experimentStudioService.captureRunSetup).toHaveBeenCalledWith('outlier_report');
-    expect(experimentStudioService.runSelectedAlgorithmTransient).toHaveBeenCalledWith('outlier_report', 'outlier_report');
+    expect(experimentStudioService.runSelectedAlgorithm).toHaveBeenCalledWith('outlier_report', 'outlier_report');
+    // The kept run is what Save persists, so it must be the run behind the shown result.
+    expect(experimentStudioService.runId()).toBe('kept-run');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Age');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('BMI');
+  });
+
+  it('shows the run error and stops running when the run request fails', async () => {
+    experimentStudioService.selectedAlgorithm.set(algorithm);
+    experimentStudioService.runSelectedAlgorithm.mockReturnValue(throwError(() => new Error('500')));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.onClickRunExp();
+
+    expect(experimentStudioService.runError()).toBe('Unable to run experiment. Please try again.');
+    expect(experimentStudioService.runId()).toBeNull();
+    expect(experimentStudioService.setRunning).toHaveBeenCalledWith(true);
+    expect(experimentStudioService.setRunning).toHaveBeenLastCalledWith(false);
   });
 
   it('blocks invalid outlier_report folds', async () => {
@@ -706,11 +723,11 @@ describe('AlgorithmPanelComponent', () => {
     const component = fixture.componentInstance;
     component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
     component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.5);
-    experimentStudioService.runSelectedAlgorithmTransient.mockClear();
+    experimentStudioService.runSelectedAlgorithm.mockClear();
 
     component.onClickRunExp();
 
-    expect(experimentStudioService.runSelectedAlgorithmTransient).not.toHaveBeenCalled();
+    expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
     expect(component.errorMsg()).toBe('Fix the outlier report configuration before running.');
   });
 
@@ -1164,15 +1181,5 @@ describe('AlgorithmPanelComponent', () => {
     );
     expect(labels).toEqual(expect.arrayContaining(['First optional', 'Second optional', 'Third optional', 'Fourth optional']));
     expect(component.configForm().get('first')?.value).toBe(1);
-  });
-
-  it('refuses to save an experiment without a name', () => {
-    const component = fixture.componentInstance;
-
-    component.onSaveAs('   ');
-
-    expect(component.errorMsg()).toContain('name');
-    expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
-    expect(experimentStudioService.setRunning).not.toHaveBeenCalled();
   });
 });

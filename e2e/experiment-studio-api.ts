@@ -401,6 +401,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
   const requests: RecordedRequest[] = [];
   const unhandled: string[] = [];
   let sequence = 0;
+  const runs = new Map<string, { analysis: StoredExperiment['analysis']; result: StoredExperiment['result'] }>();
   await page.route('**/services/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -482,6 +483,38 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
         return json(route, kmeansReport(Array.isArray(variables) ? variables : []));
       }
       return json(route, { status: 'success', result: resultFor(name) });
+    }
+
+    // Studio Run: like the backend, keep the successful result so Save can persist it as is.
+    if (path === '/services/experiments/runs' && method === 'POST') {
+      const body = readBody();
+      const name = String(body?.analysis?.algorithm?.name ?? 'unknown');
+      sequence += 1;
+      const uuid = `run-${sequence}`;
+      const result = name === 'describe' || name === 'outlier_report' ? describePayload(body) : resultFor(name);
+      runs.set(uuid, { analysis: body?.analysis ?? {}, result });
+      return json(route, { uuid, status: 'success', result });
+    }
+
+    const saveRunMatch = path.match(/^\/services\/experiments\/runs\/([^/]+)\/save$/);
+    if (saveRunMatch && method === 'POST') {
+      const run = runs.get(saveRunMatch[1]);
+      if (!run) return json(route, { message: 'This run is no longer available to save.' }, 404);
+      sequence += 1;
+      const stored: StoredExperiment = {
+        uuid: `exp-created-${sequence}`,
+        name: String(readBody()?.name),
+        created: new Date().toISOString(),
+        finished: new Date().toISOString(),
+        shared: false,
+        viewed: false,
+        status: 'success',
+        analysis: run.analysis,
+        result: run.result,
+        createdBy: STUDIO_USER,
+      };
+      experiments.unshift(stored);
+      return json(route, stored, 201);
     }
 
     if (path === '/services/experiments' && method === 'GET') {

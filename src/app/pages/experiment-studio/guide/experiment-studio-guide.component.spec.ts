@@ -645,7 +645,7 @@ describe('ExperimentStudioGuideComponent', () => {
     expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-result-ready' })).toBe(true);
   });
 
-  it('keeps the save-wait step locked until Save as creates a new experiment and returns to parameters', () => {
+  it('keeps the save-wait step locked until Save as creates a new experiment', () => {
     component.isOpen.set(true);
     component.activeSteps.set([
       {
@@ -658,30 +658,18 @@ describe('ExperimentStudioGuideComponent', () => {
     ] as any);
     (component as any).experimentSaveBaselineUuid.set(null);
 
+    // Saving does not re-run the experiment, so the result stays on screen throughout.
     const resultSection = document.createElement('section');
     resultSection.setAttribute('data-guide', 'experiment-result');
-    vi.spyOn(resultSection, 'getBoundingClientRect').mockReturnValue({
-      top: 240,
-      right: 1080,
-      bottom: 760,
-      left: 360,
-      width: 720,
-      height: 520,
-      x: 360,
-      y: 240,
-      toJSON: () => ({}),
-    } as DOMRect);
     document.body.appendChild(resultSection);
 
     expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(false);
 
     experimentStudioService.currentExperimentUUID.set('saved-experiment-uuid');
 
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(false);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(true);
 
     resultSection.remove();
-
-    expect((component as any).isStepRequirementSatisfied({ requirement: 'experiment-saved-as' })).toBe(true);
   });
 
   it('auto-advances after an algorithm is selected', () => {

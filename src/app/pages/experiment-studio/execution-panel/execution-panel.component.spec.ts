@@ -21,6 +21,8 @@ describe('ExecutionPanelComponent', () => {
   let fixture: ComponentFixture<ExecutionPanelComponent>;
   const studio = {
     isRunning: signal(false),
+    isSaving: signal(false),
+    saveRun: vi.fn(),
     runResult: signal<Record<string, unknown> | null>(null),
     runSetup: signal(null),
     runError: signal<string | null>(null),
@@ -48,9 +50,12 @@ describe('ExecutionPanelComponent', () => {
 
   beforeEach(async () => {
     studio.isRunning.set(false);
+    studio.isSaving.set(false);
     studio.runResult.set(null);
     studio.runError.set(null);
     studio.saveError.set(null);
+    studio.saveSucceeded.set(false);
+    studio.saveRun.mockClear();
     studioNavigation.navigateToSection.mockClear();
 
     await TestBed.configureTestingModule({
@@ -123,10 +128,8 @@ describe('ExecutionPanelComponent', () => {
     expect(html.querySelector('.result-section-title')?.textContent?.trim()).toBe('My run');
   });
 
-  it('emits the trimmed name on save-as and refuses a blank one', () => {
+  it('saves the shown run under the trimmed name and refuses a blank one', () => {
     render({ result: {} });
-    const saved: string[] = [];
-    fixture.componentInstance.saveAs.subscribe((name: string) => saved.push(name));
 
     fixture.componentInstance.toggleSaveAsMode();
     fixture.detectChanges();
@@ -135,11 +138,32 @@ describe('ExecutionPanelComponent', () => {
 
     fixture.componentInstance.saveAsName.set('   ');
     fixture.componentInstance.onSaveAs();
-    expect(saved).toEqual([]);
+    expect(studio.saveRun).not.toHaveBeenCalled();
 
     fixture.componentInstance.saveAsName.set('  My copy  ');
     fixture.componentInstance.onSaveAs();
-    expect(saved).toEqual(['My copy']);
+    expect(studio.saveRun).toHaveBeenCalledExactlyOnceWith('My copy');
+  });
+
+  it('keeps the result and its run time on screen while saving', () => {
+    render({ result: {} });
+    const runAt = fixture.componentInstance.runAt();
+    fixture.componentInstance.toggleSaveAsMode();
+    fixture.componentInstance.saveAsName.set('My run');
+    fixture.detectChanges();
+
+    studio.isSaving.set(true);
+    fixture.detectChanges();
+    const saveButton = htmlOf().querySelector<HTMLButtonElement>('[data-guide="save-as-form"] .result-action--primary');
+    expect(saveButton?.disabled).toBe(true);
+    expect(saveButton?.textContent?.trim()).toBe('Saving…');
+    expect(htmlOf().querySelector('[data-guide="experiment-result"]')).toBeTruthy();
+
+    studio.isSaving.set(false);
+    studio.saveSucceeded.set(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.savedText()).toBe('Saved as “My run”');
+    expect(fixture.componentInstance.runAt()).toBe(runAt);
   });
 
   it('leaves save-as mode when going back to the algorithm step', () => {
