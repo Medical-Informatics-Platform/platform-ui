@@ -131,10 +131,12 @@
         } @else if (pendingRun()) {
         <span class="model-band-value">Not finished</span>
         }
+        @if (filterPreview(); as filters) {
         <details class="setup-fold">
-          <summary>{{ filterPreview() ? 'Filters' : 'Filters: none' }}</summary>
-          <p>{{ filterPreview() || 'None' }}</p>
+          <summary>Filters</summary>
+          <p>{{ filters }}</p>
         </details>
+        }
         @for (entry of preprocessingEntries(); track entry.label) {
         <details class="setup-fold">
           <summary>{{ entry.label }}</summary>
