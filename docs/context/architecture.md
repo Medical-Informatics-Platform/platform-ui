@@ -41,10 +41,9 @@ flowchart TD
   - `GET /services/specifications/algorithms`
   - `GET /services/experiments`
   - `GET /services/experiments/:id`
-  - `POST /services/experiments`
-  - `POST /services/experiments/transient`
+  - `POST /services/experiments` (`{ runId, name }`: Save experiment from a kept run, without re-running)
+  - `POST /services/experiments/preview` (stateless previews; nothing is stored)
   - `POST /services/experiments/runs` (studio Run; keeps the result for saving)
-  - `POST /services/experiments/runs/:runId/save` (Save experiment without re-running)
   - `PATCH /services/experiments/:id`
   - `DELETE /services/experiments/:id`
   - `GET|POST|PATCH|DELETE /services/experiment-folders/**` (folders, members, and sets)
@@ -68,7 +67,7 @@ flowchart TD
 
 ## State Management
 - The app uses Angular Signals heavily for feature state.
-- `ExperimentStudioService` is the main orchestration layer for selected data models, datasets, variables, covariates, filters, algorithm configuration, run/polling flows, transient preview calls, edit hydration, and sessionStorage persistence.
+- `ExperimentStudioService` is the main orchestration layer for selected data models, datasets, variables, covariates, filters, algorithm configuration, run/save flows, preview calls, edit hydration, and sessionStorage persistence.
 - `ExperimentsDashboardService` owns paged experiment list state, filtering, sharing, renaming, deletion, and result fetches.
 - `ErrorService` shares global feature errors through a `BehaviorSubject`.
 

@@ -187,3 +187,17 @@ Consequences: The old persisted-run path (`runSelectedAlgorithm` posting to `/se
 Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/pages/experiment-studio/algorithm-panel/algorithm-panel.component.ts`, `src/app/pages/experiment-studio/execution-panel/execution-panel.component.*`, `src/app/pages/experiment-studio/experiment-studio.component.html`, `src/app/pages/experiment-studio/guide/experiment-studio-guide.component.ts`, and their specs.
 
 Date: 2026-10-14.
+
+### Decision: Experiment calls follow the consolidated `/services/experiments` API
+
+Status: Accepted
+
+Context: platform-backend PR #34 moved every experiment route under `/services/experiments` and removed `/services/analysis`, `/services/experiments/transient`, `/services/experiments/runs/:runId/save` and the asynchronous create-and-run `POST /services/experiments` that returned `pending` and was polled.
+
+Decision: Previews (histogram, describe overview, outlier report, K-means report) post to `/services/experiments/preview`, which takes and returns the same shapes as `/transient` did. Save posts `{ runId, name }` to `/services/experiments`; the 201 response has `result: null`, and the studio only reads its `uuid` and `shared`, keeping the reviewed result it already holds. `getAlgorithmResults` sends every algorithm to the preview endpoint (only histogram calls it today), so `submitRequest` and `pollForResults` are gone.
+
+Consequences: Breaking: this UI needs a backend with PR #34 and does not work against an older one. Payload shapes of previews and runs are unchanged; the JSON field stays `analysis` (only the DB column was renamed). The dashboard still renders a stored `pending` status for older rows. The e2e mock API follows the new routes.
+
+Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/services/experiment-studio.service.spec.ts`, `e2e/experiment-studio-api.ts`, `e2e/experiment-studio.flows.spec.ts`, `README.md`, `docs/context/*.md`, `docs/llm-wiki/indexes/backend-endpoints.md`.
+
+Date: 2026-10-15.

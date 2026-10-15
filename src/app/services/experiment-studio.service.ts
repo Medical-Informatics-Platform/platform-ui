@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, Subject, catchError, defaultIfEmpty, filter, finalize, forkJoin, map, of, shareReplay, switchMap, take, takeUntil, tap, timer } from 'rxjs';
+import { Observable, Subject, catchError, finalize, forkJoin, map, of, shareReplay, takeUntil, tap } from 'rxjs';
 import { SessionStorageService } from './session-storage.service';
 import { D3HierarchyNode, DataModel, Group, Variable } from '../models/data-model.interface';
 import { mapSpecificationsToAlgorithmConfigs } from '../core/algorithm-mappers';
@@ -134,7 +134,8 @@ export class ExperimentStudioService {
   }
 
   private selectedDatasetsSignal = signal<string[]>(this.sessionStorage.getItem('selectedDatasets') || []);
-  private transientUrl = '/services/experiments/transient';
+  /** Stateless previews: computed and returned, nothing kept. */
+  private previewUrl = '/services/experiments/preview';
   /** Studio runs: the backend keeps a successful result here so saving never re-executes it. */
   private runsUrl = '/services/experiments/runs';
 
@@ -1666,30 +1667,6 @@ export class ExperimentStudioService {
     };
   }
 
-  submitRequest(requestBody: any, cacheHandler?: (response: any) => void): Observable<any> {
-    return this.http.post<any>(this.experimentUrl, requestBody).pipe(
-      switchMap((res) => {
-        const uuid = res?.uuid || res?.algorithm?.execution_id;
-        if (!uuid) {
-          throw new Error('UUID not found in response');
-        }
-        this.currentExperimentUUIDSignal.set(uuid);
-        return this.pollForResults(`${this.experimentUrl}/${uuid}`);
-      }),
-      tap((response) => {
-        if (cacheHandler && response?.result) {
-          cacheHandler(response.result);
-        }
-      }),
-      catchError(() => {
-        this.errorService.setError('Failed to run experiment. Please try again.');
-        this.setRunning(false);
-        return of({ status: 'error', result: { message: 'Experiment request failed.' } });
-      })
-    );
-  }
-
-
   private isTransientAlgorithm(name: string): boolean {
     return (
       name === AlgorithmNames.HISTOGRAM ||
@@ -1711,8 +1688,8 @@ export class ExperimentStudioService {
     return { result: resp };
   }
 
-  private submitTransientRequest(requestBody: any, cacheHandler?: (result: any) => void): Observable<any> {
-    return this.http.post<any>(this.transientUrl, requestBody).pipe(
+  private submitPreviewRequest(requestBody: any, cacheHandler?: (result: any) => void): Observable<any> {
+    return this.http.post<any>(this.previewUrl, requestBody).pipe(
       tap((resp) => {
         if (cacheHandler && resp) cacheHandler(resp);
       }),
@@ -1723,7 +1700,7 @@ export class ExperimentStudioService {
     );
   }
 
-  //Runs transient or standard algorithm calls.
+  //Runs preview algorithm calls.
   //Used for fetching quick results like histograms or descriptive stats.
   getAlgorithmResults(
     algorithmName: string,
@@ -1743,14 +1720,14 @@ export class ExperimentStudioService {
         preprocessingOverride,
         filterOverride
       );
-      return this.submitTransientRequest(requestBody).pipe(
+      return this.submitPreviewRequest(requestBody).pipe(
         map(resp => this.normalizeResponse(algorithmName, resp))
       );
     }
 
-    // non-transient: ignore nodeCodes
+    // other algorithms: ignore nodeCodes
     const requestBody = this.buildRequestBody(algorithmName);
-    return this.submitRequest(requestBody);
+    return this.submitPreviewRequest(requestBody);
   }
 
   private buildDescriptiveRequestBody(
@@ -1843,7 +1820,7 @@ export class ExperimentStudioService {
       filterOverride
     );
 
-    return this.submitTransientRequest(requestBody).pipe(
+    return this.submitPreviewRequest(requestBody).pipe(
       map(resp => this.normalizeResponse("describe", resp)),
       catchError((error) => {
         console.error("Error fetching descriptive overview:", error);
@@ -1891,7 +1868,7 @@ export class ExperimentStudioService {
           }),
         },
       };
-      return this.submitTransientRequest(requestBody).pipe(
+      return this.submitPreviewRequest(requestBody).pipe(
         map((resp) => this.normalizeTransientResponse(resp)),
       );
     } catch (error) {
@@ -1907,7 +1884,7 @@ export class ExperimentStudioService {
   ): Observable<any> {
     const requestBody = this.buildOutlierReportRequestBody(variableCodes, parameters, preprocessing);
 
-    return this.submitTransientRequest(requestBody).pipe(
+    return this.submitPreviewRequest(requestBody).pipe(
       map(resp => this.normalizeTransientResponse(resp)),
       catchError((error) => {
         console.error("Error fetching outlier report preview:", error);
@@ -1973,7 +1950,7 @@ export class ExperimentStudioService {
     this.saveError.set(null);
     this._isSaving.set(true);
     this.http
-      .post<BackendExperiment>(`${this.runsUrl}/${runId}/save`, { name })
+      .post<BackendExperiment>(this.experimentUrl, { runId, name })
       .pipe(finalize(() => this._isSaving.set(false)))
       .subscribe({
         next: (saved) => {
@@ -1991,36 +1968,6 @@ export class ExperimentStudioService {
       });
   }
 
-
-  pollForResults(url: string): Observable<any> {
-    const pollingInterval = 5000;
-    const maxRetries = 60;
-    return timer(0, pollingInterval).pipe(
-      take(maxRetries),
-      switchMap(() =>
-        this.http.get<any>(url).pipe(
-          map((response) => {
-            if (response.status === 'success' || response.status === 'error') {
-              return response;
-            }
-            return null;
-          }),
-          catchError(() =>
-            of({
-              status: 'error',
-              result: { message: 'Network or server error while polling results.' }
-            })
-          )
-        )
-      ),
-      filter((result) => result !== null),
-      take(1),
-      defaultIfEmpty({
-        status: 'error',
-        result: { message: 'Experiment run timed out before completion.' }
-      })
-    );
-  }
 
   categorizeDataModels(dataModels: DataModel[]): {
     crossSectional: DataModel[];

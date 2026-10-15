@@ -509,7 +509,7 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age']).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.body.analysis.algorithm.name).toBe('describe');
     expect(req.request.body.analysis.preprocessing).toBeNull();
     req.flush({ result: { featurewise: [] } });
@@ -525,7 +525,7 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age', 'dataset']).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.body.analysis.algorithm.y).toEqual(['age', 'dataset']);
     expect(req.request.body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
     req.flush({ result: { featurewise: [] } });
@@ -538,7 +538,7 @@ describe('ExperimentStudioService', () => {
     service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
 
     service.loadDescriptiveOverview(['age']).subscribe();
-    const rawReq = httpMock.expectOne('/services/experiments/transient');
+    const rawReq = httpMock.expectOne('/services/experiments/preview');
     expect(rawReq.request.body.analysis.inputdata.filters).not.toBeNull();
     expect(rawReq.request.body.analysis.inputdata.variables).toContain('site');
     rawReq.flush({ result: { featurewise: [] } });
@@ -546,7 +546,7 @@ describe('ExperimentStudioService', () => {
     // Step 0 describes the data as selected: no filter payload, and the filter
     // field is no longer dragged into the input pool.
     service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
-    const sourceReq = httpMock.expectOne('/services/experiments/transient');
+    const sourceReq = httpMock.expectOne('/services/experiments/preview');
     expect(sourceReq.request.body.analysis.inputdata.filters).toBeNull();
     expect(sourceReq.request.body.analysis.inputdata.variables).not.toContain('site');
     expect(sourceReq.request.body.analysis.preprocessing).toBeNull();
@@ -562,7 +562,7 @@ describe('ExperimentStudioService', () => {
 
     // The Cohort Filtering preview sends what the editor holds, unapplied.
     service.loadDescriptiveOverview(['age'], null, null, pending).subscribe();
-    const pendingReq = httpMock.expectOne('/services/experiments/transient');
+    const pendingReq = httpMock.expectOne('/services/experiments/preview');
     expect(pendingReq.request.body.analysis.inputdata.filters).toEqual(pending);
     expect(pendingReq.request.body.analysis.inputdata.variables).toContain('score');
     expect(pendingReq.request.body.analysis.inputdata.variables).not.toContain('site');
@@ -570,14 +570,14 @@ describe('ExperimentStudioService', () => {
 
     // An explicit null is "no rules", not "fall back to the store".
     service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
-    const clearedReq = httpMock.expectOne('/services/experiments/transient');
+    const clearedReq = httpMock.expectOne('/services/experiments/preview');
     expect(clearedReq.request.body.analysis.inputdata.filters).toBeNull();
     expect(clearedReq.request.body.analysis.inputdata.variables).not.toContain('site');
     clearedReq.flush({ result: { featurewise: [] } });
 
     // Leaving the override alone keeps the stored cohort.
     service.loadDescriptiveOverview(['age']).subscribe();
-    const storedReq = httpMock.expectOne('/services/experiments/transient');
+    const storedReq = httpMock.expectOne('/services/experiments/preview');
     expect(storedReq.request.body.analysis.inputdata.filters).toEqual(stored);
     storedReq.flush({ result: { featurewise: [] } });
 
@@ -607,7 +607,7 @@ describe('ExperimentStudioService', () => {
     expect(body.analysis.preprocessing).toEqual(preprocessingSteps(defaultDrop));
   });
 
-  it('forwards the cohort override from getAlgorithmResults to the transient request', () => {
+  it('forwards the cohort override from getAlgorithmResults to the preview request', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
     service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
@@ -621,7 +621,7 @@ describe('ExperimentStudioService', () => {
       pending
     ).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.body.analysis.inputdata.filters).toEqual(pending);
     req.flush({ result: { histogram: [] } });
   });
@@ -637,7 +637,7 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age'], preprocessing).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps(preprocessing));
     req.flush({ result: { featurewise: [] } });
   });
@@ -651,7 +651,7 @@ describe('ExperimentStudioService', () => {
         strategies: { age: 'mean' },
       },
     }).subscribe();
-    const previewReq = httpMock.expectOne('/services/experiments/transient');
+    const previewReq = httpMock.expectOne('/services/experiments/preview');
     previewReq.flush({ result: { featurewise: [] } });
 
     const body = service.buildRequestBody('mock_algo', ['age']);
@@ -812,7 +812,7 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.method).toBe('POST');
     expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
       name: 'outlier_report',
@@ -856,7 +856,7 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.method).toBe('POST');
     expect(req.request.body.analysis.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
@@ -888,7 +888,7 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/transient');
+    const req = httpMock.expectOne('/services/experiments/preview');
     expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
       y: ['age'],
       x: null,
@@ -1022,12 +1022,11 @@ describe('ExperimentStudioService', () => {
     service.saveRun('My experiment');
 
     expect(service.isSaving()).toBe(true);
-    const req = httpMock.expectOne('/services/experiments/runs/run-1/save');
+    const req = httpMock.expectOne('/services/experiments');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ name: 'My experiment' });
-    req.flush({ uuid: 'experiment-1', shared: false, status: 'success' });
+    expect(req.request.body).toEqual({ runId: 'run-1', name: 'My experiment' });
+    req.flush({ uuid: 'experiment-1', shared: false, status: 'success', result: null });
 
-    httpMock.expectNone('/services/experiments');
     expect(service.isSaving()).toBe(false);
     expect(service.currentExperimentUUID()).toBe('experiment-1');
     expect(service.saveSucceeded()).toBe(true);
@@ -1039,7 +1038,7 @@ describe('ExperimentStudioService', () => {
 
     service.saveRun('My experiment');
     httpMock
-      .expectOne('/services/experiments/runs/run-1/save')
+      .expectOne('/services/experiments')
       .flush({ message: 'gone' }, { status: 404, statusText: 'Not Found' });
 
     expect(service.isSaving()).toBe(false);
@@ -1052,7 +1051,7 @@ describe('ExperimentStudioService', () => {
 
     service.saveRun('My experiment');
 
-    httpMock.expectNone('/services/experiments/runs/run-1/save');
+    httpMock.expectNone('/services/experiments');
     expect(service.saveError()).toContain('Run the experiment');
   });
 
@@ -1861,7 +1860,7 @@ describe('ExperimentStudioService', () => {
       expect(request$).toBeTruthy();
       request$!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/transient');
+      const req = httpMock.expectOne('/services/experiments/preview');
       expect(req.request.body.analysis.algorithm.name).toBe('kmeans');
       expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
       expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
@@ -1882,7 +1881,7 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/transient');
+      const req = httpMock.expectOne('/services/experiments/preview');
       const steps = req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[];
       expect(steps.map((step) => step.name)).toContain('missing_values_handler');
       expect(steps.find((step) => step.name === 'missing_values_handler')?.parameters['strategies'])
@@ -1898,7 +1897,7 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/transient');
+      const req = httpMock.expectOne('/services/experiments/preview');
       const missing = (req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[])
         .find((step) => step.name === 'missing_values_handler');
       expect(missing?.parameters['strategies']).toEqual({ age: 'mean' });
@@ -1908,7 +1907,7 @@ describe('ExperimentStudioService', () => {
     it('lets an explicit parameter override the spec default', () => {
       service.loadKMeansReport(['age'], { k: 3 })!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/transient');
+      const req = httpMock.expectOne('/services/experiments/preview');
       expect(req.request.body.analysis.algorithm.parameters.k).toBe(3);
       expect(req.request.body.analysis.algorithm.parameters.k_selection).toBe('manual');
       req.flush({ status: 'success', result: {} });
@@ -1920,7 +1919,7 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/transient');
+      const req = httpMock.expectOne('/services/experiments/preview');
       expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
         k_selection: 'elbow',
         k_min: 2,
