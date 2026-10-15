@@ -33,8 +33,9 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 - `GET /services/activeUser` – current user/session.
 - `GET /services/algorithms` – algorithm catalog.
 - `GET /services/data-models` – available data models (used to build variable tree and datasets).
-- `POST /services/experiments` – run experiment (polls for results).
-- `POST /services/experiments/transient` – quick previews (histograms, descriptive stats).
+- `POST /services/experiments/preview` – quick previews (histograms, descriptive stats); nothing stored.
+- `POST /services/experiments/runs` – run an experiment; the backend keeps the result for 24h under the returned `uuid`.
+- `POST /services/experiments` – `{ runId, name }`: save a kept run as an experiment without running it again.
 - `GET /services/experiments/:id` – fetch experiment (and results).
 - `PATCH /services/experiments/:id` – update name/description/shared flag.
 - `DELETE /services/experiments/:id` – delete experiment.

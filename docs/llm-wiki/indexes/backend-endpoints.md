@@ -18,11 +18,10 @@ side and `hub-http.ts` carries the Hub XSRF header.
 | specifications | GET | `/services/specifications/preprocessing` | preprocessing step DTOs |
 | specifications | GET | `/services/specifications/algorithms` | algorithm catalog and config schema |
 | experiments | GET | `/services/experiments` | server page; `page,size,mine,notMine,includeShared,orderBy,descending[,algorithm,shared]` |
-| experiments | POST | `/services/experiments` | run; the returned uuid is polled |
-| experiments | POST | `/services/experiments/transient` | preview without storing |
+| experiments | POST | `/services/experiments` | `{ runId, name }` Save experiment: persists the kept run, no re-run; 201 with `result: null`; 404 once expired (24h) |
+| experiments | POST | `/services/experiments/preview` | preview without storing |
 | experiments | POST | `/services/experiments/runs` | studio Run; the backend keeps a successful result, `uuid` is the run id |
-| experiments | POST | `/services/experiments/runs/:runId/save` | `{ name }` Save experiment: persists the kept run, no re-run; 404 once expired (24h) |
-| experiments | GET | `/services/experiments/:uuid` | detail/compare, and result polling |
+| experiments | GET | `/services/experiments/:uuid` | detail/compare |
 | experiments | PATCH | `/services/experiments/:uuid` | `{ name }` rename, `{ shared }` share |
 | experiments | DELETE | `/services/experiments/:uuid` | delete; folder membership prunes on 404 |
 | folders | GET, POST | `/services/experiment-folders` | list folders / create |

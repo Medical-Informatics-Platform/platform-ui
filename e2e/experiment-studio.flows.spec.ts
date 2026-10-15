@@ -33,18 +33,20 @@ import {
  * Payload checks read the request the studio sent, since that is what Exaflow runs.
  */
 
-const TRANSIENT = '/services/experiments/transient';
+const PREVIEW = '/services/experiments/preview';
 const RUNS = '/services/experiments/runs';
 
-/** Save must persist the kept run, never post the analysis to be run a second time. */
+/** Save must persist the kept run by id, never post the analysis to be run a second time. */
 function expectNoRerun(api: StudioApi) {
-  expect(api.requests.some((request) => request.method === 'POST' && request.path === '/services/experiments')).toBe(false);
+  const saves = api.requests.filter((request) => request.method === 'POST' && request.path === '/services/experiments');
+  expect(saves.length).toBeGreaterThan(0);
+  expect(saves.every((request) => request.body?.runId && !request.body?.analysis)).toBe(true);
 }
 
 /** One preprocessing step from the latest Data review preview (`describe`). */
 function previewStep(api: StudioApi, name: string) {
   const steps: { name: string; parameters: Record<string, any> }[] =
-    lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.preprocessing ?? [];
+    lastRequest(api, 'POST', PREVIEW, 'describe').analysis.preprocessing ?? [];
   const step = steps.find((candidate) => candidate.name === name);
   expect(step, `preview sends ${name}`).toBeTruthy();
   return step!.parameters;
@@ -127,10 +129,10 @@ test.describe('experiment studio', () => {
     await expect(page.getByText('Experiment saved successfully!')).toBeVisible();
     await expect(page.getByText('Saved as “Age by sex”')).toBeVisible();
 
-    // Save sends only the name; the kept run supplies the analysis and result.
+    // Save sends only the run id and name; the kept run supplies the analysis and result.
     expectNoRerun(api);
-    const save = api.requests.find((request) => request.method === 'POST' && /^\/services\/experiments\/runs\/[^/]+\/save$/.test(request.path));
-    expect(save?.body).toEqual({ name: 'Age by sex' });
+    const save = api.requests.find((request) => request.method === 'POST' && request.path === '/services/experiments');
+    expect(save?.body).toEqual({ runId: expect.stringMatching(/^run-/), name: 'Age by sex' });
     const body = api.experiments[0] as any;
     expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
     expect(body.name).toBe('Age by sex');
@@ -313,7 +315,7 @@ test.describe('filters and transformations', () => {
     await expect(page.getByText('Sex is Female')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last()).toBeEnabled();
 
-    expect(lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.inputdata.filters).toEqual({
+    expect(lastRequest(api, 'POST', PREVIEW, 'describe').analysis.inputdata.filters).toEqual({
       condition: 'AND',
       rules: [
         expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 }),
@@ -354,7 +356,7 @@ test.describe('filters and transformations', () => {
     await openAgeAndSex(page);
     await addKMeansColumn(page);
     await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
-    expect(lastRequest(api, 'POST', TRANSIENT, 'kmeans').analysis.algorithm.y).toEqual(['age']);
+    expect(lastRequest(api, 'POST', PREVIEW, 'kmeans').analysis.algorithm.y).toEqual(['age']);
   });
 
   test('nominal column and k-means cluster column together', async ({ page, api }) => {
@@ -366,7 +368,7 @@ test.describe('filters and transformations', () => {
     await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
     await expect(page.getByText('Sex is Female')).toBeVisible();
 
-    const steps = lastRequest(api, 'POST', TRANSIENT, 'describe').analysis.preprocessing;
+    const steps = lastRequest(api, 'POST', PREVIEW, 'describe').analysis.preprocessing;
     expect(steps).toContainEqual({
       name: 'categorical_column_creator',
       parameters: {
@@ -392,7 +394,7 @@ test.describe('statistics previews', () => {
       await page.locator('#search-bar').fill(label);
       await page.locator('.search-result-item', { hasText: label }).first().click();
       for (const tick of ticks) await expect(histogram).toContainText(tick);
-      expect(lastRequest(api, 'POST', TRANSIENT, 'histogram').analysis.algorithm.y).toEqual([label.toLowerCase()]);
+      expect(lastRequest(api, 'POST', PREVIEW, 'histogram').analysis.algorithm.y).toEqual([label.toLowerCase()]);
     }
   });
 
@@ -420,7 +422,9 @@ test.describe('run and save lifecycle', () => {
 
   /** Answer the save of the kept run with `status`, as the backend does when it fails or the run expired. */
   async function failSave(page: Page, status: number) {
-    await page.route(/\/services\/experiments\/runs\/[^/]+\/save$/, (route) => route.fulfill({ status, json: {} }));
+    await page.route('**/services/experiments', (route) =>
+      route.request().method() === 'POST' ? route.fulfill({ status, json: {} }) : route.fallback(),
+    );
   }
 
   test('save asks for a fresh run once the kept run has expired', async ({ page }) => {

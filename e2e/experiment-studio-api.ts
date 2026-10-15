@@ -468,7 +468,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       return json(route, algorithmSpecs());
     }
 
-    if (path === '/services/experiments/transient' && method === 'POST') {
+    if (path === '/services/experiments/preview' && method === 'POST') {
       const body = readBody();
       const name = body?.analysis?.algorithm?.name;
       if (name === 'histogram') {
@@ -496,14 +496,28 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       return json(route, { uuid, status: 'success', result });
     }
 
-    const saveRunMatch = path.match(/^\/services\/experiments\/runs\/([^/]+)\/save$/);
-    if (saveRunMatch && method === 'POST') {
-      const run = runs.get(saveRunMatch[1]);
+    if (path === '/services/experiments' && method === 'GET') {
+      return json(route, {
+        experiments,
+        totalExperiments: experiments.length,
+        totalPages: experiments.length ? 1 : 0,
+        currentPage: 0,
+      });
+    }
+
+    // Save: persist a kept run by id. Like the backend, nothing runs again and the
+    // response carries no result.
+    if (path === '/services/experiments' && method === 'POST') {
+      const body = readBody();
+      if (!body?.runId || !String(body?.name ?? '').trim()) {
+        return json(route, { message: 'runId and name are required.' }, 400);
+      }
+      const run = runs.get(String(body.runId));
       if (!run) return json(route, { message: 'This run is no longer available to save.' }, 404);
       sequence += 1;
       const stored: StoredExperiment = {
         uuid: `exp-created-${sequence}`,
-        name: String(readBody()?.name),
+        name: String(body.name),
         created: new Date().toISOString(),
         finished: new Date().toISOString(),
         shared: false,
@@ -514,36 +528,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
         createdBy: STUDIO_USER,
       };
       experiments.unshift(stored);
-      return json(route, stored, 201);
-    }
-
-    if (path === '/services/experiments' && method === 'GET') {
-      return json(route, {
-        experiments,
-        totalExperiments: experiments.length,
-        totalPages: experiments.length ? 1 : 0,
-        currentPage: 0,
-      });
-    }
-
-    if (path === '/services/experiments' && method === 'POST') {
-      const body = readBody();
-      const name = String(body?.analysis?.algorithm?.name ?? 'unknown');
-      sequence += 1;
-      const stored: StoredExperiment = {
-        uuid: `exp-created-${sequence}`,
-        name: String(body?.name ?? `experiment_${name}`),
-        created: new Date().toISOString(),
-        finished: new Date().toISOString(),
-        shared: false,
-        viewed: false,
-        status: 'success',
-        analysis: body?.analysis ?? {},
-        result: resultFor(name),
-        createdBy: STUDIO_USER,
-      };
-      experiments.unshift(stored);
-      return json(route, { uuid: stored.uuid, status: 'pending' });
+      return json(route, { ...stored, result: null }, 201);
     }
 
     const experimentMatch = path.match(/^\/services\/experiments\/([^/]+)$/);
