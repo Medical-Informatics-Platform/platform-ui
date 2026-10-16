@@ -1,4 +1,7 @@
-@if (tableSpec()) {
+@if (tableSpec()?.length) {
+@if (heading()) {
+<h3 class="ar-heading">{{ heading() }}</h3>
+}
 <div class="ar-container">
   @for (table of tableSpec(); track table) {
   <div class="ar-card" [class.ar-card--full]="!isCompactTable(table)" [class.ar-card--compact]="isCompactTable(table)">
@@ -13,7 +16,7 @@
         <thead>
           <tr>
             @for (col of table.columns; track col) {
-            <th>{{ col }}</th>
+            <th [class.ar-cell-text]="isTextColumn(col)">{{ col }}</th>
             }
           </tr>
         </thead>
@@ -24,7 +27,7 @@
             <td
               [class.ar-role-factor]="table.columns[colIndex] === 'Role' && cell === 'Factor'"
               [class.ar-role-outcome]="table.columns[colIndex] === 'Role' && cell === 'Outcome'"
-              [class.ar-cell-text]="table.columns[colIndex] === 'Role' || table.columns[colIndex] === 'Variable' || table.columns[colIndex] === 'Categories'">
+              [class.ar-cell-text]="isTextColumn(table.columns[colIndex])">
               {{ formatValue(cell) }}
             </td>
             }

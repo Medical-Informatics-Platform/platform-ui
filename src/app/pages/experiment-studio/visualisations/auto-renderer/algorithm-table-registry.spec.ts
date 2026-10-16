@@ -1,4 +1,4 @@
-import { AlgorithmTableRegistry } from './algorithm-table-registry';
+import { trimTable, AlgorithmTableRegistry } from './algorithm-table-registry';
 
 describe('AlgorithmTableRegistry', () => {
   it('supports linear_regression_cv metrics provided as mean/std objects', () => {
@@ -170,7 +170,7 @@ describe('AlgorithmTableRegistry', () => {
     expect(canonical[0].rows.some((row) => row[0] === 'Intercept')).toBe(true);
   });
 
-  it('renders category_log_prob tables for naive_bayes_categorical', () => {
+  it('renders categorical naive Bayes counts with class-conditional shares', () => {
     const tables = AlgorithmTableRegistry['naive_bayes_categorical']({
       classes: ['0', '1'],
       class_count: [50, 60],
@@ -181,7 +181,10 @@ describe('AlgorithmTableRegistry', () => {
       category_log_prob: { sex: [[-0.69, -0.69], [-0.65, -0.65]] },
     });
 
-    expect(tables.some((t) => t.title?.startsWith('Category Log Probabilities'))).toBe(true);
+    const sex = tables.find((t) => t.title === 'sex by class')!;
+    expect(sex.columns).toEqual(['Category', '0', '1']);
+    expect(sex.rows[0]).toEqual(['0', '25 · 50.2%', '30 · 52.2%']);
+    expect(tables[0].rows[0]).toEqual(['0', '50', '49.7%']);
   });
 
   it('renders pca summary and keeps pca_with_transformation alias', () => {
@@ -224,10 +227,18 @@ describe('AlgorithmTableRegistry', () => {
 
     expect(tables.length).toBe(1);
     expect(tables[0].rows).toContainEqual(['U statistic', '163.5']);
-    expect(tables[0].rows).toContainEqual(['p-value', '8.437e-6']);
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows).toContainEqual(['z-score', '4.454']);
+    expect(tables[0].rows).toContainEqual(['P(A > B)', '0.14']);
     expect(tables[0].rows).toContainEqual(['Group A sample size', '15']);
     expect(tables[0].rows).toContainEqual(['Group B sample size', '80']);
+  });
+
+  it('prints p = 0 as < 0.001 and leaves P(A > B) out without group sizes', () => {
+    const tables = AlgorithmTableRegistry['binned_mann_whitney_u_test']({ u_stat: 70, p_value: 0, z_score: 9 } as any);
+
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
+    expect(tables[0].rows.map((row) => row[0])).not.toContain('P(A > B)');
   });
 
   it('renders standardized mean difference comparisons', () => {
@@ -306,10 +317,13 @@ describe('AlgorithmTableRegistry', () => {
     });
 
     expect(tables.length).toBe(1);
-    expect(tables[0].columns).toContain('Outlier %');
+    expect(tables[0].columns).toEqual(['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Share']);
+    expect(tables[0].rows[0][2]).toBe('IQR × 1.5, both tails');
+    expect(tables[0].rows[0][3]).toBe('— to 90');
+    expect(tables[0].rows[0][4]).toBe('0');
     expect(tables[0].rows[0][5]).toBe('Unavailable');
-    expect(tables[0].rows[0][7]).toBe('0');
-    expect(tables[0].rows[0][9]).toBe('0');
+    expect(tables[0].rows[0][6]).toBe('0');
+    expect(tables[0].rows[0][7]).toBe('0.0%');
   });
 
   it('filters frontend metadata keys from ttest results', () => {
@@ -353,14 +367,14 @@ describe('AlgorithmTableRegistry', () => {
 
     expect(tables[0].rows).toContainEqual(['T-statistic', '3.888']);
     expect(tables[0].rows).toContainEqual(['Degrees of Freedom', '12.000']);
-    expect(tables[0].rows).toContainEqual(['p-value', '0.000']);
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows).toContainEqual(['Mean Difference', '0.068']);
   });
 
   it('renders classical Cox regression coefficients and summary', () => {
     const tables = AlgorithmTableRegistry['cox_regression_classical']({
-      dependent_var: 'Age',
-      event_var: 'Sex',
+      dependent_var: 'Days to follow-up',
+      event_var: 'Death',
       indep_vars: ['Intercept', 'Age'],
       summary: {
         n_obs: 200,
@@ -395,8 +409,8 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][0]).toBe('Age');
     expect(tables[0].rows[0][1]).toBe('0.741');
     expect(tables[0].rows[0][3]).toBe('0.002');
-    expect(tables[1].rows).toContainEqual(['Follow-up time', 'Sex']);
-    expect(tables[1].rows).toContainEqual(['Event indicator', 'Age']);
+    expect(tables[1].rows).toContainEqual(['Follow-up time', 'Days to follow-up']);
+    expect(tables[1].rows).toContainEqual(['Event indicator', 'Death']);
     expect(tables[1].rows).toContainEqual(['Tied events handling', 'breslow']);
     expect(tables[1].rows).toContainEqual(['Model converged', 'Yes']);
   });
@@ -614,6 +628,7 @@ describe('AlgorithmTableRegistry', () => {
       'Notes',
     ]);
     expect(tables[1].columns).toEqual(['Cluster', 'Size', 'a', 'b']);
+    expect(tables[2].columns).toEqual(['Cluster', 'Compactness', 'Profile']);
     expect(tables[0].rows).toContainEqual(['Observations', '100-200']);
     expect(tables[3].rows).toContainEqual(['Warning', 'w1']);
     expect(tables[3].rows).toContainEqual(['Limitation', 'l1']);
@@ -621,5 +636,26 @@ describe('AlgorithmTableRegistry', () => {
 
   it('returns no kmeans tables without clusters', () => {
     expect(AlgorithmTableRegistry['kmeans']({ clusters: [] })).toEqual([]);
+  });
+
+  it('formats every table p-value APA style and marks the Tukey clip bounds', () => {
+    const anova = AlgorithmTableRegistry['anova_oneway']({
+      anova_table: { df_explained: 1, df_residual: 98, ss_explained: 10, ss_residual: 90, ms_explained: 10, ms_residual: 0.9, f_stat: 10.9, p_value: 1.1102230246251565e-16 },
+      tuckey_test: [{ groupA: 'a', groupB: 'b', meanA: 1, meanB: 2, diff: -1, se: 0.1, t_stat: -10, p_tuckey: 0.001 }],
+      min_max_per_group: { categories: [], min: [], max: [] },
+    } as any);
+
+    expect(anova[0].rows[0][5]).toBe('< 0.001');
+    expect(anova[1].rows[0][7]).toBe('≤ 0.001');
+  });
+
+  it('trims covered columns and rows, and drops a table with nothing left', () => {
+    const table = { title: 'T', columns: ['Source', 'df', 'Sum Sq', 'F'], rows: [['A', 1, 10, 5], ['Residual', 98, 90, ''], ['average', 0, 0, 0]] };
+
+    expect(trimTable(table, { title: 'T', columns: ['df', 'F'], rows: ['average'] })).toEqual({
+      title: 'T', columns: ['Source', 'Sum Sq'], rows: [['A', 10], ['Residual', 90]],
+    });
+    expect(trimTable(table, { title: 'T' })).toBeNull();
+    expect(trimTable(table, { title: 'T', columns: ['df', 'Sum Sq', 'F'] })).toBeNull();
   });
 });

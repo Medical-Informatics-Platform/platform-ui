@@ -44,10 +44,11 @@ export function formulaLine(y: string[], x: string[], xSeparator = ', '): string
   return [...y, ...x].join(', ');
 }
 
-/** A result's `n_obs` as a grouped count, or '' when absent or not a positive number. */
+/** A result's `n_obs` as a count grouped like the result figures (27 308, narrow no-break space),
+ *  or '' when absent or not a positive number. */
 export function rowsUsedLabel(nObs: unknown): string {
   if (typeof nObs !== 'number' || !Number.isFinite(nObs) || nObs <= 0) return '';
-  return nObs.toLocaleString('en-US');
+  return nObs.toLocaleString('en-US').replace(/,/g, '\u202f');
 }
 
 /** Top-level `n_obs`, or the first nested one (one-way ANOVA keeps it on `anova_table`). */

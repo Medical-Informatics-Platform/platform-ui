@@ -11,6 +11,8 @@ import {
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
+import { formatInteger, formatPValue, readable, toFiniteNumber } from '../result-format';
+import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 
 export interface TableSpec {
   title?: string;
@@ -19,11 +21,30 @@ export interface TableSpec {
   layout?: 'compact' | 'full';
 }
 
-type TableBuilder = (result: any) => TableSpec[];
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+/**
+ * What a summary above a result already shows of one of its tables: the whole table, or some of
+ * its columns (by header) or rows (by first cell). Used on screen only; exports keep every table.
+ */
+export interface TableTrim {
+  title: string;
+  columns?: string[];
+  rows?: string[];
 }
+
+/** The table without what the summary above shows; null when nothing of it is left to read. */
+export function trimTable(table: TableSpec, trim: TableTrim): TableSpec | null {
+  if (!trim.columns?.length && !trim.rows?.length) return null;
+  const dropColumns = new Set(trim.columns ?? []);
+  const dropRows = new Set(trim.rows ?? []);
+  const keep = table.columns.map((_, i) => i).filter((i) => !dropColumns.has(table.columns[i]));
+  const rows = table.rows
+    .filter((row) => !dropRows.has(String(row?.[0] ?? '')))
+    .map((row) => keep.map((i) => row[i]));
+  if (keep.length <= 1 || !rows.length) return null;
+  return { ...table, columns: keep.map((i) => table.columns[i]), rows };
+}
+
+type TableBuilder = (result: any) => TableSpec[];
 
 function formatDecimal(value: any): string {
   if (typeof value !== 'number' || isNaN(value)) return value ?? '';
@@ -31,9 +52,12 @@ function formatDecimal(value: any): string {
   const abs = Math.abs(value);
   if (abs === 0) return '0';
 
-  // Too small or too big numbers -> scientific
-  if (abs < 1e-4 || abs >= 1_000_000) {
+  // Too small numbers -> scientific. Large ones stay whole: 1065587, not 1.066e+6 (four digits lost).
+  if (abs < 1e-4) {
     return value.toExponential(3);
+  }
+  if (abs >= 1_000_000) {
+    return value.toFixed(0);
   }
 
   const decimals = abs < 1 ? 4 : 3;
@@ -60,10 +84,11 @@ function formatNullableOutlierValue(value: any): string {
   return formatDecimal(value);
 }
 
-function formatAnovaPValue(value: any): string {
-  if (typeof value !== 'number' || isNaN(value)) return value ?? '';
-  if (!Number.isFinite(value)) return String(value);
-  return value.toExponential(3);
+/** One p-value style across every result table: `< 0.001` below that, three decimals above —
+ *  0, 1.11e-16 and 3.9e-238 are all float noise at that size. Blank when missing. */
+function formatTableP(value: unknown): string {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(numeric) ? formatPValue(numeric) : '';
 }
 
 function formatTTestKey(key: string): string {
@@ -111,13 +136,13 @@ function buildTTestRows(
       if (value !== null && typeof value === 'object') return false;
       return true;
     })
-    .map(([k, v]) => [formatTTestKey(k), valueFormatter(v)]);
+    .map(([k, v]) => [formatTTestKey(k), k === 'p' || k === 'p_value' ? formatTableP(v) : valueFormatter(v)]);
 }
 
 function buildMetricRows(result: Record<string, any>, labels: Record<string, string>, keys: string[]): any[][] {
   return keys
     .filter((key) => result?.[key] !== undefined && result?.[key] !== null)
-    .map((key) => [labels[key] ?? key, formatDecimal(result[key])]);
+    .map((key) => [labels[key] ?? key, key === 'p_value' ? formatTableP(result[key]) : formatDecimal(result[key])]);
 }
 
 interface ContingencyContext {
@@ -133,7 +158,8 @@ function resolveVariableDisplayLabel(
   if (!code) return '';
   const trimmed = String(code).trim();
   if (!trimmed) return '';
-  return labelMap?.[trimmed] ?? trimmed;
+  // A created column has no data-model label; its code still reads as words.
+  return labelMap?.[trimmed] ?? readable(trimmed);
 }
 
 function buildContingencyCategoryTable(
@@ -240,11 +266,17 @@ function formatCoxHazardRatio(value: number | undefined): string {
   return numeric.toFixed(3);
 }
 
-function formatCoxPValue(value: number | undefined): string {
+/** Tukey p comes from statsmodels' psturng, which clips to [0.001, 0.9]: the ends are bounds, not values. */
+function formatTukeyP(value: unknown): string {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return '—';
-  if (numeric < 0.001) return '<0.001';
+  if (!Number.isFinite(numeric)) return '';
+  if (numeric <= 0.001) return '≤ 0.001';
+  if (numeric >= 0.9) return '≥ 0.900';
   return numeric.toFixed(3);
+}
+
+function formatCoxPValue(value: number | undefined): string {
+  return formatTableP(value) || '—';
 }
 
 function formatCoxHazardRatioCi(lower: number | undefined, upper: number | undefined): string {
@@ -290,8 +322,9 @@ function buildCoxRegressionTables(
   }];
 
   const summaryRows: any[][] = [
-    ['Follow-up time', result.event_var],
-    ['Event indicator', result.dependent_var],
+    // Exaflow puts the follow-up time in y (dependent_var) and the event indicator in event_var.
+    ['Follow-up time', result.dependent_var],
+    ['Event indicator', result.event_var],
     ['Participants', formatDecimal(summary.n_obs)],
     ['Events', formatDecimal(summary.n_events)],
     ['Covariates in model', formatDecimal(summary.n_covariates)],
@@ -403,9 +436,10 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       columns: ['Cluster', 'Size', ...variables],
       rows: clusters.map(c => [c.label, c.size_interval, ...variables.map(v => formatDecimal(c.center[v]))]),
     }, {
+      // The interpretation sentence only restates the profile and the compactness.
       title: 'Cluster Profiles',
-      columns: ['Cluster', 'Compactness', 'Profile', 'Interpretation'],
-      rows: clusters.map(c => [c.label, c.quality?.compactness ?? '-', (c.profile ?? []).join('; '), c.interpretation]),
+      columns: ['Cluster', 'Compactness', 'Profile'],
+      rows: clusters.map(c => [c.label, c.quality?.compactness ?? '-', (c.profile ?? []).join('; ')]),
     }];
 
     const noteRows: any[][] = [];
@@ -451,7 +485,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         formatDecimal(coefficients[idx]),
         formatDecimal(stdErr[idx]),
         formatDecimal(tStats[idx]),
-        formatDecimal(pValues[idx]),
+        formatTableP(pValues[idx]),
         formatDecimal(lowerCi[idx]),
         formatDecimal(upperCi[idx]),
       ]);
@@ -733,54 +767,53 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
   naive_bayes_gaussian_cv: (result: NaiveBayesCVResult) => {
     const summary = result?.classification_summary;
-    if (!summary) return [];
-
-    const metrics = ['accuracy', 'precision', 'recall', 'fscore'] as const;
-    if (!summary.accuracy) return [];
+    if (!summary?.accuracy) return [];
 
     const classes = Object.keys(summary.accuracy);
     if (!classes.length) return [];
 
-    const folds = Object.keys(summary.accuracy[classes[0]]).filter(k => k !== 'average' && k !== 'stdev');
+    const confusion = readConfusionMatrix(result.confusion_matrix);
+    const support = (cls: string): number | null => {
+      const index = confusion?.labels.indexOf(cls) ?? -1;
+      return confusion && index >= 0 ? confusion.matrix[index].reduce((sum, value) => sum + value, 0) : null;
+    };
+    // A class the confusion matrix never saw (an unused enumeration) has no metrics worth a row.
+    const shown = confusion ? classes.filter((cls) => (support(cls) ?? 0) > 0) : classes;
+    // Fixed decimals, so "0.710 ± 0.007" lines up with "0.832 ± 0.011" (the ± text is shown as written).
+    const meanSd = (block: Record<string, number> | undefined) =>
+      block?.['average'] === undefined ? '' : `${Number(block['average']).toFixed(3)} ± ${Number(block['stdev'] ?? 0).toFixed(3)}`;
 
-    const rows = [...folds, 'average', 'stdev'].map(fold => {
-      const row: any[] = [fold];
-      for (const metric of metrics) {
-        for (const cls of classes) {
-          row.push(formatDecimal(summary[metric][cls]?.[fold]));
-        }
-      }
-      const nObsVal = summary.n_obs?.[fold] ?? 0;
-      row.push(formatDecimal(nObsVal));
-      return row;
+    const tables: TableSpec[] = [{
+      title: 'Per-class metrics (mean ± SD over folds)',
+      columns: ['Class', 'Precision', 'Recall', 'F1', 'Support'],
+      rows: shown.map((cls) => [
+        cls,
+        meanSd(summary.precision?.[cls]),
+        meanSd(summary.recall?.[cls]),
+        meanSd(summary.fscore?.[cls]),
+        formatDecimal(support(cls) ?? ''),
+      ]),
+    }];
+
+    // Accuracy is one number per fold, repeated under every class key.
+    const accuracy = summary.accuracy[classes[0]];
+    const folds = Object.keys(accuracy).filter((key) => key !== 'average' && key !== 'stdev');
+    // n_obs per fold counts the rows the model trained on, not the held-out fold.
+    tables.push({
+      title: 'Accuracy per fold',
+      columns: ['Fold', 'Accuracy', 'Training rows'],
+      layout: 'compact',
+      rows: [
+        ...folds.map((fold) => [fold.replace(/^fold(\d+)$/, (_, n) => `Fold ${Number(n) + 1}`), formatDecimal(accuracy[fold]), formatDecimal(summary.n_obs?.[fold] ?? '')]),
+        ['Mean ± SD', meanSd(accuracy), ''],
+      ],
     });
 
-    const columns = ['Fold'];
-    for (const metric of metrics) {
-      for (const cls of classes) {
-        const name = `${capitalize(metric)} (${cls})`;
-        columns.push(name);
-      }
-    }
-    columns.push('Number of observations');
-
-    const tables: TableSpec[] = [
-      {
-        title: 'Classification Metrics per Fold',
-        columns,
-        rows,
-        layout: 'full'
-      }
-    ];
-
-    if (result.confusion_matrix) {
+    if (confusion) {
       tables.push({
         title: 'Confusion Matrix (Combined)',
-        columns: ['Actual \\ Predicted', ...result.confusion_matrix.labels],
-        rows: result.confusion_matrix.data.map((row, i) => [
-          result.confusion_matrix.labels[i],
-          ...row.map(v => formatDecimal(v))
-        ])
+        columns: ['Actual \\ Predicted', ...confusion.labels],
+        rows: confusion.matrix.map((row, i) => [confusion.labels[i], ...row.map((v) => formatDecimal(v))]),
       });
     }
 
@@ -808,7 +841,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       formatDecimal(s.coefficients[i]),
       formatDecimal(s.stderr[i]),
       formatDecimal(s.z_scores[i]),
-      formatDecimal(s.pvalues[i]),
+      formatTableP(s.pvalues[i]),
       formatDecimal(s.lower_ci[i]),
       formatDecimal(s.upper_ci[i]),
     ]);
@@ -845,10 +878,12 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const s = result.summary;
 
     const n = s.n_obs.length;
+    const rowLabel = (name: string) =>
+      name === 'average' ? 'Mean' : name === 'stdev' ? 'SD' : name.replace(/^fold_?(\d+)$/i, 'Fold $1');
     const rows = [];
     for (let i = 0; i < n; i++) {
       rows.push([
-        s.row_names[i],
+        rowLabel(String(s.row_names[i])),
         formatDecimal(s.n_obs[i]),
         formatDecimal(s.accuracy[i]),
         formatDecimal(s.precision[i]),
@@ -859,7 +894,8 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
     return [{
       title: 'Logistic Regression CV Summary',
-      columns: ['Fold', 'Observations', 'Accuracy', 'Precision', 'Recall', 'F-Score'],
+      // n_obs per fold counts the rows the model trained on, not the held-out fold.
+      columns: ['Fold', 'Training rows', 'Accuracy', 'Precision', 'Recall', 'F-Score'],
       rows
     }];
   },
@@ -881,66 +917,52 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     // Map class codes to labels
     const classLabels = rawClasses.map(c => yVar ? getEnumLabel(yVar, String(c)) : String(c));
 
+    // Probabilities read as shares, not logs: exp(log prior) and exp(log P(category | class)).
+    const share = (log: unknown) => {
+      const value = Math.exp(Number(log));
+      return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '';
+    };
+
     // Class summary
     if (rawClasses.length > 0) {
       tables.push({
         title: 'Class Summary',
-        columns: ['Class', 'Count', 'Log Prior'],
+        columns: ['Class', 'Count', 'Prior'],
         rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count[i]),
-          formatDecimal(result.class_log_prior[i]),
+          share(result.class_log_prior[i]),
         ]),
         layout: 'full',
       });
     }
 
-    // Category tables
+    // One table per feature: each cell is the count and the model's P(category | class).
+    // A category no class ever had (an unused enumeration) is left out.
     for (const feature of result.feature_names) {
       const counts = result.category_count[feature];
-      const logProbs = result.category_log_prob[feature];
+      const logProbs = result.category_log_prob?.[feature];
       const categories = result.categories[feature];
-
-      const featureLabel = getLabel(feature);
-
       if (!counts || !categories) continue;
 
-      const numCats = categories.length;
-      const countRows = [];
-      const logProbRows = [];
-
-      for (let c = 0; c < numCats; c++) {
-        const catVal = String(categories[c]);
-        const catLabel = getEnumLabel(feature, catVal);
-
-        const countRow = [catLabel];
-        const logRow = [catLabel];
-
-        for (let i = 0; i < rawClasses.length; i++) {
-          countRow.push(formatDecimal(counts[i][c]));
-          if (logProbs) logRow.push(formatDecimal(logProbs[i][c]));
-        }
-        countRows.push(countRow);
-        logProbRows.push(logRow);
-      }
-
-      const colHeaders = ['Category', ...classLabels];
+      const rows = categories
+        .map((category, c) => ({ category, c }))
+        .filter(({ c }) => rawClasses.some((_cls, i) => Number(counts[i]?.[c]) > 0))
+        .map(({ category, c }) => [
+          getEnumLabel(feature, String(category)),
+          ...rawClasses.map((_cls, i) => {
+            const count = formatInteger(Number(counts[i]?.[c]));
+            const probability = logProbs ? share(logProbs[i]?.[c]) : '';
+            return probability ? `${count} · ${probability}` : count;
+          }),
+        ]);
 
       tables.push({
-        title: `Category Counts: ${featureLabel}`,
-        columns: colHeaders,
-        rows: countRows,
-        layout: 'full'
+        title: `${getLabel(feature)} by class`,
+        columns: ['Category', ...classLabels],
+        rows,
+        layout: 'full',
       });
-
-      if (logProbs) {
-        tables.push({
-          title: `Category Log Probabilities: ${featureLabel}`,
-          columns: colHeaders,
-          rows: logProbRows,
-          layout: 'full'
-        });
-      }
     }
 
     return tables;
@@ -955,12 +977,33 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     if (!result) return [];
     const tables: TableSpec[] = [];
 
-    // Eigenvalues
-    if (result.eigenvalues && result.eigenvalues.length) {
+    const eigenvalues = (result.eigenvalues ?? []).map(Number);
+    const total = eigenvalues.reduce((sum, value) => sum + value, 0);
+    if (eigenvalues.length) {
+      let cumulative = 0;
+      const percent = (value: number) => (total > 0 ? ((value / total) * 100).toFixed(1) : '');
       tables.push({
         title: 'PCA Summary',
-        columns: ['Component', 'Eigenvalue'],
-        rows: result.eigenvalues.map((v, i) => [`PC${i + 1}`, formatDecimal(v)])
+        columns: ['Component', 'Eigenvalue', 'Variance explained (%)', 'Cumulative (%)'],
+        rows: eigenvalues.map((value, i) => {
+          cumulative += value;
+          return [`PC${i + 1}`, formatDecimal(value), percent(value), percent(cumulative)];
+        }),
+      });
+    }
+
+    // Rows of eigenvectors are components; the table turns them so each variable reads across.
+    const vectors = Array.isArray(result.eigenvectors) ? result.eigenvectors : [];
+    const nVariables = vectors[0]?.length ?? 0;
+    if (nVariables) {
+      const names: unknown[] = Array.isArray((result as any).variable_names) ? (result as any).variable_names : [];
+      tables.push({
+        title: 'Component weights',
+        columns: ['Variable', ...vectors.map((_, i) => `PC${i + 1}`)],
+        rows: Array.from({ length: nVariables }, (_, j) => [
+          String(names[j] ?? `Var${j + 1}`),
+          ...vectors.map((row) => formatDecimal(row[j])),
+        ]),
       });
     }
 
@@ -1054,7 +1097,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       title: 'ANOVA Summary',
       columns: ['Source', 'df', 'Sum Sq', 'Mean Sq', 'F', 'Prob>F'],
       rows: [
-        ['Explained', formatAnovaMetric(result.anova_table.df_explained), formatAnovaMetric(result.anova_table.ss_explained), formatAnovaMetric(result.anova_table.ms_explained), formatAnovaMetric(result.anova_table.f_stat), formatAnovaPValue(result.anova_table.p_value)],
+        ['Explained', formatAnovaMetric(result.anova_table.df_explained), formatAnovaMetric(result.anova_table.ss_explained), formatAnovaMetric(result.anova_table.ms_explained), formatAnovaMetric(result.anova_table.f_stat), formatTableP(result.anova_table.p_value)],
         ['Residual', formatAnovaMetric(result.anova_table.df_residual), formatAnovaMetric(result.anova_table.ss_residual), formatAnovaMetric(result.anova_table.ms_residual), '', '']
       ]
     };
@@ -1069,7 +1112,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           r.groupA, r.groupB,
           formatAnovaMetric(r.meanA), formatAnovaMetric(r.meanB),
           formatAnovaMetric(r.diff), formatAnovaMetric(r.se),
-          formatAnovaMetric(r.t_stat), formatAnovaPValue(r.p_tuckey)
+          formatAnovaMetric(r.t_stat), formatTukeyP(r.p_tuckey)
         ])
       });
     }
@@ -1099,7 +1142,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       formatDecimal(result.sum_sq[i]),
       formatDecimal(result.df[i]),
       formatDecimal(result.f_stat[i]),
-      formatDecimal(result.f_pvalue[i])
+      formatTableP(result.f_pvalue[i])
     ]);
 
     return [{
@@ -1110,9 +1153,44 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
   },
 
   pearson_correlation: (result: PearsonResult) => {
-    // Guide says "Correlation Heatmap" is primary.
-    // We can return a small summary if needed, e.g. number of observations?
     const tables: TableSpec[] = [];
+    const raw = result as any;
+    const pick = (...keys: string[]): any => keys.map((key) => raw?.[key]).find((m) => m && typeof m === 'object' && !Array.isArray(m)) ?? null;
+    const correlations = pick('correlations');
+    // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
+    const pValues = pick('p_values', 'p-values', 'pvalues');
+    const ciLower = pick('ci_lo', 'low_confidence_intervals');
+    const ciUpper = pick('ci_hi', 'high_confidence_intervals');
+
+    if (correlations) {
+      const cols: string[] = correlations.variables ?? [];
+      const rows = Object.keys(correlations).filter((key) => key !== 'variables');
+      const square = rows.length === cols.length && rows.every((row) => cols.includes(row));
+      const cell = (matrix: any, row: string, col: string): number | null => {
+        const values = matrix?.[row];
+        const index = (matrix?.variables ?? cols).indexOf(col);
+        const value = Array.isArray(values) && index >= 0 ? Number(values[index]) : NaN;
+        return Number.isFinite(value) ? value : null;
+      };
+      // Each pair once: in a square matrix keep the pairs below the diagonal.
+      const pairs = rows.flatMap((row) => cols
+        .filter((col) => !square || cols.indexOf(col) < cols.indexOf(row))
+        .map((col) => ({ row, col, r: cell(correlations, row, col) }))
+        .filter((pair): pair is { row: string; col: string; r: number } => pair.r !== null));
+      pairs.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+
+      if (pairs.length) {
+        tables.push({
+          title: 'Correlation pairs',
+          columns: ['Variable A', 'Variable B', 'r', '95% CI lower', '95% CI upper', 'p'],
+          rows: pairs.map(({ row, col, r }) => {
+            const p = cell(pValues, row, col);
+            return [row, col, formatDecimal(r), formatDecimal(cell(ciLower, row, col)), formatDecimal(cell(ciUpper, row, col)), p === null ? '' : formatPValue(p)];
+          }),
+        });
+      }
+    }
+
     if (typeof result.n_obs === 'number') {
       tables.push({
         title: 'Number of Observations',
@@ -1211,40 +1289,39 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         : [];
     if (!featurewise.length) return [];
 
+    // One rule column and one kept-range column instead of strategy/tail/fold and two bounds,
+    // and each variable's datasets kept together.
+    const strategyLabels: Record<string, string> = { gaussian: 'Mean ± SD', iqr: 'IQR', mad: 'MAD', quantile: 'Quantile' };
+    const tailLabels: Record<string, string> = { left: 'lower tail', right: 'upper tail', both: 'both tails' };
+    const bound = (value: unknown) => (value === null || value === undefined ? '—' : formatDecimal(value));
+    const share = (value: unknown) => {
+      const percent = toFiniteNumber(value);
+      return percent === null ? 'Unavailable' : `${percent.toFixed(1)}%`;
+    };
+    const rows = featurewise.filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets');
+    const variableOrder = [...new Set(rows.map((row: any) => row?.variable))];
+    rows.sort((a: any, b: any) => variableOrder.indexOf(a?.variable) - variableOrder.indexOf(b?.variable));
+
     return [{
       title: 'Outlier Report',
-      columns: [
-        'Variable',
-        'Dataset',
-        'Strategy',
-        'Tail',
-        'Fold',
-        'Lower bound',
-        'Upper bound',
-        'Lower outliers',
-        'Upper outliers',
-        'Total outliers',
-        'Outlier %',
-      ],
-      rows: featurewise
-        .filter((row: any) => String(row?.dataset ?? '').trim().toLowerCase() !== 'all datasets')
-        .map((row: any) => {
+      columns: ['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Share'],
+      rows: rows.map((row: any) => {
         const data = row?.data ?? {};
+        const strategy = data.strategy ? strategyLabels[data.strategy] ?? data.strategy : 'Unavailable';
+        const fold = data.fold === null || data.fold === undefined ? '' : ` × ${formatDecimal(data.fold)}`;
+        const tail = data.tail ? `, ${tailLabels[data.tail] ?? data.tail}` : '';
         return [
           row?.variable ?? '',
           row?.dataset ?? '',
-          data.strategy ?? 'Unavailable',
-          data.tail ?? 'Unavailable',
-          formatNullableOutlierValue(data.fold),
-          formatNullableOutlierValue(data.lower_bound),
-          formatNullableOutlierValue(data.upper_bound),
+          `${strategy}${fold}${tail}`,
+          `${bound(data.lower_bound)} to ${bound(data.upper_bound)}`,
           formatNullableOutlierValue(data.lower_outlier_count),
           formatNullableOutlierValue(data.upper_outlier_count),
           formatNullableOutlierValue(data.total_outlier_count),
-          formatNullableOutlierValue(data.total_outlier_percentage),
+          // Exaflow sends the share as a percentage (8.917 for 8.9%).
+          share(data.total_outlier_percentage),
         ];
       }),
-      layout: 'full',
     }];
   },
 
@@ -1252,13 +1329,19 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
   binned_mann_whitney_u_test: (result: BinnedMannWhitneyUTestResult) => {
     if (!result) return [];
+    // Exaflow reports U for group A, so U / (n1·n2) is the chance a group A value outranks a
+    // group B value, ties counted half: the effect size (Vargha–Delaney A) next to p.
+    const u = toFiniteNumber(result.u_stat);
+    const n1 = toFiniteNumber(result.n1);
+    const n2 = toFiniteNumber(result.n2);
     return [{
       title: 'Binned Mann-Whitney U Test',
       columns: ['Metric', 'Value'],
       rows: [
         ['U statistic', formatDecimal(result.u_stat)],
-        ['p-value', formatDecimal(result.p_value)],
+        ['p-value', formatTableP(result.p_value)],
         ['z-score', formatDecimal(result.z_score)],
+        ...(u !== null && n1 && n2 ? [['P(A > B)', (u / (n1 * n2)).toFixed(2)]] : []),
         ['Group A sample size', formatDecimal(result.n1)],
         ['Group B sample size', formatDecimal(result.n2)],
       ],

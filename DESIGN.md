@@ -106,9 +106,14 @@ Experiment Studio is a dense product workspace, not a marketing site. No landing
 
 ### Charts
 
-- Series in order: `#2b33e9`, `#7f9ce8`, `#ffba08`, `#dfefe4` (`grouped-bar-chart.ts`, `charts-renderer.component.ts`). Axis lines and labels `#475569`, split lines `#e2e8f0`, data labels `--chart-label-color`.
+- Series in order: `#2b33e9`, `#7f9ce8`, `#ffba08`, `#e34948`, `#4a3aa7`, `#e87ba4`, `#008300`, `#1baf7a` — one list in `visualisations/charts/chart-palette.ts`, used by `charts-renderer.component.ts` and `grouped-bar-chart.ts`. Slots 1–3 are the charter; 4–8 were chosen with the dataviz palette validator so every adjacent pair clears ΔE 15 for both deutan/protan and full colour vision. Assign in order, never cycle: a ninth series folds into "Other" or a table. Axis lines and labels `#475569`, split lines `#e2e8f0`, data labels `--chart-label-color`.
 - Only the first series reaches 3:1 on white, so every chart carries a legend or direct labels; colour alone never identifies a series. Orange and green bars get a 1px `#475569` edge.
-- Known issue: `#dfefe4` is 1.19:1 on white and a fourth series nearly vanishes. Avoid a fourth series until that slot gets a replacement colour.
+- Heatmaps (correlation, PCA weights, confusion matrix, k-means centres) share `DIVERGING_COLORS` (`#e34948` → `#f1f5f9` → `#2b33e9`, or its grey-to-blue half) and `cellLabelColor`: ink on every cell except the deep blue end (≥ 0.7), where white wins. White never reaches 4.5:1 anywhere on the red half.
+- The adjacent-pair check covers bars and stacks. Lines that cross or dots side by side compare every pair, and slots 1 and 5 (`#2b33e9`, `#4a3aa7`) fail that at ΔE 11: past four series, name them in rows instead (the k-means centres heatmap) rather than in colour.
+- `#7f9ce8`, `#ffba08`, `#e87ba4` and `#1baf7a` sit under 3:1 on white, so a chart that reaches them keeps its legend and the exact-value table under it. `#ffba08` is also lighter than the validator's band — the charter colour stays, with its 1px edge.
+- `ChartRendererComponent` applies the house style under every chart's own options: the app font (canvas cannot read `--font-sans`; Alaska is left out), 13px/600 ink titles with 12px muted subtitles, a white tooltip card with a hairline border, and ECharts `aria` descriptions. Renderers set only what differs.
+- A chart must fit a 360px compare column: put long category names on the y axis (they wrap), slant crowded x labels, keep captions to short lines.
+- Lines are drawn as measured: no default smoothing (it invents bends between discrete points such as an elbow or ROC curve) and no default area fill.
 
 ## Adjacent-panel test
 
