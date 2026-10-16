@@ -43,6 +43,40 @@
           </div>
         </div>
       </section>
+
+      @if (notebookEnabled) {
+        <section class="info-section remote-access">
+          <h3>Use MIP from your own computer</h3>
+          <ol class="remote-steps">
+            <li>
+              Open the <a routerLink="/notebook">Notebook page</a> once so your sign-in is saved.
+            </li>
+            <li>
+              <a class="token-btn" [href]="hubTokenUrl" target="_blank" rel="noopener">
+                <i class="fas fa-key"></i>
+                <span>Create API token</span>
+              </a>
+              <p>
+                In <strong>Permissions</strong>, enter <code>custom:mip-platform-token</code> and choose an expiry.
+                The token is shown once. You can revoke it on the same page.
+              </p>
+            </li>
+            <li>
+              In a terminal on your computer, run:
+              <div class="snippet">
+                <pre><code>{{ setupSnippet }}</code></pre>
+                <button class="copy-btn" type="button" (click)="copySetupSnippet()">
+                  <i class="fas fa-copy"></i>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
+              <p>Then, in Python:</p>
+              <pre><code>import mip; client = mip.Client.from_env()</code></pre>
+            </li>
+          </ol>
+        </section>
+      }
     </section>
   </div>
 </div>
