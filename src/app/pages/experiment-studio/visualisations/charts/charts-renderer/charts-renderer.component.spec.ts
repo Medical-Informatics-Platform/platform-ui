@@ -25,7 +25,7 @@ describe('ChartRendererComponent house style', () => {
     expect(chart.title.textStyle).toEqual({ fontSize: 16, fontWeight: 600, color: '#0f172a' });
     expect(chart.tooltip.backgroundColor).toBe('#000');
     expect(chart.tooltip.borderWidth).toBe(1);
-    expect(chart.aria.enabled).toBeTrue();
+    expect(chart.aria.enabled).toBe(true);
     // Lines keep their real shape: no default smoothing or area fill.
     expect(chart.series[0].smooth).toBeUndefined();
     expect(chart.series[0].areaStyle).toBeUndefined();

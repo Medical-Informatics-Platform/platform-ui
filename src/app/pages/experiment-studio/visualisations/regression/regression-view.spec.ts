@@ -117,7 +117,7 @@ describe('buildRegressionView', () => {
     expect(view.estimateLabel).toBe('Estimate');
     expect(view.keyColumns).toEqual(['estimate', 'stdErr', 'interval', 'p']);
     expect(view.figures[0]).toEqual({ label: 'ICC', value: '0.250', note: '25.0% of the variance lies between groups' });
-    expect(view.figures.some((figure) => figure.label === 'Converged')).toBeFalse();
+    expect(view.figures.some((figure) => figure.label === 'Converged')).toBe(false);
   });
 
   it('reports a binary GLMM as odds ratios and leads with non-convergence', () => {
