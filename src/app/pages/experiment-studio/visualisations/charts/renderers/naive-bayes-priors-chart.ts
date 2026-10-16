@@ -1,5 +1,6 @@
 import { EChartsOption } from 'echarts';
 import { escapeHtml } from '../../../../../core/html.utils';
+import { formatInteger } from '../../result-format';
 
 function normalize(values: number[]): number[] {
   const safe = values.map((v) => (Number.isFinite(v) ? v : 0));
@@ -76,7 +77,7 @@ export function buildNaiveBayesPriorsChart(result: any): EChartsOption[] {
             formatter: (p: any) => {
               const count = Number(counts[p.dataIndex]);
               const share = `${(Number(p.value) * 100).toFixed(1)}%`;
-              return Number.isFinite(count) ? `${share} · ${count.toLocaleString('en-US')} rows` : share;
+              return Number.isFinite(count) ? `${share} · ${formatInteger(count)} rows` : share;
             },
           },
           itemStyle: {

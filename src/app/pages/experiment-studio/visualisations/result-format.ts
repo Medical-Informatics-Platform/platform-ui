@@ -15,18 +15,27 @@ export function formatSignedNumber(value: number): string {
   return `${sign}${abs.toFixed(abs < 1 ? 3 : 2)}`;
 }
 
-export function formatInteger(value: number): string {
-  return value.toLocaleString('en-US');
+/** Narrow no-break space between digit groups (27 308): the SI/ISO 80000 separator, which reads
+ *  the same in English and in locales where a comma is the decimal mark, and never wraps. */
+export const THOUSANDS_SEPARATOR = '\u202f';
+
+/** An en-US formatted number with its grouping commas swapped for the separator: "1,065,587.5" → "1 065 587.5". */
+export function groupThousands(text: string): string {
+  return text.replace(/,/g, THOUSANDS_SEPARATOR);
 }
 
-/** Grouped integers from 1,000 up, signed decimals below. */
+export function formatInteger(value: number): string {
+  return groupThousands(value.toLocaleString('en-US'));
+}
+
+/** Grouped integers from 1 000 up, signed decimals below. */
 export function formatSummaryNumber(value: number): string {
   if (!Number.isFinite(value)) return '';
   if (Math.abs(value) >= 1000) return formatInteger(Math.round(value));
   return formatSignedNumber(value);
 }
 
-/** Ratios (odds, hazard) at 3 significant digits by default: 0.725, 1.07, 904, then grouped integers from 1,000. */
+/** Ratios (odds, hazard) at 3 significant digits by default: 0.725, 1.07, 904, then grouped integers from 1 000. */
 export function formatRatio(value: number, digits = 3): string {
   if (!Number.isFinite(value)) return '';
   if (value >= 1000) return formatInteger(Math.round(value));

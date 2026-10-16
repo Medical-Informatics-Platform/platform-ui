@@ -39,16 +39,22 @@ export interface CoefficientRow {
   markerLeft: number;
 }
 
+/** A coefficients-table column after the variable name; `interval` is the sketch against the null value. */
+export type CoefficientColumn = 'estimate' | 'coefficient' | 'stdErr' | 'stat' | 'ci' | 'interval' | 'p';
+
 export interface RegressionView {
   dependent: string;
   /** Header of the estimate column and its CSV column ("Estimate", "Odds ratio"). */
   estimateLabel: string;
-  /** Header of the untransformed coefficient, shown with all columns; null when the estimate is the coefficient. */
+  /** Header of the model-scale coefficient (log-odds, log hazard; "Estimate" for logistic regression); null when the estimate is the coefficient. */
   coefficientLabel: string | null;
   /** Where "no effect" sits on the estimate scale: 0 for a coefficient, 1 for a ratio. */
   nullValue: 0 | 1;
   /** Test statistic column ("t" for OLS, "z" for the logistic Wald test). */
   statLabel: string;
+  /** Columns of the Key and All views, in display order; the first one reads bold. */
+  keyColumns: CoefficientColumn[];
+  allColumns: CoefficientColumn[];
   subtitle: string;
   rows: CoefficientRow[];
   figures: KeyFigure[];
@@ -57,6 +63,11 @@ export interface RegressionView {
 }
 
 const arrayOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const KEY_COLUMNS: CoefficientColumn[] = ['estimate', 'ci', 'interval', 'p'];
+const ALL_COLUMNS: CoefficientColumn[] = ['estimate', 'stdErr', 'stat', 'ci', 'interval', 'p'];
+/** Ratio models: the ratio leads, its log-scale coefficient follows. */
+const ALL_RATIO_COLUMNS: CoefficientColumn[] = ['estimate', 'coefficient', 'stdErr', 'stat', 'ci', 'interval', 'p'];
 
 /** "Sex[female]" → { term: "Sex", level: "female" }: the bracket is model syntax, not a label. */
 function splitTerm(variable: string): { term: string; level: string | null } {
@@ -209,6 +220,8 @@ function linearView(result: any, yVar: string | null): RegressionView | null {
     coefficientLabel: null,
     nullValue: 0,
     statLabel: 't',
+    keyColumns: KEY_COLUMNS,
+    allColumns: ALL_COLUMNS,
     subtitle: `Effect on ${dependent}, other predictors held constant`,
     rows,
     figures,
@@ -287,9 +300,13 @@ function logisticView(result: any, yVar: string | null, positiveClass: string | 
   return {
     dependent,
     estimateLabel: 'Odds ratio',
-    coefficientLabel: 'Log-odds',
+    coefficientLabel: 'Estimate',
     nullValue: 1,
     statLabel: 'z',
+    // Reviewer convention: the log-odds estimate with its SE, z and p first, as in a model printout;
+    // the odds ratio with its CI and interval sketch only with all columns.
+    keyColumns: ['coefficient', 'stdErr', 'stat', 'p'],
+    allColumns: ['coefficient', 'stdErr', 'stat', 'estimate', 'ci', 'interval', 'p'],
     subtitle: `Effect on the odds ${outcomeOdds(dependent, positiveClass)}, other predictors held constant`,
     rows,
     figures,
@@ -394,6 +411,9 @@ function mixedView(result: any, yVar: string | null, kind: MixedKind, positiveCl
     coefficientLabel: logit ? 'Log-odds' : null,
     nullValue: logit ? 1 : 0,
     statLabel: logit ? 'z' : 't',
+    // The linear mixed model reads by its standard error rather than the CI.
+    keyColumns: logit ? KEY_COLUMNS : ['estimate', 'stdErr', 'interval', 'p'],
+    allColumns: logit ? ALL_RATIO_COLUMNS : ALL_COLUMNS,
     subtitle: `${
       kind === 'ordinal'
         ? `Effect on the odds of a higher ${dependent} category`
@@ -477,6 +497,8 @@ function coxView(result: any, yVar: string | null): RegressionView | null {
     coefficientLabel: 'Log hazard',
     nullValue: 1,
     statLabel: 'z',
+    keyColumns: KEY_COLUMNS,
+    allColumns: ALL_RATIO_COLUMNS,
     subtitle: `Effect on the hazard of ${event} over ${time}, other predictors held constant`,
     rows,
     figures,

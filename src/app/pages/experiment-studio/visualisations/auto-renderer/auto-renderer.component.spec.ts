@@ -240,8 +240,8 @@ describe('AutoRendererComponent', () => {
   });
 
   it('groups thousands and uses a typographic minus on screen, plain numbers for CSV', () => {
-    expect(cmp.formatValue(1065586.73)).toBe('1,065,587');
-    expect(cmp.formatValue('111854')).toBe('111,854');
+    expect(cmp.formatValue(1065586.73)).toBe('1\u202f065\u202f587');
+    expect(cmp.formatValue('111854')).toBe('111\u202f854');
     expect(cmp.formatValue(-3.8885)).toBe('−3.889');
     expect(cmp.formatValue(0.00001234)).toBe('1.234e-5');
     expect(cmp.formatValue(1065586.73, false)).toBe('1065587');

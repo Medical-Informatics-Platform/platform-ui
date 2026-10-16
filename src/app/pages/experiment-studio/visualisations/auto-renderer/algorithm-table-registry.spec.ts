@@ -229,8 +229,16 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows).toContainEqual(['U statistic', '163.5']);
     expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows).toContainEqual(['z-score', '4.454']);
+    expect(tables[0].rows).toContainEqual(['P(A > B)', '0.14']);
     expect(tables[0].rows).toContainEqual(['Group A sample size', '15']);
     expect(tables[0].rows).toContainEqual(['Group B sample size', '80']);
+  });
+
+  it('prints p = 0 as < 0.001 and leaves P(A > B) out without group sizes', () => {
+    const tables = AlgorithmTableRegistry['binned_mann_whitney_u_test']({ u_stat: 70, p_value: 0, z_score: 9 } as any);
+
+    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
+    expect(tables[0].rows.map((row) => row[0])).not.toContain('P(A > B)');
   });
 
   it('renders standardized mean difference comparisons', () => {

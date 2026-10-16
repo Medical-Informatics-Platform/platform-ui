@@ -11,7 +11,7 @@ describe('buildSummaryFigures', () => {
 
     expect(figures['Mean difference'].note).toBe('95% CI −3.46 to −3.45');
     expect(figures['p-value'].value).toBe('< 0.001');
-    expect(figures['p-value'].note).toBe('t(195,004) = −739.93');
+    expect(figures['p-value'].note).toBe('t(195\u202f004) = −739.93');
     expect(figures["Cohen's d"].note).toBe('Large effect');
   });
 
@@ -22,16 +22,7 @@ describe('buildSummaryFigures', () => {
     })!);
 
     expect(figures["Cramér's V"].value).toBe('0.199');
-    expect(figures['Observations'].value).toBe('27,308');
-  });
-
-  it('reads U for group A as the probability that A outranks B', () => {
-    const figures = byLabel(buildSummaryFigures('binned_mann_whitney_u_test', {
-      u_stat: 103023104.5, p_value: 0, z_score: 51.52, n1: 19952, n2: 7356,
-    })!);
-
-    expect(figures['P(A > B)'].value).toBe('0.70');
-    expect(figures['Group sizes'].value).toBe('19,952 · 7,356');
+    expect(figures['Observations'].value).toBe('27\u202f308');
   });
 
   it('reports eta squared for one-way ANOVA and partial eta squared per two-way term', () => {
@@ -84,7 +75,7 @@ describe('buildSummaryFigures', () => {
     expect(Object.keys(figures)).toEqual(['RMSE', 'MAE', 'Folds']);
     expect(figures['RMSE'].value).toBe('13.41');
     expect(figures['RMSE'].note).toBe('Age units, ± 0.13 across folds');
-    expect(figures['Folds'].note).toBe('~199,462 training rows each');
+    expect(figures['Folds'].note).toBe('~199\u202f462 training rows each');
   });
 
   it('reads RMSE from the legacy mean_sq_error field', () => {
@@ -96,9 +87,5 @@ describe('buildSummaryFigures', () => {
     const context = { groupA: 'yes', groupB: 'no' };
     const ttest = byLabel(buildSummaryFigures('ttest_independent', { mean_diff: -3.45, ci_lower: -3.46, ci_upper: -3.44, p: 0 }, context)!);
     expect(ttest['Mean difference'].note).toBe('yes − no · 95% CI −3.46 to −3.44');
-
-    const mwu = byLabel(buildSummaryFigures('binned_mann_whitney_u_test', { u_stat: 70, p_value: 0.01, n1: 10, n2: 10 }, context)!);
-    expect(mwu['Group sizes'].note).toBe('yes · no');
-    expect(mwu['P(A > B)'].note).toBe('Medium effect · chance a value from yes ranks above one from no, ties half');
   });
 });

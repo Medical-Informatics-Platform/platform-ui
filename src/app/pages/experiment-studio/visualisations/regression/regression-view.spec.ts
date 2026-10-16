@@ -17,7 +17,7 @@ describe('result-format', () => {
     expect(formatPValue(0.8119)).toBe('0.812');
     expect(formatRatio(0.98999)).toBe('0.990');
     expect(formatRatio(903.51)).toBe('904');
-    expect(formatRatio(1163.4)).toBe('1,163');
+    expect(formatRatio(1163.4)).toBe('1\u202f163');
     expect(ratioDigits(1.03513, 1.03648)).toBe(4);
     expect(ratioDigits(1.49, 1.75)).toBe(3);
   });
@@ -51,6 +51,10 @@ describe('buildRegressionView', () => {
 
     expect(view.estimateLabel).toBe('Odds ratio');
     expect(view.nullValue).toBe(1);
+    // Key columns read like a model printout; the odds ratio, its CI and the sketch wait for all columns.
+    expect(view.coefficientLabel).toBe('Estimate');
+    expect(view.keyColumns).toEqual(['coefficient', 'stdErr', 'stat', 'p']);
+    expect(view.allColumns).toEqual(['coefficient', 'stdErr', 'stat', 'estimate', 'ci', 'interval', 'p']);
     expect(view.rows.map((row) => row.variable)).toEqual(['IVT[yes]', 'Age', 'Intercept']);
     const ivt = view.rows[0];
     expect([ivt.term, ivt.level]).toEqual(['IVT', 'yes']);
@@ -88,7 +92,7 @@ describe('buildRegressionView', () => {
     const test = view.figures.find((figure) => figure.label === 'Model LR test')!;
 
     expect(test.value).toBe('< 0.001');
-    expect(test.note).toBe('χ²(2) = 10,949');
+    expect(test.note).toBe('χ²(2) = 10\u202f949');
     expect(view.fitMetrics.map((metric) => metric.label)).toContain('Null log-likelihood');
   });
 
@@ -111,6 +115,7 @@ describe('buildRegressionView', () => {
     }, null)!;
 
     expect(view.estimateLabel).toBe('Estimate');
+    expect(view.keyColumns).toEqual(['estimate', 'stdErr', 'interval', 'p']);
     expect(view.figures[0]).toEqual({ label: 'ICC', value: '0.250', note: '25.0% of the variance lies between groups' });
     expect(view.figures.some((figure) => figure.label === 'Converged')).toBeFalse();
   });

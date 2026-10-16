@@ -83,6 +83,14 @@
   margin-top: 2px;
 }
 
+/* How to read the figures or charts above, in the regression card's note style. */
+.results-note {
+  margin: 10px 2px 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 /* ERROR MESSAGE */
 
 .algorithm-error {

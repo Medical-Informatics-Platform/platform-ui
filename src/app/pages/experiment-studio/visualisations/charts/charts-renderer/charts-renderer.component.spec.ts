@@ -31,6 +31,19 @@ describe('ChartRendererComponent house style', () => {
     expect(chart.series[0].areaStyle).toBeUndefined();
   });
 
+  it('groups value-axis thousands with a thin space unless the axis formats its own labels', () => {
+    const chart = themed({
+      xAxis: { type: 'category', data: ['a'] },
+      yAxis: [{}, { type: 'value', axisLabel: { formatter: '{value} %' } }],
+      series: [],
+    });
+
+    expect(chart.xAxis.axisLabel).toBeUndefined();
+    expect(chart.yAxis[0].axisLabel.formatter(12500)).toBe('12\u202f500');
+    expect(chart.yAxis[0].axisLabel.formatter(0.25)).toBe('0.25');
+    expect(chart.yAxis[1].axisLabel.formatter).toBe('{value} %');
+  });
+
   it('adds no tooltip to a chart that has none', () => {
     expect(themed({ series: [] }).tooltip).toBeUndefined();
   });

@@ -11,7 +11,7 @@ import {
 } from '../../../../models/algorithm-results.model';
 import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.utils';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
-import { formatPValue, readable, toFiniteNumber } from '../result-format';
+import { formatInteger, formatPValue, readable, toFiniteNumber } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
 
 export interface TableSpec {
@@ -951,7 +951,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         .map(({ category, c }) => [
           getEnumLabel(feature, String(category)),
           ...rawClasses.map((_cls, i) => {
-            const count = Number(counts[i]?.[c]).toLocaleString('en-US');
+            const count = formatInteger(Number(counts[i]?.[c]));
             const probability = logProbs ? share(logProbs[i]?.[c]) : '';
             return probability ? `${count} · ${probability}` : count;
           }),
@@ -1329,6 +1329,11 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
   binned_mann_whitney_u_test: (result: BinnedMannWhitneyUTestResult) => {
     if (!result) return [];
+    // Exaflow reports U for group A, so U / (n1·n2) is the chance a group A value outranks a
+    // group B value, ties counted half: the effect size (Vargha–Delaney A) next to p.
+    const u = toFiniteNumber(result.u_stat);
+    const n1 = toFiniteNumber(result.n1);
+    const n2 = toFiniteNumber(result.n2);
     return [{
       title: 'Binned Mann-Whitney U Test',
       columns: ['Metric', 'Value'],
@@ -1336,6 +1341,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         ['U statistic', formatDecimal(result.u_stat)],
         ['p-value', formatTableP(result.p_value)],
         ['z-score', formatDecimal(result.z_score)],
+        ...(u !== null && n1 && n2 ? [['P(A > B)', (u / (n1 * n2)).toFixed(2)]] : []),
         ['Group A sample size', formatDecimal(result.n1)],
         ['Group B sample size', formatDecimal(result.n2)],
       ],

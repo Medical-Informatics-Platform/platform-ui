@@ -4,6 +4,7 @@ import { EChartsOption } from 'echarts';
 import { NgxEchartsModule } from 'ngx-echarts';
 import { SimpleChanges } from '@angular/core';
 import { CHART_SERIES_COLORS } from '../chart-palette';
+import { groupThousands } from '../../result-format';
 
 /** --font-sans without the licensed Alaska faces, which canvas text cannot load either. */
 const CHART_FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -59,8 +60,23 @@ export class ChartRendererComponent implements OnChanges {
           },
         }
         : {}),
+      ...(chart.xAxis ? { xAxis: this.groupAxisLabels(chart.xAxis, 'category') as EChartsOption['xAxis'] } : {}),
+      ...(chart.yAxis ? { yAxis: this.groupAxisLabels(chart.yAxis, 'value') as EChartsOption['yAxis'] } : {}),
       series: this.softenSeries(chart.series),
     } as EChartsOption;
+  }
+
+  /** Value-axis ticks grouped like the result tables (10 000): ECharts' own label puts a comma there.
+   *  An axis with its own label formatter keeps it; `defaultType` is ECharts' type when none is set. */
+  private groupAxisLabels(axis: unknown, defaultType: 'category' | 'value'): unknown {
+    if (Array.isArray(axis)) return axis.map((entry) => this.groupAxisLabels(entry, defaultType));
+    const options = this.objectValue(axis);
+    const axisLabel = this.objectValue(options['axisLabel']);
+    if ((options['type'] ?? defaultType) !== 'value' || axisLabel['formatter']) return axis;
+    return {
+      ...options,
+      axisLabel: { ...axisLabel, formatter: (value: number) => groupThousands(value.toLocaleString('en-US', { maximumFractionDigits: 20 })) },
+    };
   }
 
   private softenSeries(series: EChartsOption['series']): EChartsOption['series'] {

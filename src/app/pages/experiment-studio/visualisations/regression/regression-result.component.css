@@ -85,7 +85,8 @@
 
 .coef-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) 0.7fr 1.1fr 1.3fr 0.6fr;
+  /* Tracks per shown column, set by the component. */
+  grid-template-columns: var(--coef-columns);
   column-gap: 16px;
   align-items: center;
   padding: 11px 16px;
@@ -93,14 +94,6 @@
   font-size: 0.88rem;
   color: var(--text-main);
   min-width: 0;
-}
-
-.coef-table.is-all-columns .coef-row {
-  grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
-}
-
-.coef-table.is-all-columns.has-coefficient .coef-row {
-  grid-template-columns: minmax(0, 1.3fr) 0.7fr 0.7fr 0.7fr 0.55fr 1.1fr 1.3fr 0.6fr;
 }
 
 .coef-row--head {
@@ -309,7 +302,7 @@
 
 /* Narrow by container, not viewport: the same card sits in the studio, the dashboard
    detail and 360px compare columns. Below 620px the interval sketch goes (the CI and p
-   carry the same answer) so variable, estimate, CI and p fit without wrapping; the
+   carry the same answer) so the key columns fit without wrapping; the
    wider All columns view scrolls sideways. */
 .lr-result {
   container-type: inline-size;
@@ -317,7 +310,7 @@
 
 @container (max-width: 620px) {
   .coef-row {
-    grid-template-columns: minmax(96px, 1fr) auto auto auto;
+    grid-template-columns: var(--coef-columns-narrow);
     column-gap: 12px;
     padding-inline: 12px;
   }
@@ -333,11 +326,6 @@
 
   .coef-table.is-all-columns .coef-row {
     min-width: 560px;
-    grid-template-columns: minmax(96px, 1fr) repeat(4, auto) auto;
-  }
-
-  .coef-table.is-all-columns.has-coefficient .coef-row {
-    grid-template-columns: minmax(96px, 1fr) repeat(5, auto) auto;
   }
 
   .model-fit-grid {

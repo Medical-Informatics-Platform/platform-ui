@@ -27,34 +27,20 @@
     </header>
 
     <div class="coef-table" role="table" aria-label="Coefficients" [class.is-all-columns]="coefficientColumns() === 'all'"
-      [class.has-coefficient]="!!model.coefficientLabel">
+      [style.--coef-columns]="gridColumns()" [style.--coef-columns-narrow]="narrowGridColumns()">
       <div class="coef-row coef-row--head" role="row">
         <span role="columnheader">Variable</span>
-        <span role="columnheader" class="is-numeric">{{ model.estimateLabel }}</span>
-        @if (coefficientColumns() === 'all') {
-        @if (model.coefficientLabel) {
-        <span role="columnheader" class="is-numeric">{{ model.coefficientLabel }}</span>
+        @for (column of columns(); track column) {
+        <span role="columnheader" [class.is-numeric]="column !== 'interval'" [class.is-center]="column === 'interval'">{{ columnLabel(column) }}</span>
         }
-        <span role="columnheader" class="is-numeric">Std. error</span>
-        <span role="columnheader" class="is-numeric">{{ model.statLabel }}</span>
-        }
-        <span role="columnheader" class="is-numeric">95% CI</span>
-        <span role="columnheader" class="is-center">Interval vs {{ model.nullValue }}</span>
-        <span role="columnheader" class="is-numeric">p</span>
       </div>
 
       @for (row of model.rows; track row.variable) {
       <div class="coef-row" [class.is-intercept]="row.isIntercept" role="row">
         <span role="cell" class="coef-variable">{{ row.term }}@if (row.level) {<span class="coef-level"> · {{ row.level }}</span>}</span>
-        <span role="cell" class="is-numeric coef-estimate">{{ row.estimateText }}</span>
-        @if (coefficientColumns() === 'all') {
-        @if (model.coefficientLabel) {
-        <span role="cell" class="is-numeric coef-muted">{{ row.coefficientText }}</span>
-        }
-        <span role="cell" class="is-numeric coef-muted">{{ row.stdErrText }}</span>
-        <span role="cell" class="is-numeric coef-muted">{{ row.statText }}</span>
-        }
-        <span role="cell" class="is-numeric coef-muted">{{ row.ciText }}</span>
+        @for (column of columns(); track column; let lead = $first) {
+        @switch (column) {
+        @case ('interval') {
         <span role="cell" class="coef-plot-cell">
           @if (!row.isIntercept) {
           <span class="coef-plot" aria-hidden="true">
@@ -66,15 +52,26 @@
           </span>
           }
         </span>
+        }
+        @case ('p') {
         <span role="cell" class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
+        }
+        @default {
+        <span role="cell" class="is-numeric" [class.coef-estimate]="lead" [class.coef-muted]="!lead">{{ cellText(row, column) }}</span>
+        }
+        }
+        }
       </div>
       }
     </div>
 
     <p class="coef-note">
-      Bold p-values are below 0.05. Each interval is drawn on its own scale around
+      Bold p-values are below 0.05.
+      @if (showsInterval()) {
+      Each interval is drawn on its own scale around
       {{ model.nullValue === 1 ? ratioPhrase() + ' of 1 (log scale)' : 'zero' }}, so compare direction and whether it
       crosses {{ model.nullValue }}, not size between rows.
+      }
       @if (hasLevels()) {
       A category row compares that level with the variable's reference level, the one not listed.
       }

@@ -29,15 +29,6 @@ function cramerMagnitude(value: number, dfStar: number): string {
   return 'Large';
 }
 
-/** Vargha–Delaney A: 0.56 small, 0.64 medium, 0.71 large, symmetric around 0.5. */
-function probabilityMagnitude(value: number): string {
-  const distance = Math.abs(value - 0.5);
-  if (distance < 0.06) return 'Negligible';
-  if (distance < 0.14) return 'Small';
-  if (distance < 0.21) return 'Medium';
-  return 'Large';
-}
-
 const first = (result: any, keys: string[]): number | null => {
   for (const key of keys) {
     const value = toFiniteNumber(result?.[key]);
@@ -84,36 +75,6 @@ function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
   }
   if (nObs !== null) {
     figures.push({ label: 'Observations', value: formatInteger(nObs), note: sd === null ? 'Rows in the test' : `Rows in the test · SD ${formatSignedNumber(sd)}` });
-  }
-  return figures;
-}
-
-function mannWhitneyFigures(result: any, context?: SummaryContext): KeyFigure[] {
-  const a = context?.groupA ?? 'group A';
-  const b = context?.groupB ?? 'group B';
-  const figures: KeyFigure[] = [];
-  const u = first(result, ['u_stat']);
-  const z = first(result, ['z_score']);
-  const p = first(result, ['p_value']);
-  const n1 = first(result, ['n1']);
-  const n2 = first(result, ['n2']);
-
-  if (p !== null) {
-    const parts = [u === null ? '' : `U = ${formatSummaryNumber(u)}`, z === null ? '' : `z = ${formatSignedNumber(z)}`];
-    figures.push({ label: 'p-value', value: formatPValue(p), note: parts.filter(Boolean).join(', ') || undefined });
-  }
-  // Exaflow reports U for group A, so U / (n1·n2) is the chance a group A value outranks a group B value.
-  if (u !== null && n1 && n2) {
-    const probability = u / (n1 * n2);
-    figures.push({
-      label: 'P(A > B)',
-      value: probability.toFixed(2),
-      // "a value from ACS", not "a ACS value": no article to agree with an arbitrary group name.
-      note: `${probabilityMagnitude(probability)} effect · chance a value from ${a} ranks above one from ${b}, ties half`,
-    });
-  }
-  if (n1 !== null && n2 !== null) {
-    figures.push({ label: 'Group sizes', value: `${formatInteger(n1)} · ${formatInteger(n2)}`, note: `${a} · ${b}` });
   }
   return figures;
 }
@@ -358,12 +319,18 @@ const BUILDERS: Record<string, (result: any, context?: SummaryContext) => KeyFig
   ttest_independent: ttestFigures,
   ttest_paired: (result) => ttestFigures(result),
   ttest_onesample: (result) => ttestFigures(result),
-  binned_mann_whitney_u_test: mannWhitneyFigures,
   chi_squared: chiSquaredFigures,
   fisher_exact: fisherFigures,
   anova_oneway: anovaOneWayFigures,
   anova_twoway: anovaTwoWayFigures,
   standardized_mean_difference: smdFigures,
+};
+
+/** What a figure means, in plain language, for figures a reader may not know; shown under them. */
+export const FIGURE_NOTES: Record<string, string> = {
+  linear_regression_cv:
+    'RMSE (root mean squared error) is the typical size of a prediction error on rows the model did not see, in the outcome\'s units; ' +
+    'squaring makes large misses count more. MAE (mean absolute error) is the average size of that error, so an RMSE well above the MAE points to a few large misses.',
 };
 
 /**
@@ -374,7 +341,6 @@ export const TABLES_SHOWN_AS_FIGURES: Record<string, TableTrim[]> = {
   ttest_independent: [{ title: 'Independent T-Test' }],
   ttest_paired: [{ title: 'Paired T-Test' }],
   ttest_onesample: [{ title: 'One-Sample T-Test' }],
-  binned_mann_whitney_u_test: [{ title: 'Binned Mann-Whitney U Test' }],
   chi_squared: [{ title: 'Chi-Squared Test Summary' }],
   fisher_exact: [{ title: "Fisher's Exact Test Summary" }],
   standardized_mean_difference: [{ title: 'Standardized Mean Difference' }],

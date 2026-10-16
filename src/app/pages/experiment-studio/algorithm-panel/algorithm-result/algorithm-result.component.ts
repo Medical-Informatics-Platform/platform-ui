@@ -10,7 +10,7 @@ import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
 import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
-import { buildSummaryFigures, TABLES_SHOWN_AS_FIGURES } from '../../visualisations/summary/summary-figures';
+import { buildSummaryFigures, FIGURE_NOTES, TABLES_SHOWN_AS_FIGURES } from '../../visualisations/summary/summary-figures';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -101,6 +101,8 @@ export class AlgorithmResultComponent {
 
 
   readonly chartTitle = computed(() => AlgorithmChartRegistry[this.algorithm()]?.title ?? 'Charts');
+  readonly chartNote = computed(() => AlgorithmChartRegistry[this.algorithm()]?.note ?? null);
+  readonly figureNote = computed(() => FIGURE_NOTES[this.algorithm()] ?? null);
 
   /** What the figures or charts above already show of the tables, so it is not repeated below. */
   readonly coveredTables = computed(() => [

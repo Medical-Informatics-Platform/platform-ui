@@ -1,6 +1,7 @@
 import { EChartsOption } from 'echarts';
 import { cellLabelColor } from '../chart-palette';
 import { escapeHtml } from '../../../../../core/html.utils';
+import { formatInteger } from '../../result-format';
 
 export interface ConfusionMatrix {
   labels: string[];
@@ -74,7 +75,7 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
         formatter: (params: any) => {
           const [predictedIdx, actualIdx, share] = params.value;
           const actual = escapeHtml(labels[actualIdx]);
-          return `Actual: ${actual}<br/>Predicted: ${escapeHtml(labels[predictedIdx])}<br/>Count: <b>${params.data.count.toLocaleString('en-US')}</b> (${(share * 100).toFixed(1)}% of actual ${actual})`;
+          return `Actual: ${actual}<br/>Predicted: ${escapeHtml(labels[predictedIdx])}<br/>Count: <b>${formatInteger(params.data.count)}</b> (${(share * 100).toFixed(1)}% of actual ${actual})`;
         },
       },
       grid: { top: 80, left: 28, right: 16, bottom: 40, containLabel: true },
@@ -118,7 +119,7 @@ export function buildConfusionMatrixChart(result: any): EChartsOption[] {
             fontSize: 13,
             // ECharts' default line height sets the count and its share line on top of each other.
             lineHeight: 18,
-            formatter: (params: any) => `${params.data.count.toLocaleString('en-US')}\n${(params.value[2] * 100).toFixed(1)}%`,
+            formatter: (params: any) => `${formatInteger(params.data.count)}\n${(params.value[2] * 100).toFixed(1)}%`,
           },
         },
       ],

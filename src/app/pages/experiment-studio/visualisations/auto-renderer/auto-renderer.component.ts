@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, effect, inject, input, signal } fro
 import { CsvExportService } from '../../../../services/csv-export.service';
 import { getAlgorithmTableBuilder, TableSpec, TableTrim, trimTable } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
+import { groupThousands } from '../result-format';
 
 // 'Kept range' holds "a to b": left-aligned it stays clear of the right-aligned count beside it.
 const TEXT_COLUMNS = new Set(['Role', 'Categories', 'Dataset', 'Rule', 'Kept range', 'Compactness', 'Profile', 'Type', 'Note']);
@@ -122,7 +123,7 @@ export class AutoRendererComponent {
     return !!column && (TEXT_COLUMNS.has(column) || column.startsWith('Variable'));
   }
 
-  /** On screen: thousands grouped (111,854; 1,065,587), trailing zeros trimmed, a typographic minus;
+  /** On screen: thousands grouped with a thin space (111 854; 1 065 587), trailing zeros trimmed, a typographic minus;
    *  scientific notation only below 1e-4. With `grouping` off (CSV) numbers stay plain for spreadsheets. */
   formatValue(value: any, grouping = true): string {
     if (value === null || value === undefined) return '';
@@ -150,7 +151,7 @@ export class AutoRendererComponent {
     });
     if (text === '-0') return '0';
     // Typographic minus on screen, like the key figures; CSV keeps the ASCII hyphen.
-    return grouping ? text.replace(/^-/, '−') : text;
+    return grouping ? groupThousands(text).replace(/^-/, '−') : text;
   }
 
   exportToCSV(table: TableSpec) {

@@ -1,8 +1,25 @@
 import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
 import { buildKMeansChart } from './k-means-chart';
+import { buildTTestIntervalChart } from './mean-plot-chart';
 import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './naive-bayes-priors-chart';
 
 describe('Chart renderers regressions', () => {
+  it('draws the t-test mean difference as a vertical interval, value on the y axis', () => {
+    const [chart] = buildTTestIntervalChart({ mean_diff: -3.454, ci_lower: -3.463, ci_upper: -3.445 }) as any[];
+
+    expect(chart.xAxis.type).toBe('category');
+    expect(chart.xAxis.data).toEqual(['Mean difference']);
+    expect(chart.yAxis.type).toBe('value');
+    expect(chart.series[0].data[0].value).toEqual(['Mean difference', -3.454]);
+    expect(chart.series[1].data[0].slice(1, 3)).toEqual([-3.463, -3.445]);
+    // Zero is far outside this interval, so no zero line stretches the axis.
+    expect(chart.series[0].markLine).toBeUndefined();
+
+    const [crossing] = buildTTestIntervalChart({ mean_diff: 0.2, ci_lower: -0.1, ci_upper: 0.5 }) as any[];
+    expect(crossing.series[0].markLine.data).toEqual([{ yAxis: 0 }]);
+    expect(buildTTestIntervalChart({ mean_diff: 1 })).toEqual([]);
+  });
+
   it('maps tp/fp/fn/tn confusion matrix with rows=actual and cols=predicted', () => {
     const charts = buildConfusionMatrixChart({
       confusion_matrix: { tp: 5, fp: 1, fn: 2, tn: 7 },

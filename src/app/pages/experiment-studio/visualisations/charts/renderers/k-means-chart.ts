@@ -1,5 +1,5 @@
 import { EChartsOption } from 'echarts';
-import { formatSummaryNumber } from '../../result-format';
+import { formatInteger, formatSummaryNumber } from '../../result-format';
 import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
 import { escapeHtml } from '../../../../../core/html.utils';
 
@@ -15,11 +15,11 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
 
   const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
-  // A range prints as its midpoint ("~66,245"); "<10" and an empty cluster's "0" print as sent.
+  // A range prints as its midpoint ("~66 245"); "<10" and an empty cluster's "0" print as sent.
   const sizeTexts: (string | null)[] = clusters.map((c: any, i: number) => {
     const interval = String(c.size_interval ?? '').trim();
     if (sizes[i] === null) return null;
-    return interval.includes('-') ? `~${Math.round(sizes[i]!).toLocaleString('en-US')}` : interval;
+    return interval.includes('-') ? `~${formatInteger(Math.round(sizes[i]!))}` : interval;
   });
   // Each cluster's name carries its size, so the centres table is not needed on screen.
   const sizedNames = names.map((name, i) => (sizeTexts[i] === null ? name : `${name} · ${sizeTexts[i]}`));
@@ -161,7 +161,7 @@ function buildKMeansCentresHeatmap(
         inverse: true,
         axisLine: { show: false },
         axisTick: { show: false },
-        // Name over size ("Cluster 0" / "~66,245"): one long line got clipped at the chart's left edge.
+        // Name over size ("Cluster 0" / "~66 245"): one long line got clipped at the chart's left edge.
         axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 16, formatter: (name: string) => name.replace(' · ', '\n') },
       },
       visualMap: {
