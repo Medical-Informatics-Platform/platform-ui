@@ -88,6 +88,25 @@
   outline-offset: 2px;
 }
 
+/* Beside the .modal-tabs tray, Export takes the tray's geometry (34px pill,
+   1px inset edge, 0.78rem type) and reads like its active pill. */
+.summary-detail-actions .studio-export-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.summary-detail-actions .studio-export-btn:hover:not(:disabled),
+.summary-detail-actions .studio-export-btn[aria-expanded="true"]:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent), var(--shadow-sm);
+}
+
 .statistics-panel-heading h4 {
   display: flex;
   align-items: center;
@@ -1031,7 +1050,7 @@ app-station-card .how-to-strip {
 .filter-match-row {
   display: flex;
   justify-content: flex-end;
-  padding: 0 14px 10px;
+  padding: 14px 14px 10px;
 }
 
 .filter-match-chip {

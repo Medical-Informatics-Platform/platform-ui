@@ -3,8 +3,83 @@ import { buildCVMetricsChart } from './cv-metrics-chart';
 import { buildTTestChart } from './t-test-chart';
 import { buildKMeansChart } from './k-means-chart';
 import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
+import { buildBoxPlotChart } from './box-plot-chart';
+import * as echarts from 'echarts';
 
 describe('Chart renderers regressions', () => {
+  it('fades the other box plot datasets as a whole while one is hovered', async () => {
+    const stats = { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 };
+    const [option] = buildBoxPlotChart({
+      featurewise: [
+        { variable: 'age', dataset: 'ds1', data: stats },
+        { variable: 'age', dataset: 'ds2', data: stats },
+      ],
+    });
+    const host = document.createElement('div');
+    host.style.cssText = 'width: 700px; height: 400px';
+    document.body.appendChild(host);
+    const chart = echarts.init(host);
+    chart.setOption(option);
+
+    chart.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: 0 });
+    // ECharts applies highlight states on its next render frame.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const data = (chart as any).getModel().getSeriesByIndex(0).getData();
+    const blurred = (i: number) =>
+      data.getItemGraphicEl(i).children().map((c: any) => c.currentStates.includes('blur'));
+
+    expect(blurred(0).length, 'box, whiskers, median and mean drawn together').toBeGreaterThan(6);
+    expect(blurred(0).every((b: boolean) => !b)).toBe(true);
+    expect(blurred(1).every((b: boolean) => b)).toBe(true);
+
+    chart.dispose();
+    host.remove();
+  });
+
+  it('keeps the pooled All datasets band fully visible while a dataset is hovered', async () => {
+    const stats = { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 };
+    const [option] = buildBoxPlotChart({
+      featurewise: [
+        { variable: 'age', dataset: 'ds1', data: stats },
+        { variable: 'age', dataset: 'ds2', data: stats },
+        {
+          variable: 'age',
+          dataset: 'all datasets',
+          data: { min: 38, q1: 42, q2: 74, q3: 80, max: 90, mean: 62, std: 8 },
+        },
+      ],
+    });
+    (option as any).animation = false;
+    (option as any).stateAnimation = { duration: 0 };
+    const host = document.createElement('div');
+    host.style.cssText = 'width: 700px; height: 400px';
+    document.body.appendChild(host);
+    const chart = echarts.init(host);
+    chart.setOption(option);
+
+    const boxIndex = (option.series as any[]).findIndex((s: any) => s.name === 'Q1–Q3 box · min–max whiskers');
+    const pooledIndex = (option.series as any[]).findIndex((s: any) => s.name === 'All datasets · Q1–Q3');
+    chart.dispatchAction({ type: 'highlight', seriesIndex: boxIndex, dataIndex: 0 });
+    // ECharts applies highlight states on its next render frame.
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    const model = (chart as any).getModel();
+    const boxData = model.getSeriesByIndex(boxIndex).getData();
+    expect(boxData.getItemGraphicEl(1).children().every((c: any) => c.currentStates.includes('blur'))).toBe(true);
+
+    const band = model.getSeriesByIndex(pooledIndex).getData().getItemGraphicEl(0);
+    const displayables: any[] = [];
+    band.traverse((child: any) => {
+      if (!child.isGroup) displayables.push(child);
+    });
+    expect(displayables.length).toBeGreaterThan(3);
+    expect(displayables.every((el: any) => el.currentStates.includes('blur'))).toBe(true);
+    expect(displayables.every((el: any) => (el.style?.opacity ?? 1) === 1)).toBe(true);
+
+    chart.dispose();
+    host.remove();
+  });
+
   it('maps tp/fp/fn/tn confusion matrix with rows=actual and cols=predicted', () => {
     const charts = buildConfusionMatrixChart({
       confusion_matrix: { tp: 5, fp: 1, fn: 2, tn: 7 },
