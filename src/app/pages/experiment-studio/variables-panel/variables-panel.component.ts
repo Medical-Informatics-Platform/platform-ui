@@ -23,6 +23,20 @@ import {
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import {
+  describeClippedNullEdges,
+  formatClippedNullEdgesNote,
+} from '../visualisations/histogram/histogram-chart';
+import {
+  DATASET_VARIABLE_CODE,
+  HISTOGRAM_SPLIT_NONE,
+  HistogramChartData,
+  HistogramSplitOption,
+  buildHistogramSplitOptions,
+  buildStackedHistogramSeries,
+  extractHistogramItems,
+  isNominalHistogramNode,
+} from '../visualisations/histogram/histogram-data';
 
 type DetailsPanelTab = 'histogram' | 'info';
 
@@ -90,10 +104,28 @@ export class VariablesPanelComponent implements OnDestroy {
   errorService = inject(ErrorService);
   filteredVariables: WritableSignal<any[]> = signal([]);
   filteredGroups: WritableSignal<any[]> = signal([]);
-  histogramData = signal<any | null>(null);
+  histogramData = signal<HistogramChartData | null>(null);
   groupHistogramData = signal<{ bins: string[]; counts: number[]; variableName: string } | null>(null);
-  histogramVariants = signal<Array<{ key: string; label: string; data: any }>>([]);
-  selectedHistogramVariantKey = signal<string | null>(null);
+  histogramSplit = signal(HISTOGRAM_SPLIT_NONE);
+  plottedVariable = signal<any | null>(null);
+  readonly histogramSplitOptions = computed((): HistogramSplitOption[] =>
+    buildHistogramSplitOptions({
+      plottedCode: this.plottedVariable()?.code,
+      selectedVariables: this.experimentStudioService.selectedVariables(),
+      datasetLevelCount: this.experimentStudioService.selectedDatasets().length,
+    })
+  );
+  readonly canSplitHistogram = computed(() => {
+    const node = this.plottedVariable();
+    return !!node && !node.children?.length && !isNominalHistogramNode(node);
+  });
+  readonly histogramPrivacyTrimNote = computed(() => {
+    const data = this.histogramData();
+    if (!data?.bins?.length || isNominalHistogramNode(this.plottedVariable())) {
+      return null;
+    }
+    return formatClippedNullEdgesNote(describeClippedNullEdges(data.bins, data.counts));
+  });
   groupHistogramMeta = signal<{
     pathNodes: Array<{ code: string; label: string }>;
     groupCount: number;
@@ -123,11 +155,26 @@ export class VariablesPanelComponent implements OnDestroy {
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
-  private histogramRequest$ = new Subject<{ codes: string[]; label?: string; bins?: number | null }>();
+  private histogramRequest$ = new Subject<{
+    codes: string[];
+    label?: string;
+    bins?: number | null;
+    grouping?: string | null;
+  }>();
   private lastModelKey: string | null = null;
 
   constructor() {
     this.setupHistogramPipeline();
+
+    // A split whose option was removed from the pool or became disabled (too many
+    // datasets) must not stay drawn under a select that no longer offers it.
+    effect(() => {
+      const split = this.histogramSplit();
+      if (!split) return;
+      const option = this.histogramSplitOptions().find((item) => item.code === split);
+      if (option && !option.disabled) return;
+      untracked(() => this.applyHistogramSplit(HISTOGRAM_SPLIT_NONE));
+    });
 
     effect(() => {
       const model = this.selectedDataModel();
@@ -498,8 +545,8 @@ export class VariablesPanelComponent implements OnDestroy {
       this.cdr.detectChanges();
       this.histogramData.set(null);
       this.groupHistogramData.set(null);
-      this.histogramVariants.set([]);
-      this.selectedHistogramVariantKey.set(null);
+      this.histogramSplit.set(HISTOGRAM_SPLIT_NONE);
+      this.plottedVariable.set(null);
       this.groupHistogramMeta.set(null);
       this.isLoadingHistogram.set(false);
       this.errorMessage.set('No variable selected.');
@@ -519,8 +566,8 @@ export class VariablesPanelComponent implements OnDestroy {
     this.clearChartNotices();
     this.histogramData.set(null); // clear previous histogram
     this.groupHistogramData.set(null);
-    this.histogramVariants.set([]);
-    this.selectedHistogramVariantKey.set(null);
+    this.histogramSplit.set(HISTOGRAM_SPLIT_NONE);
+    this.plottedVariable.set(node);
     this.groupHistogramMeta.set(null);
     if (!node) {
       this.isLoadingHistogram.set(false);
@@ -585,9 +632,16 @@ export class VariablesPanelComponent implements OnDestroy {
     this.histogramRequest$
       .pipe(
         takeUntil(this.destroy$),
-        switchMap(({ codes, label, bins }) => {
+        switchMap(({ codes, label, bins, grouping }) => {
           return this.experimentStudioService
-            .getAlgorithmResults(AlgorithmNames.HISTOGRAM, codes, bins ?? null)
+            .getAlgorithmResults(
+              AlgorithmNames.HISTOGRAM,
+              codes,
+              bins ?? null,
+              undefined,
+              undefined,
+              grouping ? [grouping] : undefined
+            )
             .pipe(
               catchError((error) => {
                 this.isLoadingHistogram.set(false);
@@ -595,69 +649,71 @@ export class VariablesPanelComponent implements OnDestroy {
                 this.errorMessage.set('Error loading histogram. Please try again.');
                 return of(null);
               }),
-              map((response) => ({ response, label, codes }))
+              map((response) => ({ response, label, codes, grouping: grouping ?? null }))
             );
         })
       )
-      .subscribe(({ response, label, codes }) => {
-        this.isLoadingHistogram.set(false);
+      .subscribe({
+        next: ({ response, label, codes, grouping }) => {
+          this.isLoadingHistogram.set(false);
 
-        if (!response) return;
+          if (!response) return;
 
-        const histList = response?.result?.histogram ?? response?.histogram ?? [];
-        if (histList.length) {
-          const variableCode = histList[0]?.var ?? histList[0]?.variable ?? codes?.[0];
-          const variableNode = variableCode ? this.findNodeByCode(this.d3Data, variableCode) : null;
-
-          const variants = histList.map((hist: any, idx: number) => {
-            const enrichedHistogram = this.mapBinsToEnumLabels(hist, variableNode?.enumerations);
-            const groupingVarCode = hist?.grouping_var;
-            const groupingVarNode = groupingVarCode ? this.findNodeByCode(this.d3Data, groupingVarCode) : null;
-            const groupingVarLabel = groupingVarNode?.label ?? '';
-            const groupingEnumLabel = this.mapEnumValueLabel(hist?.grouping_enum, groupingVarNode?.enumerations);
-
-            const variantLabel = groupingVarCode
-              ? [groupingVarLabel, groupingEnumLabel ?? hist?.grouping_enum ?? 'N/A'].filter(Boolean).join(': ')
-              : 'Overall';
-
-            const resolvedVariable = this.findNodeByCode(
-              this.d3Data,
-              String(enrichedHistogram.variable ?? variableCode ?? '')
-            );
-            const dataWithName = {
-              ...enrichedHistogram,
-              variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
-              variableType: variableNode?.type
-            };
-
-            return {
-              key: groupingVarCode ? `${groupingVarCode}:${String(hist?.grouping_enum ?? idx)}` : 'overall',
-              label: variantLabel,
-              data: dataWithName,
-              isOverall: !groupingVarCode,
-            };
-          });
-
-          const sortedVariants = [
-            ...variants.filter((v: { isOverall: boolean }) => v.isOverall),
-            ...variants.filter((v: { isOverall: boolean }) => !v.isOverall),
-          ].map(({ key, label: variantLabel, data }) => ({ key, label: variantLabel, data }));
-
-          this.histogramVariants.set(sortedVariants);
-          const selectedKey = sortedVariants[0]?.key ?? null;
-          this.selectedHistogramVariantKey.set(selectedKey);
-          this.histogramData.set(sortedVariants[0]?.data ?? null);
-          this.clearChartNotices();
-        } else {
-          this.histogramVariants.set([]);
-          this.selectedHistogramVariantKey.set(null);
-          const resultData = response?.result?.data || response?.data;
-          if (typeof resultData === 'string' && resultData.includes('insufficient data')) {
-            this.emptyChartMessage.set('This variable does not have sufficient data.');
-          } else {
-            this.emptyChartMessage.set('No distribution for this selection.');
+          try {
+            const histList = extractHistogramItems(response);
+            if (histList.length) {
+              const variableCode = String(histList[0]?.var ?? histList[0]?.variable ?? codes?.[0] ?? '');
+              const variableNode = variableCode ? this.findNodeByCode(this.d3Data, variableCode) : null;
+              const stacked = buildStackedHistogramSeries(
+                histList,
+                variableCode,
+                grouping,
+                (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+                this.experimentStudioService.selectedDatasets()
+              );
+              if (!stacked) {
+                this.histogramData.set(null);
+                this.emptyChartMessage.set('No distribution for this selection.');
+                return;
+              }
+              const enriched = this.mapBinsToEnumLabels(
+                { ...stacked, variable: variableCode },
+                variableNode?.enumerations
+              );
+              const resolvedVariable = this.findNodeByCode(this.d3Data, variableCode);
+              const binLabels = (enriched.bins ?? stacked.bins).map(String);
+              const splitLabel = grouping
+                ? (this.histogramSplitOptions().find((option) => option.code === grouping)?.label ?? grouping)
+                : undefined;
+              this.histogramData.set({
+                bins: binLabels,
+                counts: stacked.counts,
+                groups: stacked.groups,
+                variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
+                variableType: variableNode?.type,
+                splitLabel,
+              });
+              this.clearChartNotices();
+            } else {
+              this.histogramData.set(null);
+              const resultData = response?.result?.data || response?.data;
+              if (typeof resultData === 'string' && resultData.includes('insufficient data')) {
+                this.emptyChartMessage.set('This variable does not have sufficient data.');
+              } else {
+                this.emptyChartMessage.set('No distribution for this selection.');
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing histogram:', error);
+            this.histogramData.set(null);
+            this.errorMessage.set('Error loading histogram. Please try again.');
           }
-        }
+        },
+        error: (error) => {
+          this.isLoadingHistogram.set(false);
+          console.error('Error fetching histogram:', error);
+          this.errorMessage.set('Error loading histogram. Please try again.');
+        },
       });
   }
 
@@ -666,22 +722,41 @@ export class VariablesPanelComponent implements OnDestroy {
     this.emptyChartMessage.set(null);
   }
 
-  private queueHistogramRequest(codes: string[], label?: string, bins: number | null = null) {
+  private queueHistogramRequest(
+    codes: string[],
+    label?: string,
+    bins: number | null = null,
+    grouping: string | null = null
+  ) {
     this.isLoadingHistogram.set(true);
     this.clearChartNotices();
     this.histogramData.set(null);
-    this.histogramVariants.set([]);
-    this.selectedHistogramVariantKey.set(null);
-    this.histogramRequest$.next({ codes, label, bins });
+    this.histogramRequest$.next({ codes, label, bins, grouping });
   }
 
-  onHistogramVariantChange(event: Event): void {
-    const key = (event.target as HTMLSelectElement).value;
-    this.selectedHistogramVariantKey.set(key);
-    const variant = this.histogramVariants().find((item) => item.key === key);
-    if (variant) {
-      this.histogramData.set(variant.data);
+  onHistogramSplitChange(event: Event): void {
+    const split = (event.target as HTMLSelectElement).value;
+    const option = this.histogramSplitOptions().find((item) => item.code === split);
+    this.applyHistogramSplit(option && !option.disabled ? split : HISTOGRAM_SPLIT_NONE);
+  }
+
+  private applyHistogramSplit(resolved: string): void {
+    this.histogramSplit.set(resolved);
+    const node = this.selectedNode ?? this.plottedVariable();
+    if (!node?.code || node.children?.length) return;
+    this.queueHistogramRequest([node.code], node.label, null, resolved || null);
+  }
+
+  private groupingEnumLabel(groupingVar: string, groupingEnum: string): string {
+    if (groupingVar.toLowerCase() === DATASET_VARIABLE_CODE) {
+      const fromMap = this.experimentStudioService.getDatasetLabelMap()[groupingEnum];
+      if (fromMap) return fromMap;
+      const fromList = this.availableDatasets.find((dataset) => dataset.code === groupingEnum)?.label;
+      if (fromList) return fromList;
     }
+    const node = this.findNodeByCode(this.d3Data, groupingVar)
+      ?? this.experimentStudioService.selectedVariables().find((variable: { code?: string }) => variable.code === groupingVar);
+    return this.mapEnumValueLabel(groupingEnum, node?.enumerations) ?? groupingEnum;
   }
 
   getPathNodes(node: any): Array<{ code: string; label: string }> {
@@ -806,7 +881,7 @@ export class VariablesPanelComponent implements OnDestroy {
 
     try {
       this.csvExportService.exportHistogramCsv(
-        { bins: data.bins, counts: data.counts },
+        { bins: data.bins, counts: data.counts, groups: 'groups' in data ? data.groups : undefined },
         String(this.selectedNode?.label ?? data.variableName ?? 'histogram')
       );
     } catch (err) {

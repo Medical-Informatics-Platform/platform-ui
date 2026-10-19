@@ -17,6 +17,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     getAllDataModels: Mock;
     categorizeDataModels: Mock;
     getAlgorithmResults: Mock;
+    getDatasetLabelMap: Mock;
     setVariables: Mock;
     setSelectedDatasets: Mock;
     addVariableAndEnrich: Mock;
@@ -36,6 +37,7 @@ describe('VariablesPanelComponent bubble selection', () => {
         longitudinal: [],
       }),
       getAlgorithmResults: vi.fn().mockReturnValue(of({ result: { histogram: [] } })),
+      getDatasetLabelMap: vi.fn().mockReturnValue({ 'dataset-a': 'Dataset A' }),
       setVariables: vi.fn(),
       setSelectedDatasets: vi.fn(),
       addVariableAndEnrich: vi.fn(),
@@ -460,21 +462,125 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.activeDetailsTab()).toBe('histogram');
   });
 
-  it('switches grouped histogram variants without changing metadata state', () => {
+  it('offers Dataset plus selected nominal variables as splits and hides them for nominal plots', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const data = { bins: ['A'], counts: [1], variableName: 'Age' };
-
-    component.histogramVariants.set([
-      { key: 'overall', label: 'Overall', data },
-      { key: 'group:female', label: 'Sex: Female', data: { ...data, variableName: 'Female age' } },
+    experimentStudioService.selectedVariables.set([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] },
     ]);
-    component.setActiveDetailsTab('info');
 
-    component.onHistogramVariantChange({ target: { value: 'group:female' } } as unknown as Event);
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    expect(component.canSplitHistogram()).toBe(true);
+    expect(component.histogramSplitOptions().map((option) => option.code)).toEqual(['dataset', 'sex']);
 
-    expect(component.histogramData()?.variableName).toBe('Female age');
-    expect(component.activeDetailsTab()).toBe('info');
+    component.onSelectedNodeChange({ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] });
+    expect(component.canSplitHistogram()).toBe(false);
+  });
+
+  it('caps Dataset split by the selected dataset count, not the enumeration map', () => {
+    experimentStudioService.getDatasetLabelMap.mockReturnValue(
+      Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`ds${i}`, `D${i}`]))
+    );
+    experimentStudioService.selectedDatasets.set(['ds0', 'ds1']);
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    expect(component.histogramSplitOptions().find((option) => option.code === 'dataset')?.disabled).toBe(false);
+
+    experimentStudioService.selectedDatasets.set(Array.from({ length: 9 }, (_, i) => `ds${i}`));
+    expect(component.histogramSplitOptions().find((option) => option.code === 'dataset')?.disabled).toBe(true);
+  });
+
+  it('re-requests the histogram with grouping when split by dataset', async () => {
+    experimentStudioService.getAlgorithmResults.mockImplementation(() => of({
+      result: {
+        histogram: [
+          { var: 'age_value', grouping_var: null, grouping_enum: null, bins: ['0', '10'], counts: [12, 8] },
+          { var: 'age_value', grouping_var: 'dataset', grouping_enum: 'dataset-a', bins: ['0', '10'], counts: [7, 5] },
+        ],
+      },
+    }));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
+    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    component.onHistogramSplitChange({ target: { value: 'dataset' } } as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(experimentStudioService.getAlgorithmResults).toHaveBeenLastCalledWith(
+      'histogram',
+      ['age_value'],
+      null,
+      undefined,
+      undefined,
+      ['dataset']
+    );
+    expect(
+      component.histogramData(),
+      `data=${JSON.stringify(component.histogramData())} split=${component.histogramSplit()} empty=${component.emptyChartMessage()} err=${component.errorMessage()}`
+    ).toEqual(expect.objectContaining({
+      counts: [12, 8],
+      splitLabel: 'Dataset',
+      groups: [expect.objectContaining({ key: 'dataset-a', label: 'Dataset A', counts: [7, 5] })],
+    }));
+  });
+
+  it('drops a split whose variable leaves the pool and re-requests the unsplit histogram', async () => {
+    experimentStudioService.getAlgorithmResults.mockImplementation(() => of({ result: { histogram: [] } }));
+    experimentStudioService.selectedVariables.set([
+      { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] },
+    ]);
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
+    component.onHistogramSplitChange({ target: { value: 'sex' } } as unknown as Event);
+    expect(component.histogramSplit()).toBe('sex');
+
+    experimentStudioService.selectedVariables.set([]);
+    TestBed.tick();
+
+    expect(component.histogramSplit()).toBe('');
+    expect(experimentStudioService.getAlgorithmResults).toHaveBeenLastCalledWith(
+      'histogram',
+      ['age_value'],
+      null,
+      undefined,
+      undefined,
+      undefined
+    );
+  });
+
+  it('warns when privacy-null edge bins were trimmed on a numeric histogram', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'real' });
+    component.histogramData.set({
+      bins: ['0', '10', '20', '30'],
+      counts: [null, 8, 12, null],
+      variableName: 'Age',
+    });
+
+    expect(component.histogramPrivacyTrimNote()).toContain('Values below 10 / above 30 hidden');
+  });
+
+  it('does not warn about trimmed edges on a nominal histogram', () => {
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.plottedVariable.set({
+      code: 'sex',
+      label: 'Sex',
+      type: 'nominal',
+      enumerations: [{ code: 'F' }, { code: 'M' }],
+    });
+    component.histogramData.set({
+      bins: ['F', 'M'],
+      counts: [null, 8],
+      variableName: 'Sex',
+    });
+
+    expect(component.histogramPrivacyTrimNote()).toBeNull();
   });
 
   it('collapses consecutive duplicate breadcrumb labels', () => {

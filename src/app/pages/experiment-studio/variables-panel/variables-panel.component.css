@@ -559,6 +559,7 @@
   position: relative;
   display: block;
   min-width: 0;
+  overflow: visible;
 }
 
 .histogram-graph app-histogram-graph {
@@ -771,27 +772,72 @@
 
 .histogram-graph-area {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   flex: 1;
   min-height: 0;
 }
 
+.histogram-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 4px 2px;
+  padding: 0 0 0 8px;
+  border: 0;
+  border-left: 2px solid color-mix(in srgb, var(--accent-color) 50%, var(--text-muted));
+  border-radius: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.histogram-privacy-note i {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--accent-color) 45%, var(--text-muted));
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .histogram-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   min-width: 0;
+  min-height: 34px;
 }
 
+/* Relative so the menu still anchors to the button and floats over the chart. */
 .histogram-export-group {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: relative;
   z-index: 3;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  width: fit-content;
+  margin-left: auto;
   flex: 0 0 auto;
+}
+
+/* Same pill as the summary toolbar Export in statistic-analysis-panel. */
+.histogram-export-group .studio-export-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.histogram-export-group .studio-export-btn:hover:not(:disabled),
+.histogram-export-group .studio-export-btn[aria-expanded="true"]:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent), var(--shadow-sm);
 }
 
 .histogram-export-caret {
@@ -811,12 +857,15 @@
 }
 
 .bin-selector {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.76rem;
-  color: #64748b;
+  min-width: 0;
+  min-height: 34px;
+  font-size: 0.78rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
 }
 
 .bin-selector label {
@@ -826,51 +875,75 @@
 .bin-selector input {
   width: 50px;
   padding: 6px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
   font-size: 0.85rem;
   color: var(--text-main);
   outline: none;
   transition: all 0.2s ease;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
   text-align: center;
 }
 
 .bin-selector select {
-  min-width: 180px;
-  padding: 6px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 0.85rem;
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  min-width: 7.5rem;
+  max-width: 180px;
+  min-height: 34px;
+  padding: 0 34px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background-color: var(--card-bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
+    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
   color: var(--text-main);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
   outline: none;
-  transition: all 0.2s ease;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .bin-selector input:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(43, 51, 233, 0.1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-light) 40%, transparent);
+}
+
+.bin-selector select:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent), var(--shadow-sm);
 }
 
 .bin-selector select:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(43, 51, 233, 0.1);
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
+}
+
+.bin-selector select:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .bin-selector input:disabled,
 .bin-selector input.disabled {
-  background: #f1f5f9;
-  color: #94a3b8;
+  background: var(--bg-neutral);
+  color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .bin-selector select:disabled {
-  background: #f1f5f9;
-  color: #94a3b8;
+  background-color: var(--bg-neutral);
+  color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.7;
 }
