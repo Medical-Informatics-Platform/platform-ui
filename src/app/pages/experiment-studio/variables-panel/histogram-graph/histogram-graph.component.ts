@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { HistogramComponent } from '../../visualisations/histogram/histogram.component';
+import { HistogramChartData } from '../../visualisations/histogram/histogram-chart';
 @Component({
   selector: 'app-histogram-graph',
   imports: [HistogramComponent],
@@ -8,6 +9,6 @@ import { HistogramComponent } from '../../visualisations/histogram/histogram.com
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HistogramGraphComponent {
-  readonly data = input<{ bins: string[]; counts: number[]; variableName: string } | null>(null);
+  readonly data = input<HistogramChartData | null>(null);
   readonly horizontal = input(false);
 }

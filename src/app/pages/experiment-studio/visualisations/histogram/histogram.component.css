@@ -3,6 +3,8 @@
   padding: 0;
   width: 100%;
   box-sizing: border-box;
+  /* overflow-x:auto + overflow-y:visible computes to overflow-y:auto and
+     paints a stray vertical scrollbar. Hide Y; size the box to the drawing. */
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -21,16 +23,11 @@
   box-shadow: none;
 }
 
-/* Adjust text styles for better readability */
+/* SVG text is attribute-styled in the chart code. Legend/tooltip nodes are
+   created at runtime without `_ngcontent-*`, so they also use inline styles. */
 #histogram-chart text {
   font-size: 12px;
   font-family: inherit;
   fill: var(--text-main);
-}
-
-/* Add hover effects for bars if desired */
-.bar:hover {
-  fill: var(--primary-color);
-  cursor: pointer;
 }
 

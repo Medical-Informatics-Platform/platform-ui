@@ -10,25 +10,19 @@ import {
   OnDestroy,
 } from '@angular/core';
 import { observeSize } from '../../../../core/observe-resize.util';
-import { createHistogram } from './histogram-chart';
-
-/** The census a chart is drawn from: one count per bin label. */
-interface HistogramChartData {
-  bins: string[];
-  counts: Array<number | null>;
-  variableName: string;
-  variableType?: string;
-}
+import { createHistogram, HistogramChartData } from './histogram-chart';
 
 export interface HistogramChartConfig {
   color?: string;
   orientation?: 'vertical' | 'horizontal';
+  /** When false, keep privacy-null edge bins (Data Handling). Default trims them. */
+  clipNullEdges?: boolean;
 }
 
 /** Matches the sibling D3 charts: redraw once the resizing has settled. */
 const RESIZE_DEBOUNCE_MS = 150;
 
-/** ResizeObserver and getBoundingClientRect round the same width differently. */
+/** ResizeObserver floors a fractional width; clientWidth rounds it. */
 const WIDTH_TOLERANCE_PX = 1;
 
 @Component({
@@ -98,7 +92,9 @@ export class HistogramComponent implements OnDestroy {
     const config = this.config();
     const configKey = this.describeConfig(config);
     const isStale = data !== this.renderedData || configKey !== this.renderedConfigKey;
-    const measuredWidth = Math.floor(container.getBoundingClientRect().width);
+    // Layout width, not getBoundingClientRect: the tab-enter animation scales the
+    // panel, and a scaled measurement disagrees with the observer's and redraws.
+    const measuredWidth = container.clientWidth;
 
     // A Studio step hidden with `display: none` measures 0x0 and reports zeroed
     // getBBox() sizes, so drawing here would collapse the chart to a few pixels.
@@ -126,6 +122,6 @@ export class HistogramComponent implements OnDestroy {
   }
 
   private describeConfig(config: HistogramChartConfig): string {
-    return [config.color, config.orientation].join('|');
+    return [config.color, config.orientation, config.clipNullEdges === false ? 'full' : 'clip'].join('|');
   }
 }

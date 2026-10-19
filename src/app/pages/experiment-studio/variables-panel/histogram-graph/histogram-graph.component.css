@@ -4,11 +4,13 @@
 
 .histogram-graph-expanded {
   position: relative;
+  overflow: visible;
 }
 
 .histogram-graph-full {
   width: 100%;
   min-width: 0;
-  padding: 8px 10px 0;
+  padding: 4px 4px 0;
   box-sizing: border-box;
+  overflow: visible;
 }
