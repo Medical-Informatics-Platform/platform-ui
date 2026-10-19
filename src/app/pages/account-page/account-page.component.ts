@@ -26,7 +26,8 @@ export class AccountPageComponent {
   readonly setupSnippet = [
     'pip install mip-client',
     `export MIP_URL=${window.location.origin}`,
-    'export MIP_API_TOKEN=<paste your token here>',
+    // Quoted so the line stays valid shell; the user replaces the text inside the quotes.
+    'export MIP_API_TOKEN="<paste your token here>"',
   ].join('\n');
   readonly copyStatus = signal('');
 

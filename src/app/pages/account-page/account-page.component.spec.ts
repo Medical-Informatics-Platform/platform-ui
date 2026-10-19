@@ -48,8 +48,19 @@ describe('AccountPageComponent', () => {
     await fixture.whenStable();
 
     expect(writeText).toHaveBeenCalledWith(
-      `pip install mip-client\nexport MIP_URL=${window.location.origin}\nexport MIP_API_TOKEN=<paste your token here>`,
+      `pip install mip-client\nexport MIP_URL=${window.location.origin}\nexport MIP_API_TOKEN="<paste your token here>"`,
     );
     expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Copied');
+  });
+
+  it('tells the user to copy by hand when the clipboard refuses', async () => {
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fixture = render({ notebookEnabled: true, jupyterContextPath: '/notebook' });
+
+    (fixture.nativeElement.querySelector('.copy-btn') as HTMLButtonElement).click();
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Could not copy');
   });
 });

@@ -52,7 +52,8 @@
               Open the <a routerLink="/notebook">Notebook page</a> once so your sign-in is saved.
             </li>
             <li>
-              <a class="token-btn" [href]="hubTokenUrl" target="_blank" rel="noopener">
+              <a class="token-btn" [href]="hubTokenUrl" target="_blank" rel="noopener"
+                 aria-label="Create API token (opens in a new tab)">
                 <i class="fas fa-key"></i>
                 <span>Create API token</span>
               </a>
@@ -65,13 +66,14 @@
               In a terminal on your computer, run:
               <div class="snippet">
                 <pre><code>{{ setupSnippet }}</code></pre>
-                <button class="copy-btn" type="button" (click)="copySetupSnippet()">
+                <button class="copy-btn" type="button" (click)="copySetupSnippet()"
+                        aria-label="Copy setup commands">
                   <i class="fas fa-copy"></i>
                   <span>Copy</span>
                 </button>
               </div>
               <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
-              <p>Then, in Python:</p>
+              <p>Then start Python in the same terminal and run:</p>
               <pre><code>import mip; client = mip.Client.from_env()</code></pre>
             </li>
           </ol>
