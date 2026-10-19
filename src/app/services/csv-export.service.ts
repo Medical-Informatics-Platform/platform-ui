@@ -7,6 +7,11 @@ import {
   formatExportDate,
 } from '../core/export.utils';
 import { TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import {
+  HISTOGRAM_RESIDUAL_LABEL,
+  HistogramGroupSeries,
+  residualCount,
+} from '../pages/experiment-studio/visualisations/histogram/histogram-data';
 
 /** Excel only reads UTF-8 (accented labels, "≥") when the file starts with a BOM. */
 const BOM = '\uFEFF';
@@ -31,14 +36,31 @@ interface ExperimentZipPayload {
 
 @Injectable({ providedIn: 'root' })
 export class CsvExportService {
-  /** Distribution (bins and counts) of one variable or group. */
-  exportHistogramCsv(data: { bins: string[]; counts: number[] }, variableName: string): void {
+  /** Distribution (bins and counts) of one variable, with optional stacked group columns. */
+  exportHistogramCsv(
+    data: { bins: string[]; counts: Array<number | null>; groups?: HistogramGroupSeries[] },
+    variableName: string
+  ): void {
     if (!data.bins || !data.counts || data.bins.length !== data.counts.length) {
       console.warn('Invalid data for CSV export');
       return;
     }
-    const rows = data.bins.map((bin, index) => [bin, data.counts[index]]);
-    this.downloadCsv(toCsv(['Category', 'Count'], rows), `${fileSlug(variableName, 'variable')}_distribution.csv`);
+    const groups = data.groups ?? [];
+    const residuals = data.counts.map((total, index) => residualCount(total, groups, index));
+    const hasResidual = groups.length > 0 && residuals.some((count) => count > 0);
+    const columns = [
+      'Category',
+      'Count',
+      ...groups.map((group) => group.label),
+      ...(hasResidual ? [HISTOGRAM_RESIDUAL_LABEL] : []),
+    ];
+    const rows = data.bins.map((bin, index) => [
+      bin,
+      data.counts[index],
+      ...groups.map((group) => group.counts[index] ?? ''),
+      ...(hasResidual ? [residuals[index]] : []),
+    ]);
+    this.downloadCsv(toCsv(columns, rows), `${fileSlug(variableName, 'variable')}_distribution.csv`);
   }
 
   /** Array of objects, one column per header. */
