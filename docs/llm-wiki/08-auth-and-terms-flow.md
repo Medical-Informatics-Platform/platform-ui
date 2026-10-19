@@ -40,6 +40,7 @@ Platform UI auth and JupyterHub auth are related but separate:
 8. Hub sets its own session cookie (SameSite=Lax, Secure by default). Any valid Keycloak user for the Hub client is currently allowed (`allow_all = True`).
 9. Before spawn, Hub injects the Keycloak access token into the notebook pod as `MIP_TOKEN`, refreshing via stored refresh tokens when needed.
 10. Running notebooks can refresh `MIP_TOKEN` through Hub `/notebook/hub/api/platform-token` via the mip client transport.
+11. Remote use (account page, notebook flag only): the user creates a personal Hub API token at `/notebook/hub/token` (a top-level navigation that nginx proxies to Hub, not back into the shell) sets `MIP_URL` and runs `mip login` (which saves the token to a file) for the mip client on their own computer. The UI only links to Hub's page; it never requests, stores or shows the token.
 
 Key files: `src/app/pages/notebook/hub-session.ts`, `hub-http.ts`, `jupyterhub-api.ts`, `nginx.conf.template`.
 
