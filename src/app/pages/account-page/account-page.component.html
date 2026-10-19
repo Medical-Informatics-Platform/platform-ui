@@ -71,8 +71,9 @@
               </div>
               <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
               <p>
+                <code>mip login</code> asks for your token without showing it.
                 In Windows PowerShell, write <code>$env:MIP_URL = "…"</code> instead of
-                <code>export MIP_URL=…</code>, and the same for <code>MIP_API_TOKEN</code>.
+                <code>export MIP_URL=…</code>.
               </p>
               <p>Then start Python in the same terminal and run:</p>
               <pre><code>import mip; client = mip.Client.from_env()</code></pre>

@@ -49,7 +49,7 @@ describe('AccountPageComponent', () => {
     await fixture.whenStable();
 
     expect(writeText).toHaveBeenCalledWith(
-      `pip install mip-client\nexport MIP_URL=${window.location.origin}\nexport MIP_API_TOKEN="<paste your token here>"`,
+      `pip install mip-client\nexport MIP_URL=${window.location.origin}\nmip login`,
     );
     expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Copied');
   });

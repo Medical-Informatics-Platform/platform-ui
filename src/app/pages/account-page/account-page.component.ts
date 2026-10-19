@@ -26,8 +26,9 @@ export class AccountPageComponent {
   readonly setupSnippet = [
     'pip install mip-client',
     `export MIP_URL=${window.location.origin}`,
-    // Quoted so the line stays valid shell; the user replaces the text inside the quotes.
-    'export MIP_API_TOKEN="<paste your token here>"',
+    // Asks for the token without echoing it and saves it to a file, so it stays out of
+    // the shell history and of the environment every program (AI assistants too) inherits.
+    'mip login',
   ].join('\n');
   readonly copyStatus = signal('');
   private copyStatusTimer?: ReturnType<typeof setTimeout>;
