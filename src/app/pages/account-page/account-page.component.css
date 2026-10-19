@@ -525,17 +525,17 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: #18a2b8;
+  background-color: var(--primary-color);
   color: #ffffff;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
   text-decoration: none;
 }
 
 .token-btn:hover {
-  background-color: #14889a;
+  background-color: var(--primary-dark);
 }
 
 .snippet {

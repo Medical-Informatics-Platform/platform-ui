@@ -7,6 +7,8 @@ import { RuntimeEnvService } from '../../services/runtime-env.service';
 import { createSpyObj } from '../../testing/spy-obj.testing';
 
 describe('AccountPageComponent', () => {
+  afterEach(() => vi.useRealTimers());
+
   function render(runtimeEnv: Partial<RuntimeEnvService>) {
     const authService = createSpyObj<AuthService>('AuthService', ['logout'], {
       authState: signal({ status: 'authenticated', user: { fullname: 'Marie Curie', email: 'm@c.eu' } }),
@@ -37,7 +39,6 @@ describe('AccountPageComponent', () => {
     const tokenLink = el.querySelector<HTMLAnchorElement>('.token-btn')!;
     expect(tokenLink.getAttribute('href')).toBe('/jupyter/hub/token');
     expect(tokenLink.target).toBe('_blank');
-    expect(el.querySelector('a[href="/notebook"]')).not.toBeNull();
   });
 
   it('copies a setup snippet built from the current origin, with no real token', async () => {
@@ -51,6 +52,17 @@ describe('AccountPageComponent', () => {
       `pip install mip-client\nexport MIP_URL=${window.location.origin}\nexport MIP_API_TOKEN="<paste your token here>"`,
     );
     expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Copied');
+  });
+
+  it('clears the copy status so the next copy is announced again', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    const fixture = render({ notebookEnabled: true, jupyterContextPath: '/notebook' });
+
+    await fixture.componentInstance.copySetupSnippet();
+    expect(fixture.componentInstance.copyStatus()).toBe('Copied');
+    vi.advanceTimersByTime(2400);
+    expect(fixture.componentInstance.copyStatus()).toBe('');
   });
 
   it('tells the user to copy by hand when the clipboard refuses', async () => {

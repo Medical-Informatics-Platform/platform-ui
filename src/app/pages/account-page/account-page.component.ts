@@ -30,6 +30,7 @@ export class AccountPageComponent {
     'export MIP_API_TOKEN="<paste your token here>"',
   ].join('\n');
   readonly copyStatus = signal('');
+  private copyStatusTimer?: ReturnType<typeof setTimeout>;
 
   constructor() { }
 
@@ -44,10 +45,17 @@ export class AccountPageComponent {
   async copySetupSnippet(): Promise<void> {
     try {
       await navigator.clipboard.writeText(this.setupSnippet);
-      this.copyStatus.set('Copied');
+      this.showCopyStatus('Copied');
     } catch (err) {
       console.warn('Failed to copy setup snippet:', err);
-      this.copyStatus.set('Could not copy, select the text instead');
+      this.showCopyStatus('Could not copy, select the text instead');
     }
+  }
+
+  // Cleared after a while so the live region changes, and is announced, on every click.
+  private showCopyStatus(message: string): void {
+    clearTimeout(this.copyStatusTimer);
+    this.copyStatus.set(message);
+    this.copyStatusTimer = setTimeout(() => this.copyStatus.set(''), 2400);
   }
 }
