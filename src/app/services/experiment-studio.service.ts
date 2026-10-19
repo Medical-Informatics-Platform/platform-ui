@@ -1092,16 +1092,21 @@ export class ExperimentStudioService {
     // special case for histogram (transient preview)
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const histogramY = yVariables?.length ? yVariables : null;
+      // Grouping is optional x. Do not fall back to algorithm-panel covariates, and
+      // do not add a missing-value drop for x: that would drop rows from the overall
+      // total. Exaflow requires the missing_values_handler step, not a strategy per x.
+      const histogramX = xVariables?.length ? xVariables : null;
       const histogramPreprocessing = this.resolveHistogramPreprocessing(
         requestAlgorithmName,
         histogramY,
         preprocessingOverride
       );
+      const extraCodes = [...(histogramY ?? []), ...(histogramX ?? [])];
       const inputdata = this.buildSharedInputDataPayload(
         algoConfig,
         filtersPayload,
         this.selectedDatasetsSignal(),
-        histogramY,
+        extraCodes,
       );
       return this.buildExperimentRequest(
         expName,
@@ -1111,7 +1116,7 @@ export class ExperimentStudioService {
           algorithm: {
             name: requestAlgorithmName,
             y: histogramY,
-            x: null,
+            x: histogramX,
             parameters: {
               histogram_type: HistogramBinningType.WILKINSON,
               ...(bins ? { bins } : {}),
@@ -1707,13 +1712,14 @@ export class ExperimentStudioService {
     nodeCodes: string[] | null = null,
     bins: number | null = null,
     preprocessingOverride?: PreprocessingConfig | null,
-    filterOverride?: BackendFilter | null
+    filterOverride?: BackendFilter | null,
+    groupingCodes: string[] | null = null
   ): Observable<any> {
     if (algorithmName === AlgorithmNames.HISTOGRAM) {
       const requestBody = this.buildRequestBody(
         algorithmName,
         nodeCodes,
-        null,
+        groupingCodes?.length ? groupingCodes : null,
         null,
         null,
         bins,
