@@ -86,12 +86,69 @@ describe('ChartBuilderService', () => {
         {
           variable: 'age',
           dataset: 'ds1',
-          data: { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51 },
+          data: { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 },
+        },
+        { variable: 'age', dataset: 'empty_ds', data: null },
+      ],
+    });
+
+    expect(charts.length).toBe(1);
+    const chart = charts[0] as any;
+    expect(chart.title?.text).toBe('Distribution for age');
+    expect(chart.xAxis.data).toEqual(['ds1']);
+    expect(chart.series.map((s: any) => s.name)).toEqual(['Q1–Q3 box · min–max whiskers', 'Median', 'Mean ± SD']);
+    expect(chart.series[0].data).toEqual([[0, 40, 45, 50, 55, 60, 51, 4.5, 46.5, 55.5]]);
+    const tooltip = chart.tooltip.formatter({ dataIndex: 0 });
+    expect(tooltip).toContain('Median');
+    expect(tooltip).toContain('4.50');
+  });
+
+  it('renders a pooled All datasets band from featurewise rows', () => {
+    const charts = service.getChartsForAlgorithm('describe', {
+      featurewise: [
+        {
+          variable: 'age',
+          dataset: 'ds1',
+          data: { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 },
+        },
+        {
+          variable: 'age',
+          dataset: 'all datasets',
+          data: { min: 38, q1: 44, q2: 74, q3: 80, max: 90, mean: 62, std: 8 },
         },
       ],
     });
 
     expect(charts.length).toBe(1);
-    expect((charts[0] as any).title?.text).toBe('Distribution for age');
+    const chart = charts[0] as any;
+    expect(chart.series.map((s: any) => s.name)).toContain('All datasets · Q1–Q3');
+    expect(chart.legend.data.map((d: any) => d.name)).toContain('All datasets · Q1–Q3');
+    expect(chart.xAxis.data).toEqual(['ds1']);
+    expect(chart.xAxis.data).not.toContain('All datasets');
+    expect(chart.grid.right).toBe(92);
+    const tooltip = chart.tooltip.formatter({ seriesName: 'All datasets · Q1–Q3', dataIndex: 0 });
+    expect(tooltip).toContain('(est.)');
+  });
+
+  it('omits the pooled band when the All datasets row has no quartiles', () => {
+    const charts = service.getChartsForAlgorithm('describe', {
+      featurewise: [
+        {
+          variable: 'age',
+          dataset: 'ds1',
+          data: { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 },
+        },
+        {
+          variable: 'age',
+          dataset: 'all datasets',
+          data: { min: 38, max: 90, mean: 62, std: 8 },
+        },
+      ],
+    });
+
+    expect(charts.length).toBe(1);
+    const chart = charts[0] as any;
+    expect(chart.series.map((s: any) => s.name)).not.toContain('All datasets · Q1–Q3');
+    expect(chart.grid.right).toBe(40);
   });
 });

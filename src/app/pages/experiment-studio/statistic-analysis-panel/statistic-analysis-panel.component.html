@@ -242,13 +242,6 @@
 
                   @if (summary.activeTab === 'Charts') {
                   @if (selectedSummaryChartOptions(kind, selectedBlock).length > 0) {
-                  @if (selectedSummaryChartType(kind, selectedBlock) === 'numeric') {
-                  <div class="federated-info-note chart-note">
-                    <i class="fa fa-info-circle"></i>
-                    <span><strong>Note:</strong> "All datasets" is excluded for numerical values because computing pooled metrics (Q1, median, Q3) is not possible in federated analytics.</span>
-                  </div>
-                  }
-
                   <div class="chart-container chart-container--workspace fade">
                     <app-chart-renderer [charts]="selectedSummaryChartOptions(kind, selectedBlock)"></app-chart-renderer>
                   </div>
