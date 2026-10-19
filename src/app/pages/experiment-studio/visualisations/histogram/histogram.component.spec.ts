@@ -141,6 +141,22 @@ describe('HistogramComponent', () => {
     expect(widthAfter).toBeLessThan(widthBefore);
   });
 
+  it('draws once at layout width while a parent is scaled by an enter animation', async () => {
+    wrapper.style.transform = 'scale(0.9)';
+    host.data.set(OVERALL);
+    host.config.set({ ...VERTICAL });
+    await settle(RENDER_MS);
+
+    const first = svg();
+    expect(Number(first!.getAttribute('width'))).toBe(480);
+    first!.setAttribute('data-probe', 'first');
+
+    wrapper.style.transform = '';
+    await settle(RESIZE_MS);
+
+    expect(svg()!.getAttribute('data-probe'), 'no second draw').toBe('first');
+  });
+
   it('draws data that arrived while the step was hidden once it is back', async () => {
     host.data.set(OVERALL);
     host.config.set({ ...VERTICAL });

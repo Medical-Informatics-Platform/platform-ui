@@ -212,20 +212,23 @@
 
           @if (activeDetailsTab() === 'histogram') {
           <div class="histogram-tab-content details-tab-panel" id="histogram-tab-panel" role="tabpanel" aria-labelledby="details-tab-chart">
-            @if (!groupHistogramData() && histogramVariants().length > 1) {
+            @if (canSplitHistogram() || histogramData() || groupHistogramData()) {
             <div class="histogram-toolbar">
+              @if (!groupHistogramData() && canSplitHistogram()) {
               <div class="bin-selector">
-                <label for="histogram-variant-select">View:</label>
-                <select id="histogram-variant-select" [value]="selectedHistogramVariantKey() || ''"
-                  (change)="onHistogramVariantChange($event)">
-                  @for (variant of histogramVariants(); track variant.key) {
-                  <option [value]="variant.key">{{ variant.label }}</option>
+                <label for="histogram-split-select">Split by</label>
+                <select
+                  id="histogram-split-select"
+                  [value]="histogramSplit()"
+                  (change)="onHistogramSplitChange($event)"
+                  aria-label="Split histogram by category">
+                  <option value="">None</option>
+                  @for (option of histogramSplitOptions(); track option.code) {
+                  <option [value]="option.code" [disabled]="option.disabled" [title]="option.title">{{ option.label }}</option>
                   }
                 </select>
               </div>
-            </div>
-            }
-            <div class="histogram-graph-area">
+              }
               @if (histogramData() || groupHistogramData()) {
               <div class="histogram-export-group" aria-label="Export histogram">
                 <button type="button" class="studio-export-btn"
@@ -254,6 +257,9 @@
                 }
               </div>
               }
+            </div>
+            }
+            <div class="histogram-graph-area">
               <div class="histogram-graph" #histogramExport>
                 @if (isLoadingHistogram()) {
                 <div class="histogram-loader">
@@ -288,6 +294,12 @@
                 <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
                 }
               </div>
+              @if (histogramPrivacyTrimNote()) {
+              <div class="histogram-privacy-note" role="note">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                <span>{{ histogramPrivacyTrimNote() }}</span>
+              </div>
+              }
             </div>
           </div>
           } @else {

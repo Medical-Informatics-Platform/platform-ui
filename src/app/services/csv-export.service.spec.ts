@@ -7,6 +7,28 @@ describe('CsvExportService', () => {
       .toBe('Variable,Value\r\n"age, years","say ""hi"""\r\nsex,');
   });
 
+  it('adds per-group and residual columns when the histogram is split', () => {
+    const service = new CsvExportService();
+    let saved: { content: string; name: string } | null = null;
+    vi.spyOn(service, 'downloadCsv').mockImplementation((content, name) => {
+      saved = { content, name };
+    });
+
+    service.exportHistogramCsv(
+      {
+        bins: ['0', '10'],
+        counts: [10, 20],
+        groups: [{ key: 'a', label: 'Dataset A', counts: [4, 8] }],
+      },
+      'Age'
+    );
+
+    expect(saved!.name).toBe('Age_distribution.csv');
+    expect(saved!.content).toBe(
+      'Category,Count,Dataset A,Not shown (missing or < privacy threshold)\r\n0,10,4,6\r\n10,20,8,12'
+    );
+  });
+
   it('zips one CSV per table, the raw result and a README describing the setup', async () => {
     const service = new CsvExportService();
     let saved: { blob: Blob; name: string } | null = null;

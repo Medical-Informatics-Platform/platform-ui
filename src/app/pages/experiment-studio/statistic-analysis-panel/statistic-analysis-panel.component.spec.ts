@@ -1939,7 +1939,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             // drop for the plotted variable and no preprocessing of its own.
             { missing_values_handler: { strategies: { dose: 'drop' } } },
             // No pending cohort preview is pinned, so the stored filter applies.
-            undefined
+            undefined,
+            null
         );
     });
 
@@ -1991,7 +1992,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             ['aspiration'],
             null,
             { missing_values_handler: { strategies: { aspiration: 'drop' } } },
-            undefined
+            undefined,
+            null
         );
     });
 
@@ -2047,10 +2049,174 @@ describe('StatisticAnalysisPanelComponent', () => {
             ['age'],
             null,
             { missing_values_handler: { strategies: { age: 'mean' } } },
-            undefined
+            undefined,
+            null
         );
         const preprocessingArg = mockExpService.getAlgorithmResults.mock.lastCall![3] as Record<string, unknown>;
         expect(Object.keys(preprocessingArg ?? {})).not.toContain('categorical_column_creator');
+    });
+
+    it('offers Dataset plus selected nominal variables as histogram splits, excluding the plotted variable', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const sex = {
+            code: 'sex',
+            label: 'Sex',
+            type: 'nominal',
+            enumerations: [{ code: 'F', label: 'Female' }, { code: 'M', label: 'Male' }],
+        };
+        const tooMany = {
+            code: 'site',
+            label: 'Site',
+            type: 'nominal',
+            enumerations: Array.from({ length: 9 }, (_, i) => ({ code: `s${i}`, label: `Site ${i}` })),
+        };
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([age, sex, tooMany]);
+        fixture.detectChanges();
+        component.setSummaryTab('raw', 'Histogram');
+        const block = component.selectedStatisticBlock('raw')!;
+
+        expect(component.canSplitSummaryHistogram('raw', block)).toBe(true);
+        expect(component.histogramSplitOptions(block).map((option) => option.code)).toEqual(['dataset', 'sex', 'site']);
+        expect(component.histogramSplitOptions(block).find((option) => option.code === 'site')?.disabled).toBe(true);
+        expect(component.histogramSplitValue('raw', block)).toBe('');
+    });
+
+    it('caps Dataset split by selected datasets, not the enumeration map', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        mockExpService.getDatasetLabelMap.mockReturnValue(
+            Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`ds${i}`, `D${i}`]))
+        );
+        (mockExpService.selectedDatasets as any).set(['ds0', 'ds1']);
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        component.setSummaryTab('raw', 'Histogram');
+        const block = component.selectedStatisticBlock('raw')!;
+        expect(component.histogramSplitOptions(block).find((option) => option.code === 'dataset')?.disabled).toBe(false);
+    });
+
+    it('hides histogram split controls for nominal variables', () => {
+        const aspiration = {
+            code: 'aspiration',
+            label: 'Aspiration',
+            type: 'nominal',
+            enumerations: [{ code: '0', label: 'No' }, { code: '1', label: 'Yes' }],
+        };
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+            result: {
+                featurewise: [
+                    {
+                        dataset: 'all datasets',
+                        variable: 'aspiration',
+                        data: { num_dtps: 10, num_na: 0, num_total: 10, counts: { '0': 6, '1': 4 } },
+                    },
+                ],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([aspiration]);
+        fixture.detectChanges();
+        component.setSummaryTab('raw', 'Histogram');
+        const block = component.selectedStatisticBlock('raw')!;
+
+        expect(component.canSplitSummaryHistogram('raw', block)).toBe(false);
+        expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
+    });
+
+    it('re-requests a stacked histogram when split changes and reuses the cache when switching back', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        }));
+        mockExpService.getAlgorithmResults.mockImplementation((_name: string, _y?: string[] | null, _bins?: number | null, _prep?: unknown, _filter?: unknown, grouping?: string[] | null) => {
+            if (grouping?.[0] === 'dataset') {
+                return of({
+                    result: {
+                        histogram: [
+                            { var: 'age', grouping_var: null, grouping_enum: null, bins: [0, 5, 10], counts: [10, 40] },
+                            { var: 'age', grouping_var: 'dataset', grouping_enum: 'dataset-a', bins: [0, 5, 10], counts: [6, 20] },
+                        ],
+                    },
+                });
+            }
+            return of({
+                result: { histogram: [{ var: 'age', grouping_var: null, grouping_enum: null, bins: [0, 5, 10], counts: [10, 40] }] },
+            });
+        });
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        mockExpService.getAlgorithmResults.mockClear();
+        component.setSummaryTab('raw', 'Histogram');
+        fixture.detectChanges();
+        const block = component.selectedStatisticBlock('raw')!;
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledTimes(1);
+        expect(component.selectedSummaryHistogramData('raw', block)?.groups).toBeUndefined();
+
+        component.onHistogramSplitChange('raw', block, { target: { value: 'dataset' } } as unknown as Event);
+        fixture.detectChanges();
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledTimes(2);
+        expect(mockExpService.getAlgorithmResults).toHaveBeenLastCalledWith(
+            'histogram',
+            ['age'],
+            null,
+            { missing_values_handler: { strategies: { age: 'drop' } } },
+            undefined,
+            ['dataset']
+        );
+        expect(component.selectedSummaryHistogramData('raw', block)?.groups).toEqual([
+            expect.objectContaining({ key: 'dataset-a', label: 'Dataset A', counts: [6, 20] }),
+        ]);
+
+        component.onHistogramSplitChange('raw', block, { target: { value: '' } } as unknown as Event);
+        fixture.detectChanges();
+        expect(mockExpService.getAlgorithmResults).toHaveBeenCalledTimes(2);
+        expect(component.selectedSummaryHistogramData('raw', block)?.groups).toBeUndefined();
+        expect(component.selectedSummaryHistogramData('raw', block)?.counts).toEqual([10, 40]);
+    });
+
+    it('keeps privacy-null edge bins on Data Handling histograms', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+            result: {
+                featurewise: [
+                    { dataset: 'all datasets', variable: 'age', data: { num_dtps: 10, num_na: 0, num_total: 10, mean: 71 } },
+                ],
+            },
+        }));
+        mockExpService.getAlgorithmResults.mockReturnValue(of({
+            result: {
+                histogram: [{
+                    var: 'age',
+                    grouping_var: null,
+                    bins: [0, 10, 20, 30],
+                    counts: [null, 8, 12, null],
+                }],
+            },
+        }));
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        mockExpService.getAlgorithmResults.mockClear();
+        component.setSummaryTab('raw', 'Histogram');
+        fixture.detectChanges();
+        const block = component.selectedStatisticBlock('raw')!;
+        expect(component.selectedSummaryHistogramData('raw', block)?.counts).toEqual([null, 8, 12, null]);
+        expect(component.summaryHistogramError('raw', block)).toBe('');
     });
 
     it('loads the processed summary when saved preprocessing is hydrated', () => {
@@ -2937,6 +3103,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 // Step 0 stays free of preprocessing: only the drop the histogram needs.
                 { missing_values_handler: { strategies: { dose: 'drop' } } },
                 // A null override is the snapshot: the selection, not the filtered cohort.
+                null,
                 null
             );
         });

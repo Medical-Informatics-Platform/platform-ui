@@ -239,6 +239,55 @@ describe('ExperimentStudioService', () => {
     expect(body.analysis.inputdata.variables).toEqual(['inr']);
   });
 
+  it('sends histogram grouping as algorithm.x without a drop strategy for the grouping variable', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+
+    const byDataset = service.buildRequestBody('histogram', ['age'], ['dataset']);
+    expect(byDataset.analysis.algorithm.y).toEqual(['age']);
+    expect(byDataset.analysis.algorithm.x).toEqual(['dataset']);
+    expect(byDataset.analysis.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(byDataset.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { age: 'drop' },
+      },
+    }));
+
+    const bySex = service.buildRequestBody('histogram', ['age'], ['sex']);
+    expect(bySex.analysis.algorithm.x).toEqual(['sex']);
+    expect(bySex.analysis.inputdata.variables).toEqual(['age', 'sex']);
+    expect(bySex.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { age: 'drop' },
+      },
+    }));
+  });
+
+  it('forwards histogram grouping from getAlgorithmResults onto algorithm.x', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+
+    service.getAlgorithmResults(
+      'histogram',
+      ['age'],
+      null,
+      undefined,
+      undefined,
+      ['dataset']
+    ).subscribe();
+
+    const req = httpMock.expectOne('/services/experiments/preview');
+    expect(req.request.body.analysis.algorithm.x).toEqual(['dataset']);
+    expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
+    expect(req.request.body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: {
+        strategies: { age: 'drop' },
+      },
+    }));
+    req.flush({ result: { histogram: [] } });
+  });
+
   it('keeps dataset on histogram preview variables and the missing-values drop', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);

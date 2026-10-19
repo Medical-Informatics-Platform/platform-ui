@@ -25,9 +25,15 @@ import { ChartBuilderService } from '../visualisations/charts/chart-builder.serv
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { HistogramComponent } from '../visualisations/histogram/histogram.component';
 import {
-  clipHistogramNullEdges,
-  shouldClipNullEdges,
-} from '../visualisations/histogram/histogram-chart';
+  DATASET_VARIABLE_CODE,
+  HISTOGRAM_SPLIT_NONE,
+  HistogramGroupSeries,
+  HistogramSplitOption,
+  buildHistogramSplitOptions,
+  buildStackedHistogramSeries,
+  extractHistogramItems,
+  histogramCacheKey,
+} from '../visualisations/histogram/histogram-data';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
@@ -169,6 +175,7 @@ interface SummaryView {
   histogramErrorByVariable: Record<string, string>;
   histogramSubscriptionsByVariable: Record<string, Subscription>;
   histogramRequestIdByVariable: Record<string, number>;
+  histogramSplitByVariable: Record<string, string>;
   activeBoxPlotIndex: number;
   activeNominalIndex: number;
   selectedStatisticKey: string | null;
@@ -199,6 +206,8 @@ interface HistogramPreviewData {
   counts: Array<number | null>;
   variableName: string;
   variableType?: string;
+  groups?: HistogramGroupSeries[];
+  splitLabel?: string;
 }
 
 interface PreprocessingRule {
@@ -1500,13 +1509,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   selectedSummaryHistogramData(kind: SummaryKind, block: PivotBlock): HistogramPreviewData | null {
     const code = this.variableCodeForBlock(block);
     if (!code) return null;
-    return this.getSummary(kind).histogramDataByVariable[code] ?? null;
+    return this.getSummary(kind).histogramDataByVariable[this.histogramLookupKey(kind, block, code)] ?? null;
   }
 
   summaryHistogramLoading(kind: SummaryKind, block: PivotBlock): boolean {
     const code = this.variableCodeForBlock(block);
     if (!code) return false;
-    return !!this.getSummary(kind).histogramLoadingByVariable[code];
+    return !!this.getSummary(kind).histogramLoadingByVariable[this.histogramLookupKey(kind, block, code)];
   }
 
   /** What a histogram run covers, spelled out for the loading state. The pooled
@@ -1529,7 +1538,49 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   summaryHistogramError(kind: SummaryKind, block: PivotBlock): string {
     const code = this.variableCodeForBlock(block);
     if (!code) return '';
-    return this.getSummary(kind).histogramErrorByVariable[code] ?? '';
+    return this.getSummary(kind).histogramErrorByVariable[this.histogramLookupKey(kind, block, code)] ?? '';
+  }
+
+  canSplitSummaryHistogram(kind: SummaryKind, block: PivotBlock): boolean {
+    return this.selectedSummaryChartType(kind, block) === 'numeric';
+  }
+
+  histogramSplitOptions(block: PivotBlock): HistogramSplitOption[] {
+    return buildHistogramSplitOptions({
+      plottedCode: this.variableCodeForBlock(block),
+      selectedVariables: this.expStudioService.selectedVariables(),
+      datasetLevelCount: this.expStudioService.selectedDatasets().length,
+    });
+  }
+
+  onHistogramSplitChange(kind: SummaryKind, block: PivotBlock, event: Event): void {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return;
+    const selected = (event.target as HTMLSelectElement).value;
+    const option = this.histogramSplitOptions(block).find((item) => item.code === selected);
+    const split = option && !option.disabled ? selected : HISTOGRAM_SPLIT_NONE;
+    const summary = this.getSummary(kind);
+    summary.histogramSplitByVariable = {
+      ...summary.histogramSplitByVariable,
+      [code]: split,
+    };
+    this.ensureHistogramForBlock(kind, block);
+    this.cdr.markForCheck();
+  }
+
+  /** The block's split, or none once it is no longer offered or enabled. */
+  histogramSplitValue(kind: SummaryKind, block: PivotBlock): string {
+    if (!this.canSplitSummaryHistogram(kind, block)) return HISTOGRAM_SPLIT_NONE;
+    const code = this.variableCodeForBlock(block);
+    if (!code) return HISTOGRAM_SPLIT_NONE;
+    const split = this.getSummary(kind).histogramSplitByVariable[code] ?? HISTOGRAM_SPLIT_NONE;
+    if (!split) return HISTOGRAM_SPLIT_NONE;
+    const option = this.histogramSplitOptions(block).find((item) => item.code === split);
+    return option && !option.disabled ? split : HISTOGRAM_SPLIT_NONE;
+  }
+
+  private histogramLookupKey(kind: SummaryKind, block: PivotBlock, code: string): string {
+    return histogramCacheKey(code, this.histogramSplitValue(kind, block));
   }
 
   goToSection(section: SectionKey): void {
@@ -2778,6 +2829,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       ...this.createEmptySummary(true),
       activeTab: previous.activeTab,
       selectedStatisticKey: previous.selectedStatisticKey,
+      histogramSplitByVariable: previous.histogramSplitByVariable,
     };
     this.cdr.markForCheck();
     this.processedPreviewSubscription = this.expStudioService
@@ -3104,6 +3156,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       histogramErrorByVariable: {},
       histogramSubscriptionsByVariable: {},
       histogramRequestIdByVariable: {},
+      histogramSplitByVariable: {},
       activeBoxPlotIndex: 0,
       activeNominalIndex: 0,
       selectedStatisticKey: null,
@@ -3201,48 +3254,53 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const code = this.variableCodeForBlock(block);
     if (!code) return;
 
+    const split = this.histogramSplitValue(kind, block);
+    const cacheKey = histogramCacheKey(code, split);
     const summary = this.getSummary(kind);
-    if (summary.histogramSubscriptionsByVariable[code]) return;
-    if (summary.histogramLoadingByVariable[code]) return;
-    if (summary.histogramDataByVariable[code]) return;
+    if (summary.histogramSubscriptionsByVariable[cacheKey]) return;
+    if (summary.histogramLoadingByVariable[cacheKey]) return;
+    if (summary.histogramDataByVariable[cacheKey]) return;
 
-    const fromDescribe = this.buildHistogramFromDescribeCounts(kind, code, block);
-    if (fromDescribe) {
-      summary.histogramDataByVariable = {
-        ...summary.histogramDataByVariable,
-        [code]: fromDescribe,
-      };
-      summary.histogramErrorByVariable = {
-        ...summary.histogramErrorByVariable,
-        [code]: '',
-      };
-      this.cdr.markForCheck();
-      return;
+    if (!split) {
+      const fromDescribe = this.buildHistogramFromDescribeCounts(kind, code, block);
+      if (fromDescribe) {
+        summary.histogramDataByVariable = {
+          ...summary.histogramDataByVariable,
+          [cacheKey]: fromDescribe,
+        };
+        summary.histogramErrorByVariable = {
+          ...summary.histogramErrorByVariable,
+          [cacheKey]: '',
+        };
+        this.cdr.markForCheck();
+        return;
+      }
     }
 
     summary.histogramLoadingByVariable = {
       ...summary.histogramLoadingByVariable,
-      [code]: true,
+      [cacheKey]: true,
     };
     summary.histogramErrorByVariable = {
       ...summary.histogramErrorByVariable,
-      [code]: '',
+      [cacheKey]: '',
     };
     this.cdr.markForCheck();
 
     // `histogram_sql` cannot run without a missing-value strategy, so even the
     // unprocessed surfaces send the default drop for the plotted variable and nothing
     // else. The processed surface sends its pending rules — never the derived columns,
-    // which are this variable's output, not its input.
+    // which are this variable's output, not its input. Grouping variables are not given
+    // a drop strategy: that would remove rows from the overall total.
     const preprocessingOverride = this.histogramPreprocessingFor(kind, code);
 
     // Step 0 previews the unfiltered cohort, so its histogram must drop the
     // filter too - otherwise the tab would show the filtered cohort under a
     // "no filters applied" heading.
-    const requestSeq = (summary.histogramRequestIdByVariable[code] ?? 0) + 1;
+    const requestSeq = (summary.histogramRequestIdByVariable[cacheKey] ?? 0) + 1;
     summary.histogramRequestIdByVariable = {
       ...summary.histogramRequestIdByVariable,
-      [code]: requestSeq,
+      [cacheKey]: requestSeq,
     };
     // Step 0 describes the unfiltered source; a Cohort Filtering preview pins the raw
     // histograms to the same unsaved cohort its table came from; the processed surface
@@ -3255,52 +3313,53 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         null,
         preprocessingOverride,
         filterOverride,
+        split ? [split] : null,
       )
       .pipe(takeUntil(this.destroyed))
       .subscribe({
         next: (response) => {
           const nextSummary = this.getSummary(kind);
-          if (nextSummary.histogramRequestIdByVariable[code] !== requestSeq) return;
-          const parsed = this.parseHistogramResponse(response, code, block, kind);
+          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
+          const parsed = this.parseHistogramResponse(response, code, block, kind, split);
           if (parsed.data) {
             nextSummary.histogramDataByVariable = {
               ...nextSummary.histogramDataByVariable,
-              [code]: parsed.data,
+              [cacheKey]: parsed.data,
             };
             nextSummary.histogramErrorByVariable = {
               ...nextSummary.histogramErrorByVariable,
-              [code]: '',
+              [cacheKey]: '',
             };
           } else {
             nextSummary.histogramErrorByVariable = {
               ...nextSummary.histogramErrorByVariable,
-              [code]: parsed.error,
+              [cacheKey]: parsed.error,
             };
           }
           nextSummary.histogramLoadingByVariable = {
             ...nextSummary.histogramLoadingByVariable,
-            [code]: false,
+            [cacheKey]: false,
           };
           nextSummary.histogramSubscriptionsByVariable = {
             ...nextSummary.histogramSubscriptionsByVariable,
-            [code]: Subscription.EMPTY,
+            [cacheKey]: Subscription.EMPTY,
           };
           this.cdr.markForCheck();
         },
         error: () => {
           const nextSummary = this.getSummary(kind);
-          if (nextSummary.histogramRequestIdByVariable[code] !== requestSeq) return;
+          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
           nextSummary.histogramLoadingByVariable = {
             ...nextSummary.histogramLoadingByVariable,
-            [code]: false,
+            [cacheKey]: false,
           };
           nextSummary.histogramErrorByVariable = {
             ...nextSummary.histogramErrorByVariable,
-            [code]: 'Failed to load histogram preview.',
+            [cacheKey]: 'Failed to load histogram preview.',
           };
           nextSummary.histogramSubscriptionsByVariable = {
             ...nextSummary.histogramSubscriptionsByVariable,
-            [code]: Subscription.EMPTY,
+            [cacheKey]: Subscription.EMPTY,
           };
           this.cdr.markForCheck();
         },
@@ -3420,33 +3479,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     response: unknown,
     code: string,
     block: PivotBlock,
-    kind: SummaryKind
+    kind: SummaryKind,
+    groupingCode: string | null = null
   ): { data: HistogramPreviewData | null; error: string } {
     if (!response) {
       return { data: null, error: 'Failed to load histogram preview.' };
     }
 
     const payload = (response as { result?: unknown })?.result ?? response;
-    const histList = Array.isArray((payload as { histogram?: unknown })?.histogram)
-      ? (payload as { histogram: unknown[] }).histogram
-      : Array.isArray((response as { histogram?: unknown })?.histogram)
-        ? (response as { histogram: unknown[] }).histogram
-        : [];
-
-    const item = (histList as Array<{ var?: string; variable?: string; grouping_var?: string | null; bins?: unknown; counts?: unknown }>).find((entry) => {
-      const entryCode = String(entry?.var ?? entry?.variable ?? '');
-      const matchesCode = entryCode === code || entryCode.toLowerCase() === code.toLowerCase();
-      return matchesCode && !entry?.grouping_var;
-    })
-      ?? (histList as Array<{ var?: string; variable?: string; bins?: unknown; counts?: unknown }>).find((entry) => {
-        const entryCode = String(entry?.var ?? entry?.variable ?? '');
-        return entryCode === code || entryCode.toLowerCase() === code.toLowerCase();
-      })
-      ?? histList[0];
-
-    const bins = (item as { bins?: unknown })?.bins;
-    const counts = (item as { counts?: unknown })?.counts;
-    if (!item || !Array.isArray(bins) || !Array.isArray(counts) || !bins.length) {
+    const histList = extractHistogramItems(response);
+    const stacked = buildStackedHistogramSeries(
+      histList,
+      code,
+      groupingCode,
+      (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+      this.expStudioService.selectedDatasets()
+    );
+    if (!stacked) {
       const backendError = this.extractTransientHistogramError(response, payload);
       if (backendError) {
         return { data: null, error: backendError };
@@ -3457,11 +3506,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       return { data: null, error: fallback };
     }
 
-    const numericCounts = counts.map((count: unknown) => {
-      if (count === null || count === undefined) return null;
-      const value = typeof count === 'number' ? count : Number(count);
-      return Number.isFinite(value) ? value : null;
-    });
+    const { bins, counts: numericCounts } = stacked;
     if (!numericCounts.some((count) => count !== null && count > 0)) {
       return {
         data: null,
@@ -3472,25 +3517,32 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const variable = this.statisticBlockVariable(block);
     const binsWithLabels = this.mapBinsToEnumLabels(bins, variable?.enumerations);
     const binLabels = binsWithLabels.map((bin) => String(bin));
-    const clipped = shouldClipNullEdges(binLabels)
-      ? clipHistogramNullEdges(binLabels, numericCounts)
-      : { bins: binLabels, counts: numericCounts };
-    if (!clipped.bins.length || !clipped.counts.length) {
-      return {
-        data: null,
-        error: 'Histogram counts are unavailable (privacy threshold or insufficient data after preprocessing).',
-      };
-    }
+    const splitLabel = groupingCode
+      ? (this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode)
+      : undefined;
 
     return {
       data: {
-        bins: clipped.bins,
-        counts: clipped.counts,
+        bins: binLabels,
+        counts: numericCounts,
+        groups: stacked.groups,
         variableName: block.name,
         variableType: this.statisticBlockType(kind, block),
+        splitLabel,
       },
       error: '',
     };
+  }
+
+  private groupingEnumLabel(groupingVar: string, groupingEnum: string): string {
+    if (groupingVar.toLowerCase() === DATASET_VARIABLE_CODE) {
+      return this.expStudioService.getDatasetLabelMap()[groupingEnum] ?? groupingEnum;
+    }
+    const selected = (this.expStudioService.selectedVariables() as VariableRow[])
+      .find((variable) => variable.code === groupingVar);
+    const mapped = this.getEnumLabelMap(selected ?? this.findModelVariable(groupingVar) ?? undefined)
+      .get(groupingEnum);
+    return mapped ?? groupingEnum;
   }
 
   private buildDistributionState(featurewise: any[], response: unknown): Pick<SummaryView,

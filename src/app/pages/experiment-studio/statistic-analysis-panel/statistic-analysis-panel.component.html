@@ -161,6 +161,20 @@
                         Histogram
                       </button>
                     </div>
+                    @if (summary.activeTab === 'Histogram' && canSplitSummaryHistogram(kind, selectedBlock)) {
+                    <label class="histogram-split">
+                      <span>Split by</span>
+                      <select
+                        [value]="histogramSplitValue(kind, selectedBlock)"
+                        (change)="onHistogramSplitChange(kind, selectedBlock, $event)"
+                        aria-label="Split histogram by category">
+                        <option value="">None</option>
+                        @for (option of histogramSplitOptions(selectedBlock); track option.code) {
+                        <option [value]="option.code" [disabled]="option.disabled" [title]="option.title">{{ option.label }}</option>
+                        }
+                      </select>
+                    </label>
+                    }
                     <div class="summary-export-group">
                       <button
                         type="button"
@@ -273,7 +287,7 @@
                   <div class="row-error">{{ summaryHistogramError(kind, selectedBlock) }}</div>
                   } @else if (selectedSummaryHistogramData(kind, selectedBlock)) {
                   <div class="chart-container chart-container--workspace fade">
-                    <app-histogram [data]="selectedSummaryHistogramData(kind, selectedBlock)" [config]="{ color: '#2b33e9' }"></app-histogram>
+                    <app-histogram [data]="selectedSummaryHistogramData(kind, selectedBlock)" [config]="{ color: '#2b33e9', clipNullEdges: false }"></app-histogram>
                   </div>
                   } @else {
                   <div class="empty-state-block compact-empty chart-empty-panel">
