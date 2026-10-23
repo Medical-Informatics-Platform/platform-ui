@@ -31,6 +31,12 @@
   --variable-color: #ffba08;
   /* Color-blind default golden yellow */
 
+  /* Variables missing from a selected dataset (see variable-availability.utils). */
+  --unavailable-text: #94a3b8;
+  --unavailable-border: #cbd5e1;
+  --unavailable-fill: #f1f5f9;
+  --unavailable-opacity: 0.55;
+
   --chart-label-color: #334155;
   /* Darker for better visibility */
 
