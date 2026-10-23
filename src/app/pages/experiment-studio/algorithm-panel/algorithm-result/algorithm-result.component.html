@@ -11,7 +11,7 @@
   <app-regression-result [view]="view" />
   } @else {
   @if (summaryFigures(); as figures) {
-  <div>
+  <div class="results-figures">
     <app-key-figures [figures]="figures" />
     @if (figureNote(); as note) {
     <p class="results-note">{{ note }}</p>
@@ -40,7 +40,7 @@
   }
 
   @if (coveredTables().length) {
-  <button type="button" class="tables-toggle" [attr.aria-pressed]="showAllTables()" (click)="showAllTables.set(!showAllTables())">
+  <button type="button" class="tables-toggle" (click)="showAllTables.set(!showAllTables())">
     {{ showAllTables() ? 'Hide tables repeated above' : 'Show all values as tables' }}
   </button>
   }

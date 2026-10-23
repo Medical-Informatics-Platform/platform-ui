@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { AutoRendererComponent } from './auto-renderer.component';
 import { AlgorithmTableRegistry } from './algorithm-table-registry';
+import { CsvExportService } from '../../../../services/csv-export.service';
 
 describe('AutoRendererComponent', () => {
   let fixture: ComponentFixture<AutoRendererComponent>;
@@ -124,7 +125,18 @@ describe('AutoRendererComponent', () => {
     expect(tables?.[1].title).toBe('Error metrics');
   });
 
-  it('leaves out tables the page already shows above, before titling the rest', () => {
+  it('titles the builder\'s first table before leaving any table out', () => {
+    setInputs({
+      algorithm: 'linear_regression_cv',
+      covered: [{ title: 'Training set sample sizes' }],
+      value: { title: 'CV Report', n_obs: [100, 101], root_mean_sq_error: [1.1, 0.1] },
+    });
+
+    // The covered first table took the result title with it; the next keeps its own name.
+    expect(cmp.tableSpec()?.map((table) => table.title)).toEqual(['Error metrics']);
+  });
+
+  it('leaves out tables the page already shows above', () => {
     setInputs({
       algorithm: 'linear_regression_cv',
       covered: [{ title: 'Error metrics' }],
@@ -247,5 +259,26 @@ describe('AutoRendererComponent', () => {
     expect(cmp.formatValue(1065586.73, false)).toBe('1065587');
     expect(cmp.formatValue(-3.8885, false)).toBe('-3.889');
     expect(cmp.formatValue('< 0.001')).toBe('< 0.001');
+  });
+
+  it('prints row labels and name columns as sent, never digit-grouped', () => {
+    expect(cmp.formatCell('10001', 'Category', 0)).toBe('10001');
+    expect(cmp.formatCell('2020', 'Group 2', 1)).toBe('2020');
+    expect(cmp.formatCell('111854', 'Count', 1)).toBe('111\u202f854');
+    expect(cmp.formatCell({ text: '< 0.001', value: 1e-16 }, 'p-value', 1)).toBe('< 0.001');
+  });
+
+  it('exports a table\'s exact values where the screen rounds them', () => {
+    const download = vi.spyOn(TestBed.inject(CsvExportService), 'downloadCsv').mockImplementation(() => {});
+    setInputs({
+      algorithm: 'binned_mann_whitney_u_test',
+      value: { u_stat: 163.5, p_value: 8.436804884099734e-6, z_score: 4.45, n1: 15, n2: 80 },
+    });
+
+    cmp.exportToCSV(cmp.tableSpec()![0]);
+
+    const csv = download.mock.calls[0][0];
+    expect(csv).toContain(`p-value,${8.436804884099734e-6}`);
+    expect(csv).toContain(`P(A > B),${163.5 / 1200}`);
   });
 });

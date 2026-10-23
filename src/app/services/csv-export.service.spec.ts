@@ -65,4 +65,25 @@ describe('CsvExportService', () => {
     expect(readme).not.toContain('Filters');
     expect(readme).not.toContain('Preprocessing');
   });
+
+  it('zips exact values where the screen rounds or merges them', async () => {
+    const service = new CsvExportService();
+    let saved: { blob: Blob; name: string } | null = null;
+    vi.spyOn(service as any, 'download').mockImplementation((blob: any, name: any) => (saved = { blob, name }));
+
+    await service.exportExperimentZip({
+      filename: 'run',
+      details: { experimentName: 'run', algorithm: 'T-test', datasets: [], filters: [], preprocessing: '', mipVersion: null } as any,
+      tables: [
+        { title: 'Summary', columns: ['Metric', 'Value'], rows: [['p-value', { text: '< 0.001', value: 1.2e-9 }]] },
+        { title: 'Merged', columns: ['Category', 'A'], rows: [['x', '3 · 50.0%']], export: { columns: ['Category', 'A count', 'A share'], rows: [['x', 3, 0.5]] } },
+      ],
+      result: null,
+    });
+
+    const zip = await JSZip.loadAsync(saved!.blob);
+    expect(await zip.file('tables/01_summary.csv')!.async('string')).toBe('\uFEFFMetric,Value\r\np-value,1.2e-9');
+    expect(await zip.file('tables/02_merged.csv')!.async('string')).toBe('\uFEFFCategory,A count,A share\r\nx,3,0.5');
+    expect(await zip.file('README.txt')!.async('string')).toContain('Merged: 1 row; columns: Category, A count, A share');
+  });
 });

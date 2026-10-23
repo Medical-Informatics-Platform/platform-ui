@@ -13,12 +13,51 @@ import { getFeaturewiseDescribeRows } from '../../../../core/describe-result.uti
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { formatInteger, formatPValue, readable, toFiniteNumber } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
+import { readCorrelations } from '../charts/renderers/matrix-chart';
 
 export interface TableSpec {
   title?: string;
   columns: string[];
   rows: any[][];
   layout?: 'compact' | 'full';
+  /** The table as exported, when the screen merges values into one cell (a count and its share,
+   *  a range): one exact value per column instead. Exports use it; the screen never does. */
+  export?: { columns: string[]; rows: unknown[][] };
+}
+
+/** A cell shown rounded (`< 0.001`, `8.9%`) and exported exactly: CSV, ZIP and PDF carry `value`. */
+export interface DisplayCell {
+  text: string;
+  value: number | string | null;
+}
+
+function displayCell(text: string, value: number | string | null): DisplayCell {
+  return { text, value };
+}
+
+/** A number shown through `format` and exported as sent; blank when it is not a finite number. */
+function exactCell(value: unknown, format: (value: number) => string): DisplayCell | '' {
+  const numeric = toFiniteNumber(value);
+  return numeric === null ? '' : displayCell(format(numeric), numeric);
+}
+
+function isDisplayCell(cell: unknown): cell is DisplayCell {
+  return !!cell && typeof cell === 'object' && 'text' in cell && 'value' in cell;
+}
+
+/** What a cell shows on screen. */
+export function cellText(cell: unknown): unknown {
+  return isDisplayCell(cell) ? cell.text : cell;
+}
+
+/** A table's exact values for CSV, ZIP and PDF: rounded cells give their value, merged tables their export. */
+export function exportTable(table: TableSpec): { title?: string; columns: string[]; rows: unknown[][] } {
+  if (table.export) return { title: table.title, ...table.export };
+  return {
+    title: table.title,
+    columns: table.columns,
+    rows: (table.rows ?? []).map((row) => row.map((cell) => (isDisplayCell(cell) ? cell.value : cell))),
+  };
 }
 
 /**
@@ -38,7 +77,7 @@ export function trimTable(table: TableSpec, trim: TableTrim): TableSpec | null {
   const dropRows = new Set(trim.rows ?? []);
   const keep = table.columns.map((_, i) => i).filter((i) => !dropColumns.has(table.columns[i]));
   const rows = table.rows
-    .filter((row) => !dropRows.has(String(row?.[0] ?? '')))
+    .filter((row) => !dropRows.has(String(cellText(row?.[0]) ?? '')))
     .map((row) => keep.map((i) => row[i]));
   if (keep.length <= 1 || !rows.length) return null;
   return { ...table, columns: keep.map((i) => table.columns[i]), rows };
@@ -86,12 +125,13 @@ function formatNullableOutlierValue(value: any): string {
 
 /** One p-value style across every result table: `< 0.001` below that, three decimals above —
  *  0, 1.11e-16 and 3.9e-238 are all float noise at that size. Blank when missing. */
-function formatTableP(value: unknown): string {
+function formatTableP(value: unknown): DisplayCell | '' {
   const numeric = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
-  return Number.isFinite(numeric) ? formatPValue(numeric) : '';
+  return Number.isFinite(numeric) ? displayCell(formatPValue(numeric), numeric) : '';
 }
 
-function formatTTestKey(key: string): string {
+/** The row label a t-test table gives one result key. */
+export function formatTTestKey(key: string): string {
   const map: Record<string, string> = {
     mean_diff: 'Mean Difference',
     se_diff: 'Std. Error of Difference',
@@ -267,15 +307,15 @@ function formatCoxHazardRatio(value: number | undefined): string {
 }
 
 /** Tukey p comes from statsmodels' psturng, which clips to [0.001, 0.9]: the ends are bounds, not values. */
-function formatTukeyP(value: unknown): string {
+function formatTukeyP(value: unknown): DisplayCell | '' {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '';
-  if (numeric <= 0.001) return '≤ 0.001';
-  if (numeric >= 0.9) return '≥ 0.900';
-  return numeric.toFixed(3);
+  if (numeric <= 0.001) return displayCell('≤ 0.001', numeric);
+  if (numeric >= 0.9) return displayCell('≥ 0.900', numeric);
+  return displayCell(numeric.toFixed(3), numeric);
 }
 
-function formatCoxPValue(value: number | undefined): string {
+function formatCoxPValue(value: number | undefined): DisplayCell | string {
   return formatTableP(value) || '—';
 }
 
@@ -736,7 +776,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count?.[i]),
-          formatDecimal(result.class_prior?.[i]),
+          exactCell(result.class_prior?.[i], formatDecimal),
         ]),
         layout: 'full',
       });
@@ -918,9 +958,13 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const classLabels = rawClasses.map(c => yVar ? getEnumLabel(yVar, String(c)) : String(c));
 
     // Probabilities read as shares, not logs: exp(log prior) and exp(log P(category | class)).
-    const share = (log: unknown) => {
+    const probability = (log: unknown): number | null => {
       const value = Math.exp(Number(log));
-      return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '';
+      return Number.isFinite(value) ? value : null;
+    };
+    const share = (log: unknown) => {
+      const value = probability(log);
+      return value === null ? '' : `${(value * 100).toFixed(1)}%`;
     };
 
     // Class summary
@@ -931,7 +975,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         rows: rawClasses.map((_cls, i) => [
           classLabels[i],
           formatDecimal(result.class_count[i]),
-          share(result.class_log_prior[i]),
+          exactCell(probability(result.class_log_prior[i]), () => share(result.class_log_prior[i])),
         ]),
         layout: 'full',
       });
@@ -945,23 +989,37 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
       const categories = result.categories[feature];
       if (!counts || !categories) continue;
 
-      const rows = categories
-        .map((category, c) => ({ category, c }))
-        .filter(({ c }) => rawClasses.some((_cls, i) => Number(counts[i]?.[c]) > 0))
-        .map(({ category, c }) => [
-          getEnumLabel(feature, String(category)),
-          ...rawClasses.map((_cls, i) => {
-            const count = formatInteger(Number(counts[i]?.[c]));
-            const probability = logProbs ? share(logProbs[i]?.[c]) : '';
-            return probability ? `${count} · ${probability}` : count;
-          }),
-        ]);
+      const used = categories
+        .map((category, c) => ({ label: getEnumLabel(feature, String(category)), c }))
+        .filter(({ c }) => rawClasses.some((_cls, i) => Number(counts[i]?.[c]) > 0));
+      const rows = used.map(({ label, c }) => [
+        label,
+        ...rawClasses.map((_cls, i) => {
+          const count = formatInteger(Number(counts[i]?.[c]));
+          const categoryShare = logProbs ? share(logProbs[i]?.[c]) : '';
+          return categoryShare ? `${count} · ${categoryShare}` : count;
+        }),
+      ]);
 
       tables.push({
         title: `${getLabel(feature)} by class`,
         columns: ['Category', ...classLabels],
         rows,
         layout: 'full',
+        // Exported as a count and an exact P(category | class) column per class, not "120 · 31.4%".
+        export: {
+          columns: ['Category', ...classLabels.flatMap((label) => [
+            `${label} count`,
+            ...(logProbs ? [`${label} P(category | class)`] : []),
+          ])],
+          rows: used.map(({ label, c }) => [
+            label,
+            ...rawClasses.flatMap((_cls, i) => [
+              toFiniteNumber(counts[i]?.[c]),
+              ...(logProbs ? [probability(logProbs[i]?.[c])] : []),
+            ]),
+          ]),
+        },
       });
     }
 
@@ -1154,24 +1212,10 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
 
   pearson_correlation: (result: PearsonResult) => {
     const tables: TableSpec[] = [];
-    const raw = result as any;
-    const pick = (...keys: string[]): any => keys.map((key) => raw?.[key]).find((m) => m && typeof m === 'object' && !Array.isArray(m)) ?? null;
-    const correlations = pick('correlations');
-    // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
-    const pValues = pick('p_values', 'p-values', 'pvalues');
-    const ciLower = pick('ci_lo', 'low_confidence_intervals');
-    const ciUpper = pick('ci_hi', 'high_confidence_intervals');
+    const matrices = readCorrelations(result);
 
-    if (correlations) {
-      const cols: string[] = correlations.variables ?? [];
-      const rows = Object.keys(correlations).filter((key) => key !== 'variables');
-      const square = rows.length === cols.length && rows.every((row) => cols.includes(row));
-      const cell = (matrix: any, row: string, col: string): number | null => {
-        const values = matrix?.[row];
-        const index = (matrix?.variables ?? cols).indexOf(col);
-        const value = Array.isArray(values) && index >= 0 ? Number(values[index]) : NaN;
-        return Number.isFinite(value) ? value : null;
-      };
+    if (matrices) {
+      const { correlations, pValues, ciLower, ciUpper, cols, rows, square, cell } = matrices;
       // Each pair once: in a square matrix keep the pairs below the diagonal.
       const pairs = rows.flatMap((row) => cols
         .filter((col) => !square || cols.indexOf(col) < cols.indexOf(row))
@@ -1185,7 +1229,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           columns: ['Variable A', 'Variable B', 'r', '95% CI lower', '95% CI upper', 'p'],
           rows: pairs.map(({ row, col, r }) => {
             const p = cell(pValues, row, col);
-            return [row, col, formatDecimal(r), formatDecimal(cell(ciLower, row, col)), formatDecimal(cell(ciUpper, row, col)), p === null ? '' : formatPValue(p)];
+            return [row, col, formatDecimal(r), formatDecimal(cell(ciLower, row, col)), formatDecimal(cell(ciUpper, row, col)), formatTableP(p)];
           }),
         });
       }
@@ -1302,18 +1346,23 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const variableOrder = [...new Set(rows.map((row: any) => row?.variable))];
     rows.sort((a: any, b: any) => variableOrder.indexOf(a?.variable) - variableOrder.indexOf(b?.variable));
 
+    const rule = (data: any) => {
+      const strategy = data.strategy ? strategyLabels[data.strategy] ?? data.strategy : 'Unavailable';
+      const fold = data.fold === null || data.fold === undefined ? '' : ` × ${formatDecimal(data.fold)}`;
+      const tail = data.tail ? `, ${tailLabels[data.tail] ?? data.tail}` : '';
+      return `${strategy}${fold}${tail}`;
+    };
+    const exact = (value: unknown) => toFiniteNumber(value);
+
     return [{
       title: 'Outlier Report',
       columns: ['Variable', 'Dataset', 'Rule', 'Kept range', 'Below', 'Above', 'Outliers', 'Share'],
       rows: rows.map((row: any) => {
         const data = row?.data ?? {};
-        const strategy = data.strategy ? strategyLabels[data.strategy] ?? data.strategy : 'Unavailable';
-        const fold = data.fold === null || data.fold === undefined ? '' : ` × ${formatDecimal(data.fold)}`;
-        const tail = data.tail ? `, ${tailLabels[data.tail] ?? data.tail}` : '';
         return [
           row?.variable ?? '',
           row?.dataset ?? '',
-          `${strategy}${fold}${tail}`,
+          rule(data),
           `${bound(data.lower_bound)} to ${bound(data.upper_bound)}`,
           formatNullableOutlierValue(data.lower_outlier_count),
           formatNullableOutlierValue(data.upper_outlier_count),
@@ -1322,6 +1371,24 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           share(data.total_outlier_percentage),
         ];
       }),
+      // Exported with both bounds and the share exact, one value per column.
+      export: {
+        columns: ['Variable', 'Dataset', 'Rule', 'Lower bound', 'Upper bound', 'Below', 'Above', 'Outliers', 'Share (%)'],
+        rows: rows.map((row: any) => {
+          const data = row?.data ?? {};
+          return [
+            row?.variable ?? '',
+            row?.dataset ?? '',
+            rule(data),
+            exact(data.lower_bound),
+            exact(data.upper_bound),
+            exact(data.lower_outlier_count),
+            exact(data.upper_outlier_count),
+            exact(data.total_outlier_count),
+            exact(data.total_outlier_percentage),
+          ];
+        }),
+      },
     }];
   },
 
@@ -1341,7 +1408,7 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
         ['U statistic', formatDecimal(result.u_stat)],
         ['p-value', formatTableP(result.p_value)],
         ['z-score', formatDecimal(result.z_score)],
-        ...(u !== null && n1 && n2 ? [['P(A > B)', (u / (n1 * n2)).toFixed(2)]] : []),
+        ...(u !== null && n1 && n2 ? [['P(A > B)', displayCell((u / (n1 * n2)).toFixed(2), u / (n1 * n2))]] : []),
         ['Group A sample size', formatDecimal(result.n1)],
         ['Group B sample size', formatDecimal(result.n2)],
       ],

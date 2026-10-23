@@ -3,14 +3,14 @@ import { Component, input, computed, inject, signal, ChangeDetectionStrategy } f
 import { CommonModule } from '@angular/common';
 import { AutoRendererComponent } from '../../visualisations/auto-renderer/auto-renderer.component';
 import { ChartRendererComponent } from '../../visualisations/charts/charts-renderer/charts-renderer.component';
-import { AlgorithmChartRegistry } from '../../visualisations/charts/chart-registry';
+import { AlgorithmChartRegistry, tablesReplacedByCharts } from '../../visualisations/charts/chart-registry';
 import { NgxEchartsModule } from 'ngx-echarts';
 import { EnumMaps, LabelMap, mapAlgorithmResultEnums } from '../../../../core/algorithm-result-enum-mapper';
 import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
 import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
-import { buildSummaryFigures, FIGURE_NOTES, TABLES_SHOWN_AS_FIGURES } from '../../visualisations/summary/summary-figures';
+import { buildSummaryFigures, FIGURE_NOTES, tablesShownAsFigures } from '../../visualisations/summary/summary-figures';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -104,10 +104,11 @@ export class AlgorithmResultComponent {
   readonly chartNote = computed(() => AlgorithmChartRegistry[this.algorithm()]?.note ?? null);
   readonly figureNote = computed(() => FIGURE_NOTES[this.algorithm()] ?? null);
 
-  /** What the figures or charts above already show of the tables, so it is not repeated below. */
+  /** What the figures or charts above already show of the tables, so it is not repeated below:
+   *  only the values those figures print and the tables whose own chart rendered. */
   readonly coveredTables = computed(() => [
-    ...(this.summaryFigures() ? TABLES_SHOWN_AS_FIGURES[this.algorithm()] ?? [] : []),
-    ...(this.renderedCharts().length ? AlgorithmChartRegistry[this.algorithm()]?.replaces ?? [] : []),
+    ...(this.summaryFigures() ? tablesShownAsFigures(this.algorithm(), this.mappedResult()) : []),
+    ...tablesReplacedByCharts(this.algorithm(), this.renderedCharts()),
   ]);
 
   readonly hasSummaryAbove = computed(() => !!this.summaryFigures() || this.renderedCharts().length > 0);

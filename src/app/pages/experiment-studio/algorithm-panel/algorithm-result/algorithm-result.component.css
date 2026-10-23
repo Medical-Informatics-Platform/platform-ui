@@ -31,6 +31,12 @@
   letter-spacing: 0.02em;
 }
 
+/* The key figures and the note on how to read them, kept together in the list's gap. */
+.results-figures {
+  display: flex;
+  flex-direction: column;
+}
+
 .results-detail-section--with-chart {
   padding-top: 0.25rem;
 }
@@ -52,7 +58,12 @@
 .tables-toggle:hover,
 .tables-toggle:focus-visible {
   background: #eef0fd;
-  outline: none;
+}
+
+/* A visible focus ring, not only the hover tint (WCAG 2.4.7). */
+.tables-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 /* Every table already shown above: drop the empty section so it adds no gap. */

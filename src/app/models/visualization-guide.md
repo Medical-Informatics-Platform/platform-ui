@@ -168,9 +168,8 @@ Data includes:
 - `n_obs_interval`, `center_definition`, `privacy_note`, `intended_use`, `warnings`, `limitations`
 
 Proposed visualization:
-- For 2 variables: Scatter plot of cluster centers.
-- For 3 variables: 3D scatter plot of cluster centers.
-- For any other number of variables: Parallel coordinates plot.
+- For 2 variables: Bubble plot of cluster centers, bubble area by cluster size.
+- For 3 or more variables: Heatmap of cluster centers (clusters × variables), each cell printing the centre's value.
 - When `elbow` is present: Elbow curve of `inertia_by_k` with the selected k marked.
 - Supporting tables:
   - K-Means summary (k selection, k, observations, initialization, convergence).

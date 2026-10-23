@@ -12,7 +12,7 @@ import {
   fileSlug,
   formatExportDate,
 } from '../core/export.utils';
-import { getAlgorithmTableBuilder, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import { exportTable, getAlgorithmTableBuilder, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
 
 interface ExperimentPdfPayload {
   filename: string;
@@ -181,11 +181,13 @@ class PdfReport {
   table(spec: TableSpec, fallbackTitle = 'Results table'): void {
     this.ensure(30);
     this.subheading(spec.title || fallbackTitle);
+    // Exact values, like the CSV export: the report is for checking numbers, not reading them at a glance.
+    const exported = exportTable(spec);
     autoTable(this.doc, {
       startY: this.y,
-      head: [spec.columns ?? []],
+      head: [exported.columns ?? []],
       // jsPDF's built-in Helvetica has no narrow no-break space (the on-screen thousands separator).
-      body: (spec.rows ?? []).map((row) => row.map((cell) => (cell === null || cell === undefined ? '' : String(cell).replace(/\u202f/g, ' ')))),
+      body: exported.rows.map((row) => row.map((cell) => (cell === null || cell === undefined ? '' : String(cell).replace(/\u202f/g, ' ')))),
       margin: { left: this.margin.left, right: this.margin.right, top: this.margin.top, bottom: this.margin.bottom },
       styles: { fontSize: 8, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
       headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold' },

@@ -1,5 +1,4 @@
 const noisyMessagePatterns = [
-  /^geo3D exists\.?$/,
   /^No algorithm selected\.?$/,
   /^✘ mock_algo:/,
   /^✘ mock_notblank_algo:/,

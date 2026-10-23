@@ -71,12 +71,13 @@ export class RegressionResultComponent {
     return String(row[COLUMN_TEXT[column]]);
   }
 
-  /** The shown columns as raw, unrounded numbers with an ASCII minus and separate CI bounds, so the
-   *  file reads as numeric columns in a spreadsheet or R; blanks stand for missing values. */
+  /** Every column the model has (an odds ratio and its CI too while the table shows only the key
+   *  columns) as raw, unrounded numbers with an ASCII minus and separate CI bounds, so the file reads
+   *  as numeric columns in a spreadsheet or R; blanks stand for missing values. */
   downloadCoefficientsCsv(): void {
     const model = this.view();
     const raw = (value: number | null) => (value === null ? '' : String(value));
-    const fields: [string, (row: CoefficientRow) => number | null][] = this.columns().flatMap((column) => {
+    const fields: [string, (row: CoefficientRow) => number | null][] = model.allColumns.flatMap((column) => {
       switch (column) {
         case 'interval': return [];
         case 'ci': return [['CI 95% lower', (row: CoefficientRow) => row.lower], ['CI 95% upper', (row: CoefficientRow) => row.upper]];

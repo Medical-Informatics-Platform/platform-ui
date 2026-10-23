@@ -23,12 +23,12 @@
         <tbody>
           @for (row of table.rows; track row) {
           <tr>
-            @for (cell of row; track cell; let colIndex = $index) {
+            @for (cell of row; track $index; let colIndex = $index) {
             <td
               [class.ar-role-factor]="table.columns[colIndex] === 'Role' && cell === 'Factor'"
               [class.ar-role-outcome]="table.columns[colIndex] === 'Role' && cell === 'Outcome'"
               [class.ar-cell-text]="isTextColumn(table.columns[colIndex])">
-              {{ formatValue(cell) }}
+              {{ formatCell(cell, table.columns[colIndex], colIndex) }}
             </td>
             }
           </tr>

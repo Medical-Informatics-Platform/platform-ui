@@ -1,4 +1,7 @@
-import { trimTable, AlgorithmTableRegistry } from './algorithm-table-registry';
+import { cellText, exportTable, trimTable, AlgorithmTableRegistry } from './algorithm-table-registry';
+
+/** The rows as the screen prints them. */
+const shown = (rows: unknown[][]) => rows.map((row) => row.map(cellText));
 
 describe('AlgorithmTableRegistry', () => {
   it('supports linear_regression_cv metrics provided as mean/std objects', () => {
@@ -184,7 +187,24 @@ describe('AlgorithmTableRegistry', () => {
     const sex = tables.find((t) => t.title === 'sex by class')!;
     expect(sex.columns).toEqual(['Category', '0', '1']);
     expect(sex.rows[0]).toEqual(['0', '25 · 50.2%', '30 · 52.2%']);
-    expect(tables[0].rows[0]).toEqual(['0', '50', '49.7%']);
+    expect(shown(tables[0].rows)[0]).toEqual(['0', '50', '49.7%']);
+  });
+
+  it('exports categorical naive Bayes counts, P(category | class) and priors exactly, one value per column', () => {
+    const tables = AlgorithmTableRegistry['naive_bayes_categorical']({
+      classes: ['0', '1'],
+      class_count: [50, 60],
+      class_log_prior: [-0.7, -0.6],
+      feature_names: ['sex'],
+      categories: { sex: ['0', '1'] },
+      category_count: { sex: [[25, 25], [30, 30]] },
+      category_log_prob: { sex: [[-0.69, -0.69], [-0.65, -0.65]] },
+    });
+
+    const sex = exportTable(tables.find((t) => t.title === 'sex by class')!);
+    expect(sex.columns).toEqual(['Category', '0 count', '0 P(category | class)', '1 count', '1 P(category | class)']);
+    expect(sex.rows[0]).toEqual(['0', 25, Math.exp(-0.69), 30, Math.exp(-0.65)]);
+    expect(exportTable(tables[0]).rows[0]).toEqual(['0', '50', Math.exp(-0.7)]);
   });
 
   it('renders pca summary and keeps pca_with_transformation alias', () => {
@@ -226,18 +246,23 @@ describe('AlgorithmTableRegistry', () => {
     });
 
     expect(tables.length).toBe(1);
-    expect(tables[0].rows).toContainEqual(['U statistic', '163.5']);
-    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
-    expect(tables[0].rows).toContainEqual(['z-score', '4.454']);
-    expect(tables[0].rows).toContainEqual(['P(A > B)', '0.14']);
-    expect(tables[0].rows).toContainEqual(['Group A sample size', '15']);
-    expect(tables[0].rows).toContainEqual(['Group B sample size', '80']);
+    const rows = shown(tables[0].rows);
+    expect(rows).toContainEqual(['U statistic', '163.5']);
+    expect(rows).toContainEqual(['p-value', '< 0.001']);
+    expect(rows).toContainEqual(['z-score', '4.454']);
+    expect(rows).toContainEqual(['P(A > B)', '0.14']);
+    expect(rows).toContainEqual(['Group A sample size', '15']);
+    expect(rows).toContainEqual(['Group B sample size', '80']);
+    // Exports carry what the screen rounds.
+    const exported = exportTable(tables[0]).rows;
+    expect(exported).toContainEqual(['p-value', 8.436804884099734e-6]);
+    expect(exported).toContainEqual(['P(A > B)', 163.5 / (15 * 80)]);
   });
 
   it('prints p = 0 as < 0.001 and leaves P(A > B) out without group sizes', () => {
     const tables = AlgorithmTableRegistry['binned_mann_whitney_u_test']({ u_stat: 70, p_value: 0, z_score: 9 } as any);
 
-    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
+    expect(shown(tables[0].rows)).toContainEqual(['p-value', '< 0.001']);
     expect(tables[0].rows.map((row) => row[0])).not.toContain('P(A > B)');
   });
 
@@ -326,6 +351,27 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][7]).toBe('0.0%');
   });
 
+  it('exports the outlier report with separate exact bounds and share', () => {
+    const tables = AlgorithmTableRegistry['outlier_report']({
+      featurewise: [
+        {
+          variable: 'age',
+          dataset: 'ds1',
+          data: {
+            strategy: 'gaussian', tail: 'both', fold: 3,
+            lower_bound: 12.345678, upper_bound: 90.123456,
+            lower_outlier_count: 2, upper_outlier_count: 7, total_outlier_count: 9, total_outlier_percentage: 8.91734,
+          },
+        },
+      ],
+    });
+
+    expect(tables[0].rows[0][3]).toBe('12.346 to 90.123');
+    const exported = exportTable(tables[0]);
+    expect(exported.columns).toEqual(['Variable', 'Dataset', 'Rule', 'Lower bound', 'Upper bound', 'Below', 'Above', 'Outliers', 'Share (%)']);
+    expect(exported.rows[0]).toEqual(['age', 'ds1', 'Mean ± SD × 3, both tails', 12.345678, 90.123456, 2, 7, 9, 8.91734]);
+  });
+
   it('filters frontend metadata keys from ttest results', () => {
     const tables = AlgorithmTableRegistry['ttest_independent']({
       t_stat: 3.888283695725533,
@@ -365,10 +411,12 @@ describe('AlgorithmTableRegistry', () => {
       ci_lower: 0.033494668591674485,
     });
 
-    expect(tables[0].rows).toContainEqual(['T-statistic', '3.888']);
-    expect(tables[0].rows).toContainEqual(['Degrees of Freedom', '12.000']);
-    expect(tables[0].rows).toContainEqual(['p-value', '< 0.001']);
-    expect(tables[0].rows).toContainEqual(['Mean Difference', '0.068']);
+    const rows = shown(tables[0].rows);
+    expect(rows).toContainEqual(['T-statistic', '3.888']);
+    expect(rows).toContainEqual(['Degrees of Freedom', '12.000']);
+    expect(rows).toContainEqual(['p-value', '< 0.001']);
+    expect(rows).toContainEqual(['Mean Difference', '0.068']);
+    expect(exportTable(tables[0]).rows).toContainEqual(['p-value', 1.017999869046271e-4]);
   });
 
   it('renders classical Cox regression coefficients and summary', () => {
@@ -408,7 +456,8 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows.length).toBe(1);
     expect(tables[0].rows[0][0]).toBe('Age');
     expect(tables[0].rows[0][1]).toBe('0.741');
-    expect(tables[0].rows[0][3]).toBe('0.002');
+    expect(cellText(tables[0].rows[0][3])).toBe('0.002');
+    expect(exportTable(tables[0]).rows[0][3]).toBe(0.002);
     expect(tables[1].rows).toContainEqual(['Follow-up time', 'Days to follow-up']);
     expect(tables[1].rows).toContainEqual(['Event indicator', 'Death']);
     expect(tables[1].rows).toContainEqual(['Tied events handling', 'breslow']);
@@ -645,8 +694,10 @@ describe('AlgorithmTableRegistry', () => {
       min_max_per_group: { categories: [], min: [], max: [] },
     } as any);
 
-    expect(anova[0].rows[0][5]).toBe('< 0.001');
-    expect(anova[1].rows[0][7]).toBe('≤ 0.001');
+    expect(cellText(anova[0].rows[0][5])).toBe('< 0.001');
+    expect(cellText(anova[1].rows[0][7])).toBe('≤ 0.001');
+    expect(exportTable(anova[0]).rows[0][5]).toBe(1.1102230246251565e-16);
+    expect(exportTable(anova[1]).rows[0][7]).toBe(0.001);
   });
 
   it('trims covered columns and rows, and drops a table with nothing left', () => {

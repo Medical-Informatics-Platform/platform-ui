@@ -129,9 +129,77 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     const toggle = html.querySelector<HTMLButtonElement>('.tables-toggle')!;
 
     expect(toggle.textContent?.trim()).toBe('Show all values as tables');
+    // The label says what the button does next; a pressed state on top would contradict it.
+    expect(toggle.hasAttribute('aria-pressed')).toBe(false);
     toggle.click();
     fixture.detectChanges();
     expect(html.querySelectorAll('.ar-card').length).toBe(1);
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle.textContent?.trim()).toBe('Hide tables repeated above');
+  });
+
+  const cardTitles = (html: HTMLElement) => Array.from(html.querySelectorAll('.ar-card .ar-title')).map((el) => el.textContent?.trim());
+  const rowLabels = (html: HTMLElement, title: string) => {
+    const card = Array.from(html.querySelectorAll('.ar-card')).find((el) => el.querySelector('.ar-title')?.textContent?.trim() === title);
+    return Array.from(card?.querySelectorAll('tbody tr') ?? []).map((row) => row.querySelector('td')?.textContent?.trim());
+  };
+
+  it('keeps the t-test rows the key figures do not print', () => {
+    const html = render({ t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, cohens_d: -0.7, mean_x: 4.2 }, 'ttest_independent');
+
+    // One CI bound alone is not in the mean-difference figure, and mean_x has no figure.
+    expect(rowLabels(html, 'Independent T-Test')).toEqual(['95% CI Lower', 'Mean X']);
+  });
+
+  it('keeps the F diagnostic and undefined metrics under the linear regression CV figures', () => {
+    const html = render({
+      dependent_var: 'y',
+      n_obs: [100, 101],
+      root_mean_sq_error: [1.2, 0.1],
+      r_squared: [null, null],
+      mean_abs_error: [0.7, 0.05],
+      f_stat: [12.3, 1.1],
+    }, 'linear_regression_cv');
+
+    expect(html.querySelectorAll('.key-figure').length).toBeGreaterThan(0);
+    expect(rowLabels(html, 'Error metrics')).toEqual(['R-squared', 'F diagnostic']);
+  });
+
+  describe('tables a chart replaces', () => {
+    const cluster = (id: string, center: Record<string, number>) => ({
+      cluster_id: id, label: `Cluster ${id}`, size_interval: '10-20', center, profile: [], quality: { compactness: null },
+    });
+
+    it('hides the k-means centres table under the heatmap, which prints every centre', () => {
+      const html = render({
+        variables: ['a', 'b', 'c'],
+        clusters: [cluster('0', { a: 1, b: 2, c: 3 }), cluster('1', { a: 3, b: 4, c: 5 })],
+      }, 'kmeans');
+
+      expect(html.querySelector('.gen-charts')).toBeTruthy();
+      expect(cardTitles(html)).not.toContain('Cluster Centers');
+    });
+
+    it('keeps the k-means centres table under the two-variable bubble chart, which only places them', () => {
+      const html = render({
+        variables: ['a', 'b'],
+        clusters: [cluster('0', { a: 1, b: 2 }), cluster('1', { a: 3, b: 4 })],
+      }, 'kmeans');
+
+      expect(html.querySelector('.gen-charts')).toBeTruthy();
+      expect(cardTitles(html)).toContain('Cluster Centers');
+    });
+
+    it('keeps the naive Bayes class summary when only the profile chart rendered', () => {
+      const html = render({
+        classes: ['A', 'B'],
+        class_count: [40, 60],
+        feature_names: ['x'],
+        theta: [[1], [2]],
+        var: [[1], [1]],
+      }, 'naive_bayes_gaussian');
+
+      expect(html.querySelector('.gen-charts')).toBeTruthy();
+      expect(cardTitles(html)).toContain('Class Summary');
+    });
   });
 });

@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { CsvExportService } from '../../../../services/csv-export.service';
-import { getAlgorithmTableBuilder, TableSpec, TableTrim, trimTable } from './algorithm-table-registry';
+import { cellText, getAlgorithmTableBuilder, TableSpec, TableTrim, trimTable } from './algorithm-table-registry';
 import { EnumMaps } from '../../../../core/algorithm-result-enum-mapper';
 import { groupThousands } from '../result-format';
 
 // 'Kept range' holds "a to b": left-aligned it stays clear of the right-aligned count beside it.
 const TEXT_COLUMNS = new Set(['Role', 'Categories', 'Dataset', 'Rule', 'Kept range', 'Compactness', 'Profile', 'Type', 'Note']);
+// Columns of names, not quantities: a group, class or category called "2020" or "10001" prints as sent.
+const LABEL_COLUMNS = new Set(['Group', 'Group 1', 'Group 2', 'Group A', 'Group B', 'Class', 'Category', 'Cluster', 'Fold', 'Level']);
 
 @Component({
   selector: 'app-auto-renderer',
@@ -77,14 +79,18 @@ export class AutoRendererComponent {
       const enrichedValue = value && (labelMap || enumMaps || yVar || xVar)
         ? { ...value, __labelMap__: labelMap, __enumMaps__: enumMaps, __yVar__: yVar, __xVar__: xVar }
         : value;
-      const spec = builder(enrichedValue).flatMap((table) => {
-        const trim = covered.find((entry) => entry.title === table.title);
+      const tables = builder(enrichedValue);
+      const explicitTitle = this.getResultTitle(enrichedValue);
+      const resultTitle = explicitTitle ?? this.getFallbackTitle();
+      // The result title goes on the first table the builder made, as in the exports, before any
+      // table is left out; what is covered is matched on the builder's own titles.
+      const titled = this.applyResultTitle(tables, resultTitle, !!explicitTitle);
+      const spec = titled.flatMap((table, index) => {
+        const trim = covered.find((entry) => entry.title === tables[index].title);
         const kept = trim ? trimTable(table, trim) : table;
         return kept ? [kept] : [];
       });
-      const explicitTitle = this.getResultTitle(enrichedValue);
-      const resultTitle = explicitTitle ?? this.getFallbackTitle();
-      this.tableSpec.set(this.applyResultTitle(spec, resultTitle, !!explicitTitle));
+      this.tableSpec.set(spec);
       this.error.set(null);
       this.lastKey = key;
     } catch (err) {
@@ -123,6 +129,15 @@ export class AutoRendererComponent {
     return !!column && (TEXT_COLUMNS.has(column) || column.startsWith('Variable'));
   }
 
+  /** One cell on screen. Row labels and name columns print as sent; every other cell as a number. */
+  formatCell(cell: unknown, column: string | undefined, columnIndex: number): string {
+    const shown = cellText(cell);
+    if (columnIndex === 0 || this.isTextColumn(column) || (!!column && LABEL_COLUMNS.has(column))) {
+      return shown === null || shown === undefined ? '' : String(shown);
+    }
+    return this.formatValue(shown);
+  }
+
   /** On screen: thousands grouped with a thin space (111 854; 1 065 587), trailing zeros trimmed, a typographic minus;
    *  scientific notation only below 1e-4. With `grouping` off (CSV) numbers stay plain for spreadsheets. */
   formatValue(value: any, grouping = true): string {
@@ -154,11 +169,9 @@ export class AutoRendererComponent {
     return grouping ? groupThousands(text).replace(/^-/, '−') : text;
   }
 
+  /** The table's exact values: rounded cells (p-values, shares) export what the engine sent. */
   exportToCSV(table: TableSpec) {
-    this.csvExport.exportTableCsv(
-      { ...table, rows: (table.rows ?? []).map((row) => row.map((cell) => this.formatValue(cell, false))) },
-      this.algorithm() || 'export',
-    );
+    this.csvExport.exportTableCsv(table, this.algorithm() || 'export');
   }
 
   private getResultTitle(result: any): string | null {

@@ -1,4 +1,4 @@
-import { buildSummaryFigures } from './summary-figures';
+import { buildSummaryFigures, tablesShownAsFigures } from './summary-figures';
 
 const byLabel = (figures: { label: string; value: string; note?: string }[]) =>
   Object.fromEntries(figures.map((figure) => [figure.label, figure]));
@@ -87,5 +87,37 @@ describe('buildSummaryFigures', () => {
     const context = { groupA: 'yes', groupB: 'no' };
     const ttest = byLabel(buildSummaryFigures('ttest_independent', { mean_diff: -3.45, ci_lower: -3.46, ci_upper: -3.44, p: 0 }, context)!);
     expect(ttest['Mean difference'].note).toBe('yes − no · 95% CI −3.46 to −3.44');
+  });
+});
+
+describe('tablesShownAsFigures', () => {
+  it('covers only the t-test rows the figures print', () => {
+    expect(tablesShownAsFigures('ttest_paired', { t_stat: 2, df: 9, p: 0.04, mean_diff: 1.2, ci_lower: 0.1, ci_upper: 2.3, se_diff: 0.5 })).toEqual([{
+      title: 'Paired T-Test',
+      rows: ['Mean Difference', '95% CI Lower', '95% CI Upper', 'Std. Error of Difference', 'p-value', 'T-statistic', 'Degrees of Freedom'],
+    }]);
+    // Without a mean difference there is no figure for its CI or SE, and without p none for t or df.
+    expect(tablesShownAsFigures('ttest_onesample', { t_stat: 2, df: 9, ci_lower: 0.1, ci_upper: 2.3, cohens_d: 0.4 })).toEqual([
+      { title: 'One-Sample T-Test', rows: ["Cohen's d"] },
+    ]);
+  });
+
+  it('leaves the F diagnostic and undefined linear regression CV metrics in their table', () => {
+    expect(tablesShownAsFigures('linear_regression_cv', {
+      root_mean_sq_error: [1.2, 0.1], mean_abs_error: { mean: 0.8, std: 0.05 }, r_squared: [null, null], f_stat: [12, 1],
+    })).toEqual([{ title: 'Error metrics', rows: ['Root mean squared error', 'Mean absolute error'] }]);
+    expect(tablesShownAsFigures('linear_regression_cv', { r_squared: [null, null], f_stat: [12, 1] })).toEqual([]);
+  });
+
+  it('covers ANOVA columns, SMD and the chi-squared summary only when the figures carry their values', () => {
+    expect(tablesShownAsFigures('anova_oneway', { anova_table: { p_value: 0.01, f_stat: 5, df_explained: 2, df_residual: 40 } }))
+      .toEqual([{ title: 'ANOVA Summary', columns: ['Prob>F', 'F', 'df'] }]);
+    expect(tablesShownAsFigures('anova_oneway', { anova_table: { f_stat: 5 } })).toEqual([]);
+    expect(tablesShownAsFigures('anova_twoway', { terms: ['A', 'Residual'], f_pvalue: [null, null], f_stat: [2, null], df: [1, 30] })).toEqual([]);
+    expect(tablesShownAsFigures('standardized_mean_difference', { comparisons: [{ group1: 'a', group2: 'b', smd: 0.2 }, { group1: 'a', group2: 'c', smd: null }] }))
+      .toEqual([]);
+    expect(tablesShownAsFigures('chi_squared', { p_value: 0.02, chi2: 6.1, dof: 2 }))
+      .toEqual([{ title: 'Chi-Squared Test Summary', rows: ['p-value', 'Chi-Squared statistic', 'Degrees of freedom'] }]);
+    expect(tablesShownAsFigures('kmeans', { clusters: [] })).toEqual([]);
   });
 });
