@@ -48,6 +48,7 @@ import {
 import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
 import { DATA_HANDLING } from './data-handling.context';
+import { CohortFilterStationComponent } from './cohort-filter-station/cohort-filter-station.component';
 import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderForDirective, RuleBuilderRegistry } from './transformation/rule-builder-registry';
@@ -132,7 +133,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent, RuleBuilderForDirective, SectionAnchorDirective, SourceDataStationComponent, PcaColumnSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent, RuleBuilderForDirective, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent, PcaColumnSourceComponent],
   // Section components read the pipeline's state through this token (see data-handling.context.ts).
   providers: [
     { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
