@@ -2,11 +2,28 @@ import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matr
 import { buildCVMetricsChart } from './cv-metrics-chart';
 import { buildTTestChart } from './t-test-chart';
 import { buildKMeansChart } from './k-means-chart';
-import { buildNaiveBayesPriorsChart } from './naive-bayes-priors-chart';
+import { buildTTestIntervalChart } from './mean-plot-chart';
+import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './naive-bayes-priors-chart';
 import { buildBoxPlotChart } from './box-plot-chart';
 import * as echarts from 'echarts';
 
 describe('Chart renderers regressions', () => {
+  it('draws the t-test mean difference as a vertical interval, value on the y axis', () => {
+    const [chart] = buildTTestIntervalChart({ mean_diff: -3.454, ci_lower: -3.463, ci_upper: -3.445 }) as any[];
+
+    expect(chart.xAxis.type).toBe('category');
+    expect(chart.xAxis.data).toEqual(['Mean difference']);
+    expect(chart.yAxis.type).toBe('value');
+    expect(chart.series[0].data[0].value).toEqual(['Mean difference', -3.454]);
+    expect(chart.series[1].data[0].slice(1, 3)).toEqual([-3.463, -3.445]);
+    // Zero is far outside this interval, so no zero line stretches the axis.
+    expect(chart.series[0].markLine).toBeUndefined();
+
+    const [crossing] = buildTTestIntervalChart({ mean_diff: 0.2, ci_lower: -0.1, ci_upper: 0.5 }) as any[];
+    expect(crossing.series[0].markLine.data).toEqual([{ yAxis: 0 }]);
+    expect(buildTTestIntervalChart({ mean_diff: 1 })).toEqual([]);
+  });
+
   it('fades the other box plot datasets as a whole while one is hovered', async () => {
     const stats = { min: 40, q1: 45, q2: 50, q3: 55, max: 60, mean: 51, std: 4.5 };
     const [option] = buildBoxPlotChart({
@@ -254,5 +271,20 @@ describe('Chart renderers regressions', () => {
     expect(data.length).toBe(2);
     expect(data[0]).toBeCloseTo(0.2, 3);
     expect(data[1]).toBeCloseTo(0.8, 3);
+  });
+
+  it('places Gaussian naive Bayes class means in pooled SDs from the overall mean', () => {
+    const charts = buildNaiveBayesProfileChart({
+      classes: ['no', 'yes'],
+      class_count: [1, 3],
+      feature_names: ['Score'],
+      theta: [[8], [4]],
+      var: [[4], [4]],
+    });
+
+    // Overall mean 5, pooled SD 2: "no" sits +1.5 SD, "yes" −0.5 SD.
+    const series = (charts[0] as any).series;
+    expect(series[0].data).toEqual([[1.5, 0]]);
+    expect(series[1].data).toEqual([[-0.5, 0]]);
   });
 });
