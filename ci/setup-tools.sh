@@ -11,24 +11,24 @@ trap 'echo "[setup-tools] ERROR: command failed (exit $?) at line $LINENO: $BASH
 # *_SHA256 must be overridden as well or verification will fail.
 
 # renovate: datasource=github-release-attachments depName=aquasecurity/trivy
-TRIVY_VERSION="${TRIVY_VERSION:-v0.71.1}"
-TRIVY_SHA256="${TRIVY_SHA256:-3cbae37cd440cd8676e5ce9207fe460b5641c7579a17e9d00f8894928c41a88d}"
+TRIVY_VERSION="${TRIVY_VERSION:-v0.76.0}"
+TRIVY_SHA256="${TRIVY_SHA256:-e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7}"
 
 # renovate: datasource=github-release-attachments depName=google/osv-scanner
-OSV_SCANNER_VERSION="${OSV_SCANNER_VERSION:-v2.6.0}"
-OSV_SCANNER_SHA256="${OSV_SCANNER_SHA256:-ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108}"
+OSV_SCANNER_VERSION="${OSV_SCANNER_VERSION:-v2.7.0}"
+OSV_SCANNER_SHA256="${OSV_SCANNER_SHA256:-160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b}"
 
 # renovate: datasource=github-release-attachments depName=opengrep/opengrep
-OPENGREP_VERSION="${OPENGREP_VERSION:-v1.30.0}"
-OPENGREP_SHA256="${OPENGREP_SHA256:-35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c}"
+OPENGREP_VERSION="${OPENGREP_VERSION:-v1.31.0}"
+OPENGREP_SHA256="${OPENGREP_SHA256:-dbbe3c2058dbe600c449a8ba22ea79a1643a6660658400090d0323a8d0d31147}"
 
 # renovate: datasource=git-refs depName=https://github.com/semgrep/semgrep-rules
-SEMGREP_RULES_REF="${SEMGREP_RULES_REF:-40b8c63f75dc7c22c8a77482d73bfb864b146f7e}"
+SEMGREP_RULES_REF="${SEMGREP_RULES_REF:-17e31e11ebac99fb7dfe1cd288f7a32151b6f3f9}"
 SEMGREP_RULES_DIR="semgrep-rules"
 
 # renovate: datasource=github-release-attachments depName=hadolint/hadolint
-HADOLINT_VERSION="${HADOLINT_VERSION:-v2.14.0}"
-HADOLINT_SHA256="${HADOLINT_SHA256:-6bf226944684f56c84dd014e8b979d27425c0148f61b3bd99bcc6f39e9dc5a47}"
+HADOLINT_VERSION="${HADOLINT_VERSION:-v2.15.1}"
+HADOLINT_SHA256="${HADOLINT_SHA256:-c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507}"
 
 # renovate: datasource=github-release-attachments depName=gitleaks/gitleaks
 GITLEAKS_VERSION="${GITLEAKS_VERSION:-v8.30.1}"
