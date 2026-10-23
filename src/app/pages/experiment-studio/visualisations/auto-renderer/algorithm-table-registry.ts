@@ -21,6 +21,29 @@ export interface TableSpec {
   layout?: 'compact' | 'full';
 }
 
+/**
+ * What a summary above a result already shows of one of its tables: the whole table, or some of
+ * its columns (by header) or rows (by first cell). Used on screen only; exports keep every table.
+ */
+export interface TableTrim {
+  title: string;
+  columns?: string[];
+  rows?: string[];
+}
+
+/** The table without what the summary above shows; null when nothing of it is left to read. */
+export function trimTable(table: TableSpec, trim: TableTrim): TableSpec | null {
+  if (!trim.columns?.length && !trim.rows?.length) return null;
+  const dropColumns = new Set(trim.columns ?? []);
+  const dropRows = new Set(trim.rows ?? []);
+  const keep = table.columns.map((_, i) => i).filter((i) => !dropColumns.has(table.columns[i]));
+  const rows = table.rows
+    .filter((row) => !dropRows.has(String(row?.[0] ?? '')))
+    .map((row) => keep.map((i) => row[i]));
+  if (keep.length <= 1 || !rows.length) return null;
+  return { ...table, columns: keep.map((i) => table.columns[i]), rows };
+}
+
 type TableBuilder = (result: any) => TableSpec[];
 
 function formatDecimal(value: any): string {

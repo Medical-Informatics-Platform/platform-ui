@@ -1,4 +1,7 @@
-@if (tableSpec()) {
+@if (tableSpec()?.length) {
+@if (heading()) {
+<h3 class="ar-heading">{{ heading() }}</h3>
+}
 <div class="ar-container">
   @for (table of tableSpec(); track table) {
   <div class="ar-card" [class.ar-card--full]="!isCompactTable(table)" [class.ar-card--compact]="isCompactTable(table)">

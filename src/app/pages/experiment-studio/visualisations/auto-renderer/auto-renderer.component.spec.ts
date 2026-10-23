@@ -124,6 +124,30 @@ describe('AutoRendererComponent', () => {
     expect(tables?.[1].title).toBe('Error metrics');
   });
 
+  it('leaves out tables the page already shows above, before titling the rest', () => {
+    setInputs({
+      algorithm: 'linear_regression_cv',
+      covered: [{ title: 'Error metrics' }],
+      heading: 'Detailed results',
+      value: { n_obs: [100, 101], root_mean_sq_error: [1.1, 0.1] },
+    });
+
+    expect(cmp.tableSpec()?.map((table) => table.title)).toEqual(['Training set sample sizes']);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.ar-heading')?.textContent).toBe('Detailed results');
+  });
+
+  it('renders nothing, heading included, when every table is shown above', () => {
+    setInputs({
+      algorithm: 'binned_mann_whitney_u_test',
+      covered: [{ title: 'Binned Mann-Whitney U Test' }],
+      heading: 'Detailed results',
+      value: { u_stat: 1, p_value: 0.5, z_score: 0.1, n1: 10, n2: 12 },
+    });
+
+    expect(cmp.tableSpec()).toEqual([]);
+    expect((fixture.nativeElement as HTMLElement).children.length).toBe(0);
+  });
+
   it('uses fallback title when result title is missing', () => {
     setInputs({
       algorithm: 'binned_mann_whitney_u_test',
