@@ -1,7 +1,7 @@
 import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { QueryList } from '@angular/core';
 import { DataHandlingComponent } from './data-handling.component';
+import { RuleBuilder } from './transformation/rule-builder-registry';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -12,6 +12,26 @@ import { of, Subject } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
+
+
+/** A stand-in rule builder: what it would export, and the error it would show. */
+interface FakeRuleBuilder {
+  exportFilterLogic: () => unknown;
+  filterError: () => string | null;
+}
+
+/**
+ * Stands in for the rendered category builders: `builders[i]` edits the i-th rule in
+ * card order; rules past the end of the list have no builder (as if not rendered).
+ */
+function useRuleBuilders(component: DataHandlingComponent, builders: readonly FakeRuleBuilder[]): void {
+  component.transformationDrafts.flatMap((draft) => draft.rules).forEach((rule, index) => {
+    const live = component.ruleBuilders.get(rule);
+    if (live) component.ruleBuilders.unregister(rule, live);
+    const fake = builders[index];
+    if (fake) component.ruleBuilders.register(rule, { ensureFirstCondition: () => undefined, ...fake } as RuleBuilder);
+  });
+}
 
 describe('DataHandlingComponent', () => {
     let component: DataHandlingComponent;
@@ -2403,8 +2423,7 @@ describe('DataHandlingComponent', () => {
         expect(component.transformationDraftStatus(draft).label).toBe('Applied');
 
         // Apply commits the rendered builders; a rule that loaded must survive untouched.
-        const modals: any = new QueryList();
-        modals.reset([
+        useRuleBuilders(component, [
             {
                 exportFilterLogic: () => ({ condition: 'AND', rules: [{ field: 'clinical_sdr', operator: 'in', value: ['1', '2'] }], valid: true }),
                 filterError: () => null,
@@ -2414,7 +2433,6 @@ describe('DataHandlingComponent', () => {
                 filterError: () => null,
             },
         ]);
-        component.transformationRuleModals = modals;
 
         component.commitTransformationDraft(draft);
         expect(draft.rules.map((rule) => (rule.filter as any)?.rules.length)).toEqual([1, 1]);
@@ -2426,7 +2444,7 @@ describe('DataHandlingComponent', () => {
         const draft = component.transformationDrafts[0];
         draft.code = 'elderly';
         draft.rules = [{ value: 'old', filter }, { value: '', filter: null }];
-        component.transformationRuleModals = new QueryList() as any;
+        useRuleBuilders(component, []);
 
         expect(component.transformationDraftStatus(draft).label).toBe('Not applied');
         expect(component.transformationHasPendingChange).toBe(true);
@@ -2569,9 +2587,7 @@ describe('DataHandlingComponent', () => {
         const draft = component.transformationDrafts[0];
         draft.code = 'mrs_good_outcome';
         draft.rules = [{ value: 'good', filter }];
-        component.transformationRuleModals = {
-            toArray: () => [{ exportFilterLogic: () => filter, filterError: () => null }],
-        } as any;
+        useRuleBuilders(component, [{ exportFilterLogic: () => filter, filterError: () => null }]);
         expect(component.sectionOpen().transformation).toBe(true);
 
         component.commitTransformationDraft(draft);
@@ -2597,7 +2613,7 @@ describe('DataHandlingComponent', () => {
         // the stage around it any more.
         openStation('transformation');
         ensureCategoricalDrafts(1);
-        component.transformationRuleModals = { toArray: () => [] } as any;
+        useRuleBuilders(component, []);
 
         component.commitTransformationDraft(component.transformationDrafts[0]);
 
@@ -2630,12 +2646,10 @@ describe('DataHandlingComponent', () => {
         component.transformationDrafts[0].rules = [{ value: 'a', filter }];
         component.transformationDrafts[1].code = 'group';
         component.transformationDrafts[1].rules = [{ value: 'b', filter }];
-        component.transformationRuleModals = {
-            toArray: () => [
+        useRuleBuilders(component, [
                 { exportFilterLogic: () => filter, filterError: () => null },
                 { exportFilterLogic: () => filter, filterError: () => null },
-            ],
-        } as any;
+            ]);
         fixture.detectChanges();
 
         component.commitTransformationDraft(component.transformationDrafts[0]);
@@ -2666,12 +2680,10 @@ describe('DataHandlingComponent', () => {
         component.transformationDrafts[1].code = 'mrs_bad_outcome';
         component.transformationDrafts[1].rules = [{ value: 'bad', filter: null }];
         // One modal per rule, flattened in draft order, as the template emits them.
-        component.transformationRuleModals = {
-            toArray: () => [
+        useRuleBuilders(component, [
                 { exportFilterLogic: () => filter, filterError: () => null },
                 { exportFilterLogic: () => secondFilter, filterError: () => null },
-            ],
-        } as any;
+            ]);
 
         component.commitTransformationRuleFilters();
         expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
@@ -3139,7 +3151,7 @@ describe('DataHandlingComponent', () => {
     });
 
     describe('Data Handling preview contracts', () => {
-        /** Stand-in for a category-rule QueryBuilder, as the template hands them over. */
+        /** Stand-in for a category-rule builder (see useRuleBuilders). */
         function ruleModal(filter: any, error: string | null = null) {
             return {
                 exportFilterLogic: () => filter,
@@ -3265,9 +3277,7 @@ describe('DataHandlingComponent', () => {
             unfiltered.code = 'other';
             unfiltered.rules = [{ value: 'c', filter: null }];
             nameless.defaultEnumeration = 'unknown';
-            component.transformationRuleModals = {
-                toArray: () => [ruleModal(filter), ruleModal(filter), ruleModal(null)],
-            } as any;
+            useRuleBuilders(component, [ruleModal(filter), ruleModal(filter), ruleModal(null)]);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
@@ -3418,17 +3428,13 @@ describe('DataHandlingComponent', () => {
             const draft = component.transformationDrafts[0];
             draft.code = 'group_a';
             draft.rules = [{ value: 'a', filter: null }];
-            component.transformationRuleModals = {
-                toArray: () => [ruleModal(null, 'A filter value is required')],
-            } as any;
+            useRuleBuilders(component, [ruleModal(null, 'A filter value is required')]);
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.mockClear();
 
             draft.openRuleIndex = 0;
             // detectChanges refreshes the @ViewChildren query; re-stub the rejecting builder.
-            component.transformationRuleModals = {
-                toArray: () => [ruleModal(null, 'A filter value is required')],
-            } as any;
+            useRuleBuilders(component, [ruleModal(null, 'A filter value is required')]);
             component.finishTransformationRule(draft, 0);
             fixture.detectChanges();
 
@@ -3445,7 +3451,7 @@ describe('DataHandlingComponent', () => {
             ensureCategoricalDrafts(1);
             component.chooseTransformation('kmeans_cluster_creator');
             component.transformationDrafts[0].code = 'pro';
-            component.transformationRuleModals = { toArray: () => [] } as any;
+            useRuleBuilders(component, []);
             fixture.detectChanges();
 
             component.previewTransformationCard();
@@ -3461,7 +3467,7 @@ describe('DataHandlingComponent', () => {
             openStation('transformation');
             ensureCategoricalDrafts(1);
             component.transformationDrafts[0].code = 'pro';
-            component.transformationRuleModals = { toArray: () => [] } as any;
+            useRuleBuilders(component, []);
             fixture.detectChanges();
             mockExpService.loadDescriptiveOverview.mockClear();
 
@@ -3534,7 +3540,7 @@ describe('DataHandlingComponent', () => {
             unfiltered.code = 'group_a';
             unfiltered.rules = [{ value: 'a', filter: null }];
             nameless.code = 'group_b';
-            component.transformationRuleModals = { toArray: () => [ruleModal(null), ruleModal(null)] } as any;
+            useRuleBuilders(component, [ruleModal(null), ruleModal(null)]);
             fixture.detectChanges();
 
             component.finishTransformationRule(unfiltered, 0);
@@ -3550,7 +3556,7 @@ describe('DataHandlingComponent', () => {
             ensureCategoricalDrafts(1);
             const draft = component.transformationDrafts[0];
             draft.code = 'pro';
-            component.transformationRuleModals = { toArray: () => [] } as any;
+            useRuleBuilders(component, []);
             component.onTransformationInput();
             fixture.detectChanges();
 
@@ -3566,7 +3572,7 @@ describe('DataHandlingComponent', () => {
             // becomes the quiet Close.
             const filter = categoryFilter();
             draft.rules = [{ value: 'old', filter }];
-            component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
+            useRuleBuilders(component, [ruleModal(filter)]);
             component.onTransformationInput();
             fixture.detectChanges();
 
@@ -3584,9 +3590,7 @@ describe('DataHandlingComponent', () => {
             complete.rules = [{ value: 'a', filter }];
             unfinished.code = 'group_b';
             unfinished.rules = [{ value: 'b', filter: null }];
-            component.transformationRuleModals = {
-                toArray: () => [ruleModal(filter), ruleModal(null)],
-            } as any;
+            useRuleBuilders(component, [ruleModal(filter), ruleModal(null)]);
             fixture.detectChanges();
 
             component.commitTransformationDraft(complete);
@@ -3615,7 +3619,7 @@ describe('DataHandlingComponent', () => {
             const draft = component.transformationDrafts[0];
             draft.code = 'group_a';
             draft.rules = [{ value: 'a', filter }];
-            component.transformationRuleModals = { toArray: () => [ruleModal(filter)] } as any;
+            useRuleBuilders(component, [ruleModal(filter)]);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
