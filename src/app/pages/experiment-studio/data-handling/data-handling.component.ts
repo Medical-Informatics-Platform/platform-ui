@@ -7,11 +7,9 @@ import {
   effect,
   forwardRef,
   inject,
-  QueryList,
   signal,
   untracked,
   ViewChild,
-  ViewChildren,
   output,
   input,
   OnDestroy
@@ -47,6 +45,7 @@ import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-clu
 import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
 import { DATA_HANDLING } from './data-handling.context';
+import { RuleBuilder, RuleBuilderForDirective, RuleBuilderRegistry } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
 import { pendingOrDefault } from './utils/preprocessing-state.utils';
 import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
@@ -120,9 +119,12 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent, RuleBuilderForDirective],
   // Section components read the pipeline's state through this token (see data-handling.context.ts).
-  providers: [{ provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) }],
+  providers: [
+    { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
+    RuleBuilderRegistry,
+  ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -154,8 +156,8 @@ export class DataHandlingComponent implements OnDestroy {
   processedSection?: ElementRef<HTMLElement>;
   @ViewChild('transformationSection')
   transformationSection?: ElementRef<HTMLElement>;
-  @ViewChildren('ruleModal')
-  transformationRuleModals?: QueryList<FilterConfigModalComponent>;
+  /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
+  readonly ruleBuilders = inject(RuleBuilderRegistry);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
@@ -1605,28 +1607,22 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /**
-   * Persist live category-filter builders onto every rule (across all cards) without
-   * touching cohort filters. `#ruleModal` renders one modal per rule in DOM order, so a
-   * single running index walks drafts and their rules in the same order the template emits.
-   * A rule is rewritten only when its builder can speak for it: a builder that rejects its
-   * own half-typed condition, or that could not read what the store holds, leaves that rule
-   * as it is rather than exporting an empty filter and erasing a configured category.
+   * Persist live category-filter builders onto every rule (across all cards, or only
+   * `only`'s) without touching cohort filters. A rule is rewritten only when its builder
+   * can speak for it: a builder that rejects its own half-typed condition, or that could
+   * not read what the store holds, leaves that rule as it is rather than exporting an
+   * empty filter and erasing a configured category.
    */
   commitTransformationRuleFilters(only?: TransformationColumnDraft): void {
-    const modals = this.transformationRuleModals?.toArray() ?? [];
-    let modalIndex = 0;
     for (const draft of this.transformationDrafts) {
+      if (only && draft !== only) continue;
       for (const rule of draft.rules) {
-        const modal = modals[modalIndex++];
-        if (!modal || (only && draft !== only)) {
-          continue;
-        }
-        const logic = modal.exportFilterLogic();
-        if (modal.filterError()) {
-          // Keep walking the remaining cards: one broken builder must not stop the
-          // others from committing what they hold. The builder renders its own error.
-          continue;
-        }
+        const builder = this.ruleBuilders.get(rule);
+        if (!builder) continue;
+        const logic = builder.exportFilterLogic();
+        // Keep walking the remaining cards: one broken builder must not stop the
+        // others from committing what they hold. The builder renders its own error.
+        if (builder.filterError()) continue;
         rule.filter = logic;
       }
     }
@@ -1694,15 +1690,12 @@ export class DataHandlingComponent implements OnDestroy {
     draft.openRuleIndex = index;
     this.onTransformationChange();
     this.cdr.detectChanges();
-    this.ruleModalAt(draft, index)?.ensureFirstCondition();
+    this.ruleBuilderAt(draft, index)?.ensureFirstCondition();
   }
 
-  /** `#ruleModal` renders one builder per rule in card order, so earlier cards' rules come first. */
-  private ruleModalAt(draft: TransformationColumnDraft, index: number) {
-    const offset = this.transformationDrafts
-      .slice(0, this.transformationDrafts.indexOf(draft))
-      .reduce((count, earlier) => count + earlier.rules.length, 0);
-    return this.transformationRuleModals?.toArray()[offset + index];
+  private ruleBuilderAt(draft: TransformationColumnDraft, index: number): RuleBuilder | undefined {
+    const rule = draft.rules[index];
+    return rule ? this.ruleBuilders.get(rule) : undefined;
   }
 
   /**
@@ -1710,7 +1703,7 @@ export class DataHandlingComponent implements OnDestroy {
    * category list. A builder with an error stays open and shows its own message.
    */
   finishTransformationRule(draft: TransformationColumnDraft, index: number): void {
-    const modal = this.ruleModalAt(draft, index);
+    const modal = this.ruleBuilderAt(draft, index);
     if (modal) {
       const logic = modal.exportFilterLogic();
       if (modal.filterError()) {

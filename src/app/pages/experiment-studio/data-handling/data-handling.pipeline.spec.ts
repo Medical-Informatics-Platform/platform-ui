@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { DataHandlingComponent } from './data-handling.component';
+import { RuleBuilder } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
@@ -16,6 +17,26 @@ import { createSpyObj } from '../../../testing/spy-obj.testing';
  * visit or present in the persisted request config. Opening a stage must never
  * write that config.
  */
+
+/** A stand-in rule builder: what it would export, and the error it would show. */
+interface FakeRuleBuilder {
+  exportFilterLogic: () => unknown;
+  filterError: () => string | null;
+}
+
+/**
+ * Stands in for the rendered category builders: `builders[i]` edits the i-th rule in
+ * card order; rules past the end of the list have no builder (as if not rendered).
+ */
+function useRuleBuilders(component: DataHandlingComponent, builders: readonly FakeRuleBuilder[]): void {
+  component.transformationDrafts.flatMap((draft) => draft.rules).forEach((rule, index) => {
+    const live = component.ruleBuilders.get(rule);
+    if (live) component.ruleBuilders.unregister(rule, live);
+    const fake = builders[index];
+    if (fake) component.ruleBuilders.register(rule, { ensureFirstCondition: () => undefined, ...fake } as RuleBuilder);
+  });
+}
+
 describe('DataHandlingComponent pipeline presence', () => {
     let component: DataHandlingComponent;
     let fixture: ComponentFixture<DataHandlingComponent>;
@@ -509,9 +530,7 @@ describe('DataHandlingComponent pipeline presence', () => {
 
         // Echo the hydrated filters back so committing does not blank them.
         const committed = component.transformationDrafts.flatMap((draft) => draft.rules.map((rule) => rule.filter));
-        component.transformationRuleModals = {
-            toArray: () => committed.map((filter) => ({ exportFilterLogic: () => filter, filterError: () => null })),
-        } as any;
+        useRuleBuilders(component, committed.map((filter) => ({ exportFilterLogic: () => filter, filterError: () => null })));
 
         // Every card answers for itself: its own Apply commits it and folds it, and the
         // stage stays open until a click on its header folds it to the overview.
@@ -944,7 +963,7 @@ describe('DataHandlingComponent pipeline presence', () => {
                 .toBe('Editing category 2 of 2');
 
             const filter = { condition: 'AND', rules: [{ id: 'age', field: 'age', operator: 'greater', value: 60 }] };
-            const modal = component.transformationRuleModals!.toArray()[1];
+            const modal = component.ruleBuilders.get(draft.rules[1])!;
             vi.spyOn(modal, 'exportFilterLogic').mockReturnValue(filter as any);
             (editing[0].querySelector('.transformation-rule-done') as HTMLButtonElement).click();
             fixture.detectChanges();
@@ -960,7 +979,7 @@ describe('DataHandlingComponent pipeline presence', () => {
             component.toggleTransformationRule(draft, 0);
             fixture.detectChanges();
 
-            const modal = component.transformationRuleModals!.toArray()[0];
+            const modal = component.ruleBuilders.get(draft.rules[0])!;
             vi.spyOn(modal, 'exportFilterLogic').mockReturnValue(null);
             vi.spyOn(modal, 'filterError').mockReturnValue('Pick a value');
             component.finishTransformationRule(draft, 0);

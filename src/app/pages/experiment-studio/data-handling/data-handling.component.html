@@ -1200,7 +1200,7 @@
             <div class="preprocessing-shell">
             <!-- The stage's own vertical graph: one node per derived column, joined by the
                  pipeline connector, ending in the type chooser. Unchosen blank drafts stay
-                 off screen; they hold no rules, so the #ruleModal order is unaffected. -->
+                 off screen; they hold no rules, so no rule builder is registered for them. -->
             <div class="transformation-graph">
               @for (draft of transformationDrafts; track draft.id) {
               @if (isDraftShown(draft)) {
@@ -1260,7 +1260,7 @@
                       </span>
                     </div>
                   <!-- Collapsed rows by default. Editing one rule focuses the table on it: the other
-                       rows fold away (hidden, never destroyed — #ruleModal order is positional) and
+                       rows fold away (hidden, never destroyed — each builder stays registered for its rule) and
                        Done brings the whole list back. -->
                   <div class="transformation-rules" [class.is-focused]="draft.openRuleIndex != null">
                     <div class="transformation-rule-head">
@@ -1302,7 +1302,7 @@
                             <strong>{{ rule.value.trim() || 'this category' }}</strong>@if (ruleIndex > 0) {, unless an earlier category already took them}.
                           </p>
                           <app-filter-config-modal
-                            #ruleModal
+                            [ruleBuilderFor]="rule"
                             variableScope="selectedVariables"
                             [filterLogic]="rule.filter"
                           ></app-filter-config-modal>
