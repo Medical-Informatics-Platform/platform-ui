@@ -134,12 +134,8 @@
   font-weight: 600;
   color: var(--text-main);
   text-align: left;
-  overflow-wrap: anywhere;
-}
-
-.ar-table td.ar-cell-text {
-  text-align: left;
-  font-family: var(--font-sans);
+  /* break-word, not anywhere: a squeezed column breaks long words only, never "Cluster 0" mid-word. */
+  overflow-wrap: break-word;
 }
 
 .ar-table td.ar-role-factor {
@@ -154,8 +150,17 @@
 
 .ar-table td:not(:first-child),
 .ar-table thead th:not(:first-child) {
+  /* A gap before every column, so neighbours never touch ("0 11,130", "COMPACTNESSPROFILE"). */
+  padding-left: 8px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Name columns read left; declared after the right-align rule it overrides (same specificity). */
+.ar-table td.ar-cell-text,
+.ar-table thead th.ar-cell-text {
+  text-align: left;
+  font-family: var(--font-sans);
 }
 
 @media (max-width: 1024px) {
@@ -173,4 +178,12 @@
   .ar-card--full .ar-table {
     min-width: 0;
   }
+}
+
+.ar-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
 }

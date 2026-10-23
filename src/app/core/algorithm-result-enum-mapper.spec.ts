@@ -92,4 +92,55 @@ describe('mapAlgorithmResultEnums', () => {
     expect(mapped.x_labels).toEqual(['Alzheimer disease', 'Other diagnosis']);
     expect(mapped.y_labels).toEqual(['Female', 'Male']);
   });
+
+  it('maps standardized mean difference groups using the x-variable enum map', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'standardized_mean_difference',
+      { comparisons: [{ group1: '1', group2: '2', smd: -0.277 }] },
+      { biol_sex: { '1': 'male', '2': 'female' } },
+      { y: 'age', x: 'biol_sex' }
+    );
+
+    expect(mapped.comparisons).toEqual([{ group1: 'male', group2: 'female', smd: -0.277 }]);
+  });
+
+  it('labels k-means variables and the matching centre keys', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'kmeans',
+      { variables: ['age', 'nihss_24h'], clusters: [{ label: 'Cluster 0', center: { age: 79.5, nihss_24h: 2 } }] },
+      {},
+      {},
+      { age: 'Age', nihss_24h: '24h score' }
+    );
+
+    expect(mapped.variables).toEqual(['Age', '24h score']);
+    expect(mapped.clusters[0].center).toEqual({ Age: 79.5, '24h score': 2 });
+  });
+
+  it('labels the variable that opens each k-means profile line', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'kmeans',
+      {
+        variables: ['nihss', 'nihss_24h'],
+        clusters: [{ label: 'Cluster 0', center: {}, profile: ['nihss_24h is above the overall mean', 'nihss is below the overall mean'] }],
+      },
+      {},
+      {},
+      { nihss: 'Admission score', nihss_24h: '24h score' }
+    );
+
+    expect(mapped.clusters[0].profile).toEqual(['24h score is above the overall mean', 'Admission score is below the overall mean']);
+  });
+
+  it('labels a mixed model grouping variable sent as a list', () => {
+    const mapped = mapAlgorithmResultEnums(
+      'lmm',
+      { grouping_var: ['hospit_unit'], indep_vars: ['Intercept'] },
+      {},
+      {},
+      { hospit_unit: 'Hospitalization unit' }
+    );
+
+    expect(mapped.grouping_var).toEqual(['Hospitalization unit']);
+  });
 });

@@ -124,7 +124,8 @@
         <app-algorithm-result [result]="enrichResult(column.item.exp, column.item.state.result)"
           [schema]="getOutputSchemaFor(column.item.exp)" [algorithm]="column.item.exp.algorithmName"
           [enumMaps]="getEnumMapsFor(column.item.exp)" [yVar]="getYVarFor(column.item.exp)"
-          [xVar]="getXVarFor(column.item.exp)" [labelMap]="getLabelMapFor(column.item.exp)"></app-algorithm-result>
+          [xVar]="getXVarFor(column.item.exp)" [labelMap]="getLabelMapFor(column.item.exp)"
+          [parameters]="column.item.state.parameters ?? null"></app-algorithm-result>
         } @else {
         <span class="muted-text">No results available.</span>
         }

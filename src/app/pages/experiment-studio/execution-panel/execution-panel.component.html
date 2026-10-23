@@ -96,7 +96,7 @@
       <div class="result-section-body">
         <app-algorithm-result [result]="result()" [schema]="schema()" [algorithm]="resultAlgorithmKey()"
           [enumMaps]="enumMaps()" [yVar]="yVar()" [xVar]="xVar()" [labelMap]="labelMap()"
-          [algorithmLabel]="resultAlgorithmLabel()" />
+          [algorithmLabel]="resultAlgorithmLabel()" [parameters]="setupSnapshot()?.parameters ?? null" />
       </div>
 
     </section>

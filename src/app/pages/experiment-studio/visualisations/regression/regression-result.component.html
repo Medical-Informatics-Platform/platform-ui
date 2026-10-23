@@ -1,0 +1,103 @@
+@let model = view();
+<section class="lr-result" aria-label="Regression result">
+  @if (model.figures.length) {
+  <app-key-figures [figures]="model.figures" />
+  }
+
+  <section class="coefficients-card" aria-labelledby="coef-heading">
+    <header class="coefficients-head">
+      <div class="coefficients-copy">
+        <h3 id="coef-heading" class="coefficients-title">Coefficients</h3>
+        <span class="coefficients-subtitle">{{ model.subtitle }}</span>
+      </div>
+      <div class="coefficients-actions">
+        <div class="modal-tabs coef-columns" role="group" aria-label="Coefficient columns">
+          <button type="button" [class.active]="coefficientColumns() === 'key'"
+            [attr.aria-pressed]="coefficientColumns() === 'key'" (click)="coefficientColumns.set('key')">
+            Key columns
+          </button>
+          <button type="button" [class.active]="coefficientColumns() === 'all'"
+            [attr.aria-pressed]="coefficientColumns() === 'all'" (click)="coefficientColumns.set('all')">
+            All columns
+          </button>
+        </div>
+        <button type="button" class="csv-link" (click)="downloadCoefficientsCsv()"
+          title="Download coefficients as CSV" aria-label="Download coefficients as CSV">CSV ↓</button>
+      </div>
+    </header>
+
+    <div class="coef-table" role="table" aria-label="Coefficients" [class.is-all-columns]="coefficientColumns() === 'all'"
+      [style.--coef-columns]="gridColumns()" [style.--coef-columns-narrow]="narrowGridColumns()">
+      <div class="coef-row coef-row--head" role="row">
+        <span role="columnheader">Variable</span>
+        @for (column of columns(); track column) {
+        <span role="columnheader" [class.is-numeric]="column !== 'interval'" [class.is-center]="column === 'interval'">{{ columnLabel(column) }}</span>
+        }
+      </div>
+
+      @for (row of model.rows; track row.variable) {
+      <div class="coef-row" [class.is-intercept]="row.isIntercept" role="row">
+        <span role="cell" class="coef-variable">{{ row.term }}@if (row.level) {<span class="coef-level"> · {{ row.level }}</span>}</span>
+        @for (column of columns(); track column; let lead = $first) {
+        @switch (column) {
+        @case ('interval') {
+        <span role="cell" class="coef-plot-cell">
+          @if (!row.isIntercept) {
+          <span class="coef-plot" aria-hidden="true">
+            <span class="coef-plot-zero"></span>
+            <span class="coef-plot-interval" [class.is-significant]="row.significant"
+              [style.left.%]="row.plotLeft" [style.width.%]="row.plotWidth"></span>
+            <span class="coef-plot-marker" [class.is-significant]="row.significant"
+              [style.left.%]="row.markerLeft"></span>
+          </span>
+          }
+        </span>
+        }
+        @case ('p') {
+        <span role="cell" class="is-numeric coef-p" [class.is-significant]="row.significant && !row.isIntercept">{{ row.pText }}</span>
+        }
+        @default {
+        <span role="cell" class="is-numeric" [class.coef-estimate]="lead" [class.coef-muted]="!lead">{{ cellText(row, column) }}</span>
+        }
+        }
+        }
+      </div>
+      }
+    </div>
+
+    <p class="coef-note">
+      Bold p-values are below 0.05.
+      @if (showsInterval()) {
+      Each interval is drawn on its own scale around
+      {{ model.nullValue === 1 ? ratioPhrase() + ' of 1 (log scale)' : 'zero' }}, so compare direction and whether it
+      crosses {{ model.nullValue }}, not size between rows.
+      }
+      @if (hasLevels()) {
+      A category row compares that level with the variable's reference level, the one not listed.
+      }
+    </p>
+  </section>
+
+  @if (model.fitMetrics.length) {
+  <section class="model-fit">
+    <button type="button" class="model-fit-summary" [attr.aria-expanded]="fitOpen()" (click)="fitOpen.set(!fitOpen())">
+      <span class="model-fit-arrow" [class.is-open]="fitOpen()" aria-hidden="true"></span>
+      <span class="model-fit-title">Model fit details</span>
+      @if (model.fitGlance) {
+      <span class="model-fit-glance">{{ model.fitGlance }}</span>
+      }
+    </button>
+
+    @if (fitOpen()) {
+    <dl class="model-fit-grid">
+      @for (metric of model.fitMetrics; track metric.label) {
+      <div class="model-fit-item">
+        <dt>{{ metric.label }}</dt>
+        <dd>{{ metric.value }}</dd>
+      </div>
+      }
+    </dl>
+    }
+  </section>
+  }
+</section>

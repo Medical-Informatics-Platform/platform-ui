@@ -286,6 +286,8 @@ export class ExperimentDetailsComponent {
     );
   }
 
+  readonly runParameters = computed(() => this.fullExperimentSignal()?.analysis?.algorithm?.parameters ?? null);
+
   readonly hasStoredParameters = computed(() =>
     Object.values(this.fullExperimentSignal()?.analysis?.algorithm?.parameters ?? {})
       .some((value) => !this.isEmptyParameterValue(value))

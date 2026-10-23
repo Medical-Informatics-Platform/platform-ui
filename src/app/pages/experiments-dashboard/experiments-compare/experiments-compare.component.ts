@@ -17,6 +17,8 @@ interface CompareResultState {
   loading: boolean;
   error: string | null;
   result: any | null;
+  /** The run's algorithm parameters, so a two-group test can name its groups. */
+  parameters?: Record<string, unknown> | null;
 }
 
 interface CompareItem {
@@ -188,6 +190,7 @@ export class ExperimentsCompareComponent implements OnDestroy {
             loading: false,
             error: null,
             result: res?.result ?? res,
+            parameters: res?.analysis?.algorithm?.parameters ?? null,
           },
         }));
       },

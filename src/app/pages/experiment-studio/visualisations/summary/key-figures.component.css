@@ -1,0 +1,49 @@
+:host {
+  display: block;
+}
+
+/* Wraps on the container's width, not the viewport's: the same strip sits in the
+   studio, the dashboard detail and 360px compare columns. Each cell draws its left
+   and top hairline as an inset-free shadow that the card's overflow clips at the edge. */
+.key-figures {
+  display: flex;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.key-figure {
+  display: flex;
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 16px;
+  box-shadow: -1px 0 0 rgba(148, 163, 184, 0.22), 0 -1px 0 rgba(148, 163, 184, 0.22);
+}
+
+.key-figure-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.key-figure-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+}
+
+.key-figure-note {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}

@@ -464,7 +464,7 @@ test.describe('run and save lifecycle', () => {
     await expect(result).toContainText('R²');
     await expect(result).toContainText('0.042');
     await expect(result).toContainText('F(1, 98) = 4.31');
-    const sexRow = result.getByRole('row', { name: /Sex\[Male\]/ });
+    const sexRow = result.getByRole('row', { name: /Sex · Male/ });
     await expect(sexRow).toContainText('2.05');
     await expect(sexRow).toContainText('0.090 to 4.01');
     await expect(result.getByRole('row', { name: /Intercept/ })).toContainText('71.20');

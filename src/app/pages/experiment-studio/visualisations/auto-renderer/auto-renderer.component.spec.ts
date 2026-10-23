@@ -124,6 +124,30 @@ describe('AutoRendererComponent', () => {
     expect(tables?.[1].title).toBe('Error metrics');
   });
 
+  it('leaves out tables the page already shows above, before titling the rest', () => {
+    setInputs({
+      algorithm: 'linear_regression_cv',
+      covered: [{ title: 'Error metrics' }],
+      heading: 'Detailed results',
+      value: { n_obs: [100, 101], root_mean_sq_error: [1.1, 0.1] },
+    });
+
+    expect(cmp.tableSpec()?.map((table) => table.title)).toEqual(['Training set sample sizes']);
+    expect((fixture.nativeElement as HTMLElement).querySelector('.ar-heading')?.textContent).toBe('Detailed results');
+  });
+
+  it('renders nothing, heading included, when every table is shown above', () => {
+    setInputs({
+      algorithm: 'binned_mann_whitney_u_test',
+      covered: [{ title: 'Binned Mann-Whitney U Test' }],
+      heading: 'Detailed results',
+      value: { u_stat: 1, p_value: 0.5, z_score: 0.1, n1: 10, n2: 12 },
+    });
+
+    expect(cmp.tableSpec()).toEqual([]);
+    expect((fixture.nativeElement as HTMLElement).children.length).toBe(0);
+  });
+
   it('uses fallback title when result title is missing', () => {
     setInputs({
       algorithm: 'binned_mann_whitney_u_test',
@@ -213,5 +237,15 @@ describe('AutoRendererComponent', () => {
       expect(cmp.error()).toBeNull();
       expect(cmp.tableSpec()?.length).toBeGreaterThan(0);
     });
+  });
+
+  it('groups thousands and uses a typographic minus on screen, plain numbers for CSV', () => {
+    expect(cmp.formatValue(1065586.73)).toBe('1\u202f065\u202f587');
+    expect(cmp.formatValue('111854')).toBe('111\u202f854');
+    expect(cmp.formatValue(-3.8885)).toBe('−3.889');
+    expect(cmp.formatValue(0.00001234)).toBe('1.234e-5');
+    expect(cmp.formatValue(1065586.73, false)).toBe('1065587');
+    expect(cmp.formatValue(-3.8885, false)).toBe('-3.889');
+    expect(cmp.formatValue('< 0.001')).toBe('< 0.001');
   });
 });
