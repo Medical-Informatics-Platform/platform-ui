@@ -1743,43 +1743,18 @@
       </div>
 
       <!-- PIPELINE TERMINAL -->
-      <div class="pipeline-terminal-card">
-        @if (showUnappliedChangesWarning()) {
-        <div class="unapplied-warning-card" role="alert">
-          <div class="unapplied-warning-icon"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></div>
-          <div class="unapplied-warning-text">
-            <h4>You have unapplied changes</h4>
-            <p>Apply them or discard them before moving to Algorithm Selection.</p>
-          </div>
-          <div class="unapplied-warning-actions">
-            <button type="button" class="btn-finish-pipeline" (click)="applyAndContinue()">
-              <span>Apply &amp; Continue</span>
-              <i class="fas fa-check" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="btn-finish-pipeline unapplied-warning-btn secondary" (click)="discardAndContinue()">
-              <span>Discard Changes &amp; Continue</span>
-            </button>
-            <button type="button" class="btn-finish-pipeline unapplied-warning-btn ghost" (click)="showUnappliedChangesWarning.set(false)">
-              <span>Stay in Pipeline</span>
-            </button>
-          </div>
-        </div>
-        }
-        <div class="pipeline-terminal-summary">
-          <span class="pipeline-terminal-kicker">The next run will use</span>
-          <div class="pipeline-terminal-facts">
-            @if (cohortRetention; as r) {
-            <span><strong>{{ r.processed.toLocaleString() }}</strong> of {{ r.raw.toLocaleString() }} records</span>
-            }
-            <span><strong>{{ preprocessingVariables.length }}</strong> variables · {{ expStudioService.selectedDatasets().length }} datasets</span>
-            <span>{{ terminalPreprocessingLine }}</span>
-          </div>
-        </div>
-        <button type="button" class="btn-finish-pipeline" (click)="finishDataHandling()">
-          <span>Continue to Algorithm Selection</span>
-          <i class="fas fa-arrow-right" aria-hidden="true"></i>
-        </button>
-      </div>
+      <div
+        app-pipeline-terminal
+        [retention]="cohortRetention"
+        [variableCount]="preprocessingVariables.length"
+        [datasetCount]="expStudioService.selectedDatasets().length"
+        [preprocessingLine]="terminalPreprocessingLine"
+        [showUnappliedWarning]="showUnappliedChangesWarning()"
+        (continue)="finishDataHandling()"
+        (applyAndContinue)="applyAndContinue()"
+        (discardAndContinue)="discardAndContinue()"
+        (stay)="showUnappliedChangesWarning.set(false)"
+      ></div>
 
       <!-- Off-screen chart surfaces the PDF export reads by `${kind}-export` class. They
            stay mounted while the summary is closed, so the export button always finds them. -->
