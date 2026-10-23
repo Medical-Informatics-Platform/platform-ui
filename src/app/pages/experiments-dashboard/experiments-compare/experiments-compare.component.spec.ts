@@ -1,6 +1,7 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { EMPTY } from 'rxjs';
+import { provideEchartsCore } from 'ngx-echarts';
+import { EMPTY, of } from 'rxjs';
 
 import { Experiment } from '../../../models/experiments-dashboard.model';
 import { ExperimentLabelService } from '../../../services/experiment-label.service';
@@ -30,6 +31,7 @@ describe('ExperimentsCompareComponent', () => {
   let fixture: ComponentFixture<ExperimentsCompareComponent>;
   let component: ExperimentsCompareComponent;
   let foldersService: FakeExperimentFoldersService;
+  let dashboard: { experiments: unknown; getExperimentResult: (id: string) => unknown };
 
   const root = () => fixture.nativeElement as HTMLElement;
   const headline = () => root().querySelector('.compare-header p')!.textContent!.trim();
@@ -52,23 +54,26 @@ describe('ExperimentsCompareComponent', () => {
 
   beforeEach(async () => {
     foldersService = new FakeExperimentFoldersService();
+    dashboard = { experiments: signal<Experiment[]>([]), getExperimentResult: () => EMPTY };
 
     await TestBed.configureTestingModule({
       imports: [ExperimentsCompareComponent],
       providers: [
         provideZonelessChangeDetection(),
+        provideEchartsCore({ echarts: () => import('echarts') }),
         { provide: ExperimentFoldersService, useValue: foldersService },
-        {
-          provide: ExperimentsDashboardService,
-          useValue: { experiments: signal<Experiment[]>([]), getExperimentResult: () => EMPTY },
-        },
+        { provide: ExperimentsDashboardService, useValue: dashboard },
         {
           provide: ExperimentLabelService,
           useValue: { getLabelMap: async () => ({}), getEnumMaps: async () => ({}) },
         },
         {
           provide: ExperimentStudioService,
-          useValue: { backendAlgorithms: signal<Record<string, { label: string }>>({ ttest: { label: 'T-test' } }) },
+          useValue: {
+            backendAlgorithms: signal<Record<string, { label: string }>>({ ttest: { label: 'T-test' } }),
+            algorithmAssignableVariables: () => [],
+            selectedFilters: () => [],
+          },
         },
       ],
     }).compileComponents();
@@ -104,6 +109,19 @@ describe('ExperimentsCompareComponent', () => {
       show(['a', 'b']);
 
       expect(root().querySelector('.compare-back-btn')).toBeNull();
+    });
+  });
+
+  describe('results', () => {
+    it('hands each run its own parameters, so a t-test column names the groups it compared', () => {
+      dashboard.getExperimentResult = () => of({
+        result: { t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, ci_upper: -0.6 },
+        analysis: { algorithm: { parameters: { groupA: 'M', groupB: 'F' } } },
+      });
+      showRuns([experiment('a', 'ttest_independent')]);
+      fixture.detectChanges();
+
+      expect(root().querySelector('.compare-column app-key-figures')?.textContent).toContain('M − F');
     });
   });
 

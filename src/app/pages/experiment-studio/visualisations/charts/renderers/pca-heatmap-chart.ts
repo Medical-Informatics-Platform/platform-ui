@@ -5,12 +5,13 @@ import { escapeHtml } from '../../../../../core/html.utils';
 const AXIS_COLOR = '#475569';
 const TEXT_COLOR = '#0f172a';
 
-/** Share of total variance per component, in percent. */
-function varianceShares(eigenvalues: unknown): number[] {
+/** Share of total variance per component, in percent, at the component's own index:
+ *  a missing eigenvalue is null there, so later components keep their shares. */
+function varianceShares(eigenvalues: unknown): (number | null)[] {
   if (!Array.isArray(eigenvalues)) return [];
-  const values = eigenvalues.map((value) => Number(value)).filter((value) => Number.isFinite(value));
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return total > 0 ? values.map((value) => (value / total) * 100) : [];
+  const values = eigenvalues.map((value) => (value === null || value === undefined || value === '' ? NaN : Number(value)));
+  const total = values.filter((value) => Number.isFinite(value)).reduce((sum, value) => sum + value, 0);
+  return total > 0 ? values.map((value) => (Number.isFinite(value) ? (value / total) * 100 : null)) : [];
 }
 
 export function buildPCAHeatmapChart(result: any): EChartsOption[] {
@@ -46,13 +47,13 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
   const shares = varianceShares(result?.eigenvalues);
   const componentNames = Array.from({ length: nComponents }, (_, i) => `PC${i + 1}`);
   const componentLabels = componentNames.map((name, i) =>
-    shares[i] === undefined ? name : `${name} · ${shares[i].toFixed(1)}%`
+    shares[i] == null ? name : `${name} · ${shares[i]!.toFixed(1)}%`
   );
 
   // Variables as rows and components as columns: long variable names wrap on the left, and
   // the short component headers fit even a 360px compare column.
   const componentHeaders = componentNames.map((name, i) =>
-    shares[i] === undefined ? name : `${name}\n${shares[i].toFixed(1)}%`
+    shares[i] == null ? name : `${name}\n${shares[i]!.toFixed(1)}%`
   );
   const heatmapData = matrix.flatMap((row: number[], component: number) =>
     row.map((value, variable) => ({
@@ -127,10 +128,12 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
     ],
   } as EChartsOption);
 
-  if (shares.length) {
+  if (shares.some((share) => share !== null)) {
     let running = 0;
-    const cumulative = shares.map((share) => (running += share));
-    const round1 = (value: number) => Math.round(value * 10) / 10;
+    const cumulative = shares.map((share) => (share === null ? null : (running += share)));
+    const round1 = (value: number | null) => (value === null ? null : Math.round(value * 10) / 10);
+    // One bar per eigenvalue, named by its index, so a gap leaves the components after it in place.
+    const varianceComponents = shares.map((_, i) => `PC${i + 1}`);
     charts.push({
       mipChartHeight: 340,
       title: {
@@ -141,13 +144,13 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        valueFormatter: (value: any) => `${Number(value).toFixed(1)}%`,
+        valueFormatter: (value: any) => (Number.isFinite(Number(value)) && value !== null ? `${Number(value).toFixed(1)}%` : '—'),
       },
       grid: { top: 80, left: 8, right: 16, bottom: 12, containLabel: true },
       xAxis: {
         type: 'category',
         // Eigenvalue under each component, so the PCA summary table is not needed on screen.
-        data: componentNames.map((name, i) => {
+        data: varianceComponents.map((name, i) => {
           const eigenvalue = Number(result.eigenvalues[i]);
           return Number.isFinite(eigenvalue) ? `${name}\nλ ${eigenvalue.toFixed(2)}` : name;
         }),
@@ -167,7 +170,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
           data: shares.map(round1),
           itemStyle: { color: CHART_SERIES_COLORS[0] },
           // One decimal like the weights' column headers: "14.0%", not "14%".
-          label: { show: true, position: 'top', color: TEXT_COLOR, formatter: (p: any) => `${Number(p.value).toFixed(1)}%` },
+          label: { show: true, position: 'top', color: TEXT_COLOR, formatter: (p: any) => (Number.isFinite(Number(p.value)) && p.value !== null ? `${Number(p.value).toFixed(1)}%` : '') },
         },
         {
           name: 'Cumulative',

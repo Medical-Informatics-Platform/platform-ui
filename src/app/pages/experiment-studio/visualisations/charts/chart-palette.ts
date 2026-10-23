@@ -25,6 +25,5 @@ export const DIVERGING_COLORS = ['#e34948', '#f1f5f9', '#2b33e9'];
  * only takes over on the deep blue end, where it beats ink.
  */
 export function cellLabelColor(scalePosition: number): string {
-  // ponytail: both colours dip to ~4.2:1 right at 0.7; a darker blue stop would close that gap.
   return scalePosition >= 0.7 ? '#ffffff' : '#0f172a';
 }

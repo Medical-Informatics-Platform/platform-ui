@@ -106,9 +106,8 @@ This document describes what the frontend currently renders for each algorithm a
 ### K-Means (`kmeans`)
 
 - Charts:
-  - 2D scatter when the result has 2 variables.
-  - 3D scatter when the result has 3 variables.
-  - Parallel coordinates fallback for any other number of variables.
+  - Bubble chart of the centres when the result has 2 variables (the Cluster Centers table stays).
+  - Heatmap of the centres, values in the cells, for 3 or more variables (it replaces the Cluster Centers table on screen).
   - Elbow curve when `elbow` is present.
 - Tables:
   - K-Means summary (k selection, selected k, observations, initialization, convergence).

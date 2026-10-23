@@ -34,7 +34,6 @@
             "allowedCommonJsDependencies": [
               "canvg",
               "core-js",
-              "echarts-gl",
               "html2canvas",
               "raf",
               "rgbcolor"

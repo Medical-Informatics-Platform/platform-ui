@@ -1,5 +1,5 @@
 import { EChartsOption } from 'echarts';
-import { formatInteger, formatSummaryNumber } from '../../result-format';
+import { formatInteger, formatSummaryNumber, toFiniteNumber } from '../../result-format';
 import { DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
 import { escapeHtml } from '../../../../../core/html.utils';
 
@@ -12,7 +12,8 @@ export function buildKMeansChart(output: any): EChartsOption[] {
 
   const variables: string[] = output.variables ?? [];
   const names: string[] = clusters.map((c: any) => c.label);
-  const centers: number[][] = clusters.map((c: any) => variables.map((v: string) => c.center[v]));
+  // A centre value the engine did not send (or sent as null) stays null: drawn as missing, never NaN.
+  const centers: (number | null)[][] = clusters.map((c: any) => variables.map((v: string) => toFiniteNumber(c?.center?.[v])));
 
   const sizes: (number | null)[] = clusters.map((c: any) => intervalMidpoint(c.size_interval));
   // A range prints as its midpoint ("~66 245"); "<10" and an empty cluster's "0" print as sent.
@@ -24,7 +25,7 @@ export function buildKMeansChart(output: any): EChartsOption[] {
   // Each cluster's name carries its size, so the centres table is not needed on screen.
   const sizedNames = names.map((name, i) => (sizeTexts[i] === null ? name : `${name} · ${sizeTexts[i]}`));
   const charts = variables.length === 2
-    ? buildKMeans2DChart(centers as [number, number][], names, sizedNames, variables, sizes, sizeTexts)
+    ? buildKMeans2DChart(centers as [number | null, number | null][], names, sizedNames, variables, sizes, sizeTexts)
     : buildKMeansCentresHeatmap(centers, sizedNames, variables, sizes);
 
   if (output.elbow) {
@@ -47,7 +48,7 @@ function intervalMidpoint(interval: unknown): number | null {
 
 /** Two variables: one bubble per centre, its area proportional to the cluster's size. */
 function buildKMeans2DChart(
-  centers: [number, number][],
+  centers: [number | null, number | null][],
   names: string[],
   legendNames: string[],
   variables: string[],
@@ -88,7 +89,8 @@ function buildKMeans2DChart(
       series: centers.map(([x, y], i) => ({
         name: legendNames[i],
         type: 'scatter',
-        data: [[x, y]],
+        // A centre missing either coordinate has no place on the plot; its legend entry stays.
+        data: x === null || y === null ? [] : [[x, y]],
         symbolSize: radius(sizes[i]),
         itemStyle: { opacity: 0.85, borderColor: '#ffffff', borderWidth: 2 },
         label: { show: true, position: 'top', color: '#0f172a', formatter: names[i] },
@@ -104,7 +106,7 @@ function buildKMeans2DChart(
  * variable's overall mean (centres weighted by cluster size), scaled per column because units differ.
  */
 function buildKMeansCentresHeatmap(
-  centers: number[][],
+  centers: (number | null)[][],
   names: string[],
   variables: string[],
   sizes: (number | null)[]
@@ -114,19 +116,21 @@ function buildKMeansCentresHeatmap(
   // An empty cluster ("0") weighs nothing; an unreadable size drops the weighting for every cluster.
   const sized = sizes.every((size) => size !== null) && sizes.some((size) => size! > 0);
   const weights = sized ? (sizes as number[]) : centers.map(() => 1);
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  // Each variable's mean over the clusters that report it; a missing centre shades neutral.
   const deviations = variables.map((_, v) => {
-    const mean = centers.reduce((sum, center, c) => sum + weights[c] * Number(center[v]), 0) / totalWeight;
-    const raw = centers.map((center) => Number(center[v]) - mean);
-    const largest = Math.max(...raw.map(Math.abs));
-    return raw.map((value) => (largest > 0 ? value / largest : 0));
+    const reported = centers.map((_center, c) => c).filter((c) => centers[c][v] !== null);
+    const totalWeight = reported.reduce((sum, c) => sum + weights[c], 0);
+    const mean = totalWeight > 0 ? reported.reduce((sum, c) => sum + weights[c] * centers[c][v]!, 0) / totalWeight : null;
+    const raw = centers.map((center) => (center[v] === null || mean === null ? null : center[v]! - mean));
+    const largest = Math.max(0, ...raw.map((value) => Math.abs(value ?? 0)));
+    return raw.map((value) => (value !== null && largest > 0 ? value / largest : 0));
   });
 
   const data = centers.flatMap((center, c) =>
     variables.map((_, v) => {
       const shade = deviations[v][c];
       return {
-        value: [v, c, shade, Number(center[v])],
+        value: [v, c, shade, center[v]],
         label: { color: cellLabelColor(shade) },
       };
     })
@@ -141,6 +145,7 @@ function buildKMeansCentresHeatmap(
         position: 'top',
         formatter: (p: any) => {
           const [v, c, shade, value] = p.value;
+          if (value === null) return `${escapeHtml(names[c])}<br/>${escapeHtml(variables[v])}: not reported`;
           const side = shade > 0 ? 'above' : shade < 0 ? 'below' : 'at';
           return `${escapeHtml(names[c])}<br/>${escapeHtml(variables[v])}: <b>${formatSummaryNumber(value)}</b><br/>${side} the overall mean`;
         },
@@ -183,7 +188,7 @@ function buildKMeansCentresHeatmap(
           type: 'heatmap',
           data,
           itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
-          label: { show: true, fontSize: 12, formatter: (p: any) => formatSummaryNumber(p.value[3]) },
+          label: { show: true, fontSize: 12, formatter: (p: any) => (p.value[3] === null ? '—' : formatSummaryNumber(p.value[3])) },
         },
       ],
     } as EChartsOption,

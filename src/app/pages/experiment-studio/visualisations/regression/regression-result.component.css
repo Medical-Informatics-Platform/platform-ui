@@ -75,7 +75,12 @@
 .csv-link:hover,
 .csv-link:focus-visible {
   background: #eef0fd;
-  outline: none;
+}
+
+/* A visible focus ring, as on the column toggle (WCAG 2.4.7). */
+.csv-link:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .coef-table {
@@ -245,7 +250,12 @@
 .model-fit-summary:hover,
 .model-fit-summary:focus-visible {
   background: #f8fafc;
-  outline: none;
+}
+
+/* A visible focus ring, as on the column toggle (WCAG 2.4.7). */
+.model-fit-summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .model-fit-arrow {
