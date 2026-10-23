@@ -23,6 +23,7 @@ import {
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { isVariableUnavailable } from '../../../core/variable-availability.utils';
 import {
   describeClippedNullEdges,
   formatClippedNullEdgesNote,
@@ -113,6 +114,7 @@ export class VariablesPanelComponent implements OnDestroy {
       plottedCode: this.plottedVariable()?.code,
       selectedVariables: this.experimentStudioService.selectedVariables(),
       datasetLevelCount: this.experimentStudioService.selectedDatasets().length,
+      unavailableVariables: this.experimentStudioService.unavailableVariables(),
     })
   );
   readonly canSplitHistogram = computed(() => {
@@ -152,6 +154,8 @@ export class VariablesPanelComponent implements OnDestroy {
   });
   contextOpen = signal(false);
   searchExpanded = signal(false);
+  /** Variables missing from a selected dataset: grayed out in every view and never selected. */
+  readonly unavailableVariables = this.experimentStudioService.unavailableVariables;
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
@@ -172,7 +176,8 @@ export class VariablesPanelComponent implements OnDestroy {
       const split = this.histogramSplit();
       if (!split) return;
       const option = this.histogramSplitOptions().find((item) => item.code === split);
-      if (option && !option.disabled) return;
+      // A split that became unavailable after a dataset change is kept: nothing chosen is auto-removed.
+      if (option && (!option.disabled || option.unavailable)) return;
       untracked(() => this.applyHistogramSplit(HISTOGRAM_SPLIT_NONE));
     });
 
@@ -211,6 +216,7 @@ export class VariablesPanelComponent implements OnDestroy {
     const index = normalizeMetadataTree(this.d3Data);
     const selection = selectionFromSearchResult(index, result);
     const node = selection.originalNode;
+    if (this.isUnavailable(node)) return;
     this.highlightNode = { ...node, path: result.path };
     this.onSelectedNodeChange(node);
     this.searchExpanded.set(false);
@@ -236,15 +242,18 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   onBubbleNodeSelected(node: any): void {
+    if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
   }
 
   onMetadataBrowserNodeSelected(node: any): void {
+    if (this.isUnavailable(node)) return;
     this.highlightNode = node;
     this.onSelectedNodeChange(node);
   }
 
   onNodeDoubleClicked(node: any): void {
+    if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();
     this.cdr.detectChanges();
@@ -326,8 +335,15 @@ export class VariablesPanelComponent implements OnDestroy {
     return (this.experimentStudioService.selectedDatasets() || []).length > 0;
   }
 
+  private isUnavailable(node: any): boolean {
+    return isVariableUnavailable(this.unavailableVariables(), node);
+  }
+
   isSelectedNodeInPool(): boolean {
-    const targets = this.selectionTargets();
+    // Unavailable variables can never be added, so they do not count against "all added";
+    // a node with only unavailable variables still reads as pooled when they were added earlier.
+    const addable = this.addableTargets();
+    const targets = addable.length ? addable : this.selectionTargets();
     if (!targets.length) {
       return false;
     }
@@ -336,7 +352,14 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   selectionToggleDisabled(): boolean {
-    return !this.hasSelectedDatasets || !this.selectedNode;
+    return !this.hasSelectedDatasets
+      || !this.selectedNode
+      || (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool());
+  }
+
+  /** The selected node offers nothing to add: every variable under it is unavailable. */
+  private selectedNodeOnlyUnavailable(): boolean {
+    return this.selectionTargets().length > 0 && this.addableTargets().length === 0;
   }
 
   selectionToggleLabel(): string {
@@ -350,6 +373,9 @@ export class VariablesPanelComponent implements OnDestroy {
     if (!this.selectedNode) {
       return 'Select a variable or group on the map';
     }
+    if (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool()) {
+      return 'Not available in the selected datasets';
+    }
     return this.isSelectedNodeInPool()
       ? 'Remove the selected variable from this experiment'
       : 'Add the selected variable to this experiment';
@@ -359,25 +385,29 @@ export class VariablesPanelComponent implements OnDestroy {
     if (this.selectionToggleDisabled()) {
       return;
     }
-    const targets = this.selectionTargets();
-    if (!targets.length) {
+    if (!this.selectionTargets().length) {
       return;
     }
     if (this.isSelectedNodeInPool()) {
-      const removeCodes = new Set(targets.map((item) => item.code));
+      const removeCodes = new Set(this.selectionTargets().map((item) => item.code));
       this.experimentStudioService.setVariables(
         this.experimentStudioService.selectedVariables().filter((variable) => !removeCodes.has(variable.code))
       );
       return;
     }
-    targets.forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
+    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
   }
 
   addVariableFromBubble(): void {
     if (!this.hasSelectedDatasets || !this.selectedNode) {
       return;
     }
-    this.selectionTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
+    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
+  }
+
+  /** Selection targets minus unavailable variables, so adding a group never pools one. */
+  private addableTargets(): any[] {
+    return this.selectionTargets().filter((item) => !this.isUnavailable(item));
   }
 
   private selectionTargets(): any[] {
