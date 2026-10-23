@@ -1055,7 +1055,7 @@ describe('DataHandlingComponent', () => {
         });
         fixture.detectChanges();
 
-        expect(component.processedSummary.featurewiseRows[0].data.mean).toBe(82);
+        expect(component.processedSummary.featurewiseRows[0].data).toMatchObject({ mean: 82 });
 
         first.complete();
         second.complete();
@@ -1093,7 +1093,7 @@ describe('DataHandlingComponent', () => {
         fixture.detectChanges();
 
         expect(component.sourceSummary.featurewiseRows.length).toBe(1);
-        expect(component.sourceSummary.featurewiseRows[0].data.mean).toBe(82);
+        expect(component.sourceSummary.featurewiseRows[0].data).toMatchObject({ mean: 82 });
         expect(component.sourceSummary.isLoading).toBe(false);
 
         stale.complete();

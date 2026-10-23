@@ -48,8 +48,10 @@ import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
 import { DATA_HANDLING } from './data-handling.context';
 import { emptySummaryView } from './utils/summary-view.utils';
+import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
+import { VariableStats } from '../../../models/algorithm-results.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
@@ -109,7 +111,6 @@ import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-docum
 import { emptyTransformationDraft, nextTransformationDraftId } from './utils/transformation-draft.utils';
 import {
   formatInteger,
-  formatNumber,
   formatOutlierBound,
   formatOutlierPercentage,
   formatPercent,
@@ -773,19 +774,6 @@ export class DataHandlingComponent implements OnDestroy {
   ];
   readonly outlierStrategies = OUTLIER_STRATEGIES;
   readonly outlierTails = OUTLIER_TAILS;
-
-  readonly metricOrder: Array<{ key: string; label: string }> = [
-    { key: 'num_datapoints', label: 'Datapoints' },
-    { key: 'num_missing', label: 'Missing' },
-    { key: 'num_total', label: 'Total' },
-    { key: 'mean', label: 'Mean' },
-    { key: 'std', label: 'Standard Deviation' },
-    { key: 'min', label: 'Min' },
-    { key: 'q1', label: 'Q1' },
-    { key: 'q2', label: 'Median' },
-    { key: 'q3', label: 'Q3' },
-    { key: 'max', label: 'Max' },
-  ];
 
   readonly metricLabel: Record<MetricKey, string> = {
     num_dtps: 'Datapoints',
@@ -2849,7 +2837,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   variableLabel(variable: VariableRow): string {
-    return variable.name ?? variable.label ?? variable.code;
+    return variableLabel(variable);
   }
 
   datasetLabel(datasetCode: string): string {
@@ -2984,13 +2972,13 @@ export class DataHandlingComponent implements OnDestroy {
     const current = this.getSummary(kind);
     const featurewise = getFeaturewiseDescribeRows(response);
     const dsFromPayload = Array.from(
-      new Set((featurewise ?? []).map((item: any) => String(item.dataset)))
+      new Set(featurewise.map((item) => String(item.dataset)))
     ) as string[];
     const datasetOrder = dsFromPayload
       .filter((dataset) => dataset && dataset !== 'all datasets')
       .concat('all datasets');
     const variableList = this.preprocessingVariables;
-    const data = this.pivotByDataset(featurewise, variableList, datasetOrder);
+    const data = pivotByDataset(featurewise, variableList, datasetOrder);
     const distributionState = this.buildDistributionState(featurewise, response);
     const summary: SummaryView = {
       ...current,
@@ -3198,12 +3186,10 @@ export class DataHandlingComponent implements OnDestroy {
     block: PivotBlock
   ): HistogramPreviewData | null {
     const featurewise = this.getSummary(kind).featurewiseRows;
-    const row = featurewise.find(
-      (item: { variable?: string; dataset?: string }) =>
-        item?.variable === code && String(item?.dataset ?? '') === 'all datasets'
-    ) ?? featurewise.find((item: { variable?: string }) => item?.variable === code);
-    const counts = (row as { data?: { counts?: Record<string, number> } })?.data?.counts;
-    if (!counts || typeof counts !== 'object' || !Object.keys(counts).length) {
+    const row = featurewise.find((item) => item?.variable === code && String(item?.dataset ?? '') === 'all datasets')
+      ?? featurewise.find((item) => item?.variable === code);
+    const counts = categoryCounts(row?.data);
+    if (!Object.keys(counts).length) {
       return null;
     }
 
@@ -3318,12 +3304,12 @@ export class DataHandlingComponent implements OnDestroy {
     }
     const selected = (this.expStudioService.selectedVariables() as VariableRow[])
       .find((variable) => variable.code === groupingVar);
-    const mapped = this.getEnumLabelMap(selected ?? this.findModelVariable(groupingVar) ?? undefined)
+    const mapped = enumLabelMap(selected ?? this.findModelVariable(groupingVar) ?? undefined)
       .get(groupingEnum);
     return mapped ?? groupingEnum;
   }
 
-  private buildDistributionState(featurewise: any[], response: unknown): Pick<SummaryView,
+  private buildDistributionState(featurewise: VariableStats[], response: unknown): Pick<SummaryView,
     'showDistributions' | 'distributionSubTab' | 'nonNominalVariables' | 'nominalVariables' |
     'chartsForBoxPlot' | 'chartsForNominal' | 'activeBoxPlotIndex' | 'activeNominalIndex'
   > {
@@ -3332,7 +3318,7 @@ export class DataHandlingComponent implements OnDestroy {
 
     const varsWithCounts = new Set<string>();
     for (const item of featurewise) {
-      if (item.data && item.data.counts && Object.keys(item.data.counts).length > 0) {
+      if (Object.keys(categoryCounts(item.data)).length > 0) {
         varsWithCounts.add(item.variable);
       }
     }
@@ -3354,7 +3340,7 @@ export class DataHandlingComponent implements OnDestroy {
         result: {
           ...((response as { result?: Record<string, unknown> })?.result ?? {}),
           featurewise: featurewise.filter(
-            (row: any) => row.variable === v.code && row.dataset !== 'all datasets'
+            (row) => row.variable === v.code && row.dataset !== 'all datasets'
           ),
           dataset_labels: datasetLabels,
         },
@@ -3363,9 +3349,9 @@ export class DataHandlingComponent implements OnDestroy {
     });
 
     const chartsForNominal = nominalVariables.map((v) => {
-      const varData = featurewise.filter((row: any) => row.variable === v.code);
+      const varData = featurewise.filter((row) => row.variable === v.code);
       const varLabel = this.variableLabel(v);
-      const enumMap = this.getEnumLabelMap(v);
+      const enumMap = enumLabelMap(v);
       return buildGroupedBarChart(varData, varLabel, enumMap);
     });
 
@@ -4300,10 +4286,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   private getSummaryTotalRows(summary: SummaryView): number | null {
-    const all = (summary.featurewiseRows ?? []).find((item: any) => item.dataset === 'all datasets');
-    if (!all) return null;
-    const total = Number(all.data?.num_total);
-    return Number.isFinite(total) ? total : null;
+    return pooledTotalRows(summary.featurewiseRows ?? []);
   }
 
   get cohortRetention(): { raw: number; processed: number; dropped: number; percentage: number } | null {
@@ -4331,7 +4314,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   isCategoricalVariable(variable: VariableRow): boolean {
-    return String(variable.type ?? '').toLowerCase() === 'nominal' || !!variable.enumerations?.length;
+    return isCategoricalVariable(variable);
   }
 
   private enumCodes(variable: VariableRow): string[] {
@@ -4397,19 +4380,6 @@ export class DataHandlingComponent implements OnDestroy {
     return mapped > 0 ? mappedBins : bins;
   }
 
-  private getEnumLabelMap(variable: VariableRow | undefined): Map<string, string> {
-    const enums = Array.isArray(variable?.enumerations) ? variable.enumerations : [];
-    const map = new Map<string, string>();
-    enums.forEach((item) => {
-      const raw = item?.code ?? item?.label ?? item?.name;
-      if (raw === null || raw === undefined) return;
-      const key = String(raw);
-      const label = String(item?.label ?? item?.name ?? raw);
-      map.set(key, label);
-    });
-    return map;
-  }
-
   private pivotBlocksWithDatasetLabels(blocks: PivotBlock[]): PivotBlock[] {
     return blocks.map((block) => {
       const labeledColumns = block.columns.map((code) => this.datasetLabel(code));
@@ -4424,86 +4394,6 @@ export class DataHandlingComponent implements OnDestroy {
         })),
       };
     });
-  }
-
-  private pivotByDataset(
-    items: any[],
-    variableList: VariableRow[],
-    datasetOrder: string[]
-  ): PivotBlock[] {
-    const byVar: Record<string, any[]> = {};
-    for (const item of items || []) {
-      const arr = byVar[item.variable] || (byVar[item.variable] = []);
-      arr.push(item);
-    }
-
-    const result: PivotBlock[] = [];
-    for (const [varCode, arr] of Object.entries(byVar)) {
-      const matched = variableList.find((v) => v.code === varCode);
-      const varName = matched ? this.variableLabel(matched) : varCode;
-      const enumMap = this.getEnumLabelMap(matched);
-      const byDataset: Record<string, any> = {};
-      for (const entry of arr) byDataset[entry.dataset] = entry.data || {};
-
-      const countsKeys = new Set<string>();
-      for (const ds of datasetOrder) {
-        const counts = byDataset[ds]?.counts ?? {};
-        Object.keys(counts).forEach((key) => countsKeys.add(String(key)));
-      }
-
-      let rows: Array<{ metric: string; values: Record<string, string> }> = [];
-      if (countsKeys.size > 0) {
-        const baseMetrics = [
-          { key: 'num_datapoints', label: 'Datapoints' },
-          { key: 'num_missing', label: 'Missing' },
-          { key: 'num_total', label: 'Total' },
-        ];
-        rows = baseMetrics.map((metric) => {
-          const values: Record<string, string> = {};
-          for (const ds of datasetOrder) {
-            const raw =
-              metric.key === 'num_datapoints' ? byDataset[ds]?.num_dtps :
-                metric.key === 'num_missing' ? byDataset[ds]?.num_na :
-                  byDataset[ds]?.num_total;
-            values[ds] = formatInteger(raw);
-          }
-          return { metric: metric.label, values };
-        });
-
-        const orderedKeys = Array.from(enumMap.keys()).filter((key) => countsKeys.has(key));
-        const remainingKeys = Array.from(countsKeys).filter((key) => !enumMap.has(key));
-        orderedKeys.concat(remainingKeys).forEach((key) => {
-          const label = enumMap.get(key) ?? key;
-          const values: Record<string, string> = {};
-          for (const ds of datasetOrder) {
-            values[ds] = formatInteger(byDataset[ds]?.counts?.[key]);
-          }
-          rows.push({ metric: label, values });
-        });
-      } else {
-        const isCategorical = !!matched && this.isCategoricalVariable(matched);
-        const countKeys = new Set(['num_datapoints', 'num_missing', 'num_total']);
-        const metrics = isCategorical
-          ? this.metricOrder.filter((metric) => countKeys.has(metric.key))
-          : this.metricOrder;
-        rows = metrics.map((metric) => {
-          const values: Record<string, string> = {};
-          for (const ds of datasetOrder) {
-            const raw =
-              metric.key === 'num_datapoints' ? byDataset[ds]?.num_dtps :
-                metric.key === 'num_missing' ? byDataset[ds]?.num_na :
-                  metric.key === 'num_total' ? byDataset[ds]?.num_total :
-                    metric.key === 'std' ? byDataset[ds]?.std :
-                      metric.key === 'q2' ? byDataset[ds]?.q2 :
-                        byDataset[ds]?.[metric.key];
-            values[ds] = countKeys.has(metric.key) ? formatInteger(raw) : formatNumber(raw);
-          }
-          return { metric: metric.label, values };
-        });
-      }
-      result.push({ code: varCode, name: varName, columns: datasetOrder, rows });
-    }
-    return result;
   }
 
   private statisticBlockKey(block: PivotBlock): string {
