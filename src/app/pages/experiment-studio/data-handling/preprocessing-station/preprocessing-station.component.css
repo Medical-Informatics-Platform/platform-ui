@@ -267,47 +267,6 @@
   margin: 0;
 }
 
-/* Preprocessing stations are ONE card, not two. styles.css owns the card, the
-   rail/panel split and the scroll contract; both summary panels use
-   .statistics-browser as a left rail, so the pill toolbar that used to live here
-   made this the only surface in the step that rendered the shared class
-   differently — the adjacent-panel test in DESIGN.md. This file owns the row
-   internals only. */
-.preprocessing-browser .chart-search {
-  margin-top: 2px;
-}
-
-.preprocessing-browser .preprocessing-search {
-  width: 100%;
-  min-width: 0;
-}
-
-/* A 240px rail has no room for a count justified to the far edge. */
-.preprocessing-browser .statistics-browser-header {
-  justify-content: flex-start;
-  gap: 6px;
-}
-
-.preprocessing-browser .preprocessing-variable-group {
-  gap: 2px;
-  margin-top: 12px;
-}
-
-/* The group heading already names the state, so repeating it on every row said
-   the same thing up to 9 times per station; the state dot carries it instead. */
-.preprocessing-browser .preprocessing-state-mini {
-  display: none;
-}
-
-.preprocessing-browser .empty-state-block {
-  margin-top: 8px;
-}
-
-/* The shared .statistics-browser row owns layout, padding and selection.
-   Only the narrower rail's type size is a local concern. */
-.preprocessing-browser .statistics-variable-btn > span:first-of-type {
-  font-size: 0.8rem;
-}
 
 /* The global narrow rule re-shows the state chip inside a column-direction
    header, where it stretched into a full-width pill. */
@@ -578,57 +537,6 @@
   .preprocessing-stat-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-}
-
-/* The per-pill state chip was removed because it repeated its own group heading
-   up to 9 times. The state still has to scan at a glance, so it moves to a dot
-   that inherits from the group. Colours are deepened toward --text-main because
-   --success (2.5:1) and --accent-color (1.9:1) both fail the 3:1 graphic floor. */
-.preprocessing-variable-btn::before {
-  content: '';
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: transparent;
-  /* 55% hit 2.59:1 against the pill; 75% is 4.2:1 and matches the toggle track border. */
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--text-muted) 75%, transparent);
-}
-
-/* The boxed row and its hover/active border are gone: the shared rail row is
-   flat with a leading accent edge, so a per-surface border here was the only
-   thing still making this rail look different from the summary rails. */
-.preprocessing-variable-group[data-state='applied'] .preprocessing-variable-btn::before {
-  background: color-mix(in srgb, var(--success) 55%, var(--text-main));
-  box-shadow: none;
-}
-
-/* Below the two columns the rail can no longer sit beside the editor; it becomes
-   a banded footer of the same card instead of a detached box. */
-.preprocessing-variable-group[data-state='pending'] .preprocessing-variable-btn::before {
-  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
-  box-shadow: none;
-}
-
-.preprocessing-variable-group[data-state='default'] .preprocessing-variable-btn::before {
-  background: var(--primary-color);
-  box-shadow: none;
-}
-
-.preprocessing-variable-btn {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  row-gap: 1px;
-  column-gap: 8px;
-}
-
-.preprocessing-variable-btn::before {
-  display: none;
-}
-
-.preprocessing-variable-btn .statistics-variable-meta {
-  align-items: flex-start;
-  gap: 6px;
 }
 
 .prep-rail-action {

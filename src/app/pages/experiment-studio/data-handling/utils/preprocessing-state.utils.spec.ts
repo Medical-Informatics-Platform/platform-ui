@@ -1,4 +1,6 @@
-import { pendingOrDefault } from './preprocessing-state.utils';
+import { vi } from 'vitest';
+import type { PreprocessingGroup, VariableRow } from '../data-handling.models';
+import { groupPreprocessingVariables, pendingOrDefault } from './preprocessing-state.utils';
 
 describe('pendingOrDefault', () => {
   const stepDefault = () => 'default';
@@ -14,5 +16,26 @@ describe('pendingOrDefault', () => {
 
   it('has no pending rule when an applied rule was not edited', () => {
     expect(pendingOrDefault(undefined, 'applied', stepDefault)).toBeUndefined();
+  });
+});
+
+describe('groupPreprocessingVariables', () => {
+  const row = (code: string) => ({ code }) as VariableRow;
+
+  it('groups in display order, keeps the variables in order and drops empty groups', () => {
+    const states: Record<string, PreprocessingGroup['key']> = { a: 'not-applied', b: 'pending', c: 'not-applied', d: 'applied' };
+    const groups = groupPreprocessingVariables([row('a'), row('b'), row('c'), row('d')], (variable) => states[variable.code]);
+    expect(groups.map((group) => [group.key, group.title, group.variables.map((variable) => variable.code)])).toEqual([
+      ['pending', 'Pending', ['b']],
+      ['applied', 'Applied preprocessing', ['d']],
+      ['not-applied', 'Not applied', ['a', 'c']],
+    ]);
+  });
+
+  it('asks for each state once and returns no groups for no variables', () => {
+    const stateOf = vi.fn(() => 'default' as const);
+    expect(groupPreprocessingVariables([row('a'), row('b')], stateOf)[0].title).toBe('Default (NA removal)');
+    expect(stateOf).toHaveBeenCalledTimes(2);
+    expect(groupPreprocessingVariables([], stateOf)).toEqual([]);
   });
 });

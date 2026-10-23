@@ -48,7 +48,7 @@ import { SourceDataStationComponent } from './source-data-station/source-data-st
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderForDirective, RuleBuilderRegistry } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
-import { pendingOrDefault } from './utils/preprocessing-state.utils';
+import { groupPreprocessingVariables, pendingOrDefault } from './utils/preprocessing-state.utils';
 import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
@@ -1062,55 +1062,12 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   prepGroups(kind: PrepKind): PreprocessingGroup[] {
-    return this.buildPreprocessingGroups(
-      this.filteredPrepVariables(kind),
-      (variable) => this.prepVariableHasPendingChange(kind, variable),
-      (variable) => this.prepVariableIsApplied(kind, variable),
-      kind === 'missing' ? (variable) => this.isPreprocessingVariableUsingDefault(variable) : () => false,
-    );
-  }
-
-  private buildPreprocessingGroups(
-    variables: VariableRow[],
-    isPending: (variable: VariableRow) => boolean,
-    isApplied: (variable: VariableRow) => boolean,
-    isDefault: (variable: VariableRow) => boolean = () => false
-  ): PreprocessingGroup[] {
-    const pending: VariableRow[] = [];
-    const applied: VariableRow[] = [];
-    const defaults: VariableRow[] = [];
-    const notApplied: VariableRow[] = [];
-
-    variables.forEach((variable) => {
-      if (isPending(variable)) pending.push(variable);
-      else if (isApplied(variable)) applied.push(variable);
-      else if (isDefault(variable)) defaults.push(variable);
-      else notApplied.push(variable);
+    return groupPreprocessingVariables(this.filteredPrepVariables(kind), (variable) => {
+      if (this.prepVariableHasPendingChange(kind, variable)) return 'pending';
+      if (this.prepVariableIsApplied(kind, variable)) return 'applied';
+      if (kind === 'missing' && this.isPreprocessingVariableUsingDefault(variable)) return 'default';
+      return 'not-applied';
     });
-
-    const groups: PreprocessingGroup[] = [
-      {
-        key: 'pending',
-        title: 'Pending',
-        variables: pending,
-      },
-      {
-        key: 'applied',
-        title: 'Applied preprocessing',
-        variables: applied,
-      },
-      {
-        key: 'default',
-        title: 'Default (NA removal)',
-        variables: defaults,
-      },
-      {
-        key: 'not-applied',
-        title: 'Not applied',
-        variables: notApplied,
-      },
-    ];
-    return groups.filter((group) => group.variables.length > 0);
   }
 
   selectedPrepVariable(kind: PrepKind): VariableRow | null {

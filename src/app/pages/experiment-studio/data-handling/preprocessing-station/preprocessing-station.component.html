@@ -151,66 +151,42 @@
 
       @if (dh.preprocessingVariables.length > 0) {
       <section class="statistics-workspace preprocessing-workspace">
-        <aside class="statistics-browser preprocessing-browser" aria-label="Preprocessing variables">
-          <div class="statistics-browser-header">
-            <span>Variables · action</span>
-            <small>{{ dh.filteredPrepVariables('missing').length }} shown</small>
-            <div class="batch-menu">
-              <button
-                type="button"
-                class="studio-export-btn batch-menu-trigger"
-                [attr.aria-expanded]="dh.batchMenuOpen() === 'missing'"
-                (click)="dh.toggleBatchMenu('missing')">
-                <i class="fas fa-bolt" aria-hidden="true"></i>
-                Set all
-              </button>
-              @if (dh.batchMenuOpen() === 'missing') {
-              <div class="batch-menu-list" role="menu">
-                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('mean')">Set all numerical to Mean imputation</button>
-                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('median')">Set all numerical to Median imputation</button>
-                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('drop')">Reset all to Remove rows (Drop NaN)</button>
-              </div>
-              }
-            </div>
-          </div>
-          <div class="search-inline chart-search">
-            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
-            <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="dh.prepSearch.missing" />
-          </div>
-
-          @for (group of dh.prepGroups('missing'); track group.key) {
-          <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
-            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
-            @for (variable of group.variables; track variable.code) {
-            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('missing', variable)" (click)="dh.selectPrepVariable('missing', variable)">
-              <span>{{ dh.variableLabel(variable) }}</span>
-              <span class="statistics-variable-meta">
-                @if (dh.coverageFor(variable); as coverage) {
-                <small class="preprocessing-variable-coverage" [attr.data-severity]="dh.coverageSeverity(coverage)" [title]="dh.coverageTitle(coverage)">{{ dh.coveragePercent(coverage) }}</small>
-                }
-                <span
-                  class="preprocessing-state-mini"
-                  [class.state-pending]="dh.prepVariableHasPendingChange('missing', variable)"
-                  [class.state-applied]="dh.prepVariableStateLabel('missing', variable) === 'Applied'"
-                  [class.state-default]="dh.prepVariableStateLabel('missing', variable) === 'Default'"
-                >
-                  {{ dh.prepVariableStateLabel('missing', variable) }}
-                </span>
-              </span>
-              <span class="prep-rail-action" [attr.data-state]="dh.prepVariableHasPendingChange('missing', variable) ? 'pending' : 'set'">
-                {{ dh.missingStrategyLabel(dh.ruleFor(variable).action) }}{{ dh.ruleFor(variable).action === 'drop' && dh.prepVariableStateLabel('missing', variable) === 'Default' ? ' · default' : '' }}{{ dh.prepVariableHasPendingChange('missing', variable) ? ' · not applied' : '' }}
-              </span>
+        <aside
+          app-prep-variable-rail
+          class="statistics-browser preprocessing-browser"
+          aria-label="Preprocessing variables"
+          step="missing"
+          heading="Variables · action"
+          searchLabel="Search preprocessing variables"
+          searchId="preprocessing-search"
+          emptyHint="Clear the search field to show selected variables.">
+          <div class="batch-menu">
+            <button
+              type="button"
+              class="studio-export-btn batch-menu-trigger"
+              [attr.aria-expanded]="dh.batchMenuOpen() === 'missing'"
+              (click)="dh.toggleBatchMenu('missing')">
+              <i class="fas fa-bolt" aria-hidden="true"></i>
+              Set all
             </button>
+            @if (dh.batchMenuOpen() === 'missing') {
+            <div class="batch-menu-list" role="menu">
+              <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('mean')">Set all numerical to Mean imputation</button>
+              <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('median')">Set all numerical to Median imputation</button>
+              <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('drop')">Reset all to Remove rows (Drop NaN)</button>
+            </div>
             }
           </div>
-          }
-          @if (dh.prepGroups('missing').length === 0) {
-          <div class="empty-state-block compact-empty">
-            <i class="fa fa-search"></i>
-            <p>No variables match the current search.</p>
-            <span>Clear the search field to show selected variables.</span>
-          </div>
-          }
+          <ng-template prepRailSlot="lead" let-variable>
+            @if (dh.coverageFor(variable); as coverage) {
+            <small class="preprocessing-variable-coverage" [attr.data-severity]="dh.coverageSeverity(coverage)" [title]="dh.coverageTitle(coverage)">{{ dh.coveragePercent(coverage) }}</small>
+            }
+          </ng-template>
+          <ng-template prepRailSlot="action" let-variable>
+            <span class="prep-rail-action" [attr.data-state]="dh.prepVariableHasPendingChange('missing', variable) ? 'pending' : 'set'">
+              {{ dh.missingStrategyLabel(dh.ruleFor(variable).action) }}{{ dh.ruleFor(variable).action === 'drop' && dh.prepVariableStateLabel('missing', variable) === 'Default' ? ' · default' : '' }}{{ dh.prepVariableHasPendingChange('missing', variable) ? ' · not applied' : '' }}
+            </span>
+          </ng-template>
         </aside>
 
         <div class="statistics-panel preprocessing-detail-panel">
@@ -422,67 +398,42 @@
 
       @if (dh.outlierPreprocessingVariables.length > 0) {
       <section class="statistics-workspace preprocessing-workspace outlier-preprocessing-workspace">
-        <aside class="statistics-browser preprocessing-browser" aria-label="Outlier preprocessing variables">
-          <div class="statistics-browser-header">
-            <span>Variables</span>
-            <small>{{ dh.filteredPrepVariables('outlier').length }} shown</small>
-            <div class="batch-menu">
-              <button
-                type="button"
-                class="studio-export-btn batch-menu-trigger"
-                [attr.aria-expanded]="dh.batchMenuOpen() === 'outlier'"
-                (click)="dh.toggleBatchMenu('outlier')">
-                <i class="fas fa-bolt" aria-hidden="true"></i>
-                Batch
-              </button>
-              @if (dh.batchMenuOpen() === 'outlier') {
-              <div class="batch-menu-list" role="menu">
-                <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(true)">Enable for all numerical</button>
-                <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(false)">Disable for all</button>
-              </div>
-              }
-            </div>
-          </div>
-          <div class="search-inline chart-search">
-            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
-            <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="dh.prepSearch.outlier" />
-          </div>
-
-          @for (group of dh.prepGroups('outlier'); track group.key) {
-          <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
-            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
-            @for (variable of group.variables; track variable.code) {
-            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('outlier', variable)" (click)="dh.selectPrepVariable('outlier', variable)">
-              <span>{{ dh.variableLabel(variable) }}</span>
-              <span class="statistics-variable-meta">
-                <span
-                  class="preprocessing-state-mini"
-                  [class.state-pending]="dh.prepVariableHasPendingChange('outlier', variable)"
-                  [class.state-applied]="dh.prepVariableStateLabel('outlier', variable) === 'Applied'"
-                >
-                  {{ dh.prepVariableStateLabel('outlier', variable) }}
-                </span>
-                <label class="toggle-switch is-mini" title="Enable outlier clipping for this variable"
-                       (click)="$event.stopPropagation()">
-                  <input type="checkbox" [checked]="dh.outlierRuleFor(variable).enabled"
-                         (change)="dh.onOutlierEnabledChange(variable, $any($event.target).checked)" />
-                  <span class="toggle-slider"></span>
-                </label>
-              </span>
-              <span class="prep-rail-action" [attr.data-state]="dh.outlierRuleFor(variable).enabled ? (dh.prepVariableHasPendingChange('outlier', variable) ? 'pending' : 'set') : 'off'">
-                {{ dh.outlierRuleSummary(variable) }}
-              </span>
+        <aside
+          app-prep-variable-rail
+          class="statistics-browser preprocessing-browser"
+          aria-label="Outlier preprocessing variables"
+          step="outlier"
+          searchLabel="Search outlier preprocessing variables"
+          emptyHint="Clear the search field to show selected numerical variables.">
+          <div class="batch-menu">
+            <button
+              type="button"
+              class="studio-export-btn batch-menu-trigger"
+              [attr.aria-expanded]="dh.batchMenuOpen() === 'outlier'"
+              (click)="dh.toggleBatchMenu('outlier')">
+              <i class="fas fa-bolt" aria-hidden="true"></i>
+              Batch
             </button>
+            @if (dh.batchMenuOpen() === 'outlier') {
+            <div class="batch-menu-list" role="menu">
+              <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(true)">Enable for all numerical</button>
+              <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(false)">Disable for all</button>
+            </div>
             }
           </div>
-          }
-          @if (dh.prepGroups('outlier').length === 0) {
-          <div class="empty-state-block compact-empty">
-            <i class="fa fa-search"></i>
-            <p>No variables match the current search.</p>
-            <span>Clear the search field to show selected numerical variables.</span>
-          </div>
-          }
+          <ng-template prepRailSlot="trail" let-variable>
+            <label class="toggle-switch is-mini" title="Enable outlier clipping for this variable"
+                   (click)="$event.stopPropagation()">
+              <input type="checkbox" [checked]="dh.outlierRuleFor(variable).enabled"
+                     (change)="dh.onOutlierEnabledChange(variable, $any($event.target).checked)" />
+              <span class="toggle-slider"></span>
+            </label>
+          </ng-template>
+          <ng-template prepRailSlot="action" let-variable>
+            <span class="prep-rail-action" [attr.data-state]="dh.outlierRuleFor(variable).enabled ? (dh.prepVariableHasPendingChange('outlier', variable) ? 'pending' : 'set') : 'off'">
+              {{ dh.outlierRuleSummary(variable) }}
+            </span>
+          </ng-template>
         </aside>
 
         <div class="preprocessing-detail-column">
@@ -739,43 +690,17 @@
 
       @if (dh.preprocessingVariables.length > 0) {
       <section class="statistics-workspace preprocessing-workspace">
-        <aside class="statistics-browser preprocessing-browser" aria-label="Longitudinal preprocessing variables">
-          <div class="statistics-browser-header">
-            <span>Variables</span>
-            <small>{{ dh.filteredPrepVariables('longitudinal').length }} shown</small>
-          </div>
-          <div class="search-inline chart-search">
-            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
-            <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="dh.prepSearch.longitudinal" />
-          </div>
-
-          @for (group of dh.prepGroups('longitudinal'); track group.key) {
-          <div class="statistics-variable-group preprocessing-variable-group">
-            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
-            @for (variable of group.variables; track variable.code) {
-            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('longitudinal', variable)" (click)="dh.selectPrepVariable('longitudinal', variable)">
-              <span>{{ dh.variableLabel(variable) }}</span>
-              <span class="statistics-variable-meta">
-                <small>{{ dh.variableTypeLabel(variable) }}</small>
-                <span
-                  class="preprocessing-state-mini"
-                  [class.state-pending]="dh.prepVariableHasPendingChange('longitudinal', variable)"
-                  [class.state-applied]="dh.prepVariableStateLabel('longitudinal', variable) === 'Applied'"
-                >
-                  {{ dh.prepVariableStateLabel('longitudinal', variable) }}
-                </span>
-              </span>
-            </button>
-            }
-          </div>
-          }
-          @if (dh.prepGroups('longitudinal').length === 0) {
-          <div class="empty-state-block compact-empty">
-            <i class="fa fa-search"></i>
-            <p>No variables match the current search.</p>
-            <span>Clear the search field to show selected variables.</span>
-          </div>
-          }
+        <aside
+          app-prep-variable-rail
+          class="statistics-browser preprocessing-browser"
+          aria-label="Longitudinal preprocessing variables"
+          step="longitudinal"
+          searchLabel="Search longitudinal preprocessing variables"
+          [groupStates]="false"
+          emptyHint="Clear the search field to show selected variables.">
+          <ng-template prepRailSlot="lead" let-variable>
+            <small>{{ dh.variableTypeLabel(variable) }}</small>
+          </ng-template>
         </aside>
 
         <div class="statistics-panel preprocessing-detail-panel">
