@@ -1,5 +1,6 @@
 import { EChartsOption } from 'echarts';
 import { Subscription } from 'rxjs';
+import { VariableStats } from '../../../models/algorithm-results.model';
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CreatorName } from '../../../core/transformation-steps.utils';
 import { HistogramGroupSeries } from '../visualisations/histogram/histogram-data';
@@ -98,7 +99,8 @@ export type MetricKey =
 export interface SummaryView {
   activeTab: TabKey;
   data: PivotBlock[];
-  featurewiseRows: any[];
+  /** The describe payload's featurewise rows behind `data` (one per variable x dataset). */
+  featurewiseRows: VariableStats[];
   isLoading: boolean;
   showDistributions: boolean;
   distributionSubTab: DistributionSubTab;
