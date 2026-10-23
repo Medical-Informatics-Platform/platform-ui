@@ -29,92 +29,6 @@
   transform: translateY(1px);
 }
 
-/* One toolbar row over the results pane: variable identity on the left, the
-   Table / Charts / Histogram tray and one Export menu on the right. */
-.summary-detail-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--studio-card-header-border);
-}
-
-.summary-detail-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.histogram-split {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.histogram-split select {
-  appearance: none;
-  -webkit-appearance: none;
-  width: auto;
-  min-height: 34px;
-  max-width: 180px;
-  padding: 0 34px 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background-color: var(--card-bg);
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
-    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
-  background-position:
-    calc(100% - 17px) 50%,
-    calc(100% - 12px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
-  color: var(--text-main);
-  font: inherit;
-  font-weight: 600;
-}
-
-.histogram-split select:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-/* Beside the .modal-tabs tray, Export takes the tray's geometry (34px pill,
-   1px inset edge, 0.78rem type) and reads like its active pill. */
-.summary-detail-actions .studio-export-btn {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--card-bg);
-  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
-  font-size: 0.78rem;
-  letter-spacing: 0.01em;
-}
-
-.summary-detail-actions .studio-export-btn:hover:not(:disabled),
-.summary-detail-actions .studio-export-btn[aria-expanded="true"]:not(:disabled) {
-  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent), var(--shadow-sm);
-}
-
-.statistics-panel-heading h4 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 2px 0 0;
-  font-size: 1rem;
-}
-
 .statistics-panel-code {
   padding: 1px 6px;
   border-radius: var(--radius-sm);
@@ -123,20 +37,6 @@
   font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 500;
-}
-
-.summary-export-group {
-  position: relative;
-  display: inline-flex;
-}
-
-.summary-export-group .summary-export-caret {
-  font-size: 0.58rem;
-  transition: transform 0.18s ease;
-}
-
-.summary-export-group .summary-export-caret.open {
-  transform: rotate(180deg);
 }
 
 .statistics-panel {
@@ -727,14 +627,6 @@
 
 .pipeline-node.is-readonly .workflow-section-body {
   padding: 0;
-}
-
-/* Summary workspaces nested inside a pipeline node inherit the node's frame;
-   strip the inner card chrome so only one border is visible. */
-.pipeline-node .workflow-section .statistics-workspace {
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
 }
 
 /* Stage header extras: the step kicker above the title and the "Records out" figure

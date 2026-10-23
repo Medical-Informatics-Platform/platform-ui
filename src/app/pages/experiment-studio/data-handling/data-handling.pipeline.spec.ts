@@ -4,6 +4,7 @@ import { of, throwError } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { DataHandlingComponent } from './data-handling.component';
+import { emptySummaryView } from './utils/summary-view.utils';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
@@ -972,7 +973,7 @@ describe('DataHandlingComponent pipeline presence', () => {
     describe('review regressions', () => {
         // Built on the component's own empty summary so teardown finds its histogram maps.
         const summaryOf = (total: number) => ({
-            ...(component as any).createEmptySummary(false),
+            ...emptySummaryView(false),
             featurewiseRows: [{ dataset: 'all datasets', data: { num_total: total } }],
         });
 
