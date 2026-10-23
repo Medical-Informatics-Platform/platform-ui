@@ -89,3 +89,42 @@ button:disabled {
     font-size: 12px;
   }
 }
+
+.table-input,
+.table-select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 34px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.8rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.table-input:focus-visible,
+.table-select:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  background: var(--card-bg);
+}
+
+.table-input:disabled,
+.table-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.table-input:disabled,
+.table-select:disabled {
+  background: color-mix(in srgb, var(--text-muted) 6%, white 94%);
+  border-color: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 74%, white 26%);
+}

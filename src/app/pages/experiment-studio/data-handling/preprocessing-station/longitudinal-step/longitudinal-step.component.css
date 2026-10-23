@@ -1,0 +1,11 @@
+/* The longitudinal step has no styles of its own beyond the shared step styles. */
+
+@import '../../styles/statistics-panel.shared.css';
+@import '../../styles/search-and-empty-states.shared.css';
+@import '../../styles/tables.shared.css';
+@import '../../styles/preprocessing-step.shared.css';
+
+/* The panel's 1px icon nudge (`.stats-panel-shell i`), repeated for this template. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}

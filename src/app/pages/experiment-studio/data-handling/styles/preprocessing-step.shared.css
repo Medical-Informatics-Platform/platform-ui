@@ -1,0 +1,276 @@
+/* Shared by the preprocessing sub-steps (missing values, outliers, longitudinal): the
+   detail panel, its sections, headings and controls, the evidence aside, the stat
+   strips, the rail's action line and the batch menu. Imported at the top of each step's
+   stylesheet, so every step renders them identically. */
+
+/* Batch-action menu in the preprocessing variable-browser header. */
+.batch-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+/* The Batch trigger is the app's studio pill (styles.css) with a rounder frame; the open
+   state comes from [aria-expanded], which .studio-export-btn already paints. */
+.batch-menu-trigger {
+  border-radius: 999px;
+  min-height: 26px;
+  height: 26px;
+}
+
+.batch-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 240px;
+  padding: 6px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 8px 24px rgba(43, 51, 233, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.batch-menu-list button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  white-space: normal;
+}
+
+.batch-menu-list button:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, white);
+}
+
+.batch-menu-list button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+/* The global narrow rule re-shows the state chip inside a column-direction
+   header, where it stretched into a full-width pill. */
+.preprocessing-detail-panel .preprocessing-state-chip {
+  width: fit-content;
+}
+
+/* Two-pane card: the editor owns a column sized to its controls and the
+   evidence rail takes the rest of the card, bleeding to the edges so it reads
+   as one designed surface rather than a box floating inside a box. No border or
+   shadow here — the workspace is the card, and re-declaring them at this
+   specificity is what drew a second frame inside the first. */
+.preprocessing-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 18px;
+}
+
+/* The header names the variable, so it owns the full card width; the editor and
+   the evidence rail sit side by side beneath it. */
+.preprocessing-detail-panel .statistics-panel-header {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.preprocessing-detail-panel .preprocessing-detail-section {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.preprocessing-detail-panel > .empty-state-block {
+  grid-column: 1 / -1;
+}
+
+.preprocessing-detail-panel h4 {
+  margin: 2px 0 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* The evidence now sits under the choices as one flat band, not a second pane. */
+.preprocessing-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 28px;
+  margin: 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--studio-card-header-border);
+  background: none;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.preprocessing-evidence-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.preprocessing-stat-strip {
+  display: contents;
+}
+
+/* Flex-wrap, not a fixed column count: these are real measured values and a
+   MAX of 47334358.00 is far wider than a MEDIAN of 155.00. A fixed 5-column
+   grid clipped the widest number against the card edge; wrapping moves the
+   whole stat to the next line so a figure is never partially shown. */
+.preprocessing-stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+}
+
+.preprocessing-stat-strip .preprocessing-stat {
+  flex: 0 0 auto;
+}
+
+.preprocessing-stat {
+  display: inline-flex;
+  gap: 4px;
+  min-width: 0;
+  align-items: baseline;
+}
+
+.preprocessing-stat dt {
+  color: var(--text-muted);
+  font-size: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: lowercase;
+}
+
+.preprocessing-stat dd {
+  margin: 0;
+  color: var(--text-main);
+  font-size: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.preprocessing-consequence {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+@media (max-width: 900px) {
+  .preprocessing-detail-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .preprocessing-detail-panel .statistics-panel-header,
+  .preprocessing-detail-panel .preprocessing-detail-section,
+  .preprocessing-detail-panel .preprocessing-evidence {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .preprocessing-evidence {
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0 -16px -14px;
+    border-top: 1px solid var(--studio-card-header-border);
+    border-left: 0;
+  }
+}
+
+.prep-rail-action {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.prep-rail-action::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.prep-rail-action[data-state='pending'] {
+  color: #78350f;
+}
+
+.prep-rail-action[data-state='pending']::before {
+  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
+}
+
+.preprocessing-detail-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.preprocessing-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.preprocessing-detail-heading i {
+  font-size: 0.82rem;
+  opacity: 0.68;
+}
+
+.preprocessing-control > span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+/* Four tracks need ~420px; below that the Fold control was clipped out of the
+   panel entirely (no page overflow, so it failed silently). Declared after the
+   base rule so it actually wins. */
+.preprocessing-control {
+  display: grid;
+  gap: 6px;
+  color: #1e293b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
