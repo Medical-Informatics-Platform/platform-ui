@@ -201,3 +201,21 @@ Consequences: Breaking: this UI needs a backend with PR #34 and does not work ag
 Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/services/experiment-studio.service.spec.ts`, `e2e/experiment-studio-api.ts`, `e2e/experiment-studio.flows.spec.ts`, `README.md`, `docs/context/*.md`, `docs/llm-wiki/indexes/backend-endpoints.md`.
 
 Date: 2026-10-15.
+
+### Decision: Data Handling sections are attribute-hosted components over the pipeline's state
+
+Status: Accepted
+
+Context: `statistic-analysis-panel` grew to one ~4.5k-line component with a ~1.8k-line template. It was renamed `data-handling` (`DataHandlingComponent`, `app-data-handling`) and is being split into section components. Behaviour, visuals, `data-guide` anchors, e2e selectors, payloads and sessionStorage keys must not change, and the studio's global reveal rule (`.experiment-studio-page .workflow-section-body.open > *`) animates the direct children of a section body.
+
+Decision:
+- A section component attaches to the element it replaces (`details[app-how-to-strip]`, `div[app-pipeline-terminal]`, `div.workflow-section-body[app-summary-workspace]`) instead of adding a wrapper, so the DOM, the reveal animation and every selector stay as they were. `display: contents` wrappers were tried and rejected: they break the reveal animation.
+- Pipeline state stays on `DataHandlingComponent`, whose public API (`goToSection`, `progressStateChange`) and fields the studio and specs use. Narrow sections take `input()`/`output()` (how-to strip, terminal). Sections that read much of the pipeline inject `DATA_HANDLING` (`data-handling.context.ts`, provided by the panel with `useExisting`) and use `ChangeDetectionStrategy.Eager`, so they refresh exactly when the inline template did.
+- Styles move with the elements that only a section renders. Rules shared with the panel (tables, empty states, search, `button:disabled`) are repeated in the section's stylesheet in the panel's cascade order. The panel's icon nudge (`.stats-panel-shell i`) is repeated as `:host-context(.stats-panel-shell) i`; ancestor selectors become `:host-context(...)`.
+- Pure logic moves to `data-handling/utils/*` with specs (formatting, summary pivot, empty summary view, preprocessing state, documentation HTML, transformation drafts); shared types live in `data-handling.models.ts`.
+
+Consequences: Each extraction was checked against master with a local DOM + computed-style + screenshot comparison of the pipeline in seven scenarios. Sections that `@ViewChildren` queries reach into (the categorical transformation card's `ruleModal`s) stay in the panel until that seam is redesigned. Repeated shared CSS is a known cost; a shared `@import` partial is the follow-up if more sections need it.
+
+Files affected: `src/app/pages/experiment-studio/data-handling/**`, `src/app/pages/experiment-studio/experiment-studio.component.*`, `AGENTS.md`, `docs/context/module-index.md`, `docs/context/conventions.md`, `docs/context/risk-register.md`, `docs/context/decision-log.md`.
+
+Date: 2026-10-23.
