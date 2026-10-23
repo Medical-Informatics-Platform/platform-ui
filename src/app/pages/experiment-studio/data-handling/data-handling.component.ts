@@ -16,7 +16,6 @@ import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
-import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import {
   DATASET_VARIABLE_CODE,
@@ -28,7 +27,6 @@ import {
   histogramCacheKey,
 } from '../visualisations/histogram/histogram-data';
 import { PdfExportService } from '../../../services/pdf-export.service';
-import { buildGroupedBarChart } from '../visualisations/charts/renderers/grouped-bar-chart';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import {
   getFeaturewiseDescribeRows,
@@ -43,13 +41,13 @@ import { CohortFilterStationComponent } from './cohort-filter-station/cohort-fil
 import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
-import { emptySummaryView } from './utils/summary-view.utils';
+import { emptySummaryView, selectionKey, statisticBlockKey } from './utils/summary-view.utils';
 import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
 import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
-import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
+import { StatisticSummaryService } from './statistic-summary.service';
+import { categoryCounts, enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
-import { VariableStats } from '../../../models/algorithm-results.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
@@ -125,6 +123,7 @@ import {
     SectionAnchors,
     TransformationDraftsService,
     PreprocessingStateService,
+    StatisticSummaryService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -151,21 +150,36 @@ export class DataHandlingComponent implements OnDestroy {
   readonly ruleBuilders = inject(RuleBuilderRegistry);
   readonly transformationDraftState = inject(TransformationDraftsService);
   readonly preprocessingState = inject(PreprocessingStateService);
+  readonly statisticSummary = inject(StatisticSummaryService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
   private studioNavigation = inject(ExperimentStudioNavigationService);
-  private chartBuilder = inject(ChartBuilderService);
   private pdfExportService = inject(PdfExportService);
   private csvExportService = inject(CsvExportService);
   private cdr = inject(ChangeDetectorRef);
   private runtimeEnvService = inject(RuntimeEnvService);
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
-  rawSummary = emptySummaryView(true);
-  processedSummary = emptySummaryView(false);
+  get rawSummary(): SummaryView {
+    return this.statisticSummary.raw;
+  }
+  set rawSummary(view: SummaryView) {
+    this.statisticSummary.raw = view;
+  }
+  get processedSummary(): SummaryView {
+    return this.statisticSummary.processed;
+  }
+  set processedSummary(view: SummaryView) {
+    this.statisticSummary.processed = view;
+  }
   /** Step 0 snapshot: the same `SummaryView` the Raw and Processed surfaces use. */
-  sourceSummary = emptySummaryView(true);
+  get sourceSummary(): SummaryView {
+    return this.statisticSummary.source;
+  }
+  set sourceSummary(view: SummaryView) {
+    this.statisticSummary.source = view;
+  }
   // The rule maps live in PreprocessingStateService; these keep the panel's names.
   get pendingPreprocessingRules(): Record<string, PreprocessingRule> {
     return this.preprocessingState.pendingMissing;
@@ -831,7 +845,12 @@ isDraftShown(draft: TransformationColumnDraft): boolean {
   private appliedConfigWrite = '';
   /** Card preview describes that card's pending rules over the applied rest. */
   private processedPreviewScope: PrepStep | 'all' = 'all';
-  private rawSummaryKey = '';
+  private get rawSummaryKey(): string {
+    return this.statisticSummary.loadedKey.raw;
+  }
+  private set rawSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.raw = key;
+  }
   /**
    * The cohort rules the Raw surface was last fetched with when they are unsaved
    * editor state. `undefined` means the surface follows the stored `filterLogic()`,
@@ -842,8 +861,18 @@ isDraftShown(draft: TransformationColumnDraft): boolean {
   private rawPreviewFilter: BackendFilter | null | undefined = undefined;
   /** Supersedes an in-flight raw describe so a late response cannot win. */
   private rawDescribeSeq = 0;
-  private processedSummaryKey = '';
-  private sourceSummaryKey = '';
+  private get processedSummaryKey(): string {
+    return this.statisticSummary.loadedKey.processed;
+  }
+  private set processedSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.processed = key;
+  }
+  private get sourceSummaryKey(): string {
+    return this.statisticSummary.loadedKey.source;
+  }
+  private set sourceSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.source = key;
+  }
   private processedPreviewSubscription: Subscription | null = null;
   private sourcePreviewSubscription: Subscription | null = null;
   /** Supersedes in-flight processed/source describes so a late response cannot win. */
@@ -892,8 +921,8 @@ isDraftShown(draft: TransformationColumnDraft): boolean {
       const filters = this.expStudioService.selectedFilters();
       const filterLogic = this.expStudioService.filterLogic();
       const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
-      const cohortKey = this.buildSelectionKey(variables, filters, filterLogic);
-      const nextSelectionKey = this.buildSelectionKey(variables, filters, filterLogic, appliedPreprocessing);
+      const cohortKey = selectionKey(variables, filters, filterLogic);
+      const nextSelectionKey = selectionKey(variables, filters, filterLogic, appliedPreprocessing);
       const echoed = this.appliedConfigWrite;
       if (
         echoed
@@ -1226,7 +1255,7 @@ isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
 
   selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
     const summary = this.getSummary(kind);
-    summary.selectedStatisticKey = this.statisticBlockKey(block);
+    summary.selectedStatisticKey = statisticBlockKey(block);
     if (summary.activeTab === 'Histogram') {
       this.ensureHistogramForBlock(kind, block);
     }
@@ -1236,12 +1265,12 @@ isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
     const filtered = this.filteredStatisticBlocks(kind);
     if (!filtered.length) return null;
     const selectedKey = this.getSummary(kind).selectedStatisticKey;
-    return filtered.find((block) => this.statisticBlockKey(block) === selectedKey) ?? filtered[0];
+    return filtered.find((block) => statisticBlockKey(block) === selectedKey) ?? filtered[0];
   }
 
   isStatisticBlockSelected(kind: SummaryKind, block: PivotBlock): boolean {
     const selected = this.selectedStatisticBlock(kind);
-    return !!selected && this.statisticBlockKey(selected) === this.statisticBlockKey(block);
+    return !!selected && statisticBlockKey(selected) === statisticBlockKey(block);
   }
 
   statisticBlockVariable(block: PivotBlock): VariableRow | null {
@@ -2670,15 +2699,8 @@ outlierRuleFor(variable: VariableRow): OutlierRule {
    * default; a pending preview keys on the rules it is showing instead, so the two
    * states cannot reuse each other's response.
    */
-  private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
-    const effectiveFilter = filterOverride === undefined
-      ? this.expStudioService.filterLogic()
-      : filterOverride;
-    return this.buildSelectionKey(
-      this.expStudioService.selectedVariables(),
-      this.expStudioService.selectedFilters(),
-      effectiveFilter,
-    );
+private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
+    return this.statisticSummary.rawKeyFor(filterOverride);
   }
 
   /**
@@ -2786,10 +2808,8 @@ outlierRuleFor(variable: VariableRow): OutlierRule {
   /** Every kind with a summary surface, in pipeline order. */
   readonly summaryKinds: SummaryKind[] = ['source', 'raw', 'processed'];
 
-  getSummary(kind: SummaryKind): SummaryView {
-    if (kind === 'raw') return this.rawSummary;
-    if (kind === 'source') return this.sourceSummary;
-    return this.processedSummary;
+getSummary(kind: SummaryKind): SummaryView {
+    return this.statisticSummary.get(kind);
   }
 
   private scrollSectionIntoView(section: SectionKey): void {
@@ -2801,33 +2821,8 @@ outlierRuleFor(variable: VariableRow): OutlierRule {
     });
   }
 
-  private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
-    const current = this.getSummary(kind);
-    const featurewise = getFeaturewiseDescribeRows(response);
-    const dsFromPayload = Array.from(
-      new Set(featurewise.map((item) => String(item.dataset)))
-    ) as string[];
-    const datasetOrder = dsFromPayload
-      .filter((dataset) => dataset && dataset !== 'all datasets')
-      .concat('all datasets');
-    const variableList = this.preprocessingVariables;
-    const data = pivotByDataset(featurewise, variableList, datasetOrder);
-    const distributionState = this.buildDistributionState(featurewise, response);
-    const summary: SummaryView = {
-      ...current,
-      data,
-      featurewiseRows: featurewise,
-      isLoading: false,
-      activeTab: current.activeTab,
-      selectedStatisticKey: this.nextStatisticSelection(data, current.selectedStatisticKey),
-      histogramDataByVariable: {},
-      histogramLoadingByVariable: {},
-      histogramErrorByVariable: {},
-      histogramSubscriptionsByVariable: {},
-      histogramRequestIdByVariable: {},
-      ...distributionState,
-    };
-    return summary;
+private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
+    return this.statisticSummary.fromDescribeResponse(response, this.getSummary(kind), this.preprocessingVariables);
   }
 
   private refreshActiveHistogramPreview(kind: SummaryKind): void {
@@ -3140,64 +3135,6 @@ outlierRuleFor(variable: VariableRow): OutlierRule {
     const mapped = enumLabelMap(selected ?? this.findModelVariable(groupingVar) ?? undefined)
       .get(groupingEnum);
     return mapped ?? groupingEnum;
-  }
-
-  private buildDistributionState(featurewise: VariableStats[], response: unknown): Pick<SummaryView,
-    'showDistributions' | 'distributionSubTab' | 'nonNominalVariables' | 'nominalVariables' |
-    'chartsForBoxPlot' | 'chartsForNominal' | 'activeBoxPlotIndex' | 'activeNominalIndex'
-  > {
-    const selectedVars = this.expStudioService.selectedVariables() as VariableRow[];
-    const unique = Array.from(new Map(selectedVars.map((v) => [v.code, v])).values());
-
-    const varsWithCounts = new Set<string>();
-    for (const item of featurewise) {
-      if (Object.keys(categoryCounts(item.data)).length > 0) {
-        varsWithCounts.add(item.variable);
-      }
-    }
-
-    const nominalVariables = unique.filter(
-      (v) => v?.type === 'nominal' || varsWithCounts.has(v.code)
-    );
-    const nominalCodes = new Set(nominalVariables.map((v) => v.code));
-    const nonNominalVariables = unique.filter(
-      (v) => !nominalCodes.has(v.code) && v?.type !== 'text'
-    );
-    const showDistributions = nonNominalVariables.length > 0 || nominalVariables.length > 0;
-    const distributionSubTab = nonNominalVariables.length > 0 ? 'Numeric' : 'Nominal';
-
-    const datasetLabels = this.expStudioService.getDatasetLabelMap();
-    const chartsForBoxPlot = nonNominalVariables.map((v) => {
-      const perVarResp = {
-        ...(response as Record<string, unknown>),
-        result: {
-          ...((response as { result?: Record<string, unknown> })?.result ?? {}),
-          featurewise: featurewise.filter(
-            (row) => row.variable === v.code && row.dataset !== 'all datasets'
-          ),
-          dataset_labels: datasetLabels,
-        },
-      };
-      return this.chartBuilder.getChartsForAlgorithm('describe', perVarResp);
-    });
-
-    const chartsForNominal = nominalVariables.map((v) => {
-      const varData = featurewise.filter((row) => row.variable === v.code);
-      const varLabel = this.variableLabel(v);
-      const enumMap = enumLabelMap(v);
-      return buildGroupedBarChart(varData, varLabel, enumMap);
-    });
-
-    return {
-      showDistributions,
-      distributionSubTab,
-      nonNominalVariables,
-      nominalVariables,
-      chartsForBoxPlot,
-      chartsForNominal,
-      activeBoxPlotIndex: 0,
-      activeNominalIndex: 0,
-    };
   }
 
   private buildOutlierPreviewRows(response: unknown): OutlierPreviewRow[] {
@@ -4028,22 +3965,6 @@ private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
     return createDefaultOutlierRule(variableCode, false);
   }
 
-  private buildSelectionKey(
-    variables: VariableRow[],
-    filters: VariableRow[],
-    filterLogic: unknown,
-    // Raw's own dependency set omits applied preprocessing on purpose: the raw describe
-    // is requested with a null config, so applying preprocessing cannot change its numbers.
-    appliedPreprocessing?: unknown
-  ): string {
-    return JSON.stringify({
-      variables: variables.map((variable) => variable.code).sort(),
-      filters: filters.map((variable) => variable.code).sort(),
-      filterLogic,
-      appliedPreprocessing,
-    });
-  }
-
   private discardPendingTransformation(): void {
     const persisted = this.expStudioService.appliedPreprocessingConfig();
     if (persisted?.['categorical_column_creator']) {
@@ -4167,10 +4088,6 @@ private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
     });
   }
 
-  private statisticBlockKey(block: PivotBlock): string {
-    return block.code ?? block.name;
-  }
-
   private statisticBlockType(kind: SummaryKind, block: PivotBlock): StatisticVariableType {
     const summary = this.getSummary(kind);
     const variable = this.statisticBlockVariable(block);
@@ -4194,12 +4111,6 @@ private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
 
   private statisticMissingValue(block: PivotBlock): number {
     return Math.round(this.statisticMetricNumber(block, 'Missing'));
-  }
-
-  private nextStatisticSelection(data: PivotBlock[], currentKey: string | null): string | null {
-    if (!data.length) return null;
-    if (currentKey && data.some((block) => this.statisticBlockKey(block) === currentKey)) return currentKey;
-    return this.statisticBlockKey(data[0]);
   }
 
 }

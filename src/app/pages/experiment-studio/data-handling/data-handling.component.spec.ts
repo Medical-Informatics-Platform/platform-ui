@@ -1845,7 +1845,7 @@ describe('DataHandlingComponent', () => {
         (mockExpService.selectedVariables as any).set([aspiration]);
         fixture.detectChanges();
         component.preprocessingStatus = 'applied';
-        component.processedSummary = (component as any).buildSummaryFromResponse({
+        component.processedSummary = component.statisticSummary.fromDescribeResponse({
             result: {
                 featurewise: [
                     {
@@ -1860,7 +1860,7 @@ describe('DataHandlingComponent', () => {
                     },
                 ],
             },
-        }, 'processed');
+        }, component.getSummary('processed'), component.preprocessingVariables);
         component.processedSummary.selectedStatisticKey = 'aspiration';
         fixture.detectChanges();
 
@@ -1990,7 +1990,7 @@ describe('DataHandlingComponent', () => {
                 }],
             },
         }));
-        component.processedSummary = (component as any).buildSummaryFromResponse({
+        component.processedSummary = component.statisticSummary.fromDescribeResponse({
             result: {
                 featurewise: [
                     {
@@ -2000,7 +2000,7 @@ describe('DataHandlingComponent', () => {
                     },
                 ],
             },
-        }, 'processed');
+        }, component.getSummary('processed'), component.preprocessingVariables);
         component.processedSummary.selectedStatisticKey = 'aspiration';
         fixture.detectChanges();
 
@@ -2047,7 +2047,7 @@ describe('DataHandlingComponent', () => {
 
         // The pending edit the stored config does not carry yet.
         component.onMissingActionChange(age, 'mean');
-        component.processedSummary = (component as any).buildSummaryFromResponse({
+        component.processedSummary = component.statisticSummary.fromDescribeResponse({
             result: {
                 featurewise: [
                     {
@@ -2057,7 +2057,7 @@ describe('DataHandlingComponent', () => {
                     },
                 ],
             },
-        }, 'processed');
+        }, component.getSummary('processed'), component.preprocessingVariables);
         component.processedSummary.selectedStatisticKey = 'age';
         fixture.detectChanges();
 

@@ -6,6 +6,7 @@ import { provideEchartsCore } from 'ngx-echarts';
 import { DataHandlingComponent } from './data-handling.component';
 import { RuleBuilder } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
+import type { SummaryView } from './data-handling.models';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
@@ -991,9 +992,9 @@ describe('DataHandlingComponent pipeline presence', () => {
 
     describe('review regressions', () => {
         // Built on the component's own empty summary so teardown finds its histogram maps.
-        const summaryOf = (total: number) => ({
+        const summaryOf = (total: number): SummaryView => ({
             ...emptySummaryView(false),
-            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: total } }],
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: total } }] as unknown as SummaryView['featurewiseRows'],
         });
 
         it('keeps a chosen K-means card in the graph when it is folded', () => {
@@ -1031,26 +1032,26 @@ describe('DataHandlingComponent pipeline presence', () => {
 
         it('hides Records out while the Raw summary is pinned to an unapplied preview', () => {
             (mockExpService.filterLogic as any).set(null);
-            (component as any).rawSummaryKey = (component as any).rawSummaryKeyFor();
-            (component as any).rawSummary = summaryOf(400);
+            component.statisticSummary.loadedKey.raw = component.statisticSummary.rawKeyFor();
+            component.rawSummary = summaryOf(400);
             expect(component.recordsOut.source).toBe(400);
             expect(component.recordsOut.filtered).toBe(400);
 
             // Pinned to unsaved "age >= 60": 120 rows are not the source cohort.
             const pinned = { condition: 'AND', rules: [{ id: 'age', field: 'age', operator: 'greater_or_equal', value: 60 }] } as any;
-            (component as any).rawSummaryKey = (component as any).rawSummaryKeyFor(pinned);
-            (component as any).rawSummary = summaryOf(120);
+            component.statisticSummary.loadedKey.raw = component.statisticSummary.rawKeyFor(pinned);
+            component.rawSummary = summaryOf(120);
             expect(component.recordsOut.source).toBeNull();
             expect(component.recordsOut.filtered).toBeNull();
         });
 
         it('never rounds a partial filter match to 0% or 100%', () => {
-            (component as any).sourceSummary = summaryOf(1000);
-            (component as any).rawSummary = summaryOf(998);
+            component.sourceSummary = summaryOf(1000);
+            component.rawSummary = summaryOf(998);
             expect(component.filterPreviewStatus).toContain('· 99%');
-            (component as any).rawSummary = summaryOf(2);
+            component.rawSummary = summaryOf(2);
             expect(component.filterPreviewStatus).toContain('· 1%');
-            (component as any).rawSummary = summaryOf(1000);
+            component.rawSummary = summaryOf(1000);
             expect(component.filterPreviewStatus).toContain('· 100%');
         });
 
