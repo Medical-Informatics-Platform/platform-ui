@@ -138,7 +138,7 @@
         </header>
         <div class="pipeline-node-body">
           <!-- STEP 0 PREVIEW: the shared summary workspace, fed by an unfiltered describe -->
-          <div #sourceSection class="workflow-section" data-guide="analysis-source-summary">
+          <div [dhSectionAnchor]="'source'" class="workflow-section" data-guide="analysis-source-summary">
             <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
                  and hand the tour or a shared toggle the wrong surface. -->
             <div
@@ -162,7 +162,7 @@
 
       <!-- NODE 1: COHORT FILTERING -->
       <section
-        #filtersSection
+        [dhSectionAnchor]="'filters'"
         class="pipeline-node filter-workflow-section"
         [class.is-compact]="!sectionOpen().filters && !sectionOpen().raw"
         data-guide="analysis-filtering"
@@ -266,7 +266,7 @@
             ></app-station-action-bar>
           </app-station-card>
           </div>
-          <div #rawSection class="workflow-section" data-guide="analysis-raw-summary">
+          <div [dhSectionAnchor]="'raw'" class="workflow-section" data-guide="analysis-raw-summary">
             <div
               class="workflow-section-body"
               app-summary-workspace
@@ -290,7 +290,7 @@
            stage is part of the request from the first render and its rail tags the
            untouched handler Default. -->
       <section
-        #setupSection
+        [dhSectionAnchor]="'setup'"
         class="pipeline-node preprocessing-section"
         [class.is-active]="isStepAdded('setup')"
         [class.is-compact]="!sectionOpen().setup && !sectionOpen().processed"
@@ -1107,7 +1107,7 @@
 
           </div>
           </div>
-          <div #processedSection class="workflow-section" data-guide="analysis-processed-summary">
+          <div [dhSectionAnchor]="'processed'" class="workflow-section" data-guide="analysis-processed-summary">
             <div
               class="workflow-section-body"
               app-summary-workspace
@@ -1128,7 +1128,7 @@
 
       <!-- NODE 3: DATA TRANSFORMATIONS -->
       <section
-        #transformationSection
+        [dhSectionAnchor]="'transformation'"
         class="pipeline-node preprocessing-section"
         [class.is-compact]="!sectionOpen().transformation"
         data-guide="analysis-transformation"
