@@ -1,3 +1,4 @@
-vulnerabilities:
-  - id: CVE-2026-54515
-    statement: "False positive, not reachable code path"
+# No active suppressions. Add entries as:
+#   - id: CVE-XXXX-YYYY
+#     statement: "why it is safe"
+vulnerabilities: []
