@@ -1,32 +1,78 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
+import { groupThousands } from '../../result-format';
 
+interface IntervalPoint {
+  group: string;
+  mean: number;
+  low: number;
+  high: number;
+}
+
+interface IntervalLabels {
+  x: string;
+  y: string;
+  /** Legend names of the point and its whisker, and the whisker's name in the tooltip. */
+  point: string;
+  /** Name of the point's value in the tooltip ("Mean"). */
+  value: string;
+  interval: string;
+  intervalShort: string;
+}
+
+/** Group means with whiskers at ± 1 sample SD — Exaflow's ci_info "m-s"/"m+s" are mean ∓ SD, not a CI. */
 export function buildMeanPlotChart(result: any): EChartsOption[] {
   const ciInfo = result?.ci_info;
   if (!ciInfo || !ciInfo.means || !ciInfo['m-s'] || !ciInfo['m+s']) return [];
 
-  const groups = Object.keys(ciInfo.means);
+  const data = Object.keys(ciInfo.means).map((group) => ({
+    group,
+    mean: ciInfo.means[group],
+    low: ciInfo['m-s'][group],
+    high: ciInfo['m+s'][group],
+  }));
 
-  const data = groups.map((group) => {
-    const mean = ciInfo.means[group];
-    const low = ciInfo['m-s'][group];
-    const high = ciInfo['m+s'][group];
-    return { group, mean, low, high };
+  return intervalPlot(data, {
+    x: result?.anova_table?.x_label ?? 'Group',
+    y: result?.anova_table?.y_label ?? 'Mean ± SD',
+    point: 'Group mean',
+    value: 'Mean',
+    interval: '± 1 standard deviation',
+    intervalShort: '± 1 SD',
   });
+}
 
-  // labels anova_table
-  const xLabel = result?.anova_table?.x_label ?? 'Group';
-  const yLabel = result?.anova_table?.y_label ?? 'Mean ± CI';
-  const pValue = Number(result?.anova_table?.p_value);
+/**
+ * Independent t-test: the mean difference (group A − group B) with its 95% CI as one vertical
+ * interval, value on the y axis, with a dashed zero line when the interval reaches it.
+ */
+export function buildTTestIntervalChart(result: any): EChartsOption[] {
+  const [mean, low, high] = [result?.mean_diff, result?.ci_lower, result?.ci_upper].map(Number);
+  if (![mean, low, high].every(Number.isFinite)) return [];
+  const [option] = intervalPlot([{ group: 'Mean difference', mean, low, high }], {
+    x: '',
+    y: 'Difference in means',
+    point: 'Mean difference',
+    value: 'Difference',
+    interval: '95% confidence interval',
+    intervalShort: '95% CI',
+  }, 320);
+  if (low <= 0 && high >= 0) {
+    (option.series as any[])[0].markLine = {
+      silent: true,
+      symbol: 'none',
+      label: { show: false },
+      lineStyle: { color: '#94a3b8', type: 'dashed' },
+      data: [{ yAxis: 0 }],
+    };
+  }
+  return [option];
+}
 
+/** Points with vertical whiskers, one per category. */
+function intervalPlot(data: IntervalPoint[], labels: IntervalLabels, height = 380): EChartsOption[] {
   const fmt = (v: number) =>
-    Number.isFinite(v)
-      ? (Number.isInteger(v) ? String(v) : v.toFixed(3).replace(/\.?0+$/, ''))
-      : 'N/A';
-
-  const minY = Math.min(...data.map(d => d.low));
-  const maxY = Math.max(...data.map(d => d.high));
-  const span = Math.max(1e-6, maxY - minY);
-  const margin = span * 0.1;
+    Number.isFinite(v) ? groupThousands(v.toLocaleString('en-US', { maximumFractionDigits: 3 })) : 'N/A';
 
   const meanMap: Record<string, number> =
     Object.fromEntries(data.map(d => [d.group, d.mean]));
@@ -35,21 +81,12 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
   const axisColor = '#64748b';
   const textColor = '#0f172a';
 
-  const option: EChartsOption = {
+  const option: EChartsOption & { mipChartHeight: number } = {
+    mipChartHeight: height,
     color: [meanColor, intervalColor],
     backgroundColor: 'transparent',
-    title: {
-      text: `Group Means (95% CI)${Number.isFinite(pValue) ? `\np-value: ${pValue.toExponential(3)}` : ''}`,
-      left: 'center',
-      textStyle: {
-        color: textColor,
-        fontSize: 14,
-        fontWeight: 700,
-        lineHeight: 20,
-      }
-    },
     legend: {
-      top: 50,
+      top: 0,
       left: 'center',
       itemGap: 18,
       itemWidth: 18,
@@ -59,9 +96,9 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
         fontSize: 12,
         fontWeight: 600,
       },
-      data: ['Group mean', '95% confidence interval'],
+      data: [labels.point, labels.interval],
     },
-    grid: { top: 96, right: 32, bottom: 72, left: 96 },
+    grid: { top: 44, right: 32, bottom: 64, left: 96 },
     tooltip: {
       trigger: 'item',
       backgroundColor: 'rgba(255, 255, 255, 0.96)',
@@ -72,14 +109,14 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
         if (p.seriesType === 'scatter') {
           const group = p.name ?? (Array.isArray(p.value) ? p.value[0] : '');
           const mean = Array.isArray(p.value) ? p.value[1] : meanMap[group];
-          return `${group}<br/>Mean: <b>${fmt(mean)}</b>`;
+          return `${escapeHtml(group)}<br/>${labels.value}: <b>${fmt(mean)}</b>`;
         }
         if (p.seriesType === 'custom' && Array.isArray(p.value)) {
           const group = p.value[4];
           const low = p.value[1];
           const high = p.value[2];
           const mean = meanMap[group];
-          return `${group}<br/>Mean: <b>${fmt(mean)}</b><br/>CI: <b>[${fmt(low)} – ${fmt(high)}]</b>`;
+          return `${escapeHtml(group)}<br/>${labels.value}: <b>${fmt(mean)}</b><br/>${labels.intervalShort}: <b>${fmt(low)} – ${fmt(high)}</b>`;
         }
         return '';
       }
@@ -87,7 +124,7 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
     xAxis: {
       type: 'category',
       data: data.map(d => d.group),
-      name: xLabel,
+      name: labels.x,
       nameLocation: 'middle',
       nameGap: 40,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
@@ -105,11 +142,10 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
     },
     yAxis: {
       type: 'value',
-      name: yLabel,
+      name: labels.y,
       nameLocation: 'middle',
       nameGap: 60,
-      min: Math.floor(minY - margin),
-      max: Math.ceil(maxY + margin),
+      scale: true,
       axisPointer: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
@@ -121,7 +157,6 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
       },
       axisLabel: {
         color: axisColor,
-        formatter: (value: number) => (value < minY ? '' : value.toFixed(0))
       },
       nameTextStyle: {
         color: axisColor,
@@ -130,7 +165,7 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
     },
     series: [
       {
-        name: 'Group mean',
+        name: labels.point,
         type: 'scatter',
         data: data.map(d => ({ name: d.group, value: [d.group, d.mean] })),
         symbolSize: 14,
@@ -156,7 +191,7 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
         }
       },
       {
-        name: '95% confidence interval',
+        name: labels.interval,
         type: 'custom',
         renderItem: (_params: any, api: any) => {
           const index = api.value(0) as number;
