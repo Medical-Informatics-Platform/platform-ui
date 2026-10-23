@@ -15,84 +15,9 @@
   display: block;
 }
 
-.station-preview-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 10px;
-}
-
 /* Stations sit in a gapped shell: the preview bar needs no extra bottom margin. */
 .preprocessing-shell .station-preview-bar {
   margin-bottom: 0;
-}
-
-.station-preview-toggle {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 0 auto;
-  padding: 8px 16px;
-  border: 1px solid rgba(127, 156, 232, 0.38);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #334155;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
-}
-
-.station-preview-toggle.station-preview-close {
-  margin-left: auto;
-}
-
-.station-preview-toggle i {
-  font-size: 0.76rem;
-  color: var(--primary-color);
-  line-height: 1;
-}
-
-.station-preview-toggle:hover:not(:disabled) {
-  background: rgba(43, 51, 233, 0.06);
-  border-color: rgba(43, 51, 233, 0.45);
-  color: var(--primary-color);
-}
-
-.station-preview-toggle:disabled {
-  color: var(--primary-color);
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.station-preview-toggle:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-/* Cohort-retention strip above Close and the processed summary workspace. */
-.cohort-retention-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  padding: 8px 14px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-main);
-  background: color-mix(in srgb, var(--primary-color) 5%, white);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: var(--radius-md, 8px);
-}
-
-.cohort-retention-strip i {
-  color: var(--primary-color);
-  font-size: 0.9rem;
 }
 
 /* Batch-action menu in the preprocessing variable-browser header. */
@@ -149,37 +74,6 @@
 .batch-menu-list button:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
-}
-
-/* The overlay switch changes only the results pane, so it lives inside that pane
-   instead of above the card, where it read as a toolbar for the variable rail.
-   The column keeps it outside the pane's scroller, so it holds in place while a
-   long metrics table scrolls under it, and it owns the switch's spacing: padding
-   on .summary-tabs would override the .modal-tabs padding and stretch the pill's
-   own background and border past the labels. */
-.summary-detail-column {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.summary-detail-column .statistics-panel {
-  flex: 1 1 auto;
-}
-
-/* Centered because it is the pane's own view control: the pane is much wider than
-   the pill, and hugging one gutter left it stranded above the heading. Centering
-   the pill itself, not a row, keeps its capsule sized to the labels. */
-.summary-tabs {
-  flex: 0 0 auto;
-  align-self: center;
-}
-
-@media (max-width: 768px) {
-  .summary-detail-column {
-    padding-top: 12px;
-  }
 }
 
 .empty-state,
@@ -748,7 +642,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
-
 
 /* The boxed row and its hover/active border are gone: the shared rail row is
    flat with a leading accent edge, so a per-surface border here was the only

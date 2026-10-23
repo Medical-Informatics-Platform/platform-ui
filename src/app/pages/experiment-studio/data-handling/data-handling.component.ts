@@ -5,6 +5,7 @@ import {
   ElementRef,
   computed,
   effect,
+  forwardRef,
   inject,
   QueryList,
   signal,
@@ -49,6 +50,9 @@ import {
   kmeansCreatorVariables,
 } from '../../../core/kmeans-cluster-source.utils';
 import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
+import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
+import { DATA_HANDLING } from './data-handling.context';
+import { emptySummaryView } from './utils/summary-view.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -127,7 +131,9 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, PcaColumnSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent, PcaColumnSourceComponent],
+  // Section components read the pipeline's state through this token (see data-handling.context.ts).
+  providers: [{ provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) }],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -172,10 +178,10 @@ export class DataHandlingComponent implements OnDestroy {
   private runtimeEnvService = inject(RuntimeEnvService);
   readonly mipVersion = this.runtimeEnvService.mipVersion;
 
-  rawSummary = this.createEmptySummary(true);
-  processedSummary = this.createEmptySummary(false);
+  rawSummary = emptySummaryView(true);
+  processedSummary = emptySummaryView(false);
   /** Step 0 snapshot: the same `SummaryView` the Raw and Processed surfaces use. */
-  sourceSummary = this.createEmptySummary(true);
+  sourceSummary = emptySummaryView(true);
   pendingPreprocessingRules: Record<string, PreprocessingRule> = {};
   appliedPreprocessingRules: Record<string, PreprocessingRule> = {};
   appliedLongitudinalEnabled = false;
@@ -286,7 +292,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.processedDescribeSeq++;
       this.clearProcessedPreviewSubscription();
       this.clearHistogramSubscriptions(this.processedSummary);
-      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummary = emptySummaryView(false);
       this.processedSummaryKey = '';
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     } else if (step === 'transformation') {
@@ -1041,9 +1047,9 @@ export class DataHandlingComponent implements OnDestroy {
         this.clearHistogramSubscriptions(this.rawSummary);
         this.clearHistogramSubscriptions(this.sourceSummary);
         this.clearHistogramSubscriptions(this.processedSummary);
-        this.rawSummary = this.createEmptySummary(false);
-        this.processedSummary = this.createEmptySummary(false);
-        this.sourceSummary = this.createEmptySummary(false);
+        this.rawSummary = emptySummaryView(false);
+        this.processedSummary = emptySummaryView(false);
+        this.sourceSummary = emptySummaryView(false);
         this.rawSummaryKey = '';
         this.sourceSummaryKey = '';
         this.processedSummaryKey = '';
@@ -1691,7 +1697,7 @@ export class DataHandlingComponent implements OnDestroy {
     const variableCodes = this.preprocessingVariables.map((item) => item.code);
     const hasScope = !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
     if (!hasScope || !variableCodes.length) {
-      this.sourceSummary = this.createEmptySummary(false);
+      this.sourceSummary = emptySummaryView(false);
       this.sourceSummaryKey = '';
       this.cdr.markForCheck();
       return;
@@ -2762,7 +2768,7 @@ export class DataHandlingComponent implements OnDestroy {
       !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
     if (!hasScope || !variableCodes.length) {
       this.clearProcessedPreviewSubscription();
-      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummary = emptySummaryView(false);
       this.processedSummaryKey = '';
       this.cdr.markForCheck();
       return;
@@ -2781,7 +2787,7 @@ export class DataHandlingComponent implements OnDestroy {
     this.clearProcessedPreviewSubscription();
     this.processedSummaryKey = nextKey;
     this.processedSummary = {
-      ...this.createEmptySummary(true),
+      ...emptySummaryView(true),
       activeTab: previous.activeTab,
       selectedStatisticKey: previous.selectedStatisticKey,
       histogramSplitByVariable: previous.histogramSplitByVariable,
@@ -2806,7 +2812,7 @@ export class DataHandlingComponent implements OnDestroy {
           // Drop the claimed key so reopening the preview retries instead of
           // trusting a summary that never arrived.
           this.processedSummaryKey = '';
-          this.processedSummary = this.createEmptySummary(false);
+          this.processedSummary = emptySummaryView(false);
           this.cdr.markForCheck();
         },
       });
@@ -2832,7 +2838,7 @@ export class DataHandlingComponent implements OnDestroy {
       : this.buildScopedPreprocessingConfig(scope);
     if (!preprocessing) {
       this.commitPendingToApplied(scope);
-      this.processedSummary = this.createEmptySummary(false);
+      this.processedSummary = emptySummaryView(false);
       this.persistAppliedDescriptivePreprocessing(
         this.buildPreprocessingConfig(this.appliedPreprocessingRules)
       );
@@ -2851,7 +2857,7 @@ export class DataHandlingComponent implements OnDestroy {
     this.isApplyingPreprocessing = true;
     this.clearHistogramSubscriptions(this.processedSummary);
     this.clearProcessedPreviewSubscription();
-    this.processedSummary = this.createEmptySummary(true);
+    this.processedSummary = emptySummaryView(true);
     // Claim the summary key up front so the navigate-to-preview fetch is
     // deduped against the apply request below (identical payload).
     this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
@@ -2903,7 +2909,7 @@ export class DataHandlingComponent implements OnDestroy {
           // Nothing was applied, so the key claimed for this request is a lie;
           // clear it so the next preview or apply refetches.
           this.processedSummaryKey = '';
-          this.processedSummary = this.createEmptySummary(false);
+          this.processedSummary = emptySummaryView(false);
           if (scope === 'all') {
             this.sectionOpen.update((open) => ({ ...open, processed: true }));
           } else {
@@ -2925,7 +2931,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.rawDescribeSeq++;
       this.rawSummaryKey = '';
       this.expStudioService.clearDataExclusionWarnings();
-      this.rawSummary = this.createEmptySummary(false);
+      this.rawSummary = emptySummaryView(false);
       this.processedData = [];
       this.isLoading = false;
       this.cdr.markForCheck();
@@ -2942,7 +2948,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.rawSummaryKey = '';
       this.rawDescribeSeq++;
       this.expStudioService.clearDataExclusionWarnings();
-      this.rawSummary = this.createEmptySummary(false);
+      this.rawSummary = emptySummaryView(false);
       this.processedData = [];
       this.isLoading = false;
       this.cdr.markForCheck();
@@ -3092,30 +3098,6 @@ export class DataHandlingComponent implements OnDestroy {
 
     const filename = `${kind}_data_summary.csv`;
     this.csvExportService.exportToCsv(rows, ['Variable', 'Metric', 'Dataset', 'Value'], filename);
-  }
-
-  private createEmptySummary(isLoading: boolean): SummaryView {
-    return {
-      activeTab: 'Statistics',
-      data: [],
-      featurewiseRows: [],
-      isLoading,
-      showDistributions: false,
-      distributionSubTab: 'Numeric',
-      nonNominalVariables: [],
-      nominalVariables: [],
-      chartsForBoxPlot: [],
-      chartsForNominal: [],
-      histogramDataByVariable: {},
-      histogramLoadingByVariable: {},
-      histogramErrorByVariable: {},
-      histogramSubscriptionsByVariable: {},
-      histogramRequestIdByVariable: {},
-      histogramSplitByVariable: {},
-      activeBoxPlotIndex: 0,
-      activeNominalIndex: 0,
-      selectedStatisticKey: null,
-    };
   }
 
   /** Every kind with a summary surface, in pipeline order. */
