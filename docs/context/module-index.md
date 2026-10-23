@@ -42,7 +42,7 @@ Notes: Stored historical experiment payloads may depend on legacy algorithm keys
 
 ## `src/app/pages/experiment-studio`
 Purpose: Experiment composition workflow.
-Key files: `experiment-studio.component.*`, `variables-panel/*`, `data-handling/*` (panel + `summary-workspace/`, `pipeline-terminal/`, `how-to-strip/`, `kmeans-cluster-source/` sections, `data-handling.models.ts`, `data-handling.context.ts`, pure `utils/`), `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
+Key files: `experiment-studio.component.*`, `variables-panel/*`, `data-handling/*` (panel shell + one component per pipeline step: `source-data-station/`, `cohort-filter-station/`, `preprocessing-station/` (with `prep-variable-rail/`, `missing-values-step/`, `outlier-step/`, `longitudinal-step/`, `preprocessing-state.service.ts`), `transformation-station/` (with `categorical-column-card/`, `kmeans-cluster-source/`, `transformation-drafts.service.ts`); shared `summary-workspace/`, `pipeline-terminal/`, `how-to-strip/`; `statistic-summary.service.ts`; seams `data-handling.context.ts`, `section-anchors.ts`, `transformation/rule-builder-registry.ts`; shared CSS partials in `styles/`; `data-handling.models.ts`; pure `utils/`), `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
 Used by: `/experiment-studio` route and dashboard edit flows.
 Rules: Keep page-specific UI here; use `ExperimentStudioService` for shared selection/run state.
 Tests: Component specs live near components.
