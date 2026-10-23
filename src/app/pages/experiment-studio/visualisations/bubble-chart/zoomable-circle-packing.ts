@@ -1,11 +1,23 @@
 import * as d3 from 'd3';
+import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+  unavailableDatasetsFor,
+  unavailableVariableTooltip,
+} from '../../../../core/variable-availability.utils';
+
+/** Unavailable leaves: grayed out and inert, see variable-availability.utils. */
+const UNAVAILABLE_FILL = '#cbd5e1';
+const UNAVAILABLE_FILL_OPACITY = 0.6;
+const UNAVAILABLE_STROKE_DASH = '3 2';
+const UNAVAILABLE_LABEL_FILL = '#94a3b8';
 
 // helpers
 // Splits labels
 
 
 // Creates label + background rect
-function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any) {
+function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false) {
   group.selectAll('*').remove();
 
   const label = d.data.label || '';
@@ -36,7 +48,7 @@ function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: an
     .attr('text-anchor', 'middle')
     .style('font-size', `${fontSize}px`)
     .style('font-weight', '600')
-    .style('fill', '#0f172a')
+    .style('fill', unavailable ? UNAVAILABLE_LABEL_FILL : '#0f172a')
     .style('paint-order', 'stroke')
     .style('stroke', 'rgba(255,255,255,0.9)')
     .style('stroke-width', 2)
@@ -130,6 +142,7 @@ export function createZoomableCirclePacking(
     colors?: Partial<BubbleColorConfig>;
     tutorialHighlightCode?: string | null;
     tutorialHighlightColor?: string;
+    unavailableVariables?: UnavailableVariablesMap;
     onAnimationStart?: () => void;
     onAnimationEnd?: () => void;
     onFocusChange?: (path: Array<{ code: string; label: string }>) => void;
@@ -150,6 +163,17 @@ export function createZoomableCirclePacking(
   let colors: BubbleColorConfig = { ...DEFAULT_BUBBLE_COLORS, ...(options?.colors ?? {}) };
   let tutorialHighlightCode = options?.tutorialHighlightCode ?? null;
   let tutorialHighlightColor = options?.tutorialHighlightColor ?? '#ffba08';
+  let unavailableVariables: UnavailableVariablesMap = options?.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
+  // unavailableDatasetsFor already skips groups: d.data.children is what d3 builds d.children from.
+  const unavailableIn = (d: any): readonly string[] => unavailableDatasetsFor(unavailableVariables, d?.data);
+  const isUnavailable = (d: any): boolean => unavailableIn(d).length > 0;
+  const leafFillOpacity = (d: any): number =>
+    d.children ? 0.6 : (isUnavailable(d) ? UNAVAILABLE_FILL_OPACITY : 1);
+  const applyAvailability = (selection: d3.Selection<any, any, any, any>): void => {
+    selection
+      .style('cursor', (d: any) => (isUnavailable(d) ? 'not-allowed' : 'pointer'))
+      .attr('aria-disabled', (d: any) => (isUnavailable(d) ? 'true' : null));
+  };
 
   const bounds = container.getBoundingClientRect();
   const width = Math.floor(bounds.width || 0) || 700;
@@ -203,6 +227,10 @@ export function createZoomableCirclePacking(
     tooltip.append('div').append('strong').text(label);
     if (type) appendTooltipRow('Type:', type);
     if (description) appendTooltipRow('Description:', description);
+    const missingIn = unavailableIn(d);
+    if (missingIn.length) {
+      tooltip.append('div').style('margin-top', '4px').text(unavailableVariableTooltip(missingIn));
+    }
 
     tooltip
       .style('left', `${event.clientX + 10}px`)
@@ -272,6 +300,10 @@ export function createZoomableCirclePacking(
       return groupColor(d.depth);
     }
 
+    if (isUnavailable(d)) {
+      return UNAVAILABLE_FILL;
+    }
+
     if (tutorialHighlightCode) {
       const code = codeOf(d.data);
       if (code && code === tutorialHighlightCode) {
@@ -293,12 +325,14 @@ export function createZoomableCirclePacking(
     .join('circle')
     .attr('class', (d: any) => (d.children ? 'group' : 'leaf'))
     .attr('fill', (d: any) => fillForNode(d))
-    .attr('fill-opacity', (d: any) => (d.children ? 0.6 : 1))
+    .attr('fill-opacity', (d: any) => leafFillOpacity(d))
     .attr('stroke', (d: any) => (d.children ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.12)'))
     .attr('stroke-width', (d: any) => (d.children ? 1 : 0.6))
-    .style('cursor', 'pointer')
+    .call(applyAvailability)
+    .attr('stroke-dasharray', (d: any) => (isUnavailable(d) ? UNAVAILABLE_STROKE_DASH : null))
     .on('click', (event: MouseEvent, d: any) => {
       event.stopPropagation();
+      if (isUnavailable(d)) return;
       if (!d.children) {
         selectedDataNode = d;
         onNodeClick(d.data);
@@ -309,7 +343,7 @@ export function createZoomableCirclePacking(
     })
     .on('dblclick', (event: MouseEvent, d: any) => {
       event.stopPropagation();
-      if (!d.children) {
+      if (!d.children && !isUnavailable(d)) {
         onNodeDoubleClick(d.data);
       }
     })
@@ -317,7 +351,7 @@ export function createZoomableCirclePacking(
       d3.select(this)
         .attr('stroke', '#2b33e9')
         .attr('stroke-width', 1.5)
-        .attr('fill-opacity', d.children ? 0.78 : 1);
+        .attr('fill-opacity', d.children ? 0.78 : leafFillOpacity(d));
       showTooltip(event, d);
     })
     .on('mousemove', function (event) {
@@ -361,7 +395,7 @@ export function createZoomableCirclePacking(
         const el = d3.select(this as SVGGElement);
         if (d.parent === focus && shouldShowLabel(d, k)) {
           el.style('display', 'inline').style('fill-opacity', 0.92);
-          createLabelGroup(el, d);
+          createLabelGroup(el, d, isUnavailable(d));
         } else el.style('display', 'none');
       });
   }
@@ -372,7 +406,7 @@ export function createZoomableCirclePacking(
   function updateSelection() {
     node.transition().duration(200)
       .attr('fill', (d: any) => fillForNode(d))
-      .attr('fill-opacity', (d: any) => (d.children ? 0.6 : 1))
+      .attr('fill-opacity', (d: any) => leafFillOpacity(d))
       .attr('stroke', (d: any) => {
         if (isTutorialTarget(d)) return '#15803d';
         if (d === selectedDataNode) return '#000';
@@ -385,7 +419,8 @@ export function createZoomableCirclePacking(
         if (d.children) return 1;
         return 0.6;
       })
-      .attr('filter', (d: any) => (d === selectedDataNode ? 'url(#node-glow)' : 'none'));
+      .attr('filter', (d: any) => (d === selectedDataNode ? 'url(#node-glow)' : 'none'))
+      .attr('stroke-dasharray', (d: any) => (isUnavailable(d) ? UNAVAILABLE_STROKE_DASH : null));
   }
 
   function zoom(event: MouseEvent | null, d: any) {
@@ -437,7 +472,7 @@ export function createZoomableCirclePacking(
       const el = d3.select(this as SVGGElement);
       if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
         el.style('display', 'inline').style('fill-opacity', 0.6);
-        createLabelGroup(el, nd);
+        createLabelGroup(el, nd, isUnavailable(nd));
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
@@ -506,6 +541,7 @@ export function createZoomableCirclePacking(
     colors?: Partial<BubbleColorConfig>;
     tutorialHighlightCode?: string | null;
     tutorialHighlightColor?: string;
+    unavailableVariables?: UnavailableVariablesMap;
   }) {
     const hasTutorialHighlightCode = !!newOptions
       && Object.prototype.hasOwnProperty.call(newOptions, 'tutorialHighlightCode');
@@ -518,6 +554,14 @@ export function createZoomableCirclePacking(
     }
     if (hasTutorialHighlightColor && newOptions?.tutorialHighlightColor) {
       tutorialHighlightColor = newOptions.tutorialHighlightColor;
+    }
+    if (newOptions && Object.prototype.hasOwnProperty.call(newOptions, 'unavailableVariables')) {
+      unavailableVariables = newOptions.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
+      node.call(applyAvailability);
+      labelNodes.each(function (d: any) {
+        const el = d3.select(this as SVGGElement);
+        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d));
+      });
     }
     groupColor = d3.scaleLinear<string>()
       .domain([0, 5])
