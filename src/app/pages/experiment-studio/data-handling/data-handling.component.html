@@ -115,44 +115,11 @@
 
       <!-- NODE 0: SOURCE DATA - read-only snapshot, never part of the request -->
       <section
+        app-source-data-station
         class="pipeline-node is-readonly"
         [class.is-active]="sectionOpen().source"
         data-guide="analysis-source-data"
-      >
-        <header class="pipeline-node-header" (click)="onStepHeaderClick('source', $event)">
-          <div class="pipeline-node-header-left">
-            <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 1</span>
-              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('source')" (click)="toggleStep('source')">Raw data</button></h3>
-              <span class="pipeline-node-subtitle">Look at your selected variables exactly as stored. Nothing is changed here.</span>
-            </div>
-          </div>
-          <div class="pipeline-node-header-right">
-            @if (recordsOut.source !== null) {
-            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.source!.toLocaleString() }}</span></span>
-            }
-            <span class="pipeline-status-badge readonly"><i class="fas fa-lock" aria-hidden="true"></i> Read only</span>
-            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('source')" aria-hidden="true"></i>
-          </div>
-        </header>
-        <div class="pipeline-node-body">
-          <!-- STEP 0 PREVIEW: the shared summary workspace, fed by an unfiltered describe -->
-          <div [dhSectionAnchor]="'source'" class="workflow-section" data-guide="analysis-source-summary">
-            <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
-                 and hand the tour or a shared toggle the wrong surface. -->
-            <div
-              class="workflow-section-body"
-              app-summary-workspace
-              [class.open]="sectionOpen().source"
-              [rendered]="sectionOpen().source"
-              [howTo]="howTo.source"
-              kind="source"
-              [summary]="sourceSummary"
-              emptyHint="Select variables and datasets to load the data summary."></div>
-          </div>
-        </div>
-      </section>
+      ></section>
 
       <!-- CONNECTOR 0 -> 1 -->
       <div class="pipeline-connector" aria-hidden="true">
