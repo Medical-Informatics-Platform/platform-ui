@@ -1,4 +1,5 @@
 import * as d3 from 'd3';
+import { pluralize } from '../../../../core/result-label.utils';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
   UnavailableVariablesMap,
@@ -17,11 +18,13 @@ const UNAVAILABLE_LABEL_FILL = '#94a3b8';
 
 
 // Creates label + background rect
-function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false) {
+function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false, radius = 0) {
   group.selectAll('*').remove();
 
   const label = d.data.label || '';
-  const maxCharsPerLine = 20;
+  // Leaf text grows with its bubble; group names stay one size so a level reads as one set of headings.
+  const fontSize = d.children ? 14 : Math.max(10, Math.min(13, radius / 5.5));
+  const maxCharsPerLine = d.children ? 22 : Math.max(14, Math.floor((radius * 1.6) / (fontSize * 0.56)));
 
   // Split label into lines
   const words = label.split(/\s+/);
@@ -39,7 +42,6 @@ function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: an
   });
   if (currentLine.length > 0) lines.push(currentLine.join(' '));
 
-  const fontSize = d.children ? 15 : 10;
   const hangFromTop = !!d.children;
 
   const textNode = group
@@ -65,7 +67,17 @@ function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: an
       .text(lineStr);
   });
 
-  if (!d.children) return;
+  // How much sits inside a group, once its bubble has room for a second line.
+  if (d.children && radius >= 48 && d.value) {
+    textNode.append('tspan')
+      .attr('class', 'label-count')
+      .attr('x', 0)
+      .attr('dy', '1.25em')
+      .style('font-size', '11px')
+      .style('font-weight', '500')
+      .style('fill', '#475569')
+      .text(pluralize(d.value, 'variable'));
+  }
 }
 
 // Get code/id from nodes
@@ -149,6 +161,7 @@ export function createZoomableCirclePacking(
   }
 ): {
   zoomToNode: (d: any) => void;
+  zoomToDepth: (depth: number) => void;
   refreshColors: (opts?: any) => void;
   resetZoom: () => void;
   destroy?: () => void;
@@ -168,7 +181,7 @@ export function createZoomableCirclePacking(
   const unavailableIn = (d: any): readonly string[] => unavailableDatasetsFor(unavailableVariables, d?.data);
   const isUnavailable = (d: any): boolean => unavailableIn(d).length > 0;
   const leafFillOpacity = (d: any): number =>
-    d.children ? 0.6 : (isUnavailable(d) ? UNAVAILABLE_FILL_OPACITY : 1);
+    d.children ? 1 : (isUnavailable(d) ? UNAVAILABLE_FILL_OPACITY : 1);
   const applyAvailability = (selection: d3.Selection<any, any, any, any>): void => {
     selection
       .style('cursor', (d: any) => (isUnavailable(d) ? 'not-allowed' : 'pointer'))
@@ -184,14 +197,10 @@ export function createZoomableCirclePacking(
   // Calculate offset to center the square packing within the rectangle
   const offsetX = (width - size) / 2;
   const offsetY = paddingLabel + (availableHeight - size) / 2;
-  let groupColor = d3.scaleLinear<string>()
-    .domain([0, 5])
-    .range([colors.groupStart, colors.groupEnd])
-    .interpolate(d3.interpolateHcl);
 
   if (!container) {
     console.error('No container provided');
-    return { zoomToNode: () => { }, refreshColors: () => { }, resetZoom: () => { } };
+    return { zoomToNode: () => { }, zoomToDepth: () => { }, refreshColors: () => { }, resetZoom: () => { } };
   }
   container.innerHTML = '';
 
@@ -259,6 +268,16 @@ export function createZoomableCirclePacking(
       .sum((d: any) => d.value ?? 0)
       .sort((a: any, b: any) => (b.value ?? 0) - (a.value ?? 0))
   );
+
+  // Opaque fills spread over the real depth: stacked translucent circles turned
+  // deep pathologies near-black and every level past the fifth the same blue.
+  const maxGroupDepth = Math.max(2, d3.max(root.descendants(), (d) => (d.children ? d.depth : 0)) ?? 2);
+  const buildGroupColor = () => d3.scaleLinear<string>()
+    .domain([1, maxGroupDepth])
+    .range([colors.groupStart, d3.interpolateHcl(colors.groupStart, colors.groupEnd)(0.75)])
+    .interpolate(d3.interpolateHcl)
+    .clamp(true);
+  let groupColor = buildGroupColor();
 
   let focus = root;
   // Use a 2.05x radius to reduce padding
@@ -339,7 +358,8 @@ export function createZoomableCirclePacking(
         updateSelection();
         return;
       }
-      zoom(event, d);
+      // The focused bubble fills the view, so clicking it is the way back out.
+      zoom(event, d === focus ? (focus.parent ?? root) : d);
     })
     .on('dblclick', (event: MouseEvent, d: any) => {
       event.stopPropagation();
@@ -351,7 +371,7 @@ export function createZoomableCirclePacking(
       d3.select(this)
         .attr('stroke', '#2b33e9')
         .attr('stroke-width', 1.5)
-        .attr('fill-opacity', d.children ? 0.78 : leafFillOpacity(d));
+        .attr('fill-opacity', d.children ? 0.85 : leafFillOpacity(d));
       showTooltip(event, d);
     })
     .on('mousemove', function (event) {
@@ -376,6 +396,7 @@ export function createZoomableCirclePacking(
   zoomTo([focus.x, focus.y, focus.r * 2.05]);
   emitFocusChange();
   container.appendChild(svg.node()!);
+  declutterLabels();
 
   // Functions
   function zoomTo(v: [number, number, number]) {
@@ -395,9 +416,35 @@ export function createZoomableCirclePacking(
         const el = d3.select(this as SVGGElement);
         if (d.parent === focus && shouldShowLabel(d, k)) {
           el.style('display', 'inline').style('fill-opacity', 0.92);
-          createLabelGroup(el, d, isUnavailable(d));
+          createLabelGroup(el, d, isUnavailable(d), d.r * k);
         } else el.style('display', 'none');
       });
+  }
+
+  /** Hides labels that would print over a bigger bubble's label; the tooltip still names them. */
+  function declutterLabels(): void {
+    const placed: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+    const shown = labelNodes.nodes()
+      .filter((el) => (el as SVGGElement).style.display !== 'none')
+      .map((el) => ({ el: el as SVGGElement, d: d3.select(el).datum() as any }))
+      .sort((a, b) => b.d.r - a.d.r);
+    for (const { el } of shown) {
+      const box = el.getBBox();
+      const offset = el.transform.baseVal.consolidate()?.matrix;
+      const rect = {
+        left: (offset?.e ?? 0) + box.x - 2,
+        right: (offset?.e ?? 0) + box.x + box.width + 2,
+        top: (offset?.f ?? 0) + box.y,
+        bottom: (offset?.f ?? 0) + box.y + box.height,
+      };
+      const overlaps = placed.some((other) =>
+        rect.left < other.right && rect.right > other.left && rect.top < other.bottom && rect.bottom > other.top);
+      if (overlaps) {
+        el.style.display = 'none';
+      } else {
+        placed.push(rect);
+      }
+    }
   }
 
   const isTutorialTarget = (d: any): boolean =>
@@ -427,6 +474,7 @@ export function createZoomableCirclePacking(
     if (focus === d) return;
     focus = d;
     onNodeClick(d.data);
+    emitFocusChange();
 
     const isFast = event && event.altKey;
 
@@ -441,7 +489,7 @@ export function createZoomableCirclePacking(
       .on('end', () => {
         selectedDataNode = null;
         updateSelection();
-        emitFocusChange();
+        declutterLabels();
         options?.onAnimationEnd?.();
       })
       .on('interrupt', () => {
@@ -472,7 +520,7 @@ export function createZoomableCirclePacking(
       const el = d3.select(this as SVGGElement);
       if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
         el.style('display', 'inline').style('fill-opacity', 0.6);
-        createLabelGroup(el, nd, isUnavailable(nd));
+        createLabelGroup(el, nd, isUnavailable(nd), nd.r * (size / zoomTarget[2]));
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
@@ -509,6 +557,7 @@ export function createZoomableCirclePacking(
           } else el.style('display', 'none').style('fill-opacity', 0);
         });
 
+        declutterLabels();
         emitFocusChange();
         options?.onAnimationEnd?.();
       })
@@ -530,9 +579,16 @@ export function createZoomableCirclePacking(
     options?.onFocusChange?.(path);
   }
 
+  // Empty space steps out one level rather than all the way to the root.
   svg.on('click', function (event: MouseEvent) {
-    if (event.target === this) zoom(event, root);
+    if (event.target === this) zoom(event, focus.parent ?? root);
   });
+
+  /** Zooms to the focused bubble's ancestor at `depth` (0 is the root): breadcrumb navigation. */
+  function zoomToDepth(depth: number): void {
+    const target = focus.ancestors().reverse()[depth];
+    if (target && target !== focus) zoom(null, target);
+  }
 
   // immutable refreshColors
   function refreshColors(newOptions?: {
@@ -560,13 +616,10 @@ export function createZoomableCirclePacking(
       node.call(applyAvailability);
       labelNodes.each(function (d: any) {
         const el = d3.select(this as SVGGElement);
-        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d));
+        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d), d.r * (size / view[2]));
       });
     }
-    groupColor = d3.scaleLinear<string>()
-      .domain([0, 5])
-      .range([colors.groupStart, colors.groupEnd])
-      .interpolate(d3.interpolateHcl);
+    groupColor = buildGroupColor();
 
     // Updates global snapshot
     sets = {
@@ -595,6 +648,7 @@ export function createZoomableCirclePacking(
 
   return {
     zoomToNode,
+    zoomToDepth,
     refreshColors,
     resetZoom: () => {
       if (focus !== root) {

@@ -1,30 +1,134 @@
 :host {
-  display: block;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .collapsible-tree-browser {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
   color: var(--text-main);
 }
 
+/* Path bar: where the open branch sits, and the diagram controls. */
+.tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
+  background: var(--studio-card-header-bg);
+}
+
+.tree-breadcrumb {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent 0, #000 16px);
+}
+
+.tree-breadcrumb::-webkit-scrollbar {
+  display: none;
+}
+
+.tree-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+}
+
+.tree-breadcrumb li {
+  display: flex;
+  align-items: center;
+}
+
+.tree-breadcrumb li + li::before {
+  content: '›';
+  padding: 0 3px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.crumb {
+  max-width: 180px;
+  overflow: hidden;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.crumb:hover,
+.crumb:focus-visible {
+  background: var(--tint-nav-hover);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.crumb.is-current {
+  color: var(--text-main);
+  font-weight: 750;
+}
+
+.crumb-fold {
+  padding: 1px 7px;
+  background: #f1f5f9;
+  letter-spacing: 0.08em;
+}
+
+.tree-controls {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+
+.tree-control {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.tree-control:hover,
+.tree-control:focus-visible {
+  background: var(--tint-nav-hover);
+  color: var(--primary-color);
+  outline: none;
+}
+
 .chart-shell {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 360px;
   overflow: hidden;
 }
 
+/* Pinned to the shell so the drawing is sized by the layout, never the other way round. */
 .chart-canvas {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .tree-error {
@@ -36,6 +140,59 @@
   color: #64748b;
   font-size: 0.84rem;
   text-align: center;
+}
+
+/* Footer strip: same recipe as the map view's legend. */
+.tree-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
+  background: var(--studio-card-header-bg);
+}
+
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.tree-legend-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.tree-legend-swatch.group {
+  background: var(--primary-color);
+}
+
+.tree-legend-swatch.variable {
+  background: #16a34a;
+}
+
+.tree-legend-swatch.pool {
+  background: var(--accent-color);
+}
+
+.tree-legend-swatch.selected {
+  background: #eef2ff;
+  box-shadow: inset 0 0 0 2px var(--primary-color);
+}
+
+.tree-hint {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 :host ::ng-deep .collapsible-tree-svg {
@@ -56,7 +213,13 @@
 :host ::ng-deep .tree-link {
   fill: none;
   stroke: #cbd5e1;
-  stroke-width: 1.7px;
+  stroke-width: 1.5px;
+}
+
+/* The open branch reads as one line from the root down. */
+:host ::ng-deep .tree-link.on-path {
+  stroke: var(--primary-light);
+  stroke-width: 2.2px;
 }
 
 :host ::ng-deep .collapsible-node {
@@ -72,6 +235,11 @@
 
 :host ::ng-deep .collapsible-node.group-node .node-card {
   fill: var(--bg-neutral);
+}
+
+:host ::ng-deep .collapsible-node.group-node.on-path .node-card {
+  fill: #f1f5ff;
+  stroke: var(--primary-light);
 }
 
 :host ::ng-deep .collapsible-node.variable-node .node-card {
@@ -93,6 +261,20 @@
 :host ::ng-deep .collapsible-node.selected-variable .node-card {
   fill: #fff7ed;
   stroke: var(--accent-color);
+}
+
+:host ::ng-deep .collapsible-node.more-node .node-card {
+  fill: transparent;
+  stroke: #94a3b8;
+  stroke-dasharray: 4 3;
+}
+
+:host ::ng-deep .collapsible-node.more-node .node-label {
+  fill: var(--primary-color);
+}
+
+:host ::ng-deep .collapsible-node.more-node .node-anchor {
+  display: none;
 }
 
 /* Not present in every selected dataset: grayed out and inert (see variable-availability.utils). */
@@ -133,15 +315,15 @@
 
 :host ::ng-deep .node-label {
   fill: var(--text-main);
-  font-size: 11px;
-  font-weight: 760;
+  font-size: 11.5px;
+  font-weight: 700;
   pointer-events: none;
 }
 
 :host ::ng-deep .node-meta {
   fill: #64748b;
-  font-size: 9px;
-  font-weight: 620;
+  font-size: 9.5px;
+  font-weight: 600;
   pointer-events: none;
 }
 
@@ -158,6 +340,38 @@
 
 :host ::ng-deep .collapsible-node.expanded .node-chevron {
   fill: #64748b;
+}
+
+/* Levels above the drawn window fold into one "up" pill above its first column. */
+:host ::ng-deep .ancestor-stub {
+  cursor: pointer;
+  outline: none;
+}
+
+:host ::ng-deep .ancestor-stub .stub-card {
+  fill: #ffffff;
+  stroke: var(--primary-light);
+  stroke-dasharray: 4 3;
+}
+
+:host ::ng-deep .ancestor-stub:hover .stub-card,
+:host ::ng-deep .ancestor-stub:focus-visible .stub-card {
+  fill: var(--tint-nav-hover);
+  stroke: var(--primary-color);
+  stroke-dasharray: none;
+}
+
+:host ::ng-deep .ancestor-stub .stub-link {
+  stroke: var(--primary-light);
+  stroke-width: 2.2px;
+  stroke-dasharray: 3 3;
+}
+
+:host ::ng-deep .ancestor-stub .stub-label {
+  fill: var(--primary-dark);
+  font-size: 11px;
+  font-weight: 650;
+  pointer-events: none;
 }
 
 ::ng-deep .collapsible-tree-tooltip {

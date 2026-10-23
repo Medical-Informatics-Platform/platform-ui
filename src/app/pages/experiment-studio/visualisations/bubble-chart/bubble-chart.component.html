@@ -1,4 +1,51 @@
 <div id="chart">
+  <div class="map-path">
+    <nav class="map-breadcrumb" aria-label="Map focus">
+      <ol>
+        @if (crumbs().head; as rootCrumb) {
+        <li>
+          <button
+            type="button"
+            class="crumb"
+            [class.is-current]="focusPath().length === 1"
+            [attr.aria-current]="focusPath().length === 1 ? 'location' : null"
+            [title]="rootCrumb.label"
+            (click)="zoomToCrumb(rootCrumb)">{{ rootCrumb.label }}</button>
+        </li>
+        }
+        @if (crumbs().folded.length) {
+        <li>
+          <button
+            type="button"
+            class="crumb crumb-fold"
+            [title]="foldedCrumbsTitle()"
+            [attr.aria-label]="'Show ' + crumbs().folded.length + ' more levels'"
+            (click)="showFullPath.set(true)">…</button>
+        </li>
+        }
+        @for (crumb of crumbs().tail; track $index; let last = $last) {
+        <li>
+          <button
+            type="button"
+            class="crumb"
+            [class.is-current]="last"
+            [attr.aria-current]="last ? 'location' : null"
+            [title]="crumb.label"
+            (click)="zoomToCrumb(crumb)">{{ crumb.label }}</button>
+        </li>
+        }
+      </ol>
+    </nav>
+    <button
+      type="button"
+      class="map-control"
+      title="Zoom out one level"
+      aria-label="Zoom out one level"
+      [disabled]="focusPath().length <= 1"
+      (click)="zoomOutOneLevel()">
+      <i class="fas fa-turn-up" aria-hidden="true"></i>
+    </button>
+  </div>
   <div class="chart-body">
     <div id="chart-canvas" #chartCanvas></div>
   </div>

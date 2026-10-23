@@ -1,20 +1,20 @@
 :host {
-  display: block;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .ontology-browser {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: 100%;
   min-height: 0;
   color: var(--text-main);
 }
 
 .ontology-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 36%) minmax(320px, 64%);
+  grid-template-columns: minmax(240px, 42%) minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -52,7 +52,92 @@
   font-weight: 600;
 }
 
+.pane-title--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: 6px;
+}
+
+.pane-action {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.pane-action:hover,
+.pane-action:focus-visible {
+  background: var(--tint-nav-hover);
+  color: var(--primary-color);
+  outline: none;
+}
+
+/* Where the selected group sits: each ancestor is a way back up. One line; long names shrink. */
+.contents-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  margin: 0 0 2px -6px;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+}
+
+.contents-breadcrumb li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.contents-breadcrumb li:first-child,
+.contents-breadcrumb li:has(.crumb-fold) {
+  flex: none;
+}
+
+.contents-breadcrumb li + li::before {
+  content: '›';
+  padding: 0 2px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.crumb {
+  max-width: 160px;
+  overflow: hidden;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.crumb:hover,
+.crumb:focus-visible {
+  background: var(--tint-nav-hover);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.crumb-fold {
+  padding: 0 7px;
+  background: #f1f5f9;
+  letter-spacing: 0.08em;
+}
+
 .tree-row {
+  position: relative;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
@@ -73,6 +158,26 @@
   background: rgba(43, 51, 233, 0.08);
   outline: none;
   box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* One guide per ancestor level, centred under that level's toggle (indent 14px, toggle 18px). */
+.tree-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 19px;
+  width: calc(var(--depth, 0) * 14px);
+  background: repeating-linear-gradient(90deg, #e2e8f0 0 1px, transparent 1px 14px);
+  pointer-events: none;
+}
+
+.tree-row.on-path .tree-label {
+  color: var(--primary-dark);
+}
+
+.tree-row.on-path .tree-toggle {
+  color: var(--primary-color);
 }
 
 .content-row:hover,
@@ -165,6 +270,7 @@
   font-size: 0.78rem;
   font-weight: 650;
   white-space: normal;
+  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

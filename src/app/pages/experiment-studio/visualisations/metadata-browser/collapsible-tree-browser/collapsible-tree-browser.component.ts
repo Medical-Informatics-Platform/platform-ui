@@ -4,8 +4,11 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  Injector,
   NgZone,
   OnDestroy,
+  afterNextRender,
+  computed,
   effect,
   inject,
   input,
@@ -19,6 +22,7 @@ import {
   EMPTY_UNAVAILABLE_VARIABLES,
   UnavailableVariablesMap,
 } from '../../../../../core/variable-availability.utils';
+import { foldPath } from '../metadata-browser-normalizer';
 import {
   CollapsibleTreeRenderer,
   createCollapsibleTree,
@@ -45,9 +49,16 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
 
   readonly chartCanvas = viewChild<ElementRef<HTMLElement>>('chartCanvas');
+  readonly breadcrumb = viewChild<ElementRef<HTMLElement>>('breadcrumb');
   readonly error = signal<string | null>(null);
+  /** Open groups from the root down, mirrored from the renderer for the breadcrumb. */
+  readonly path = signal<D3HierarchyNode[]>([]);
+  readonly showFullPath = signal(false);
+  readonly crumbs = computed(() => foldPath(this.path(), 3, this.showFullPath()));
+  readonly foldedCrumbsTitle = computed(() => this.crumbs().folded.map((node) => node.label).join(' › '));
 
   private readonly ngZone = inject(NgZone);
+  private readonly injector = inject(Injector);
   private readonly cdr = inject(ChangeDetectorRef);
   private renderer: CollapsibleTreeRenderer | null = null;
   private stopObservingSize: (() => void) | undefined;
@@ -113,6 +124,36 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     this.stopObservingSize?.();
   }
 
+  focusCrumb(node: D3HierarchyNode): void {
+    this.renderer?.focusNode(node);
+  }
+
+  zoomIn(): void {
+    this.renderer?.zoomBy(1.25);
+  }
+
+  zoomOut(): void {
+    this.renderer?.zoomBy(0.8);
+  }
+
+  fitView(): void {
+    this.renderer?.fitView();
+  }
+
+  collapseAll(): void {
+    this.renderer?.collapseAll();
+  }
+
+  /** Keeps the deepest crumb in view when the path outgrows the bar. */
+  private showPath(path: D3HierarchyNode[]): void {
+    this.path.set(path);
+    this.showFullPath.set(false);
+    afterNextRender(() => {
+      const bar = this.breadcrumb()?.nativeElement;
+      if (bar) bar.scrollLeft = bar.scrollWidth;
+    }, { injector: this.injector });
+  }
+
   /** Records the box the drawing that follows was measured against. */
   private rememberRenderedSize(): void {
     const rect = this.chartCanvas()?.nativeElement?.getBoundingClientRect();
@@ -153,6 +194,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
         this.nodeDoubleClicked.emit(node);
         this.cdr.markForCheck();
       },
+      onPathChange: (path) => this.showPath(path),
     });
     this.cdr.markForCheck();
   }

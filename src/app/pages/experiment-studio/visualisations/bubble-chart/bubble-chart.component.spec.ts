@@ -97,4 +97,21 @@ describe('BubbleChartComponent tutorial highlighting', () => {
     const hint = fixture.nativeElement.querySelector('.map-hint') as HTMLElement;
     expect(hint.textContent).toContain('double-click to add');
   });
+
+  it('names the zoomed-in group in a breadcrumb and steps back out through it', () => {
+    const crumbs = () => Array.from(fixture.nativeElement.querySelectorAll('.map-breadcrumb .crumb'))
+      .map((crumb) => (crumb as HTMLElement).textContent?.trim());
+    const up = fixture.nativeElement.querySelector('.map-control') as HTMLButtonElement;
+
+    // The tutorial target (Sex) zoomed the map into its group.
+    fixture.detectChanges();
+    expect(crumbs()).toEqual(['root', 'Demographics']);
+    expect(up.disabled).toBe(false);
+
+    up.click();
+    fixture.detectChanges();
+
+    expect(crumbs()).toEqual(['root']);
+    expect(up.disabled).toBe(true);
+  });
 });

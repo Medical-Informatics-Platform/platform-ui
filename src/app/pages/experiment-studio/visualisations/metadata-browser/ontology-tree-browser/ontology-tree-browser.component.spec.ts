@@ -65,6 +65,42 @@ describe('OntologyTreeBrowserComponent', () => {
     expect(component.activeTreeIndex()).toBe(1);
   });
 
+  it('heads a nested group with its ancestors as a breadcrumb and tints that path in the tree', () => {
+    const fixture = TestBed.createComponent(OntologyTreeBrowserComponent);
+    const component = fixture.componentInstance;
+    fixture.componentRef.setInput('data', model);
+    fixture.componentRef.setInput('highlightNode', model.children?.[1].children?.[0]);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const crumbs = Array.from(host.querySelectorAll<HTMLButtonElement>('.contents-breadcrumb .crumb'));
+    expect(crumbs.map((crumb) => crumb.textContent?.trim())).toEqual(['Stroke 3.7', 'Vitals']);
+    const pathRows = Array.from(host.querySelectorAll('.tree-row.on-path .tree-label')).map((label) => label.textContent?.trim());
+    expect(pathRows).toEqual(['Stroke 3.7', 'Vitals']);
+
+    crumbs[1].click();
+    fixture.detectChanges();
+
+    expect(component.selectedGroup().label).toBe('Vitals');
+  });
+
+  it('collapses every branch except the one leading to the selection', () => {
+    const fixture = TestBed.createComponent(OntologyTreeBrowserComponent);
+    const component = fixture.componentInstance;
+    fixture.componentRef.setInput('data', model);
+    fixture.detectChanges();
+    component.selectGroup(component.visibleTreeRows().find((row) => row.group.label === 'Demographics')!.group);
+    component.selectGroup(component.visibleTreeRows().find((row) => row.group.label === 'Vitals')!.group);
+    fixture.detectChanges();
+    expect(component.visibleTreeRows().map((row) => row.group.label)).toContain('Metabolic');
+
+    component.selectGroup(component.visibleTreeRows().find((row) => row.group.label === 'Demographics')!.group);
+    component.collapseAll();
+    fixture.detectChanges();
+
+    expect(component.visibleTreeRows().map((row) => row.group.label)).toEqual(['Stroke 3.7', 'Demographics', 'Vitals']);
+  });
+
   it('opens an externally highlighted variable in its containing group', () => {
     const fixture = TestBed.createComponent(OntologyTreeBrowserComponent);
     const component = fixture.componentInstance;

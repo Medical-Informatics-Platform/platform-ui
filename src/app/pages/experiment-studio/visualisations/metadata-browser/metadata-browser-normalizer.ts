@@ -282,6 +282,23 @@ export function pathForGroup(index: NormalizedMetadataIndex, groupId: string): N
     .filter((group): group is NormalizedGroupNode => !!group);
 }
 
+/**
+ * Breadcrumb for a path of any depth: the first crumb, the last `keepTail`, and the middle
+ * folded behind one "…" (only when it hides two or more, else the "…" costs what it saves).
+ */
+export function foldPath<T>(path: readonly T[], keepTail: number, expanded = false): {
+  head: T | null;
+  folded: T[];
+  tail: T[];
+} {
+  const fold = !expanded && path.length >= keepTail + 3;
+  return {
+    head: path[0] ?? null,
+    folded: fold ? path.slice(1, -keepTail) : [],
+    tail: fold ? path.slice(-keepTail) : path.slice(1),
+  };
+}
+
 function isGroupNode(node: D3HierarchyNode): boolean {
   return Array.isArray(node.children) && node.children.length > 0;
 }

@@ -12,11 +12,13 @@ import {
   OnInit,
   SimpleChanges,
   ViewChild,
+  computed,
   signal,
   output,
   input
 } from '@angular/core';
 import { observeSize } from '../../../../core/observe-resize.util';
+import { foldPath } from '../metadata-browser/metadata-browser-normalizer';
 import { createZoomableCirclePacking, DEFAULT_BUBBLE_COLORS } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 import {
@@ -61,6 +63,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   private lastHighlighted: any = null;
   private zoomToNodeFn!: (d: any) => void;
+  private zoomToDepthFn?: (depth: number) => void;
   private viewReady = false;
   private refreshColorsFn!: (options?: {
     selectedVariables?: any[];
@@ -75,6 +78,11 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
 
   readonly error = signal<string | null>(null); // Holds the current error message
+  /** The zoomed-in bubble and its ancestors, root first. */
+  readonly focusPath = signal<Array<{ code: string; label: string }>>([]);
+  readonly showFullPath = signal(false);
+  readonly crumbs = computed(() => foldPath(this.focusPath(), 3, this.showFullPath()));
+  readonly foldedCrumbsTitle = computed(() => this.crumbs().folded.map((crumb) => crumb.label).join(' › '));
   readonly COLORBLIND_PALETTE = { ...DEFAULT_BUBBLE_COLORS };
 
   colors: {
@@ -173,7 +181,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     const rect = container.getBoundingClientRect();
     this.renderedSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
 
-    const { zoomToNode, refreshColors, destroy } = createZoomableCirclePacking(
+    const { zoomToNode, zoomToDepth, refreshColors, destroy } = createZoomableCirclePacking(
       this.d3Data(),
       container,
       node => this.selectedNodeChange.emit(node),
@@ -182,9 +190,14 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
         ...this.buildRefreshOptions(),
         onAnimationStart: () => this.isAnimating = true,
         onAnimationEnd: () => this.isAnimating = false,
+        onFocusChange: (path) => {
+          this.focusPath.set(path);
+          this.showFullPath.set(false);
+        },
       }
     );
     this.zoomToNodeFn = zoomToNode;
+    this.zoomToDepthFn = zoomToDepth;
     this.refreshColorsFn = refreshColors;
     this.destroyFn = destroy;
 
@@ -199,6 +212,15 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       this.lastHighlighted = highlightNode;
     }
 
+  }
+
+  zoomToCrumb(crumb: { code: string; label: string }): void {
+    const depth = this.focusPath().indexOf(crumb);
+    if (depth >= 0) this.zoomToDepthFn?.(depth);
+  }
+
+  zoomOutOneLevel(): void {
+    this.zoomToDepthFn?.(this.focusPath().length - 2);
   }
 
   private buildRefreshOptions(): {

@@ -1,9 +1,27 @@
 import { D3HierarchyNode } from '../../../../models/data-model.interface';
 import {
+  foldPath,
   normalizeMetadataTree,
   searchMetadataIndex,
   selectionFromSearchResult,
 } from './metadata-browser-normalizer';
+
+describe('foldPath', () => {
+  const path = ['Root', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+  it('keeps the first crumb and the last few, folding the middle', () => {
+    expect(foldPath(path, 3)).toEqual({ head: 'Root', folded: ['A', 'B', 'C'], tail: ['D', 'E', 'F'] });
+  });
+
+  it('does not fold a single crumb: the "…" would take its place', () => {
+    expect(foldPath(path.slice(0, 5), 3)).toEqual({ head: 'Root', folded: [], tail: ['A', 'B', 'C', 'D'] });
+  });
+
+  it('shows every crumb once expanded, and copes with empty paths', () => {
+    expect(foldPath(path, 3, true).tail).toEqual(path.slice(1));
+    expect(foldPath([], 3)).toEqual({ head: null, folded: [], tail: [] });
+  });
+});
 
 describe('metadata browser normalizer', () => {
   const model: D3HierarchyNode = {

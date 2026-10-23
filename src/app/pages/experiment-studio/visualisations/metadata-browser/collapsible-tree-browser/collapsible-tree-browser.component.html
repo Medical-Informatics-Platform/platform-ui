@@ -1,8 +1,69 @@
 <div class="collapsible-tree-browser">
+  <div class="tree-toolbar">
+    <nav class="tree-breadcrumb" #breadcrumb aria-label="Open path">
+      <ol>
+        @if (crumbs().head; as rootNode) {
+        <li>
+          <button
+            type="button"
+            class="crumb"
+            [class.is-current]="path().length === 1"
+            [attr.aria-current]="path().length === 1 ? 'location' : null"
+            [title]="rootNode.label"
+            (click)="focusCrumb(rootNode)">{{ rootNode.label }}</button>
+        </li>
+        }
+        @if (crumbs().folded.length) {
+        <li>
+          <button
+            type="button"
+            class="crumb crumb-fold"
+            [title]="foldedCrumbsTitle()"
+            [attr.aria-label]="'Show ' + crumbs().folded.length + ' more levels'"
+            (click)="showFullPath.set(true)">…</button>
+        </li>
+        }
+        @for (node of crumbs().tail; track $index; let last = $last) {
+        <li>
+          <button
+            type="button"
+            class="crumb"
+            [class.is-current]="last"
+            [attr.aria-current]="last ? 'location' : null"
+            [title]="node.label"
+            (click)="focusCrumb(node)">{{ node.label }}</button>
+        </li>
+        }
+      </ol>
+    </nav>
+    <div class="tree-controls" role="group" aria-label="Diagram controls">
+      <button type="button" class="tree-control" title="Zoom out" aria-label="Zoom out" (click)="zoomOut()">
+        <i class="fas fa-magnifying-glass-minus" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="tree-control" title="Zoom in" aria-label="Zoom in" (click)="zoomIn()">
+        <i class="fas fa-magnifying-glass-plus" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="tree-control" title="Fit to view" aria-label="Fit to view" (click)="fitView()">
+        <i class="fas fa-expand" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="tree-control" title="Collapse all groups" aria-label="Collapse all groups" (click)="collapseAll()">
+        <i class="fas fa-compress" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
   <div class="chart-shell">
     <div #chartCanvas class="chart-canvas" aria-label="Collapsible metadata hierarchy"></div>
     @if (error()) {
     <div class="tree-error" role="status">{{ error() }}</div>
     }
+  </div>
+  <div class="tree-chrome">
+    <div class="tree-legend" aria-label="Diagram legend">
+      <span><span class="tree-legend-swatch group"></span>Group</span>
+      <span><span class="tree-legend-swatch variable"></span>Variable</span>
+      <span><span class="tree-legend-swatch pool"></span>In pool</span>
+      <span><span class="tree-legend-swatch selected"></span>Selected</span>
+    </div>
+    <span class="tree-hint">Double-click to add · Ctrl + scroll to zoom</span>
   </div>
 </div>

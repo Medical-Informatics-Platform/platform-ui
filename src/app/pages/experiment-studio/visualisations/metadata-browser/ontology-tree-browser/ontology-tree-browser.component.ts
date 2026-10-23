@@ -2,10 +2,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  Injector,
   QueryList,
+  ViewChild,
   ViewChildren,
+  afterNextRender,
   computed,
   effect,
+  inject,
   input,
   output,
   signal,
@@ -24,6 +28,7 @@ import {
 import {
   findGroupByNode,
   findVariableByNode,
+  foldPath,
   normalizeMetadataTree,
   pathForGroup,
 } from '../metadata-browser-normalizer';
@@ -33,8 +38,13 @@ interface TreeRow {
   depth: number;
   expanded: boolean;
   selected: boolean;
+  /** An ancestor of the selected group. */
+  onPath: boolean;
   hasChildren: boolean;
 }
+
+/** Indent per tree level, in px; the row's guide lines use the same step. */
+const TREE_INDENT = 14;
 
 const EMPTY_METADATA_TREE: D3HierarchyNode = {
   label: 'Metadata',
@@ -59,6 +69,8 @@ export class OntologyTreeBrowserComponent {
   readonly variablePoolToggle = output<D3HierarchyNode>();
 
   @ViewChildren('treeRowButton') private treeRowButtons?: QueryList<ElementRef<HTMLButtonElement>>;
+  @ViewChild('treePane') private treePane?: ElementRef<HTMLElement>;
+  private readonly injector = inject(Injector);
 
   readonly selectedGroupId = signal<string | null>(null);
   readonly selectedVariableId = signal<string | null>(null);
@@ -81,6 +93,12 @@ export class OntologyTreeBrowserComponent {
     const index = this.index();
     return this.selectedGroup().id === index.rootId ? 'Contents' : this.selectedGroup().label;
   });
+  /** Groups above the selected one, root first. */
+  readonly selectedAncestors = computed(() =>
+    pathForGroup(this.index(), this.selectedGroup().id).slice(0, -1));
+  readonly showFullPath = signal(false);
+  readonly ancestorCrumbs = computed(() => foldPath(this.selectedAncestors(), 2, this.showFullPath()));
+  readonly foldedAncestorsTitle = computed(() => this.ancestorCrumbs().folded.map((group) => group.label).join(' › '));
   readonly selectedChildGroups = computed(() => {
     const index = this.index();
     return this.selectedGroup().childGroupIds.map((id) => index.groupsById[id]);
@@ -93,6 +111,7 @@ export class OntologyTreeBrowserComponent {
     const index = this.index();
     const expanded = this.expandedGroupIds();
     const selectedGroupId = this.selectedGroup().id;
+    const ancestorIds = new Set(this.selectedAncestors().map((group) => group.id));
     const rows: TreeRow[] = [];
     const visit = (group: NormalizedGroupNode, depth: number): void => {
       const hasChildren = group.childGroupIds.length > 0;
@@ -102,6 +121,7 @@ export class OntologyTreeBrowserComponent {
         depth,
         expanded: isExpanded,
         selected: group.id === selectedGroupId,
+        onPath: ancestorIds.has(group.id),
         hasChildren,
       });
 
@@ -140,6 +160,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   selectGroup(group: NormalizedGroupNode): void {
+    this.showFullPath.set(false);
     this.selectedGroupId.set(group.id);
     this.selectedVariableId.set(null);
     this.expandPathToGroup(group.id);
@@ -157,6 +178,12 @@ export class OntologyTreeBrowserComponent {
     if (this.isVariableUnavailable(variable)) return;
     this.selectVariable(variable);
     this.nodeDoubleClicked.emit(variable.original);
+  }
+
+  /** Folds every branch except the one leading to the selected group. */
+  collapseAll(): void {
+    const index = this.index();
+    this.expandedGroupIds.set(new Set([index.rootId, ...this.selectedAncestors().map((group) => group.id)]));
   }
 
   toggleGroup(group: NormalizedGroupNode, event: Event): void {
@@ -258,7 +285,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   treePadding(depth: number): number {
-    return 10 + depth * 16;
+    return 10 + depth * TREE_INDENT;
   }
 
   private applyExternalSelection(node: D3HierarchyNode): void {
@@ -268,6 +295,7 @@ export class OntologyTreeBrowserComponent {
       this.selectedGroupId.set(variable.parentGroupId);
       this.selectedVariableId.set(variable.id);
       this.expandPathToGroup(variable.parentGroupId);
+      this.revealSelectedRow();
       return;
     }
 
@@ -276,7 +304,23 @@ export class OntologyTreeBrowserComponent {
       this.selectedGroupId.set(group.id);
       this.selectedVariableId.set(null);
       this.expandPathToGroup(group.id);
+      this.revealSelectedRow();
     }
+  }
+
+  /** Scrolls the tree pane (not the page) so a selection made elsewhere is visible. */
+  private revealSelectedRow(): void {
+    this.showFullPath.set(false);
+    afterNextRender(() => {
+      const pane = this.treePane?.nativeElement;
+      const rowIndex = this.visibleTreeRows().findIndex((row) => row.selected);
+      const row = this.treeRowButtons?.get(rowIndex)?.nativeElement;
+      if (!pane || !row) return;
+      const paneRect = pane.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      if (rowRect.top >= paneRect.top + 40 && rowRect.bottom <= paneRect.bottom) return;
+      pane.scrollTop += rowRect.top - paneRect.top - pane.clientHeight / 2;
+    }, { injector: this.injector });
   }
 
   private expandPathToGroup(groupId: string): void {

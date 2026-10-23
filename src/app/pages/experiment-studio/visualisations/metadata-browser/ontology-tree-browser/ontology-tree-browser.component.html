@@ -1,7 +1,17 @@
 <div class="ontology-browser">
   <div class="ontology-layout">
-    <section class="tree-pane" aria-label="Metadata hierarchy">
-      <div class="pane-title">Hierarchy</div>
+    <section class="tree-pane" #treePane aria-label="Metadata hierarchy">
+      <div class="pane-title pane-title--row">
+        <span>Hierarchy</span>
+        <button
+          type="button"
+          class="pane-action"
+          title="Collapse every branch except the selected one"
+          aria-label="Collapse every branch except the selected one"
+          (click)="collapseAll()">
+          <i class="fas fa-compress" aria-hidden="true"></i>
+        </button>
+      </div>
       <div class="tree" role="tree" aria-label="Pathology metadata tree">
         @for (row of visibleTreeRows(); track row.group.id; let i = $index) {
         <button
@@ -10,6 +20,8 @@
           class="tree-row"
           role="treeitem"
           [class.selected]="row.selected"
+          [class.on-path]="row.onPath"
+          [style.--depth]="row.depth"
           [attr.aria-expanded]="row.hasChildren ? row.expanded : null"
           [attr.tabindex]="activeTreeIndex() === i ? 0 : -1"
           [style.padding-left.px]="treePadding(row.depth)"
@@ -33,6 +45,30 @@
 
     <section class="contents-pane" aria-label="Selected group contents">
       <div class="pane-title">
+        @if (ancestorCrumbs().head; as rootGroup) {
+        <nav class="contents-breadcrumb" aria-label="Group path">
+          <ol>
+            <li>
+              <button type="button" class="crumb" [title]="rootGroup.label" (click)="selectGroup(rootGroup)">{{ rootGroup.label }}</button>
+            </li>
+            @if (ancestorCrumbs().folded.length) {
+            <li>
+              <button
+                type="button"
+                class="crumb crumb-fold"
+                [title]="foldedAncestorsTitle()"
+                [attr.aria-label]="'Show ' + ancestorCrumbs().folded.length + ' more levels'"
+                (click)="showFullPath.set(true)">…</button>
+            </li>
+            }
+            @for (group of ancestorCrumbs().tail; track group.id) {
+            <li>
+              <button type="button" class="crumb" [title]="group.label" (click)="selectGroup(group)">{{ group.label }}</button>
+            </li>
+            }
+          </ol>
+        </nav>
+        }
         <span>{{ contentsPaneTitle() }}</span>
         <small>{{ contentsPaneSubtitle() }}</small>
       </div>

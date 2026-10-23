@@ -103,6 +103,8 @@
           <div
             class="metadata-browser-shell"
             [class.is-map]="metadataBrowserMode() === 'bubble'"
+            [class.is-graph]="metadataBrowserMode() === 'collapsible'"
+            [class.is-list]="metadataBrowserMode() === 'ontology'"
             data-guide="variable-visualizations">
             <div class="metadata-browser-content">
               @switch (metadataBrowserMode()) {

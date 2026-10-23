@@ -330,6 +330,17 @@
   min-height: 0;
 }
 
+/* The diagram carries its own path bar and legend strip, so its canvas needs the extra height. */
+.metadata-browser-shell.is-graph {
+  min-height: 600px;
+}
+
+/* Fixed height: a deep hierarchy scrolls inside its panes instead of stretching the card. */
+.metadata-browser-shell.is-list {
+  height: 600px;
+  min-height: 0;
+}
+
 .metadata-browser-switcher {
   --segment-active-index: 0;
   --segment-pad: 3px;
@@ -435,16 +446,23 @@
 }
 
 .metadata-browser-content {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.metadata-browser-content app-bubble-chart,
-.metadata-browser-content app-ontology-tree-browser,
-.metadata-browser-content app-collapsible-tree-browser {
+.metadata-browser-content app-bubble-chart {
   display: block;
   height: 100%;
+}
+
+/* Stretched by flex rather than a percentage height: the shell's height is only a minimum. */
+.metadata-browser-content app-ontology-tree-browser,
+.metadata-browser-content app-collapsible-tree-browser {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* Right column: parameters + histogram */

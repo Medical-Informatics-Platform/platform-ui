@@ -52,6 +52,104 @@ circle:hover {
   flex-direction: column;
 }
 
+/* Path bar: the zoomed-in group and every level above it, each a way back out. */
+.map-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--studio-card-header-border);
+  background: var(--studio-card-header-bg);
+}
+
+.map-breadcrumb {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.map-breadcrumb::-webkit-scrollbar {
+  display: none;
+}
+
+.map-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-breadcrumb li {
+  display: flex;
+  align-items: center;
+}
+
+.map-breadcrumb li + li::before {
+  content: '›';
+  padding: 0 3px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.crumb {
+  max-width: 180px;
+  overflow: hidden;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.crumb:hover,
+.crumb:focus-visible,
+.map-control:hover:not(:disabled),
+.map-control:focus-visible {
+  background: var(--tint-nav-hover);
+  color: var(--primary-color);
+  outline: none;
+}
+
+.crumb.is-current {
+  color: var(--text-main);
+  font-weight: 750;
+}
+
+.crumb-fold {
+  padding: 1px 7px;
+  background: #f1f5f9;
+  letter-spacing: 0.08em;
+}
+
+.map-control {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.map-control:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .map-chrome {
   position: static;
   display: flex;

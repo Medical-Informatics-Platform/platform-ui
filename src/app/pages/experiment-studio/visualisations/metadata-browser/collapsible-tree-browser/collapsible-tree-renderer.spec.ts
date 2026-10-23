@@ -1,11 +1,11 @@
 import * as d3 from 'd3';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
+  VARIABLE_PAGE_SIZE,
   cloneNode,
   createCollapsibleTree,
   findHierarchyNode,
   findHierarchyNodeByPath,
-  focalPointForExpandedGroup,
   initializeCollapse,
 } from './collapsible-tree-renderer';
 
@@ -42,15 +42,16 @@ describe('collapsible tree renderer helpers', () => {
     expect(cloned.children?.[0]).not.toBe(model.children?.[0]);
   });
 
-  it('keeps root and first level open while collapsing deeper branches', () => {
+  it('keeps the root open and closes every group below it', () => {
     const root = d3.hierarchy(cloneNode(model), (node) => node.children) as any;
 
     initializeCollapse(root);
 
     expect(root.children?.length).toBe(1);
-    expect(root.children[0].children?.length).toBe(1);
-    expect(root.children[0].children[0].children).toBeUndefined();
-    expect(root.children[0].children[0]._children?.length).toBe(1);
+    expect(root.children[0].children).toBeUndefined();
+    expect(root.children[0]._children?.length).toBe(1);
+    expect(root.children[0]._all?.[0].children).toBeUndefined();
+    expect(root.children[0]._all?.[0]._children?.length).toBe(1);
   });
 
   it('finds nodes inside collapsed branches for external highlighting', () => {
@@ -150,23 +151,16 @@ describe('collapsible tree renderer helpers', () => {
     container.remove();
   });
 
-  it('targets expanded group content instead of the group node position', () => {
-    const root = d3.hierarchy(cloneNode(model), (node) => node.children) as any;
-    const group = root.children![0];
-    group.x = 80;
-    group.y = 120;
-    const child = group.children![0];
-    child.x = 140;
-    child.y = 380;
-    const grandchild = child.children![0];
-    grandchild.x = 200;
-    grandchild.y = 380;
+  it('opens a chain of single groups in one step', () => {
+    const container = createContainer();
+    const renderer = createCollapsibleTree(model, container, {
+      onNodeClick: () => undefined,
+      onNodeDoubleClick: () => undefined,
+    });
 
-    const focal = focalPointForExpandedGroup(group);
-
-    expect(focal.x).toBe(170);
-    expect(focal.y).toBe(380);
-    expect(focal.y).not.toBe(group.y);
+    expect(renderedLabels(container)).toEqual(['Stroke 3.7', 'Vitals', 'Metabolic', 'Glucose']);
+    renderer.destroy();
+    container.remove();
   });
 
   it('resizes the svg in place without rebuilding the tree', () => {
@@ -222,6 +216,149 @@ describe('collapsible tree renderer helpers', () => {
     expect(onAutoFitCanceled).toHaveBeenCalled();
     container.remove();
   });
+
+describe('collapsible tree deep hierarchies', () => {
+  const variables = (prefix: string, count: number): D3HierarchyNode[] =>
+    Array.from({ length: count }, (_, index) => ({ label: `${prefix} ${index + 1}`, code: `${prefix}_${index + 1}`, type: 'real' }));
+
+  const wide: D3HierarchyNode = {
+    label: 'Root',
+    code: 'root',
+    children: [
+      { label: 'Cortex', code: 'cortex', children: [{ label: 'Frontal', code: 'frontal', children: variables('Frontal area', 20) }] },
+      { label: 'Nuclei', code: 'nuclei', children: [{ label: 'Striatum', code: 'striatum', children: variables('Striatum part', 3) }] },
+    ],
+  };
+
+  /** Root > Level 1 > … > Level 7 > Leaf. */
+  const chain = (depth: number): D3HierarchyNode => {
+    let node: D3HierarchyNode = { label: 'Leaf', code: 'leaf', type: 'real' };
+    for (let level = depth; level >= 1; level -= 1) {
+      node = { label: `Level ${level}`, code: `level_${level}`, children: [node, { label: `Sibling ${level}`, code: `sibling_${level}`, type: 'real' }] };
+    }
+    return { label: 'Root', code: 'root', children: [node] };
+  };
+
+  it('opens one branch per level: opening a group folds its open sibling', () => {
+    const container = createContainer();
+    const renderer = createCollapsibleTree(wide, container, {
+      onNodeClick: () => undefined,
+      onNodeDoubleClick: () => undefined,
+    });
+
+    click(container, 'Cortex');
+    expect(renderedLabels(container)).toContain('Frontal');
+
+    click(container, 'Nuclei');
+    expect(renderedLabels(container)).toContain('Striatum');
+    expect(renderedLabels(container)).not.toContain('Frontal');
+    renderer.destroy();
+    container.remove();
+  });
+
+  it('pages a long variable list behind a "more" row', () => {
+    const container = createContainer();
+    const renderer = createCollapsibleTree(wide, container, {
+      onNodeClick: () => undefined,
+      onNodeDoubleClick: () => undefined,
+    });
+
+    // Cortex holds one group only, so Frontal opens with it.
+    click(container, 'Cortex');
+    const shownAreas = () => renderedLabels(container).filter((label) => label.startsWith('Frontal area'));
+    expect(shownAreas().length).toBe(VARIABLE_PAGE_SIZE);
+    expect(renderedLabels(container)).toContain(`+ ${20 - VARIABLE_PAGE_SIZE} more variables`);
+
+    click(container, `+ ${20 - VARIABLE_PAGE_SIZE} more variables`);
+    expect(shownAreas().length).toBe(20);
+    renderer.destroy();
+    container.remove();
+  });
+
+  it('pages a searched variable into view', () => {
+    const container = createContainer();
+    const renderer = createCollapsibleTree(wide, container, {
+      onNodeClick: () => undefined,
+      onNodeDoubleClick: () => undefined,
+    });
+
+    renderer.expandToNode({ label: 'Frontal area 17', code: 'Frontal area_17', type: 'real' });
+
+    expect(renderedLabels(container)).toContain('Frontal area 17');
+    expect(container.querySelector('g.collapsible-node.highlighted')?.textContent).toContain('Frontal area 17');
+    renderer.destroy();
+    container.remove();
+  });
+
+  it('draws only the last levels of a deep path and folds the rest into an "up" stub', () => {
+    const container = createContainer();
+    const onPathChange = vi.fn();
+    const onNodeClick = vi.fn();
+    const renderer = createCollapsibleTree(chain(7), container, {
+      onNodeClick,
+      onNodeDoubleClick: () => undefined,
+      onPathChange,
+    });
+
+    renderer.expandToNode({ label: 'Leaf', code: 'leaf', type: 'real' });
+
+    const path = onPathChange.mock.lastCall![0] as D3HierarchyNode[];
+    expect(path.map((node) => node.label)).toEqual(['Root', 'Level 1', 'Level 2', 'Level 3', 'Level 4', 'Level 5', 'Level 6', 'Level 7']);
+    expect(renderedLabels(container)).not.toContain('Root');
+    expect(renderedLabels(container)).toContain('Leaf');
+    const stub = container.querySelector<SVGGElement>('g.ancestor-stub:not([aria-hidden="true"])')!;
+    expect(stub.textContent).toMatch(/^↑ Up to Level \d$/);
+
+    const above = stub.textContent!.replace('↑ Up to ', '');
+    stub.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onNodeClick).toHaveBeenLastCalledWith(expect.objectContaining({ label: above }));
+    expect((onPathChange.mock.lastCall![0] as D3HierarchyNode[]).at(-1)?.label).toBe(above);
+    renderer.destroy();
+    container.remove();
+  });
+
+  it('focuses a breadcrumb group: folds what lies below and selects it', () => {
+    const container = createContainer();
+    const onPathChange = vi.fn();
+    const onNodeClick = vi.fn();
+    const model = chain(4);
+    const renderer = createCollapsibleTree(model, container, {
+      onNodeClick,
+      onNodeDoubleClick: () => undefined,
+      onPathChange,
+    });
+    renderer.expandToNode({ label: 'Leaf', code: 'leaf', type: 'real' });
+
+    const levelTwo = model.children![0].children![0];
+    renderer.focusNode(levelTwo);
+
+    expect(onNodeClick).toHaveBeenLastCalledWith(levelTwo);
+    expect((onPathChange.mock.lastCall![0] as D3HierarchyNode[]).map((node) => node.label)).toEqual(['Root', 'Level 1', 'Level 2']);
+    expect(renderedLabels(container)).not.toContain('Leaf');
+    renderer.destroy();
+    container.remove();
+  });
+
+  it('pans on a plain wheel and leaves zoom to Ctrl + wheel', () => {
+    const container = createContainer();
+    const renderer = createCollapsibleTree(wide, container, {
+      onNodeClick: () => undefined,
+      onNodeDoubleClick: () => undefined,
+    });
+    const svg = container.querySelector<SVGSVGElement>('svg.collapsible-tree-svg')!;
+    const before = d3.zoomTransform(svg);
+
+    const wheel = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    svg.dispatchEvent(wheel);
+
+    const after = d3.zoomTransform(svg);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(after.k).toBe(before.k);
+    expect(after.y).toBeCloseTo(before.y - 120);
+    renderer.destroy();
+    container.remove();
+  });
+});
 
 describe('collapsible tree unavailable variables', () => {
   const model: D3HierarchyNode = {
@@ -279,6 +416,18 @@ describe('collapsible tree unavailable variables', () => {
   });
 });
 });
+
+function renderedLabels(container: HTMLElement): string[] {
+  return Array.from(container.querySelectorAll('g.collapsible-node:not([aria-hidden="true"]) .node-label'))
+    .map((label) => label.textContent ?? '');
+}
+
+function click(container: HTMLElement, label: string): void {
+  const node = Array.from(container.querySelectorAll<SVGGElement>('g.collapsible-node:not([aria-hidden="true"])'))
+    .find((item) => item.querySelector('.node-label')?.textContent === label);
+  expect(node, `Expected rendered node for ${label}`).toBeDefined();
+  node!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
 
 function createContainer(): HTMLElement {
   const container = document.createElement('div');
