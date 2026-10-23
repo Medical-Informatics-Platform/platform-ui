@@ -48,6 +48,7 @@ import {
   kmeansCreatorClusterChoices,
   kmeansCreatorVariables,
 } from '../../../core/kmeans-cluster-source.utils';
+import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -106,6 +107,7 @@ import {
   VariableRow,
   EnumOption,
   HistogramPreviewData,
+  HowToGuide,
   PreprocessingRule,
   PreprocessingGroup,
   OutlierPreviewRow,
@@ -124,7 +126,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent, HowToStripComponent],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -857,7 +859,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** "How to use" strip copy per expanded stage; K-means is projected into its card. */
-  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans' | 'pca', { steps: string[]; note: string }> = {
+  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans' | 'pca', HowToGuide> = {
     source: {
       steps: ['Pick a variable on the left', 'Switch between Table, Charts and Histogram', 'Note gaps or odd ranges — fix them in the steps below'],
       note: 'Read only — this preview never changes the data or the run.',

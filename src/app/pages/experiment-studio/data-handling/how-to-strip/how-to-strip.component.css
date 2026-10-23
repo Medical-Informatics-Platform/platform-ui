@@ -1,0 +1,110 @@
+/* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
+   scoped to the panel's own template, so it is repeated here for this one. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* "How to use" strip directly under an expanded stage header; a <details> folded by
+   default, so only the summary line shows until someone asks for the steps. The
+   <details> is this component's host, so the strip adds no wrapper element. */
+:host(.how-to-strip) {
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
+}
+
+.how-to-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 18px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.how-to-summary::-webkit-details-marker {
+  display: none;
+}
+
+.how-to-summary:hover .how-to-peek {
+  color: var(--primary-color);
+}
+
+.how-to-summary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.how-to-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-color);
+}
+
+.how-to-peek {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.how-to-chevron {
+  font-size: 0.6rem;
+  color: var(--primary-color);
+  transition: transform 0.15s ease;
+}
+
+:host(.how-to-strip[open]) .how-to-chevron {
+  transform: rotate(180deg);
+}
+
+:host(.how-to-strip[open]) .how-to-peek {
+  display: none;
+}
+
+.how-to-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 0 18px 10px;
+}
+
+.how-to-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.how-to-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.how-to-note {
+  flex-basis: 100%;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* Projected into a station card, the strip spans the card body edge to edge.
+   The card belongs to the Data Handling template, so it is matched as host context. */
+:host-context(app-station-card) {
+  margin: -14px -14px 14px;
+}
+
+@media (max-width: 768px) {
+  :host-context(app-station-card) {
+    margin: -14px -12px 14px;
+  }
+}
