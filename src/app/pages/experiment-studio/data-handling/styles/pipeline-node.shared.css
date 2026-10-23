@@ -425,3 +425,36 @@
     max-width: none;
   }
 }
+
+.pipeline-subnode-status {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.pipeline-subnode-impact + .pipeline-subnode-status {
+  margin-left: 12px;
+}
+
+.pipeline-subnode-status[data-tone='applied'] {
+  background: color-mix(in srgb, var(--success) 12%, white);
+  color: #065f46;
+  border: 0;
+}
+
+.pipeline-subnode-status[data-tone='default'] {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  border: 0;
+}
+
+.pipeline-subnode-status[data-tone='pending'] {
+  background: color-mix(in srgb, var(--accent-color) 16%, white);
+  color: #78350f;
+  border: 0;
+}
