@@ -1,5 +1,11 @@
 import * as d3 from 'd3';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
+import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+  unavailableDatasetsFor,
+  unavailableVariableTooltip,
+} from '../../../../../core/variable-availability.utils';
 
 interface CollapsibleTreeSelectionOptions {
   selectedVariables?: D3HierarchyNode[];
@@ -9,12 +15,15 @@ interface CollapsibleTreeSelectionOptions {
 export interface CollapsibleTreeRenderer {
   expandToNode: (node: D3HierarchyNode) => void;
   refreshSelection: (options?: CollapsibleTreeSelectionOptions) => void;
+  setUnavailableVariables: (unavailable: UnavailableVariablesMap | null | undefined) => void;
   fitView: () => void;
   resize: () => void;
   destroy: () => void;
 }
 
 interface CollapsibleTreeOptions extends CollapsibleTreeSelectionOptions {
+  /** Variables drawn grayed out that ignore clicks, double-clicks and Enter/Space. */
+  unavailableVariables?: UnavailableVariablesMap;
   onNodeClick: (node: D3HierarchyNode) => void;
   onNodeDoubleClick: (node: D3HierarchyNode) => void;
   onAutoFitScheduled?: () => void;
@@ -52,6 +61,10 @@ export function createCollapsibleTree(
   initializeCollapse(root);
 
   let selectedVariables = toCodeSet(options.selectedVariables);
+  let unavailableVariables = options.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
+  const unavailableIn = (node: TreeDatum): readonly string[] =>
+    isVariable(node) ? unavailableDatasetsFor(unavailableVariables, node.data) : [];
+  const isUnavailable = (node: TreeDatum): boolean => unavailableIn(node).length > 0;
   let highlightedCode = codeOf(options.highlightNode);
   let highlightedPath = pathOf(options.highlightNode);
   let bounds = measureContainer(container);
@@ -129,7 +142,7 @@ export function createCollapsibleTree(
       })
       .on('dblclick', (event, node) => {
         event.stopPropagation();
-        if (isVariable(node)) {
+        if (isVariable(node) && !isUnavailable(node)) {
           options.onNodeDoubleClick(node.data);
         }
       })
@@ -139,7 +152,7 @@ export function createCollapsibleTree(
           handleNodeClick(node);
         }
       })
-      .on('mouseenter', (event, node) => showTooltip(event, node))
+      .on('mouseenter', (event, node) => showTooltip(event, node, unavailableIn(node)))
       .on('mousemove', (event) => moveTooltip(event))
       .on('mouseleave', hideTooltip);
 
@@ -178,6 +191,7 @@ export function createCollapsibleTree(
 
     nodeMerge
       .attr('class', (node) => nodeClass(node))
+      .attr('aria-disabled', (node) => (isUnavailable(node) ? 'true' : null))
       .attr('aria-expanded', (node) => hasChildren(node) ? String(!!node.children) : null)
       .transition()
       .duration(duration)
@@ -219,6 +233,7 @@ export function createCollapsibleTree(
   };
 
   const handleNodeClick = (node: TreeDatum): void => {
+    if (isUnavailable(node)) return;
     let shouldCenterAfterUpdate = false;
     let didExpand = false;
     if (!isVariable(node) && hasChildren(node)) {
@@ -251,7 +266,8 @@ export function createCollapsibleTree(
   const refreshNodeClasses = (): void => {
     nodeLayer
       .selectAll<SVGGElement, TreeDatum>('g.collapsible-node')
-      .attr('class', (node) => nodeClass(node));
+      .attr('class', (node) => nodeClass(node))
+      .attr('aria-disabled', (node) => (isUnavailable(node) ? 'true' : null));
   };
 
   const fitView = (): void => {
@@ -330,6 +346,11 @@ export function createCollapsibleTree(
     refreshNodeClasses();
   };
 
+  const setUnavailableVariables = (unavailable: UnavailableVariablesMap | null | undefined): void => {
+    unavailableVariables = unavailable ?? EMPTY_UNAVAILABLE_VARIABLES;
+    refreshNodeClasses();
+  };
+
   const resize = (): void => {
     bounds = measureContainer(container);
     svg
@@ -349,6 +370,7 @@ export function createCollapsibleTree(
   return {
     expandToNode,
     refreshSelection,
+    setUnavailableVariables,
     fitView,
     resize,
     destroy: () => {
@@ -372,6 +394,7 @@ export function createCollapsibleTree(
       classes.push('highlighted');
     }
     if (code && selectedVariables.has(code)) classes.push('selected-variable');
+    if (isUnavailable(node)) classes.push('unavailable-variable');
     return classes.join(' ');
   }
 }
@@ -533,7 +556,7 @@ function truncateLabel(value: unknown): string {
   return label.length > 31 ? `${label.slice(0, 28)}...` : label;
 }
 
-function showTooltip(event: MouseEvent, node: TreeDatum): void {
+function showTooltip(event: MouseEvent, node: TreeDatum, unavailableIn: readonly string[] = []): void {
   const label = normalizeString(node.data.label) || 'Untitled';
   const type = normalizeString(node.data.type);
   const description = normalizeString(node.data.description);
@@ -549,6 +572,7 @@ function showTooltip(event: MouseEvent, node: TreeDatum): void {
   tooltip.append('strong').text(label);
   if (type) appendRow('Type:', type);
   if (description) appendRow('Description:', description);
+  if (unavailableIn.length) tooltip.append('span').text(unavailableVariableTooltip(unavailableIn));
   tooltip
     .style('left', `${event.clientX + 12}px`)
     .style('top', `${event.clientY + 12}px`)
