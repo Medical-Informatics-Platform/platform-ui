@@ -47,6 +47,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             selectedDatasets: signal(['dataset-a']),
             excludedDatasets: signal([]),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            unavailableVariables: signal(new Map()),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal(null),

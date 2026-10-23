@@ -233,6 +233,30 @@
   text-overflow: ellipsis;
 }
 
+/* Variable missing from a selected dataset: grayed out, never resolved as the condition field. */
+.compact-variable.is-unavailable {
+  color: var(--unavailable-text);
+  cursor: not-allowed;
+}
+
+/* .field-col: outranks the page-wide `.experiment-studio-page input:not(...)` reset. */
+.field-col .filter-field-input.is-unavailable {
+  color: var(--unavailable-text);
+  border-style: dashed;
+}
+
+.field-col.field-variable:has(.filter-unavailable-note) {
+  flex-wrap: wrap;
+}
+
+.filter-unavailable-note {
+  display: block;
+  flex-basis: 100%;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
 .compact-operator {
   padding: 0;
   border: 0;

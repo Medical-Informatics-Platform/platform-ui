@@ -12,6 +12,7 @@ import {
   isMultiValueFilterOperator,
   isUnaryFilterOperator,
 } from '../../../../core/filter-logic.utils';
+import { unavailableDatasetsFor, unavailableTooltipFor, unavailableVariableTooltip } from '../../../../core/variable-availability.utils';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -167,7 +168,9 @@ export class FilterConfigModalComponent {
   }
 
   onConditionVariableTextChange(blockId: string, value: string): void {
-    const selected = this.resolveFilterField(value);
+    // A variable missing from a selected dataset never resolves, so picking it changes no field.
+    const resolved = this.resolveFilterField(value);
+    const selected = resolved && !this.variableUnavailableTooltip(resolved) ? resolved : null;
     this.updateCondition(blockId, (block) => {
       const options = selected ? filterOperatorSymbolsForType(selected.type) : [];
       const nextOperator = selected && !options.includes(block.operator) ? options[0] : block.operator;
@@ -249,6 +252,20 @@ export class FilterConfigModalComponent {
       value: String(entry.code ?? entry.label ?? entry.name ?? ''),
       label: String(entry.label ?? entry.name ?? entry.code ?? ''),
     })).filter((entry: { value: string; label: string }) => entry.value);
+  }
+
+  /** "Not available in: …" for a variable missing from a selected dataset, '' otherwise. */
+  variableUnavailableTooltip(variable: any): string {
+    return unavailableTooltipFor(this.expStudio.unavailableVariables(), { code: variable?.code });
+  }
+
+  /**
+   * Why the condition's variable cannot be used: the one already chosen (kept, never removed)
+   * or the one typed into the field. '' when the variable is available or unresolved.
+   */
+  conditionUnavailableTooltip(block: FilterConditionBlock): string {
+    const variable = this.selectedFilter(block) ?? this.resolveFilterField(block.variableText ?? '');
+    return variable ? this.variableUnavailableTooltip(variable) : '';
   }
 
   variableDisplayLabel(variable: any): string {
@@ -449,7 +466,7 @@ export class FilterConfigModalComponent {
         if (groupError) return groupError;
         continue;
       }
-      if (!block.field) return 'Choose a variable for every condition.';
+      if (!block.field) return this.unavailableTypedVariableError(block) || 'Choose a variable for every condition.';
       if (!block.operator) return 'Choose an operator for every condition.';
       if (this.isUnaryOperator(block.operator)) continue;
       if (this.isMultiValueOperator(block.operator)) {
@@ -459,6 +476,14 @@ export class FilterConfigModalComponent {
       if (!block.values[0]) return 'Choose or enter a value for every condition.';
     }
     return null;
+  }
+
+  /** "Age is not available in: Dataset B." when the typed variable is missing from a selected dataset. */
+  private unavailableTypedVariableError(block: FilterConditionBlock): string {
+    const typed = this.resolveFilterField(block.variableText ?? '');
+    const datasets = unavailableDatasetsFor(this.expStudio.unavailableVariables(), { code: typed?.code });
+    const label = typed?.label ?? typed?.name ?? typed?.code;
+    return datasets.length ? `${unavailableVariableTooltip(datasets, `${label} is not available in`)}.` : '';
   }
 
   private normalizeGroup(group: FilterGroupBlock): any {
