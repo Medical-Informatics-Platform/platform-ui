@@ -74,7 +74,11 @@
               <details class="condition-row" [open]="activeBlockId() === block.id">
                 <summary class="compact-condition-row" (click)="toggleActiveBlock(block.id)">
                   <span class="compact-join">{{ $first ? 'where' : (groupCondition(group) === 'AND' ? 'and' : 'or') }}</span>
-                  <span class="compact-variable">
+                  @let compactUnavailable = conditionUnavailableTooltip(block);
+                  <span class="compact-variable"
+                        [class.is-unavailable]="!!compactUnavailable"
+                        [attr.aria-disabled]="compactUnavailable ? true : null"
+                        [attr.title]="compactUnavailable || null">
                     {{ block.variableText || 'Select variable...' }}
                     @if (variableType(block)) {
                       <span class="type-badge">{{ variableType(block) }}</span>
@@ -108,10 +112,13 @@
                 <div class="expanded-row">
                   <div class="expanded-row-fields">
                     <div class="condition-fields">
+                        @let fieldUnavailable = conditionUnavailableTooltip(block);
                         <div class="field-col field-variable">
                           <input
                             type="text"
                             class="filter-field-input"
+                            [class.is-unavailable]="!!fieldUnavailable"
+                            [attr.title]="fieldUnavailable || null"
                             [attr.list]="'filter-variable-options-' + block.id"
                             [ngModel]="block.variableText"
                             (ngModelChange)="onConditionVariableTextChange(block.id, $event)"
@@ -122,9 +129,15 @@
                           }
                           <datalist [id]="'filter-variable-options-' + block.id">
                             @for (field of visibleFilterVariables(block.variableText); track field.code) {
-                              <option [value]="variableDisplayLabel(field)"></option>
+                              <!-- A datalist option shows only its label; class, aria-disabled and title are ignored. -->
+                              <option
+                                [value]="variableDisplayLabel(field)"
+                                [attr.label]="variableUnavailableTooltip(field) || null"></option>
                             }
                           </datalist>
+                          @if (fieldUnavailable) {
+                            <span class="filter-unavailable-note" role="note">{{ fieldUnavailable }}</span>
+                          }
                         </div>
 
                         <div class="field-col field-operator">

@@ -107,7 +107,9 @@
         [attr.id]="'search-result-' + $index"
         [class.is-group]="item.kind === 'group'"
         [class.is-active]="$index === activeIndex"
+        [class.is-unavailable]="isUnavailable(item)"
         [attr.aria-selected]="$index === activeIndex"
+        [attr.aria-disabled]="isUnavailable(item) ? true : null"
         (click)="onItemClick(item)"
         [title]="generateTooltip(item)">
         @let groupCount = groupVariableCount(item);

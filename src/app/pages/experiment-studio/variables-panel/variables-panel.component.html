@@ -91,7 +91,7 @@
               </button>
               @if (searchExpanded()) {
               <div class="search-popover">
-                <app-search-bar [dataModelHierarchy]="d3Data" (searchResultSelected)="onSearchSelected($event)">
+                <app-search-bar [dataModelHierarchy]="d3Data" [unavailableVariables]="unavailableVariables()" (searchResultSelected)="onSearchSelected($event)">
                 </app-search-bar>
               </div>
               }
@@ -111,6 +111,7 @@
                   [data]="d3Data"
                   [highlightNode]="highlightNode"
                   [poolVariables]="selectedVariables"
+                  [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)"
                   (variablePoolToggle)="toggleSelectedNodeInPool()">
@@ -121,6 +122,7 @@
                   [data]="d3Data"
                   [highlightNode]="highlightNode"
                   [selectedVariables]="selectedVariables"
+                  [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)">
                 </app-collapsible-tree-browser>
@@ -130,6 +132,7 @@
                   [d3Data]="d3Data"
                   [highlightNode]="highlightNode"
                   [selectedVariables]="selectedVariables"
+                  [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onBubbleNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)">
                 </app-bubble-chart>
@@ -224,7 +227,11 @@
                   aria-label="Split histogram by category">
                   <option value="">None</option>
                   @for (option of histogramSplitOptions(); track option.code) {
-                  <option [value]="option.code" [disabled]="option.disabled" [title]="option.title">{{ option.label }}</option>
+                  <option
+                    [value]="option.code"
+                    [disabled]="option.disabled"
+                    [title]="option.title"
+                    [class.is-unavailable]="!!option.unavailable">{{ option.label }}</option>
                   }
                 </select>
               </div>

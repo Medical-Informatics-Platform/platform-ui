@@ -37,6 +37,8 @@ export interface DataModel {
   groups?: Group[];
   released:boolean;
   datasets?: string[];
+  /** Dataset code → codes of the variables present in that dataset (GET /services/data-models). */
+  datasetsVariables?: Record<string, string[]>;
 }
 
 // D3 hierarchy format interface

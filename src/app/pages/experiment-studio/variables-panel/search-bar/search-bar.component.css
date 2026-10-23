@@ -309,6 +309,16 @@
   outline: none;
 }
 
+/* Not present in every selected dataset: listed grayed out, cannot be picked. */
+.search-result-item.is-unavailable {
+  cursor: not-allowed;
+  opacity: var(--unavailable-opacity);
+}
+
+.search-result-item.is-unavailable .search-result-label {
+  color: var(--unavailable-text);
+}
+
 .search-result-content {
   flex: 1 1 auto;
   min-width: 0;

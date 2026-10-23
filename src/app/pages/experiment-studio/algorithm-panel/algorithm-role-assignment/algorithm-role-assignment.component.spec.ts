@@ -12,6 +12,7 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     algorithmX: ReturnType<typeof signal<any[]>>;
     setAlgorithmY: Mock;
     setAlgorithmX: Mock;
+    unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
   };
 
   const age = { code: 'age', label: 'Age', type: 'real' };
@@ -24,6 +25,7 @@ describe('AlgorithmRoleAssignmentComponent', () => {
       algorithmAssignableVariables: signal<any[]>([age, sex, bmi, derived]),
       algorithmY: signal<any[]>([]),
       algorithmX: signal<any[]>([]),
+      unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
       setAlgorithmY: vi.fn().mockImplementation((nodes: any[]) => {
         experimentStudioService.algorithmY.set(nodes);
       }),
@@ -253,5 +255,44 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     // age never was an outcome: setAlgorithmY must not be touched at all.
     expect(experimentStudioService.setAlgorithmY).not.toHaveBeenCalled();
     expect(experimentStudioService.algorithmY()).toEqual([sex]);
+  });
+
+  it('grays an unavailable pool row, names the datasets and refuses role clicks', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['sex', ['Dataset B']]]));
+    fixture.detectChanges();
+
+    const row = Array.from<HTMLElement>(fixture.nativeElement.querySelectorAll('li.row'))
+      .find((item) => item.textContent?.includes('Sex'))!;
+    expect(row.classList).toContain('is-unavailable');
+    expect(row.getAttribute('aria-disabled')).toBe('true');
+    expect(row.getAttribute('title')).toBe('Not available in: Dataset B');
+    const outcome = row.querySelector('button[data-role="y"]') as HTMLButtonElement;
+    expect(outcome.getAttribute('aria-disabled')).toBe('true');
+
+    outcome.click();
+    (row.querySelector('button[data-role="x"]') as HTMLButtonElement).click();
+    outcome.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    fixture.componentInstance.assignTo('x', sex);
+    expect(experimentStudioService.setAlgorithmY).not.toHaveBeenCalled();
+    expect(experimentStudioService.setAlgorithmX).not.toHaveBeenCalled();
+  });
+
+  it('keeps an assigned variable that became unavailable, grayed, undraggable and removable', () => {
+    experimentStudioService.algorithmY.set([sex]);
+    experimentStudioService.unavailableVariables.set(new Map([['sex', ['Dataset B']]]));
+    fixture.detectChanges();
+
+    const chip = fixture.nativeElement.querySelector('.chip--y') as HTMLElement;
+    expect(chip.classList).toContain('is-unavailable');
+    expect(chip.classList).toContain('cdk-drag-disabled');
+    expect(chip.getAttribute('aria-disabled')).toBe('true');
+    expect(chip.getAttribute('title')).toBe('Not available in: Dataset B');
+
+    fixture.componentInstance.assignTo('x', sex);
+    expect(experimentStudioService.algorithmY()).toEqual([sex]);
+    expect(experimentStudioService.setAlgorithmX).not.toHaveBeenCalled();
+
+    (chip.querySelector('.chip-x') as HTMLButtonElement).click();
+    expect(experimentStudioService.setAlgorithmY).toHaveBeenCalledWith([]);
   });
 });

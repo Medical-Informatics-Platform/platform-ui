@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { CdkDragDrop, DragDropModule } from '@angular/cdk/drag-drop';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
+import { unavailableTooltipFor } from '../../../../core/variable-availability.utils';
 
 type AlgorithmRole = 'y' | 'x';
 type PoolRole = AlgorithmRole | '';
@@ -80,6 +81,7 @@ export class AlgorithmRoleAssignmentComponent {
   }
 
   setRole(node: any, role: PoolRole): void {
+    if (this.isUnavailable(node)) return;
     if (role) this.assignTo(role, node);
     else {
       const current = this.roleOf(node);
@@ -93,6 +95,8 @@ export class AlgorithmRoleAssignmentComponent {
   }
 
   assignTo(role: AlgorithmRole, node: any): void {
+    // Missing from a selected dataset: cannot be given a role or moved between roles.
+    if (this.isUnavailable(node)) return;
     const target = role === 'y' ? this.y() : this.x();
     // Guard: a node can never appear in both roles. If it is already in the
     // target role, assigning again is a no-op; if it is in the opposite role,
@@ -122,6 +126,15 @@ export class AlgorithmRoleAssignmentComponent {
 
   label(node: any): string {
     return node?.label ?? node?.name ?? node?.code ?? '';
+  }
+
+  /** "Not available in: …" for a variable missing from a selected dataset, '' otherwise. */
+  unavailableTooltip(node: any): string {
+    return unavailableTooltipFor(this.expStudioService.unavailableVariables(), { code: node?.code });
+  }
+
+  isUnavailable(node: any): boolean {
+    return this.unavailableTooltip(node) !== '';
   }
 
   isCreated(node: any): boolean {

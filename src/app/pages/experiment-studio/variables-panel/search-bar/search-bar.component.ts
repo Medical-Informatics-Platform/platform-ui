@@ -17,6 +17,11 @@ import {
   normalizeMetadataTree,
   searchMetadataIndex,
 } from '../../visualisations/metadata-browser/metadata-browser-normalizer';
+import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+  unavailableTooltipFor,
+} from '../../../../core/variable-availability.utils';
 
 @Component({
   selector: 'app-search-bar',
@@ -32,6 +37,8 @@ export class SearchBarComponent implements OnChanges {
   private eRef = inject(ElementRef);
 
   readonly dataModelHierarchy = input<any>();
+  /** Variable results listed grayed out that cannot be picked for the current datasets. */
+  readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly searchResultSelected = output<MetadataSearchResult>();
 
   searchQuery = '';
@@ -168,6 +175,7 @@ export class SearchBarComponent implements OnChanges {
   }
 
   onItemClick(item: MetadataSearchResult): void {
+    if (this.isUnavailable(item)) return;
     this.searchQuery = item.label;
     this.hideSuggestions();
     this.searchResultSelected.emit(item);
@@ -195,7 +203,20 @@ export class SearchBarComponent implements OnChanges {
       return `Group: ${item.label}\nPath: ${item.path}\nVariables: ${count}`;
     }
     const variable = this.metadataIndex?.variablesById[item.id];
-    return `Variable: ${item.label}\nPath: ${item.path}\nType: ${variable?.type ?? 'unknown'}`;
+    const base = `Variable: ${item.label}\nPath: ${item.path}\nType: ${variable?.type ?? 'unknown'}`;
+    const unavailable = this.unavailableTooltip(item);
+    return unavailable ? `${base}\n${unavailable}` : base;
+  }
+
+  isUnavailable(item: MetadataSearchResult): boolean {
+    return this.unavailableTooltip(item) !== '';
+  }
+
+  /** "Not available in: …" for a variable result missing from a selected dataset, '' otherwise. */
+  private unavailableTooltip(item: MetadataSearchResult): string {
+    if (item.kind !== 'variable') return '';
+    const code = this.metadataIndex?.variablesById[item.id]?.code;
+    return unavailableTooltipFor(this.unavailableVariables(), { code });
   }
 
   onSearchFocus(): void {

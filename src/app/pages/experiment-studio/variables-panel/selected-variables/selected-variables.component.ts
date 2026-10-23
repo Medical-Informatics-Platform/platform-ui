@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, output, inject, input, signal, ElementRef } from '@angular/core';
 import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { D3HierarchyNode } from '../../../../models/data-model.interface';
+import { unavailableTooltipFor } from '../../../../core/variable-availability.utils';
 
 
 @Component({
@@ -27,7 +28,14 @@ export class SelectedVariablesComponent {
   readonly variables = computed(() => this.expStudioService.selectedVariables());
 
   onVariableClick(node: D3HierarchyNode): void {
+    // Picked before a dataset change made it unavailable: kept in the pool, but inert.
+    if (this.unavailableTooltip(node)) return;
     this.variableClicked.emit(node);
+  }
+
+  /** "Not available in: …" for a pooled variable missing from a selected dataset, '' otherwise. */
+  unavailableTooltip(node: D3HierarchyNode): string {
+    return unavailableTooltipFor(this.expStudioService.unavailableVariables(), { code: node?.code });
   }
 
   toggle(): void {

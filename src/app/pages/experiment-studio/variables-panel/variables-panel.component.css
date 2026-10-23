@@ -868,6 +868,11 @@
   color: var(--text-muted);
 }
 
+/* Split variable missing from a selected dataset: grayed out and disabled. */
+.bin-selector option.is-unavailable {
+  color: var(--unavailable-text);
+}
+
 .bin-selector label {
   white-space: nowrap;
 }

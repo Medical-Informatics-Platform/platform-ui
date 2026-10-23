@@ -8,6 +8,30 @@ import {
 } from './histogram-data';
 
 describe('histogram split helpers', () => {
+  it('disables a split variable missing from a selected dataset and names the datasets', () => {
+    const options = buildHistogramSplitOptions({
+      plottedCode: 'age',
+      selectedVariables: [
+        { code: 'sex', label: 'Sex', type: 'nominal', enumerations: ['M', 'F'] },
+        { code: 'apoe', label: 'APOE', type: 'nominal', enumerations: ['0', '1'] },
+      ],
+      datasetLevelCount: 2,
+      unavailableVariables: new Map([['apoe', ['ADNI', 'CHUV']], ['dataset', ['ADNI']]]),
+    });
+
+    expect(options.find((option) => option.code === 'dataset')).toEqual(
+      expect.objectContaining({ disabled: false, title: 'Split bars by dataset' })
+    );
+    expect(options.find((option) => option.code === 'sex')?.disabled).toBe(false);
+    expect(options.find((option) => option.code === 'apoe')).toEqual({
+      code: 'apoe',
+      label: 'APOE',
+      disabled: true,
+      title: 'Not available in: ADNI, CHUV',
+      unavailable: true,
+    });
+  });
+
   it('offers Dataset plus selected nominal variables, excluding the plotted variable', () => {
     const options = buildHistogramSplitOptions({
       plottedCode: 'age',

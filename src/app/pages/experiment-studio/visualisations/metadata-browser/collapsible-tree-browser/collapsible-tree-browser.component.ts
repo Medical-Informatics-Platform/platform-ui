@@ -16,6 +16,10 @@ import {
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import { observeSize } from '../../../../../core/observe-resize.util';
 import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+} from '../../../../../core/variable-availability.utils';
+import {
   CollapsibleTreeRenderer,
   createCollapsibleTree,
 } from './collapsible-tree-renderer';
@@ -36,6 +40,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
   readonly data = input<D3HierarchyNode | null>(null);
   readonly highlightNode = input<D3HierarchyNode | null>(null);
   readonly selectedVariables = input<D3HierarchyNode[]>([]);
+  readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly selectedNodeChange = output<D3HierarchyNode>();
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
 
@@ -59,6 +64,12 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
       if (data !== this.lastDataRef) {
         this.render();
       }
+    });
+
+    // Separate from the selection effect so a dataset change regrays nodes without recentering.
+    effect(() => {
+      const unavailable = this.unavailableVariables();
+      this.renderer?.setUnavailableVariables(unavailable);
     });
 
     effect(() => {
@@ -130,6 +141,7 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     this.renderer = createCollapsibleTree(data, canvas, {
       selectedVariables: this.selectedVariables(),
       highlightNode: this.highlightNode(),
+      unavailableVariables: this.unavailableVariables(),
       onNodeClick: (node) => {
         // This selection originates from the renderer itself; avoid immediately
         // replaying expandToNode through the highlight effect.

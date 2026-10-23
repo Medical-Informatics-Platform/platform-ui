@@ -222,6 +222,62 @@ describe('collapsible tree renderer helpers', () => {
     expect(onAutoFitCanceled).toHaveBeenCalled();
     container.remove();
   });
+
+describe('collapsible tree unavailable variables', () => {
+  const model: D3HierarchyNode = {
+    label: 'Root',
+    code: 'root',
+    children: [
+      {
+        label: 'Demographics',
+        code: 'demographics',
+        children: [
+          { label: 'Sex', code: 'sex', type: 'nominal' },
+          { label: 'Age', code: 'age', type: 'real' },
+        ],
+      },
+    ],
+  };
+
+  const nodeFor = (container: HTMLElement, label: string): SVGGElement =>
+    Array.from(container.querySelectorAll<SVGGElement>('g.collapsible-node'))
+      .find((node) => node.querySelector('.node-label')?.textContent === label)!;
+
+  it('grays unavailable variables, ignores their clicks and lists the datasets on hover', () => {
+    const container = createContainer();
+    const onNodeClick = vi.fn();
+    const onNodeDoubleClick = vi.fn();
+    const renderer = createCollapsibleTree(model, container, {
+      unavailableVariables: new Map([['sex', ['Dataset B']]]),
+      onNodeClick,
+      onNodeDoubleClick,
+    });
+
+    const sex = nodeFor(container, 'Sex');
+    const age = nodeFor(container, 'Age');
+    expect(sex.classList).toContain('unavailable-variable');
+    expect(sex.getAttribute('aria-disabled')).toBe('true');
+    expect(age.classList).not.toContain('unavailable-variable');
+    expect(nodeFor(container, 'Demographics').classList).not.toContain('unavailable-variable');
+
+    sex.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    sex.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    sex.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(onNodeClick).not.toHaveBeenCalled();
+    expect(onNodeDoubleClick).not.toHaveBeenCalled();
+
+    sex.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(document.querySelector('.collapsible-tree-tooltip')?.textContent).toContain('Not available in: Dataset B');
+
+    age.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onNodeClick).toHaveBeenCalledTimes(1);
+
+    renderer.setUnavailableVariables(new Map());
+    expect(nodeFor(container, 'Sex').classList).not.toContain('unavailable-variable');
+    renderer.destroy();
+    container.remove();
+  });
+});
 });
 
 function createContainer(): HTMLElement {
