@@ -49,6 +49,7 @@ import {
   kmeansCreatorVariables,
 } from '../../../core/kmeans-cluster-source.utils';
 import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
+import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -126,7 +127,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent, HowToStripComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, PcaColumnSourceComponent],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
