@@ -214,7 +214,7 @@ describe('DataHandlingComponent pipeline presence', () => {
 
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
         expect(mockExpService.setTransformationPreprocessing).not.toHaveBeenCalled();
-        expect((component as any).userPreprocessingApplied).toBe(false);
+        expect(component.preprocessingState.userApplied).toBe(false);
     });
 
     it('persists on Apply and clears the persisted config on Remove', () => {

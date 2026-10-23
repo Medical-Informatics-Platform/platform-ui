@@ -44,7 +44,8 @@ import { SourceDataStationComponent } from './source-data-station/source-data-st
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
-import { groupPreprocessingVariables, pendingOrDefault } from './utils/preprocessing-state.utils';
+import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
+import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
 import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
@@ -70,7 +71,6 @@ import {
   OutlierTail,
   outlierStrategyLabel,
   outlierTailLabel,
-  serializeOutlierRule,
   serializeOutlierRules,
   validateOutlierRule,
 } from '../../../core/outlier-rules';
@@ -124,6 +124,7 @@ import {
     RuleBuilderRegistry,
     SectionAnchors,
     TransformationDraftsService,
+    PreprocessingStateService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -149,6 +150,7 @@ export class DataHandlingComponent implements OnDestroy {
   /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
   readonly ruleBuilders = inject(RuleBuilderRegistry);
   readonly transformationDraftState = inject(TransformationDraftsService);
+  readonly preprocessingState = inject(PreprocessingStateService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
@@ -164,19 +166,49 @@ export class DataHandlingComponent implements OnDestroy {
   processedSummary = emptySummaryView(false);
   /** Step 0 snapshot: the same `SummaryView` the Raw and Processed surfaces use. */
   sourceSummary = emptySummaryView(true);
-  pendingPreprocessingRules: Record<string, PreprocessingRule> = {};
-  appliedPreprocessingRules: Record<string, PreprocessingRule> = {};
+  // The rule maps live in PreprocessingStateService; these keep the panel's names.
+  get pendingPreprocessingRules(): Record<string, PreprocessingRule> {
+    return this.preprocessingState.pendingMissing;
+  }
+  set pendingPreprocessingRules(value: Record<string, PreprocessingRule>) {
+    this.preprocessingState.pendingMissing = value;
+  }
+  get appliedPreprocessingRules(): Record<string, PreprocessingRule> {
+    return this.preprocessingState.appliedMissing;
+  }
+  set appliedPreprocessingRules(value: Record<string, PreprocessingRule>) {
+    this.preprocessingState.appliedMissing = value;
+  }
+  get pendingLongitudinalStrategies(): Record<string, LongitudinalStrategy> {
+    return this.preprocessingState.pendingLongitudinal;
+  }
+  set pendingLongitudinalStrategies(value: Record<string, LongitudinalStrategy>) {
+    this.preprocessingState.pendingLongitudinal = value;
+  }
+  get appliedLongitudinalStrategies(): Record<string, LongitudinalStrategy> {
+    return this.preprocessingState.appliedLongitudinal;
+  }
+  set appliedLongitudinalStrategies(value: Record<string, LongitudinalStrategy>) {
+    this.preprocessingState.appliedLongitudinal = value;
+  }
+  get pendingOutlierRules(): Record<string, OutlierRule> {
+    return this.preprocessingState.pendingOutlier;
+  }
+  set pendingOutlierRules(value: Record<string, OutlierRule>) {
+    this.preprocessingState.pendingOutlier = value;
+  }
+  get appliedOutlierRules(): Record<string, OutlierRule> {
+    return this.preprocessingState.appliedOutlier;
+  }
+  set appliedOutlierRules(value: Record<string, OutlierRule>) {
+    this.preprocessingState.appliedOutlier = value;
+  }
   appliedLongitudinalEnabled = false;
   longitudinalVisit1 = '';
   longitudinalVisit2 = '';
   appliedLongitudinalVisit1 = '';
   appliedLongitudinalVisit2 = '';
-  pendingLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
-  appliedLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
-  pendingOutlierRules: Record<string, OutlierRule> = {};
-  appliedOutlierRules: Record<string, OutlierRule> = {};
   preprocessingStatus: PreprocessingStatus = 'none';
-  private userPreprocessingApplied = false;
   isApplyingPreprocessing = false;
   preprocessingValidationErrors: Record<string, string> = {};
   outlierValidationErrors: Record<string, string> = {};
@@ -266,7 +298,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.userEnabledOutliers.set(false);
       this.persistAppliedDescriptivePreprocessing(null);
       this.preprocessingStatus = 'none';
-      this.userPreprocessingApplied = false;
+      this.preprocessingState.userApplied = false;
       this.processedDescribeSeq++;
       this.clearProcessedPreviewSubscription();
       this.clearHistogramSubscriptions(this.processedSummary);
@@ -1000,7 +1032,7 @@ get transformationRulesNeedFilters(): boolean {
   }
 
   get hasPendingMissingChanges(): boolean {
-    return this.preprocessingVariables.some((variable) => this.missingRuleHasPendingChange(variable.code));
+    return this.preprocessingVariables.some((variable) => this.preprocessingState.missingHasPendingChange(variable.code));
   }
 
   get pendingOutlierChangeCount(): number {
@@ -1008,7 +1040,7 @@ get transformationRulesNeedFilters(): boolean {
   }
 
   get hasPendingOutlierChanges(): boolean {
-    return this.outlierPreprocessingVariables.some((variable) => this.outlierRuleHasPendingChange(variable.code));
+    return this.outlierPreprocessingVariables.some((variable) => this.preprocessingState.outlierHasPendingChange(variable.code));
   }
 
   get pendingLongitudinalChangeCount(): number {
@@ -1068,31 +1100,12 @@ get transformationRulesNeedFilters(): boolean {
     return 'Not applied';
   }
 
-  /**
-   * Whether a variable's missing-values edit differs from what the run uses. A variable
-   * with nothing applied is compared through the step default (drop rows), and sitting
-   * on that implicit default is not a change: no user action is required.
-   */
-  private missingRuleHasPendingChange(code: string): boolean {
-    const applied = this.appliedPreprocessingRules[code];
-    const pending = pendingOrDefault(this.pendingPreprocessingRules[code], applied, () => this.defaultRule(code));
-    if (this.isDefaultMissingRule(pending) && !this.hasAppliedPreprocessing(code)) return false;
-    return this.serializeRule(pending) !== this.serializeRule(applied);
-  }
-
-  /** Whether a variable's outlier edit differs from what the run uses (default: clipping off). */
-  private outlierRuleHasPendingChange(code: string): boolean {
-    const applied = this.appliedOutlierRules[code];
-    const pending = pendingOrDefault(this.pendingOutlierRules[code], applied, () => this.defaultOutlierRule(code));
-    return serializeOutlierRule(pending) !== serializeOutlierRule(applied);
-  }
-
     prepVariableHasPendingChange(kind: PrepKind, variable: VariableRow): boolean {
     switch (kind) {
       case 'missing':
-        return this.missingRuleHasPendingChange(variable.code);
+        return this.preprocessingState.missingHasPendingChange(variable.code);
       case 'outlier':
-        return this.outlierRuleHasPendingChange(variable.code);
+        return this.preprocessingState.outlierHasPendingChange(variable.code);
       case 'longitudinal': {
         if (!this.isLongitudinalModel) return false;
         const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
@@ -1121,18 +1134,8 @@ get transformationRulesNeedFilters(): boolean {
     }
   }
 
-  isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
-    if (this.hasAppliedPreprocessing(variable.code)) return false;
-    const pendingRule = this.pendingPreprocessingRules[variable.code]
-      ?? this.defaultRule(variable.code);
-    return this.isDefaultMissingRule(pendingRule);
-  }
-
-  private isDefaultMissingRule(rule: PreprocessingRule | undefined): boolean {
-    if (!rule) return false;
-    return rule.enabled === true
-      && rule.action === 'drop'
-      && (rule.value === undefined || rule.value === '');
+isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
+    return this.preprocessingState.isUsingDefaultMissing(variable.code);
   }
 
   get longitudinalVisitPairHasPendingChange(): boolean {
@@ -2030,11 +2033,8 @@ removeTransformationDraft(id: number): void {
       .filter((tile): tile is { label: string; missing: number; total: number; share: number } => !!tile);
   }
 
-  ruleFor(variable: VariableRow): PreprocessingRule {
-    if (!this.pendingPreprocessingRules[variable.code]) {
-      this.pendingPreprocessingRules[variable.code] = this.defaultRule(variable.code);
-    }
-    return this.pendingPreprocessingRules[variable.code];
+ruleFor(variable: VariableRow): PreprocessingRule {
+    return this.preprocessingState.missingRule(variable.code);
   }
 
   onMissingActionChange(variable: VariableRow, action: MissingAction): void {
@@ -2206,14 +2206,8 @@ removeTransformationDraft(id: number): void {
     };
   }
 
-  outlierRuleFor(variable: VariableRow): OutlierRule {
-    if (!this.pendingOutlierRules[variable.code]) {
-      this.pendingOutlierRules = {
-        ...this.pendingOutlierRules,
-        [variable.code]: this.defaultOutlierRule(variable.code),
-      };
-    }
-    return this.pendingOutlierRules[variable.code];
+outlierRuleFor(variable: VariableRow): OutlierRule {
+    return this.preprocessingState.outlierRule(variable.code);
   }
 
   onOutlierEnabledChange(variable: VariableRow, enabled: boolean): void {
@@ -2574,7 +2568,7 @@ removeTransformationDraft(id: number): void {
           this.persistAppliedDescriptivePreprocessing(
             this.buildPreprocessingConfig(this.appliedPreprocessingRules)
           );
-          this.userPreprocessingApplied = true;
+          this.preprocessingState.userApplied = true;
           this.preprocessingStatus = this.pendingChangeCount > 0 ? 'pending' : 'applied';
           this.isApplyingPreprocessing = false;
           this.refreshActiveHistogramPreview('processed');
@@ -3725,13 +3719,13 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
       // default). Create mode must stay out: auto-applied defaults there are
       // persisted into the applied config without a user apply.
       if (this.expStudioService.editingExistingExperiment()) {
-        this.userPreprocessingApplied = true;
+        this.preprocessingState.userApplied = true;
       }
     } else {
       this.ensureDefaultRulesForCurrentSelection(currentCodes);
       this.ensureOutlierDefaultsForCurrentSelection();
       // No persisted config means this session has no explicit apply yet.
-      this.userPreprocessingApplied = false;
+      this.preprocessingState.userApplied = false;
     }
     this.preprocessingValidationErrors = Object.fromEntries(
       Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
@@ -3760,14 +3754,14 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
     } | undefined;
     const strategies = missingValues?.strategies ?? {};
     const fillValues = missingValues?.fill_values ?? {};
-    const nextApplied = this.cloneRules(this.appliedPreprocessingRules);
-    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
+    const nextApplied = cloneMissingRules(this.appliedPreprocessingRules);
+    const nextPending = cloneMissingRules(this.pendingPreprocessingRules);
 
     currentCodes.forEach((code) => {
       const strategy = String(strategies[code] ?? '');
       const action = this.isMissingAction(strategy) ? strategy : 'no_action';
       const rule: PreprocessingRule = action === 'no_action'
-        ? this.emptyRule(code)
+        ? emptyMissingRule(code)
         : {
           variableCode: code,
           action,
@@ -3778,9 +3772,9 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
       const existingPending = nextPending[code];
       nextPending[code] = action === 'no_action'
         ? {
-          ...(existingPending && this.serializeRule(existingPending) !== this.serializeRule(rule)
+          ...(existingPending && serializeMissingRule(existingPending) !== serializeMissingRule(rule)
             ? existingPending
-            : this.defaultRule(code)),
+            : defaultMissingRule(code)),
         }
         : { ...rule };
     });
@@ -3874,11 +3868,11 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
   }
 
   private ensureDefaultRulesForCurrentSelection(currentCodes = this.currentPreprocessingCodeSet()): void {
-    const nextPending = this.cloneRules(this.pendingPreprocessingRules);
+    const nextPending = cloneMissingRules(this.pendingPreprocessingRules);
     let changed = false;
     currentCodes.forEach((code) => {
       if (!nextPending[code] && !this.appliedPreprocessingRules[code]) {
-        nextPending[code] = this.defaultRule(code);
+        nextPending[code] = defaultMissingRule(code);
         changed = true;
       }
     });
@@ -3904,7 +3898,7 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
       // hydrated defaults stay out of the emitted status so the studio stepper
       // does not mark Data review Done without user work.
       preprocessingStatus:
-        this.preprocessingStatus === 'applied' && !this.userPreprocessingApplied
+        this.preprocessingStatus === 'applied' && !this.preprocessingState.userApplied
           ? 'none'
           : this.preprocessingStatus,
       transformationStatusLabel: this.transformationStatusLabel,
@@ -3994,9 +3988,8 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
     return JSON.stringify({ enabled, visit1, visit2, strategies });
   }
 
-  private hasAppliedPreprocessing(variableCode: string): boolean {
-    const rule = this.appliedPreprocessingRules[variableCode];
-    return !!rule?.enabled && rule.action !== 'no_action';
+private hasAppliedPreprocessing(variableCode: string): boolean {
+    return this.preprocessingState.hasAppliedMissing(variableCode);
   }
 
   private hasAppliedLongitudinalPreprocessing(variableCode: string): boolean {
@@ -4005,17 +3998,17 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
     return !!this.appliedLongitudinalStrategies[variableCode];
   }
 
-  private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
-    return !!this.appliedOutlierRules[variableCode]?.enabled;
+private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
+    return this.preprocessingState.hasAppliedOutlier(variableCode);
   }
 
   private mergeRulesForCurrentSelection(
     base: Record<string, PreprocessingRule>,
     source: Record<string, PreprocessingRule>
   ): Record<string, PreprocessingRule> {
-    const next = this.cloneRules(base);
+    const next = cloneMissingRules(base);
     this.currentPreprocessingCodeSet().forEach((code) => {
-      next[code] = source[code] ? { ...source[code] } : this.defaultRule(code);
+      next[code] = source[code] ? { ...source[code] } : defaultMissingRule(code);
     });
     return next;
   }
@@ -4031,35 +4024,8 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
     return next;
   }
 
-  // For Missing Values the default action is `drop` (NA removal): rows with
-  // missing values are removed. Adding a variable does not create a pending
-  // change — the default is implicit, and the user can opt into a different
-  // imputation strategy (mean, median, constant) when needed.
-  private defaultRule(variableCode: string): PreprocessingRule {
-    return { variableCode, action: 'drop', value: '', enabled: true };
-  }
-
   private defaultOutlierRule(variableCode: string): OutlierRule {
     return createDefaultOutlierRule(variableCode, false);
-  }
-
-  private emptyRule(variableCode: string): PreprocessingRule {
-    return { variableCode, action: 'no_action', value: '', enabled: false };
-  }
-
-  private cloneRules(rules: Record<string, PreprocessingRule>): Record<string, PreprocessingRule> {
-    return Object.fromEntries(
-      Object.entries(rules).map(([code, rule]) => [code, { ...rule }])
-    );
-  }
-
-  private serializeRule(rule: PreprocessingRule | undefined): string {
-    const normalized = rule ?? this.emptyRule('');
-    return JSON.stringify({
-      action: normalized.action,
-      value: normalized.value,
-      enabled: normalized.enabled,
-    });
   }
 
   private buildSelectionKey(
