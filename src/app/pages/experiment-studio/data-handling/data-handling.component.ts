@@ -48,6 +48,7 @@ import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
 import { DATA_HANDLING } from './data-handling.context';
 import { emptySummaryView } from './utils/summary-view.utils';
+import { pendingOrDefault } from './utils/preprocessing-state.utils';
 import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
@@ -1029,26 +1030,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   get hasPendingMissingChanges(): boolean {
-    const currentCodes = this.currentPreprocessingCodeSet();
-    const codes = new Set(
-      [
-        ...Array.from(currentCodes),
-        ...Object.keys(this.pendingPreprocessingRules),
-        ...Object.keys(this.appliedPreprocessingRules),
-      ].filter((code) => currentCodes.has(code))
-    );
-    for (const code of codes) {
-      const appliedRule = this.appliedPreprocessingRules[code];
-      const pendingRule = this.pendingPreprocessingRules[code]
-        ?? (appliedRule ? undefined : this.defaultRule(code));
-      // Newly added variables sit on the implicit NA-removal default; that
-      // doesn't count as a pending change because no user action is required.
-      if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(code)) continue;
-      if (this.serializeRule(pendingRule) !== this.serializeRule(appliedRule)) {
-        return true;
-      }
-    }
-    return false;
+    return this.preprocessingVariables.some((variable) => this.missingRuleHasPendingChange(variable.code));
   }
 
   get pendingOutlierChangeCount(): number {
@@ -1056,22 +1038,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   get hasPendingOutlierChanges(): boolean {
-    const currentCodes = this.currentOutlierPreprocessingCodeSet();
-    const codes = new Set(
-      [
-        ...Array.from(currentCodes),
-        ...Object.keys(this.pendingOutlierRules),
-        ...Object.keys(this.appliedOutlierRules),
-      ].filter((code) => currentCodes.has(code))
-    );
-    for (const code of codes) {
-      const pendingRule = this.pendingOutlierRules[code]
-        ?? (this.appliedOutlierRules[code] ? undefined : this.defaultOutlierRule(code));
-      if (serializeOutlierRule(pendingRule) !== serializeOutlierRule(this.appliedOutlierRules[code])) {
-        return true;
-      }
-    }
-    return false;
+    return this.outlierPreprocessingVariables.some((variable) => this.outlierRuleHasPendingChange(variable.code));
   }
 
   get pendingLongitudinalChangeCount(): number {
@@ -1174,23 +1141,31 @@ export class DataHandlingComponent implements OnDestroy {
     return 'Not applied';
   }
 
-  prepVariableHasPendingChange(kind: PrepKind, variable: VariableRow): boolean {
+  /**
+   * Whether a variable's missing-values edit differs from what the run uses. A variable
+   * with nothing applied is compared through the step default (drop rows), and sitting
+   * on that implicit default is not a change: no user action is required.
+   */
+  private missingRuleHasPendingChange(code: string): boolean {
+    const applied = this.appliedPreprocessingRules[code];
+    const pending = pendingOrDefault(this.pendingPreprocessingRules[code], applied, () => this.defaultRule(code));
+    if (this.isDefaultMissingRule(pending) && !this.hasAppliedPreprocessing(code)) return false;
+    return this.serializeRule(pending) !== this.serializeRule(applied);
+  }
+
+  /** Whether a variable's outlier edit differs from what the run uses (default: clipping off). */
+  private outlierRuleHasPendingChange(code: string): boolean {
+    const applied = this.appliedOutlierRules[code];
+    const pending = pendingOrDefault(this.pendingOutlierRules[code], applied, () => this.defaultOutlierRule(code));
+    return serializeOutlierRule(pending) !== serializeOutlierRule(applied);
+  }
+
+    prepVariableHasPendingChange(kind: PrepKind, variable: VariableRow): boolean {
     switch (kind) {
-      case 'missing': {
-        const appliedRule = this.appliedPreprocessingRules[variable.code];
-        const pendingRule = this.pendingPreprocessingRules[variable.code]
-          ?? (appliedRule ? undefined : this.defaultRule(variable.code));
-        if (this.isDefaultMissingRule(pendingRule) && !this.hasAppliedPreprocessing(variable.code)) {
-          return false;
-        }
-        return this.serializeRule(pendingRule) !== this.serializeRule(appliedRule);
-      }
-      case 'outlier': {
-        const appliedRule = this.appliedOutlierRules[variable.code];
-        const pendingRule = this.pendingOutlierRules[variable.code]
-          ?? (appliedRule ? undefined : this.defaultOutlierRule(variable.code));
-        return serializeOutlierRule(pendingRule) !== serializeOutlierRule(appliedRule);
-      }
+      case 'missing':
+        return this.missingRuleHasPendingChange(variable.code);
+      case 'outlier':
+        return this.outlierRuleHasPendingChange(variable.code);
       case 'longitudinal': {
         if (!this.isLongitudinalModel) return false;
         const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
