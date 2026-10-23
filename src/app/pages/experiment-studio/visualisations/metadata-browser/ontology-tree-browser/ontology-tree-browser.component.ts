@@ -13,6 +13,11 @@ import {
 import { pluralize } from '../../../../../core/result-label.utils';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+  unavailableTooltipFor,
+} from '../../../../../core/variable-availability.utils';
+import {
   NormalizedGroupNode,
   NormalizedVariableNode,
 } from '../metadata-browser.model';
@@ -47,6 +52,8 @@ export class OntologyTreeBrowserComponent {
   readonly data = input<D3HierarchyNode | null>(null);
   readonly highlightNode = input<D3HierarchyNode | null>(null);
   readonly poolVariables = input<D3HierarchyNode[]>([]);
+  /** Variables shown grayed out that ignore clicks for the current datasets. */
+  readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly selectedNodeChange = output<D3HierarchyNode>();
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
   readonly variablePoolToggle = output<D3HierarchyNode>();
@@ -147,6 +154,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   openVariable(variable: NormalizedVariableNode): void {
+    if (this.isVariableUnavailable(variable)) return;
     this.selectVariable(variable);
     this.nodeDoubleClicked.emit(variable.original);
   }
@@ -228,10 +236,25 @@ export class OntologyTreeBrowserComponent {
 
   /** Row click selects; a click on the Add/Remove affordance also toggles the pool. */
   onVariableRowClick(event: MouseEvent, variable: NormalizedVariableNode): void {
+    if (this.isVariableUnavailable(variable)) return;
     this.selectVariable(variable);
     if ((event.target as HTMLElement).closest('.row-add, .row-remove')) {
       this.variablePoolToggle.emit(variable.original);
     }
+  }
+
+  isVariableUnavailable(variable: NormalizedVariableNode): boolean {
+    return this.unavailableTooltip(variable) !== '';
+  }
+
+  /** "Not available in: …" for an unavailable variable, '' otherwise. */
+  unavailableTooltip(variable: NormalizedVariableNode): string {
+    return unavailableTooltipFor(this.unavailableVariables(), { code: variable.code });
+  }
+
+  variableRowTitle(variable: NormalizedVariableNode): string {
+    const unavailable = this.unavailableTooltip(variable);
+    return unavailable ? `${variable.label}\n${unavailable}` : variable.label;
   }
 
   treePadding(depth: number): number {

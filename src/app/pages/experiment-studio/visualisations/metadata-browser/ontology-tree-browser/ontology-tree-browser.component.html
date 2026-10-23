@@ -60,9 +60,11 @@
       <button
         type="button"
         class="content-row variable-row"
-        [title]="variable.label"
+        [title]="variableRowTitle(variable)"
         [class.selected]="isVariableSelected(variable.id)"
         [class.in-pool]="isVariableInPool(variable)"
+        [class.unavailable]="isVariableUnavailable(variable)"
+        [attr.aria-disabled]="isVariableUnavailable(variable) ? true : null"
         (click)="onVariableRowClick($event, variable)"
         (dblclick)="openVariable(variable)"
       >
@@ -73,12 +75,16 @@
           }
         </span>
         <span class="type-badge">{{ variable.type }}</span>
+        @if (isVariableUnavailable(variable)) {
+        <span class="row-unavailable">Unavailable</span>
+        } @else {
         <span
           [class.row-add]="!isVariableInPool(variable)"
           [class.row-remove]="isVariableInPool(variable)"
         >
           {{ isVariableInPool(variable) ? 'Remove' : 'Add' }}
         </span>
+        }
       </button>
       }
       }
