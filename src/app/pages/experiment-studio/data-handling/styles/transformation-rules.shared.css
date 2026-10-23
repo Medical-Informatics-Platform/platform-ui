@@ -1,0 +1,137 @@
+/* Shared by the transformation station (the K-means column's category table) and the
+   nominal column card (the category rule table): the rule table grid, its rows and
+   cells. Imported at the top of both stylesheets, so they render identically. */
+
+.transformation-rules {
+  display: grid;
+  gap: 8px;
+}
+
+.transformation-rule-head,
+.transformation-rule-row {
+  display: grid;
+  grid-template-columns: 36px 200px minmax(0, 1fr) 110px 36px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.transformation-rule-head {
+  background: var(--studio-card-header-bg);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+}
+
+.transformation-rules-list {
+  border: 1px solid var(--studio-card-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.transformation-rule-row {
+  border-top: 1px solid color-mix(in srgb, var(--primary-color) 6%, transparent);
+}
+
+.transformation-rules-list .transformation-rule-row:first-child {
+  border-top: 0;
+}
+
+.transformation-rule-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.transformation-rule-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-main);
+  font-size: 0.8rem;
+}
+
+.transformation-rule-record-count {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.transformation-rules-foot {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.transformation-rule-value {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 38px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.84rem;
+}
+
+.transformation-rule-value:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-head,
+  .transformation-rule-row {
+    grid-template-columns: 36px minmax(0, 1fr) 90px 36px;
+    grid-template-areas:
+      'number value count remove'
+      'summary summary count remove';
+    row-gap: 4px;
+  }
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-head {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-number {
+    grid-area: number;
+  }
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-value {
+    grid-area: value;
+  }
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-summary {
+    grid-area: summary;
+  }
+}
+
+@media (max-width: 900px) {
+  .transformation-rule-record-count {
+    grid-area: count;
+  }
+}

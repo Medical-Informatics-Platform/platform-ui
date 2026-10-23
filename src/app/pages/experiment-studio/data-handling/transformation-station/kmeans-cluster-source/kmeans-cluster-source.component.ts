@@ -11,15 +11,15 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
-import { BackendExperiment } from '../../../../models/backend-experiment.model';
-import { KMeansResult } from '../../../../models/algorithm-results.model';
+import { ExperimentStudioService } from '../../../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../../../services/experiments-dashboard.service';
+import { BackendExperiment } from '../../../../../models/backend-experiment.model';
+import { KMeansResult } from '../../../../../models/algorithm-results.model';
 import {
   formatAlgorithmParameterValue,
   optionBindingValue,
-} from '../../../../core/algorithm-parameter.utils';
-import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
+} from '../../../../../core/algorithm-parameter.utils';
+import { isOutlierEligibleVariable } from '../../../../../core/outlier-rules';
 import {
   KMeansReusablePreprocessing,
   KMeansSourceContext,
@@ -27,7 +27,7 @@ import {
   findKMeansReport,
   findReusablePreprocessing,
   kmeansSourceIsReusable,
-} from '../../../../core/kmeans-cluster-source.utils';
+} from '../../../../../core/kmeans-cluster-source.utils';
 
 /** Exaflow column codes: an identifier, not free text. */
 const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;

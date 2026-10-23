@@ -12,14 +12,12 @@ import {
   input,
   OnDestroy
 } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
-import { HistogramComponent } from '../visualisations/histogram/histogram.component';
 import {
   DATASET_VARIABLE_CODE,
   HISTOGRAM_SPLIT_NONE,
@@ -37,16 +35,14 @@ import {
   resolveDatasetDisplayLabel,
 } from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
-import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
-import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
-import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
-import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
+import { StationStatus } from '../shared/station-card/station-card.component';
 import { DATA_HANDLING } from './data-handling.context';
+import { TransformationStationComponent } from './transformation-station/transformation-station.component';
 import { PreprocessingStationComponent } from './preprocessing-station/preprocessing-station.component';
 import { CohortFilterStationComponent } from './cohort-filter-station/cohort-filter-station.component';
 import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
-import { RuleBuilder, RuleBuilderForDirective, RuleBuilderRegistry } from './transformation/rule-builder-registry';
+import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
 import { emptySummaryView } from './utils/summary-view.utils';
 import { groupPreprocessingVariables, pendingOrDefault } from './utils/preprocessing-state.utils';
 import { categoryCounts, enumLabelMap, isCategoricalVariable, pivotByDataset, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
@@ -120,7 +116,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, RuleBuilderForDirective, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent, PreprocessingStationComponent],
+  imports: [ChartRendererComponent, FormsModule, PipelineTerminalComponent, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent, PreprocessingStationComponent, TransformationStationComponent],
   // Section components read the pipeline's state through this token (see data-handling.context.ts).
   providers: [
     { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
