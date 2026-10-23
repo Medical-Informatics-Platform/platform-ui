@@ -159,3 +159,8 @@ export interface DescriptiveProgressState {
   preprocessingStatus: PreprocessingStatus;
   transformationStatusLabel: string;
 }
+/** Copy of one "How to use" strip: numbered steps plus a closing note. */
+export interface HowToGuide {
+  steps: string[];
+  note: string;
+}

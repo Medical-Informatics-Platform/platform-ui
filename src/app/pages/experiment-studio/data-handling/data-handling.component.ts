@@ -43,6 +43,7 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
+import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -93,6 +94,7 @@ import {
   VariableRow,
   EnumOption,
   HistogramPreviewData,
+  HowToGuide,
   PreprocessingRule,
   PreprocessingGroup,
   OutlierPreviewRow,
@@ -111,7 +113,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -716,7 +718,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** "How to use" strip copy per expanded stage; K-means is projected into its card. */
-  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans', { steps: string[]; note: string }> = {
+  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans', HowToGuide> = {
     source: {
       steps: ['Pick a variable on the left', 'Switch between Table, Charts and Histogram', 'Note gaps or odd ranges — fix them in the steps below'],
       note: 'Read only — this preview never changes the data or the run.',

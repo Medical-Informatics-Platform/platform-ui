@@ -847,7 +847,6 @@
   }
 }
 
-
 .workflow-section {
   background: transparent;
   border: none;
@@ -948,104 +947,6 @@
   font-size: 0.62rem;
 }
 
-/* "How to use" strip directly under an expanded stage header; a <details> folded by
-   default, so only the summary line shows until someone asks for the steps. */
-.how-to-strip {
-  background: color-mix(in srgb, var(--primary-color) 4%, white);
-  border-bottom: 1px solid rgba(43, 51, 233, 0.08);
-}
-
-.how-to-summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 18px;
-  list-style: none;
-  cursor: pointer;
-}
-
-.how-to-summary::-webkit-details-marker {
-  display: none;
-}
-
-.how-to-summary:hover .how-to-peek {
-  color: var(--primary-color);
-}
-
-.how-to-summary:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: -2px;
-}
-
-.how-to-label {
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--primary-color);
-}
-
-.how-to-peek {
-  font-size: 0.74rem;
-  color: var(--text-muted);
-}
-
-.how-to-chevron {
-  font-size: 0.6rem;
-  color: var(--primary-color);
-  transition: transform 0.15s ease;
-}
-
-.how-to-strip[open] .how-to-chevron {
-  transform: rotate(180deg);
-}
-
-.how-to-strip[open] .how-to-peek {
-  display: none;
-}
-
-.how-to-body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  padding: 0 18px 10px;
-}
-
-.how-to-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.78rem;
-  color: #334155;
-}
-
-.how-to-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--primary-color);
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
-.how-to-note {
-  flex-basis: 100%;
-  font-size: 0.76rem;
-  color: var(--text-muted);
-}
-
-/* Projected into a station card, the strip spans the card body edge to edge.
-   `app-station-card` is the host this template owns, so emulated styles reach it. */
-app-station-card .how-to-strip {
-  margin: -14px -14px 14px;
-}
-
 /* Live match chip under the cohort builder, filled by Preview. */
 .filter-match-row {
   display: flex;
@@ -1063,12 +964,6 @@ app-station-card .how-to-strip {
   font-weight: 600;
   color: #065f46;
   background: color-mix(in srgb, var(--success) 12%, white);
-}
-
-@media (max-width: 768px) {
-  app-station-card .how-to-strip {
-    margin: -14px -12px 14px;
-  }
 }
 
 @media (max-width: 720px) {

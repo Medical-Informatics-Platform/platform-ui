@@ -313,24 +313,6 @@
           }
       </ng-template>
 
-      <!-- "How to use" strip under an expanded stage header: numbered steps plus one note.
-           Folded by default so it never pushes the editor down; the summary line opens it. -->
-      <ng-template #howToStrip let-guide>
-        <details class="how-to-strip">
-          <summary class="how-to-summary">
-            <span class="how-to-label">How to use</span>
-            <span class="how-to-peek">{{ guide.steps.length }} steps</span>
-            <i class="fas fa-chevron-down how-to-chevron" aria-hidden="true"></i>
-          </summary>
-          <div class="how-to-body">
-            @for (step of guide.steps; track step; let i = $index) {
-            <span class="how-to-step"><span class="how-to-number">{{ i + 1 }}</span>{{ step }}</span>
-            }
-            <span class="how-to-note">{{ guide.note }}</span>
-          </div>
-        </details>
-      </ng-template>
-
       <!-- One preprocessing card's own footer: Discard · Preview processed data · Apply/Close,
            all scoped to that card's pending edits. -->
       <ng-template #prepFooter let-step>
@@ -466,7 +448,7 @@
               <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
                    and hand the tour or a shared toggle the wrong surface. -->
               @if (sectionOpen().source) {
-              <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.source }"></ng-container>
+              <details app-how-to-strip [guide]="howTo.source"></details>
               <ng-template
                 [ngTemplateOutlet]="summaryWorkspace"
                 [ngTemplateOutletContext]="{ kind: 'source', summary: sourceSummary, emptyHint: 'Select variables and datasets to load the data summary.' }"></ng-template>
@@ -558,7 +540,7 @@
         <div class="pipeline-node-body">
           <!-- Outside the padded body so the strip spans the node right under its header. -->
           @if (sectionOpen().filters) {
-          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.filters }"></ng-container>
+          <details app-how-to-strip [guide]="howTo.filters"></details>
           }
           <div class="workflow-section-body" [class.open]="sectionOpen().filters">
             <app-station-card>
@@ -716,7 +698,7 @@
         @if (isStepAdded('setup')) {
         <div class="pipeline-node-body">
           @if (sectionOpen().setup) {
-          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.setup }"></ng-container>
+          <details app-how-to-strip [guide]="howTo.setup"></details>
           }
           <div class="workflow-section-body" [class.open]="sectionOpen().setup">
             <div class="preprocessing-shell">
@@ -1512,7 +1494,7 @@
         @if (isStepAdded('transformation')) {
         <div class="pipeline-node-body">
           @if (sectionOpen().transformation) {
-          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.transformation }"></ng-container>
+          <details app-how-to-strip [guide]="howTo.transformation"></details>
           }
           <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
             <div class="preprocessing-shell">
@@ -1726,7 +1708,7 @@
                 [open]="kmeansClusterCardOpen()"
                 (openChange)="kmeansClusterCardOpen.set($event)">
                 @if (!expStudioService.appliedKMeansClusterCreator()) {
-                <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.kmeans }"></ng-container>
+                <details app-how-to-strip [guide]="howTo.kmeans"></details>
                 }
                 @if (previewDraftId === 'kmeans') {
                 <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.code ?? '' }"></ng-container>
