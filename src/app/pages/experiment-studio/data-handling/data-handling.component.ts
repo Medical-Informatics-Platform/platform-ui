@@ -244,22 +244,22 @@ export interface DescriptiveProgressState {
 }
 
 @Component({
-  selector: 'app-statistic-analysis-panel',
+  selector: 'app-data-handling',
   imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent],
-  templateUrl: './statistic-analysis-panel.component.html',
+  templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
   styleUrls: [
-    './statistic-analysis-panel.component.css',
-    './statistic-analysis-panel.preprocessing.css',
-    './statistic-analysis-panel.results.css',
+    './data-handling.component.css',
+    './data-handling.preprocessing.css',
+    './data-handling.results.css',
   ],
   host: {
     '(document:click)': 'closeBatchMenuOnOutsideClick($event)',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StatisticAnalysisPanelComponent implements OnDestroy {
+export class DataHandlingComponent implements OnDestroy {
   readonly processedDataInput = input<PivotBlock[]>([], { alias: 'processedData' });
   processedData: PivotBlock[] = [];
   readonly variables = input<unknown[]>([]);

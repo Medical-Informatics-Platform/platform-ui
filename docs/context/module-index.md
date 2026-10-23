@@ -42,7 +42,7 @@ Notes: Stored historical experiment payloads may depend on legacy algorithm keys
 
 ## `src/app/pages/experiment-studio`
 Purpose: Experiment composition workflow.
-Key files: `experiment-studio.component.*`, `variables-panel/*`, `statistic-analysis-panel/*`, `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
+Key files: `experiment-studio.component.*`, `variables-panel/*`, `data-handling/*`, `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
 Used by: `/experiment-studio` route and dashboard edit flows.
 Rules: Keep page-specific UI here; use `ExperimentStudioService` for shared selection/run state.
 Tests: Component specs live near components.

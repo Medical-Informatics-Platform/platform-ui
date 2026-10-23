@@ -30,7 +30,7 @@
 ### UI and Styling
 - Use component CSS for feature-specific styles.
 - Use `src/styles.css` for app-wide styles and QueryBuilder theming.
-- A component may list several stylesheets in `styleUrls`; Angular concatenates them **in array order**, so that order is the cascade. Splitting a file must preserve the original order and must not move a rule across another rule that shares its selector — `statistic-analysis-panel` is split this way (`.component.css` shell + pipeline canvas, then `.preprocessing.css`, then `.results.css`).
+- A component may list several stylesheets in `styleUrls`; Angular concatenates them **in array order**, so that order is the cascade. Splitting a file must preserve the original order and must not move a rule across another rule that shares its selector — `data-handling` (`DataHandlingComponent`) is split this way (`.component.css` shell + pipeline canvas, then `.preprocessing.css`, then `.results.css`).
 - Consult `DESIGN.md` before visual changes.
 - Existing branding assets live under `src/assets`.
 

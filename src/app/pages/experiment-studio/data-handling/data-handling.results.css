@@ -2,8 +2,8 @@
    switch, the federated-data note, the descriptive/data tables, the statistics
    browser, the chart-export-only containers, the transformation station and the
    responsive overrides for all three files.
-   Second split of statistic-analysis-panel.component.css (see
-   statistic-analysis-panel.preprocessing.css for the reason and the cascade
+   Second split of data-handling.component.css (see
+   data-handling.preprocessing.css for the reason and the cascade
    order). This file is LAST in the styleUrl array, which is why the responsive
    overrides live here. */
 

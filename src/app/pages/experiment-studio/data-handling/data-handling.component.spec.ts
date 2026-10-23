@@ -1,7 +1,7 @@
 import type { MockedObject } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { QueryList } from '@angular/core';
-import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
+import { DataHandlingComponent } from './data-handling.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -13,9 +13,9 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
 
-describe('StatisticAnalysisPanelComponent', () => {
-    let component: StatisticAnalysisPanelComponent;
-    let fixture: ComponentFixture<StatisticAnalysisPanelComponent>;
+describe('DataHandlingComponent', () => {
+    let component: DataHandlingComponent;
+    let fixture: ComponentFixture<DataHandlingComponent>;
     let mockExpService: MockedObject<ExperimentStudioService>;
     let mockChartBuilder: MockedObject<ChartBuilderService>;
     let mockPdfService: MockedObject<PdfExportService>;
@@ -87,7 +87,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockPdfService = createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']);
 
         await TestBed.configureTestingModule({
-            imports: [StatisticAnalysisPanelComponent], // Standalone component
+            imports: [DataHandlingComponent], // Standalone component
             providers: [
                 provideZonelessChangeDetection(),
                 provideEchartsCore({
@@ -100,7 +100,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             ]
         }).compileComponents();
 
-        fixture = TestBed.createComponent(StatisticAnalysisPanelComponent);
+        fixture = TestBed.createComponent(DataHandlingComponent);
         component = fixture.componentInstance;
         fixture.detectChanges();
     });

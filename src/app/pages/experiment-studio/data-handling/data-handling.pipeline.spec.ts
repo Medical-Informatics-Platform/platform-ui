@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { provideEchartsCore } from 'ngx-echarts';
-import { StatisticAnalysisPanelComponent } from './statistic-analysis-panel.component';
+import { DataHandlingComponent } from './data-handling.component';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { ExperimentsDashboardService } from '../../../services/experiments-dashboard.service';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
@@ -15,9 +15,9 @@ import { createSpyObj } from '../../../testing/spy-obj.testing';
  * visit or present in the persisted request config. Opening a stage must never
  * write that config.
  */
-describe('StatisticAnalysisPanelComponent pipeline presence', () => {
-    let component: StatisticAnalysisPanelComponent;
-    let fixture: ComponentFixture<StatisticAnalysisPanelComponent>;
+describe('DataHandlingComponent pipeline presence', () => {
+    let component: DataHandlingComponent;
+    let fixture: ComponentFixture<DataHandlingComponent>;
     let mockExpService: MockedObject<ExperimentStudioService>;
 
     const age = { code: 'age', label: 'Age', type: 'real' };
@@ -129,7 +129,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
 
         await TestBed.configureTestingModule({
-            imports: [StatisticAnalysisPanelComponent],
+            imports: [DataHandlingComponent],
             providers: [
                 provideZonelessChangeDetection(),
                 provideEchartsCore({ echarts: () => import('echarts') }),
@@ -140,7 +140,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             ]
         }).compileComponents();
 
-        fixture = TestBed.createComponent(StatisticAnalysisPanelComponent);
+        fixture = TestBed.createComponent(DataHandlingComponent);
         component = fixture.componentInstance;
         fixture.detectChanges();
     });

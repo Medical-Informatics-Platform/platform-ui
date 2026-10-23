@@ -1,13 +1,13 @@
 /* Preprocessing stations of the Data review step: station shell, preview bar,
    glass feedback cards, the documentation panel, the missing/outlier/longitudinal
    controls and the preprocessing variable browser.
-   Split from statistic-analysis-panel.component.css to keep every component
+   Split from data-handling.component.css to keep every component
    stylesheet inside the anyComponentStyle budget. Angular concatenates the
    component's styleUrl array IN ORDER, and this file is the second of three —
    the order below is the cascade, so do not reorder or move rules across files:
-     1. statistic-analysis-panel.component.css      panel shell + node-pipeline canvas
-     2. statistic-analysis-panel.preprocessing.css  (this file)
-     3. statistic-analysis-panel.results.css        shared controls + result surfaces
+     1. data-handling.component.css      panel shell + node-pipeline canvas
+     2. data-handling.preprocessing.css  (this file)
+     3. data-handling.results.css        shared controls + result surfaces
    Shared/one-off overrides that must win over styles.css live in the file that
    owns the rule's section, never duplicated. */
 
