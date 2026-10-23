@@ -42,6 +42,7 @@ describe('FilterConfigModalComponent block builder', () => {
       ]),
       setFilters: vi.fn(),
       setFilterLogic: vi.fn(),
+      unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
     };
 
     await TestBed.configureTestingModule({
@@ -490,5 +491,69 @@ describe('FilterConfigModalComponent block builder', () => {
     }));
     expect(expStudio.setFilters).not.toHaveBeenCalled();
     expect(expStudio.setFilterLogic).not.toHaveBeenCalled();
+  });
+
+  describe('unavailable variables', () => {
+    function openCondition(): any {
+      component.ensureFirstCondition();
+      fixture.detectChanges();
+      return component.rootGroup().rules[0];
+    }
+
+    it('lists an unavailable variable grayed with the datasets that lack it, and does not resolve it', () => {
+      expStudio.unavailableVariables.set(new Map([['sex', ['Dataset B']]]));
+      const condition = openCondition();
+
+      const options = Array.from<HTMLOptionElement>(fixture.nativeElement.querySelectorAll('datalist option'));
+      const sexOption = options.find((option) => option.value === 'Sex (nominal)')!;
+      expect(sexOption.getAttribute('label')).toBe('Not available in: Dataset B');
+      const ageOption = options.find((option) => option.value === 'Age (real)')!;
+      expect(ageOption.getAttribute('label')).toBeNull();
+
+      component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
+      fixture.detectChanges();
+      const updated = component.rootGroup().rules[0] as any;
+      expect(updated.field).toBe('');
+      expect(updated.values).toEqual([]);
+      const input = fixture.nativeElement.querySelector('.field-variable input') as HTMLInputElement;
+      expect(input.classList).toContain('is-unavailable');
+      expect(input.getAttribute('title')).toBe('Not available in: Dataset B');
+      expect(fixture.nativeElement.querySelector('.filter-unavailable-note')?.textContent?.trim())
+        .toBe('Not available in: Dataset B');
+
+      component.onConditionVariableTextChange(condition.id, 'Age (real)');
+      expect((component.rootGroup().rules[0] as any).field).toBe('age');
+    });
+
+    it('says which datasets lack a typed unavailable variable when saving', () => {
+      expStudio.unavailableVariables.set(new Map([['sex', ['Dataset B', 'Dataset C']]]));
+      const condition = openCondition();
+      component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
+
+      component.saveFilters();
+
+      expect(component.filterError()).toBe('Sex is not available in: Dataset B, Dataset C.');
+      expect(expStudio.setFilters).not.toHaveBeenCalled();
+      expect(expStudio.setFilterLogic).not.toHaveBeenCalled();
+
+      component.onConditionVariableTextChange(condition.id, 'nothing like this');
+      component.saveFilters();
+      expect(component.filterError()).toBe('Choose a variable for every condition.');
+    });
+
+    it('keeps a condition chosen before its variable became unavailable, grayed in the resting row', () => {
+      const condition = openCondition();
+      component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
+      expect((component.rootGroup().rules[0] as any).field).toBe('sex');
+
+      expStudio.unavailableVariables.set(new Map([['sex', ['Dataset B']]]));
+      fixture.detectChanges();
+
+      expect((component.rootGroup().rules[0] as any).field).toBe('sex');
+      const compact = fixture.nativeElement.querySelector('.compact-variable') as HTMLElement;
+      expect(compact.classList).toContain('is-unavailable');
+      expect(compact.getAttribute('aria-disabled')).toBe('true');
+      expect(compact.getAttribute('title')).toBe('Not available in: Dataset B');
+    });
   });
 });

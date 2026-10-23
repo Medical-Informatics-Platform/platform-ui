@@ -1,3 +1,5 @@
+import { UnavailableVariablesMap, unavailableTooltipFor } from '../../../../core/variable-availability.utils';
+
 /** Grouping CDE present in every data model. Always offered as a histogram split. */
 export const DATASET_VARIABLE_CODE = 'dataset';
 
@@ -64,6 +66,8 @@ export interface HistogramSplitOption {
   label: string;
   disabled: boolean;
   title: string;
+  /** Missing from a selected dataset: offered grayed out, disabled, with the datasets in the title. */
+  unavailable?: boolean;
 }
 
 /** A selected variable as the studio holds it; only nominal ones become splits. */
@@ -107,6 +111,7 @@ export function buildHistogramSplitOptions(input: {
   plottedCode: string | null | undefined;
   selectedVariables: HistogramSplitVariable[];
   datasetLevelCount: number;
+  unavailableVariables?: UnavailableVariablesMap;
 }): HistogramSplitOption[] {
   const plotted = String(input.plottedCode ?? '');
   const tooMany = (count: number, kind: 'datasets' | 'categories'): string =>
@@ -130,6 +135,11 @@ export function buildHistogramSplitOptions(input: {
     if (!isNominalHistogramNode(variable)) continue;
     const label = String(variable.label ?? variable.name ?? variable.code);
     const levelCount = variable.enumerations?.length ?? 0;
+    const unavailableTitle = unavailableTooltipFor(input.unavailableVariables, { code });
+    if (unavailableTitle) {
+      options.push({ code, label, disabled: true, title: unavailableTitle, unavailable: true });
+      continue;
+    }
     const disabled = levelCount > MAX_HISTOGRAM_SPLIT_LEVELS;
     options.push({
       code,

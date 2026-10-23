@@ -115,6 +115,36 @@
   cursor: pointer;
 }
 
+/* Not present in every selected dataset: grayed out and inert (see variable-availability.utils). */
+.content-row.variable-row.unavailable {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.content-row.variable-row.unavailable:hover,
+.content-row.variable-row.unavailable:focus-visible {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.content-row.variable-row.unavailable .row-label,
+.content-row.variable-row.unavailable .row-description {
+  color: var(--unavailable-text);
+}
+
+.content-row.variable-row.unavailable .type-badge {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.row-unavailable {
+  border-radius: 8px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #64748b;
+}
+
 .tree-toggle {
   display: inline-flex;
   align-items: center;

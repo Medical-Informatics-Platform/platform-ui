@@ -17,8 +17,11 @@
     } @else {
     <div class="studio-chip-row">
       @for (variable of variables(); track variable.code ?? variable.label) {
+      @let unavailable = unavailableTooltip(variable);
       <span class="studio-chip pool-chip"
             [class.is-current]="selectedNode()?.code === variable.code"
+            [class.is-unavailable]="!!unavailable"
+            [attr.title]="unavailable || null"
             (click)="onVariableClick(variable)">
         <span class="pool-chip-dot" aria-hidden="true"></span>
         <span>{{ variable.label }}</span>
@@ -78,9 +81,12 @@
       </tr>
       }
       @for (variable of variables(); track variable.code ?? variable.label) {
+      @let rowUnavailable = unavailableTooltip(variable);
       <tr
         class="selected-vars-row"
         [class.is-selected]="selectedNode()?.code === variable.code"
+        [class.is-unavailable]="!!rowUnavailable"
+        [attr.title]="rowUnavailable || null"
         (click)="onVariableClick(variable)"
       >
         <td class="selected-var-name">

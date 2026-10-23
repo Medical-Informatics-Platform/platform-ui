@@ -19,6 +19,10 @@ import {
 import { observeSize } from '../../../../core/observe-resize.util';
 import { createZoomableCirclePacking, DEFAULT_BUBBLE_COLORS } from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
+import {
+  EMPTY_UNAVAILABLE_VARIABLES,
+  UnavailableVariablesMap,
+} from '../../../../core/variable-availability.utils';
 
 @Component({
   selector: 'app-bubble-chart',
@@ -40,6 +44,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   readonly highlightNode = input<any | null>(null);
   readonly selectedVariables = input<any[]>([]);
   readonly selectedFilters = input<any[]>([]);
+  /** Variables grayed out and not selectable for the current datasets. */
+  readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly bubbleColors = input<Partial<{
     variable: string;
     covariate: string;
@@ -135,7 +141,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     }
 
     if (
-      (changes['selectedVariables'] || changes['selectedFilters']) &&
+      (changes['selectedVariables'] || changes['selectedFilters'] || changes['unavailableVariables']) &&
       this.refreshColorsFn
     ) {
       this.refreshColorsFn(this.buildRefreshOptions());
@@ -208,6 +214,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     };
     tutorialHighlightCode: string | null;
     tutorialHighlightColor: string;
+    unavailableVariables: UnavailableVariablesMap;
   } {
     return {
       selectedVariables: this.selectedVariables(),
@@ -215,6 +222,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
       colors: this.colors,
       tutorialHighlightCode: this.getPendingTutorialHighlightCode(),
       tutorialHighlightColor: this.tutorialHighlightColor,
+      unavailableVariables: this.unavailableVariables(),
     };
   }
 

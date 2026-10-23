@@ -23,6 +23,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     addVariableAndEnrich: Mock;
     clearSelectionsForDataModelChange: Mock;
     editingExistingExperiment: () => boolean;
+    unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
   };
 
   beforeEach(() => {
@@ -43,6 +44,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       addVariableAndEnrich: vi.fn(),
       clearSelectionsForDataModelChange: vi.fn(),
       editingExistingExperiment: () => false,
+      unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
     };
 
     TestBed.configureTestingModule({
@@ -128,6 +130,60 @@ describe('VariablesPanelComponent bubble selection', () => {
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+  });
+
+  it('ignores clicks, double clicks and search picks on an unavailable variable', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    const node = { code: 'age_value', label: 'Age', type: 'real' };
+    const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
+
+    component.onBubbleNodeSelected(node);
+    component.onMetadataBrowserNodeSelected(node);
+    component.onNodeDoubleClicked(node);
+
+    expect(selectSpy).not.toHaveBeenCalled();
+    expect(component.highlightNode).toBeNull();
+    expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+  });
+
+  it('adds only the available variables of a group', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['sex_value', ['Dataset A']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    const age = { code: 'age_value', label: 'Age', type: 'real' };
+    const sex = { code: 'sex_value', label: 'Sex', type: 'string' };
+    component.selectedNode = { code: 'demo', label: 'Demographics', children: [age, sex] };
+
+    component.toggleSelectedNodeInPool();
+
+    expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledTimes(1);
+    expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledWith(age);
+  });
+
+  it('disables Add when every variable of the selection is unavailable', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+
+    expect(component.selectionToggleDisabled()).toBe(true);
+    expect(component.selectionToggleTitle()).toBe('Not available in the selected datasets');
+    component.toggleSelectedNodeInPool();
+    expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+  });
+
+  it('still removes a pooled variable that became unavailable', () => {
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+
+    expect(component.selectionToggleDisabled()).toBe(false);
+    component.toggleSelectedNodeInPool();
+    expect(experimentStudioService.setVariables).toHaveBeenCalledWith([]);
   });
 
   it('ignores the pool toggle when no datasets are selected', () => {
@@ -476,6 +532,33 @@ describe('VariablesPanelComponent bubble selection', () => {
 
     component.onSelectedNodeChange({ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] });
     expect(component.canSplitHistogram()).toBe(false);
+  });
+
+  it('offers an unavailable split grayed out and disabled, and keeps an active one', () => {
+    const sex = { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] };
+    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }, sex]);
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    component.histogramSplit.set('sex');
+    TestBed.tick();
+
+    experimentStudioService.unavailableVariables.set(new Map([['sex', ['Dataset B']]]));
+    TestBed.tick();
+
+    const option = component.histogramSplitOptions().find((item) => item.code === 'sex');
+    expect(option).toEqual(expect.objectContaining({ disabled: true, unavailable: true, title: 'Not available in: Dataset B' }));
+    expect(component.histogramSplit()).toBe('sex');
+
+    const requests = experimentStudioService.getAlgorithmResults.mock.calls.length;
+    const select = document.createElement('select');
+    select.innerHTML = '<option value="sex">Sex</option>';
+    select.value = 'sex';
+    component.histogramSplit.set('');
+    component.onHistogramSplitChange({ target: select } as unknown as Event);
+    expect(component.histogramSplit()).toBe('');
+    expect(experimentStudioService.getAlgorithmResults.mock.calls.length).toBe(requests + 1);
+    expect(experimentStudioService.getAlgorithmResults.mock.calls.at(-1)?.[5]).toBeUndefined();
   });
 
   it('caps Dataset split by the selected dataset count, not the enumeration map', () => {

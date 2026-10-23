@@ -12,7 +12,11 @@
           <p class="invite">No outcome yet — add one below</p>
           }
           @for (node of y(); track node.code) {
-          <span class="chip chip--y" cdkDrag [cdkDragData]="node">
+          <span class="chip chip--y" cdkDrag [cdkDragData]="node"
+            [cdkDragDisabled]="isUnavailable(node)"
+            [class.is-unavailable]="isUnavailable(node)"
+            [attr.aria-disabled]="isUnavailable(node) ? true : null"
+            [attr.title]="unavailableTooltip(node) || null">
             <span class="chip-name">{{ label(node) }}</span>
             <span class="chip-type">{{ node.type }}</span>
             @if (isCreated(node)) {
@@ -33,7 +37,11 @@
           <p class="invite">No predictors yet — add from the list or leave empty</p>
           }
           @for (node of x(); track node.code) {
-          <span class="chip chip--x" cdkDrag [cdkDragData]="node">
+          <span class="chip chip--x" cdkDrag [cdkDragData]="node"
+            [cdkDragDisabled]="isUnavailable(node)"
+            [class.is-unavailable]="isUnavailable(node)"
+            [attr.aria-disabled]="isUnavailable(node) ? true : null"
+            [attr.title]="unavailableTooltip(node) || null">
             <span class="chip-name">{{ label(node) }}</span>
             <span class="chip-type">{{ node.type }}</span>
             @if (isCreated(node)) {
@@ -66,7 +74,9 @@
   @if (filteredPool().length > 0) {
   <ul class="roster" aria-label="Unassigned variables">
     @for (node of filteredPool(); track node.code) {
-    <li class="row">
+    @let unavailable = unavailableTooltip(node);
+    <li class="row" [class.is-unavailable]="!!unavailable" [attr.aria-disabled]="unavailable ? true : null"
+      [attr.title]="unavailable || null">
       <div class="var-main">
         <span class="var-name">{{ label(node) }}</span>
         <span class="var-type">{{ node.type }}</span>
@@ -75,13 +85,16 @@
         }
       </div>
       <div class="roles modal-tabs role-tray" role="radiogroup" [attr.aria-label]="'Role for ' + label(node)"
-        title="Click Outcome or Predictor on a row. Drag a chip between the slots to move it; × returns it to this list.">
+        [attr.aria-disabled]="unavailable ? true : null"
+        [title]="unavailable || 'Click Outcome or Predictor on a row. Drag a chip between the slots to move it; × returns it to this list.'">
         <button type="button" role="radio" data-role="y" [class.active]="roleOf(node) === 'y'"
-          [attr.aria-checked]="roleOf(node) === 'y'" (click)="setRole(node, 'y')">
+          [attr.aria-checked]="roleOf(node) === 'y'" [attr.aria-disabled]="unavailable ? true : null"
+          (click)="setRole(node, 'y')">
           <span class="role-btn-label">Outcome</span>
         </button>
         <button type="button" role="radio" data-role="x" [class.active]="roleOf(node) === 'x'"
-          [attr.aria-checked]="roleOf(node) === 'x'" (click)="setRole(node, 'x')">
+          [attr.aria-checked]="roleOf(node) === 'x'" [attr.aria-disabled]="unavailable ? true : null"
+          (click)="setRole(node, 'x')">
           <span class="role-btn-label">Predictor</span>
         </button>
       </div>

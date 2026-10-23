@@ -10,6 +10,7 @@ describe('SelectedVariablesComponent', () => {
     selectedDatasets: ReturnType<typeof signal<string[]>>;
     setVariables: Mock;
     addVariableAndEnrich: Mock;
+    unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
   };
 
   beforeEach(() => {
@@ -20,6 +21,7 @@ describe('SelectedVariablesComponent', () => {
         experimentStudioService.selectedVariables.set(vars),
       ),
       addVariableAndEnrich: vi.fn(),
+      unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
     };
 
     TestBed.configureTestingModule({
@@ -184,6 +186,26 @@ describe('SelectedVariablesComponent', () => {
     expect(experimentStudioService.setVariables).toHaveBeenCalledWith([
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
+  });
+
+  it('grays a pooled variable that became unavailable, ignores its clicks and keeps it removable', () => {
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset B']]]));
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.detectChanges();
+
+    const chip = fixture.nativeElement.querySelector('.pool-chip') as HTMLElement;
+    expect(chip.classList).toContain('is-unavailable');
+    expect(chip.getAttribute('title')).toBe('Not available in: Dataset B');
+
+    const clicks: any[] = [];
+    fixture.componentInstance.variableClicked.subscribe((node) => clicks.push(node));
+    chip.click();
+    expect(clicks).toEqual([]);
+
+    (chip.querySelector('.parameter-remove-btn') as HTMLElement).click();
+    expect(experimentStudioService.setVariables).toHaveBeenCalledWith([]);
   });
 
   it('closes the popover on Escape', () => {

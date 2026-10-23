@@ -290,6 +290,17 @@
   border-radius: 999px;
 }
 
+/* Pooled before a dataset change made it unavailable: grayed out, still removable. */
+.pool-chip.is-unavailable,
+.selected-vars-row.is-unavailable {
+  cursor: not-allowed;
+  opacity: var(--unavailable-opacity);
+}
+
+.pool-chip.is-unavailable .pool-chip-dot {
+  background: var(--unavailable-border);
+}
+
 .pool-chip .parameter-remove-btn:hover {
   color: #991b1b; /* dark ink, DESIGN.md "text on a state fill" */
 }

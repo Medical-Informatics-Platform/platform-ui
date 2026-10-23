@@ -34,6 +34,7 @@ import {
   validateOutlierRule,
 } from '../../../core/outlier-rules';
 import { AlgorithmRoleAssignmentComponent } from './algorithm-role-assignment/algorithm-role-assignment.component';
+import { unavailableDatasetsFor, unavailableVariableTooltip } from '../../../core/variable-availability.utils';
 
 type AlgorithmStudioSubstep = 'setup' | 'parameters';
 
@@ -123,6 +124,11 @@ export class AlgorithmPanelComponent {
           messages: this.experimentStudioService.algorithmY().length ? ['Your outcome is ignored'] : [],
         });
       }
+    }
+
+    const unavailable = this.unavailableRunVariablesReason();
+    if (unavailable) {
+      needs.push({ key: 'unavailable-variables', met: false, title: unavailable, messages: [] });
     }
 
     this.algorithmRunRequirements().forEach((requirement) => {
@@ -294,10 +300,29 @@ export class AlgorithmPanelComponent {
     return 'Apply missing value preprocessing before running algorithms.';
   });
   private readonly formInvalid = signal(false);
+  /**
+   * "Remove variables not available in: …" when a variable the run uses (outcome, predictor
+   * or cohort filter) is missing from a selected dataset; '' otherwise. Such variables stay
+   * in the pool grayed out, so the run is blocked until the user removes them.
+   */
+  readonly unavailableRunVariablesReason = computed(() => {
+    const map = this.experimentStudioService.unavailableVariables();
+    if (!map.size) return '';
+    const datasets = new Set<string>();
+    for (const node of [
+      ...this.experimentStudioService.algorithmY(),
+      ...this.experimentStudioService.algorithmX(),
+      ...this.experimentStudioService.selectedFilters(),
+    ]) {
+      unavailableDatasetsFor(map, { code: node?.code }).forEach((label) => datasets.add(label));
+    }
+    return unavailableVariableTooltip([...datasets], 'Remove variables not available in');
+  });
   readonly canRun = computed(() => (
     !!this.selectedAlgorithm() &&
     !this.isRunning() &&
     !this.selectedAlgorithmUnavailable() &&
+    !this.unavailableRunVariablesReason() &&
     !this.preprocessingRunBlockMessage() &&
     !this.formInvalid()
   ));
@@ -305,6 +330,8 @@ export class AlgorithmPanelComponent {
     if (this.isRunning()) return 'Experiment is running';
     if (!this.selectedAlgorithm()) return 'Select an algorithm to run';
     if (this.selectedAlgorithmUnavailable()) return 'Algorithm unavailable for the current selection';
+    const unavailable = this.unavailableRunVariablesReason();
+    if (unavailable) return unavailable;
     const preprocessing = this.preprocessingRunBlockMessage();
     if (preprocessing) return preprocessing;
     if (this.formInvalid()) return 'Complete variable and algorithm selection to proceed';
@@ -1294,6 +1321,12 @@ export class AlgorithmPanelComponent {
 
     if (this.selectedAlgorithmUnavailable()) {
       this.errorMsg.set('This algorithm is unavailable for the current selection.');
+      return;
+    }
+
+    const unavailableVariables = this.unavailableRunVariablesReason();
+    if (unavailableVariables) {
+      this.errorMsg.set(unavailableVariables);
       return;
     }
 

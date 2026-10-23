@@ -27,6 +27,11 @@ import { formatFilterExpression } from '../core/filter-display.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
 import {
+  UnavailableVariablesMap,
+  collectVariableCodes,
+  computeUnavailableVariables,
+} from '../core/variable-availability.utils';
+import {
   KMEANS_CLUSTER_CREATOR,
   KMeansClusterCreatorConfig,
   isPlainObject,
@@ -146,6 +151,20 @@ export class ExperimentStudioService {
   readonly crossSectionalModels = signal<DataModel[]>([]);
   readonly longitudinalModels = signal<DataModel[]>([]);
   readonly availableDatasets = signal<{ code: string; label: string }[]>([]);
+  /**
+   * Variable code → labels of the selected datasets that lack it, from the data model's
+   * `datasetsVariables`. Views gray these out and refuse to select them; nothing already
+   * in the pool is removed when a dataset change makes a variable unavailable.
+   */
+  readonly unavailableVariables = computed<UnavailableVariablesMap>(() => {
+    const model = this.selectedDataModel();
+    return computeUnavailableVariables(
+      model?.datasetsVariables,
+      this.selectedDatasets(),
+      collectVariableCodes(model),
+      this.availableDatasets()
+    );
+  });
   private pathologyAccessWarningSignal = signal<PathologyAccessWarning | null>(null);
   readonly pathologyAccessWarning = this.pathologyAccessWarningSignal.asReadonly();
 

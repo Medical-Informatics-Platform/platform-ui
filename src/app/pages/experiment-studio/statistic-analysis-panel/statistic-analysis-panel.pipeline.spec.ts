@@ -70,6 +70,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
             selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            unavailableVariables: signal(new Map()),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal<Record<string, unknown> | null>(null),
