@@ -105,7 +105,8 @@ import {
   DescriptiveProgressState,
 } from './data-handling.models';
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
-import { emptyTransformationDraft, nextTransformationDraftId } from './utils/transformation-draft.utils';
+import { TransformationColumnConfig, TransformationDraftStatus, emptyTransformationDraft, firstFilterCondition, nextTransformationDraftId, transformationConfigFor } from './utils/transformation-draft.utils';
+import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
 import {
   formatInteger,
   formatOutlierBound,
@@ -122,6 +123,7 @@ import {
     { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
     RuleBuilderRegistry,
     SectionAnchors,
+    TransformationDraftsService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -146,6 +148,7 @@ export class DataHandlingComponent implements OnDestroy {
   private readonly sectionAnchors = inject(SectionAnchors);
   /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
   readonly ruleBuilders = inject(RuleBuilderRegistry);
+  readonly transformationDraftState = inject(TransformationDraftsService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
@@ -576,8 +579,8 @@ export class DataHandlingComponent implements OnDestroy {
     this.addStep('transformation');
   }
 
-  isDraftShown(draft: TransformationColumnDraft): boolean {
-    return !!draft.chosen || this.draftHasWork(draft);
+isDraftShown(draft: TransformationColumnDraft): boolean {
+    return this.transformationDraftState.isShown(draft);
   }
 
   get kmeansCardShown(): boolean {
@@ -595,7 +598,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.kmeansClusterCardChosen.set(true);
       this.kmeansClusterCardOpen.set(true);
     } else {
-      const blank = this.transformationDrafts.find((draft) => !this.isDraftShown(draft));
+      const blank = this.transformationDraftState.firstHidden();
       if (blank) {
         blank.chosen = true;
         blank.open = true;
@@ -752,7 +755,13 @@ export class DataHandlingComponent implements OnDestroy {
   /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
   countsDraftId: number | null = null;
   /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
-  transformationDrafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
+  /** The nominal-column cards (state and rules in TransformationDraftsService). */
+  get transformationDrafts(): TransformationColumnDraft[] {
+    return this.transformationDraftState.drafts;
+  }
+  set transformationDrafts(drafts: TransformationColumnDraft[]) {
+    this.transformationDraftState.drafts = drafts;
+  }
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
   isTransformationStatsLoading = false;
   transformationStatisticsError = '';
@@ -936,42 +945,17 @@ export class DataHandlingComponent implements OnDestroy {
     countFilterRules(this.expStudioService.filterLogic())
   );
 
-  /** Drafts that already form a valid column config (code + at least one filtered rule). */
-  private transformationConfigs(): Record<string, unknown>[] {
-    return this.transformationDrafts
-      .map((draft) => this.buildTransformationConfigForDraft(draft))
-      .filter((config): config is Record<string, unknown> => !!config);
-  }
-
-  /** A draft counts as touched once the user typed any column name, default, or rule. */
-  private draftHasWork(draft: TransformationColumnDraft): boolean {
-    return (
-      draft.code.trim().length > 0 ||
-      draft.defaultEnumeration.trim().length > 0 ||
-      draft.rules.some((rule) => rule.value.trim().length > 0 || !!rule.filter)
-    );
-  }
-
   /** Two columns cannot share a name: exaflow errors when `code` already exists. */
-  get transformationHasDuplicateCodes(): boolean {
-    const codes = this.transformationDrafts.map((draft) => draft.code.trim()).filter((code) => code.length > 0);
-    return new Set(codes).size !== codes.length;
+get transformationHasDuplicateCodes(): boolean {
+    return this.transformationDraftState.hasDuplicateCodes;
   }
 
-  get transformationHasPendingChange(): boolean {
-    if (this.transformationHasDuplicateCodes) return true;
-    return this.transformationDrafts.some(
-      (draft) => this.draftHasWork(draft) && (this.hasUnfinishedCategory(draft) || !this.buildTransformationConfigForDraft(draft))
-    );
-  }
-
-  /** A category without a name or a rule is left out of the saved column. */
-  private hasUnfinishedCategory(draft: TransformationColumnDraft): boolean {
-    return draft.rules.some((rule) => !rule.value.trim() || !rule.filter);
+get transformationHasPendingChange(): boolean {
+    return this.transformationDraftState.hasPendingChange;
   }
 
   get transformationStatusLabel(): string {
-    const validCount = this.transformationConfigs().length;
+    const validCount = this.transformationDraftState.configs().length;
     // An applied K-means cluster column is a derived column of this stage, so the stage
     // is not "Not defined" just because no categorical card is configured.
     const hasAppliedColumn = validCount > 0 || !!this.expStudioService.appliedKMeansClusterCreator();
@@ -979,7 +963,7 @@ export class DataHandlingComponent implements OnDestroy {
     if (
       hasAppliedColumn
       || this.transformationHasPendingChange
-      || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
+      || this.transformationDraftState.hasAnyWork
     ) {
       return 'Not applied';
     }
@@ -1007,12 +991,8 @@ export class DataHandlingComponent implements OnDestroy {
   readonly kmeansClusterCardChosen = signal(false);
 
   /** True when a named category on any card is still missing an applied filter. */
-  get transformationRulesNeedFilters(): boolean {
-    return this.transformationDrafts.some((draft) => {
-      if (!draft.code.trim()) return false;
-      const named = draft.rules.filter((rule) => rule.value.trim().length > 0);
-      return named.length > 0 && named.some((rule) => !rule.filter);
-    });
+get transformationRulesNeedFilters(): boolean {
+    return this.transformationDraftState.rulesNeedFilters;
   }
 
   get pendingMissingChangeCount(): number {
@@ -1597,9 +1577,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
-  draftHasNewWork(draft: TransformationColumnDraft): boolean {
-    const { label } = this.transformationDraftStatus(draft);
-    return label === 'Not applied' || label === 'Duplicate name';
+draftHasNewWork(draft: TransformationColumnDraft): boolean {
+    return this.transformationDraftState.hasNewWork(draft);
   }
 
   /** A card's own Apply/Close: commit its rule builders, then fold it once it is settled.
@@ -1616,8 +1595,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Clear the transformation station: pending edits and the committed config alike. */
-  resetTransformation(): void {
-    this.transformationDrafts = [emptyTransformationDraft()];
+resetTransformation(): void {
+    this.transformationDraftState.reset();
     this.previewDraftId = null;
     this.kmeansClusterCardChosen.set(false);
     this.kmeansClusterCardOpen.set(false);
@@ -1629,10 +1608,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** A new category opens straight onto its filter, with the first condition ready. */
-  addTransformationRule(draft: TransformationColumnDraft): void {
-    draft.rules.push({ value: '', filter: null });
-    const index = draft.rules.length - 1;
-    draft.openRuleIndex = index;
+addTransformationRule(draft: TransformationColumnDraft): void {
+    const index = this.transformationDraftState.addRule(draft);
     this.onTransformationChange();
     this.cdr.detectChanges();
     this.ruleBuilderAt(draft, index)?.ensureFirstCondition();
@@ -1663,10 +1640,8 @@ export class DataHandlingComponent implements OnDestroy {
     this.refreshTransformationStatistics();
   }
 
-  removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
-    draft.rules.splice(index, 1);
-    if (draft.openRuleIndex === index) draft.openRuleIndex = null;
-    else if (draft.openRuleIndex != null && draft.openRuleIndex > index) draft.openRuleIndex -= 1;
+removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    this.transformationDraftState.removeRule(draft, index);
     this.onTransformationChange();
   }
 
@@ -1675,22 +1650,9 @@ export class DataHandlingComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private firstFilterCondition(filter: unknown): { field: string; operator: string; value: unknown } | null {
-    if (!filter || typeof filter !== 'object') return null;
-    const node = filter as { field?: unknown; operator?: unknown; value?: unknown; rules?: unknown[] };
-    if (node.field) {
-      return { field: String(node.field), operator: String(node.operator ?? ''), value: node.value };
-    }
-    for (const rule of Array.isArray(node.rules) ? node.rules : []) {
-      const found = this.firstFilterCondition(rule);
-      if (found) return found;
-    }
-    return null;
-  }
-
   /** A one-line rule summary for the collapsed row. */
   transformationRuleSummary(rule: TransformationRule): string {
-    const condition = this.firstFilterCondition(rule.filter);
+    const condition = firstFilterCondition(rule.filter);
     return condition ? this.filterConditionSentence(condition) : 'No rule yet';
   }
 
@@ -1717,14 +1679,8 @@ export class DataHandlingComponent implements OnDestroy {
 
   /** Per-card chip: Applied only when every category is complete and the name is unique.
    *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
-  transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
-    const code = draft.code.trim();
-    const isDuplicate = !!code && this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code);
-    if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
-      return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
-    }
-    if (this.draftHasWork(draft) || isDuplicate) return { label: 'Not applied', tone: 'pending' };
-    return { label: 'Not set', tone: 'default' };
+transformationDraftStatus(draft: TransformationColumnDraft): TransformationDraftStatus {
+    return this.transformationDraftState.status(draft);
   }
 
   toggleTransformationDraft(draft: TransformationColumnDraft): void {
@@ -1733,10 +1689,10 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Append another empty "Create new categorical column" card. */
-  addTransformationDraft(): void {
+addTransformationDraft(): void {
     // Opening another editor is a read: an empty card has no config to persist, so
     // leave the stored transformation untouched until the user types/commits.
-    this.transformationDrafts.push({ ...emptyTransformationDraft(), chosen: true });
+    this.transformationDraftState.add();
     this.cdr.markForCheck();
   }
 
@@ -1744,17 +1700,8 @@ export class DataHandlingComponent implements OnDestroy {
    * Remove a card. The last one is reset to the blank, unchosen model draft rather than
    * removed, so the stage falls back to its type chooser (same as shared Clear).
    */
-  removeTransformationDraft(id: number): void {
-    const index = this.transformationDrafts.findIndex((draft) => draft.id === id);
-    if (index < 0) {
-      return;
-    }
-    if (this.transformationDrafts.length === 1) {
-      this.transformationDrafts[0] = emptyTransformationDraft();
-    } else {
-      this.transformationDrafts.splice(index, 1);
-    }
-    this.onTransformationChange();
+removeTransformationDraft(id: number): void {
+    if (this.transformationDraftState.remove(id)) this.onTransformationChange();
   }
 
   onTransformationInput(): void {
@@ -3343,49 +3290,15 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Build the exaflow config for one card, or null when it is not yet complete. */
-  buildTransformationConfigForDraft(draft: TransformationColumnDraft): Record<string, unknown> | null {
-    const code = draft.code.trim();
-    if (!code) return null;
-    const rules: Record<string, CategoryFilter> = {};
-    for (const r of draft.rules) {
-      const value = r.value.trim();
-      if (value && r.filter) rules[value] = r.filter;
-    }
-    if (!Object.keys(rules).length) return null;
-    const config: Record<string, unknown> = {
-      code,
-      strategy: 'filter_rules',
-      rules,
-    };
-    const def = draft.defaultEnumeration.trim();
-    if (def) config['default_enumeration'] = def;
-    return config;
-  }
-
-  /**
-   * Payload for the shared store: an ordered array of cards. Incomplete cards drop
-   * out, and a duplicate-name card never reaches the store (only the first
-   * occurrence of a code is kept).
-   */
-  private transformationConfigPayload(): Record<string, unknown>[] | null {
-    const seen = new Set<string>();
-    const configs: Record<string, unknown>[] = [];
-    for (const config of this.transformationConfigs()) {
-      const code = String(config['code'] ?? '').trim();
-      if (code) {
-        if (seen.has(code)) continue;
-        seen.add(code);
-      }
-      configs.push(config);
-    }
-    return configs.length ? configs : null;
+buildTransformationConfigForDraft(draft: TransformationColumnDraft): TransformationColumnConfig | null {
+    return transformationConfigFor(draft);
   }
 
   onTransformationChange(): void {
     // Transformation is written into APPLIED_DESCRIPTIVE_PREPROCESSING on edit (it
     // does not wait for the shared Apply preprocessing button). The Pending/Applied
     // chip derives from the live drafts, so no separate applied snapshot is kept.
-    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    this.expStudioService.setTransformationPreprocessing(this.transformationDraftState.payload());
     this.invalidateCategoryCounts();
     this.emitProgressState();
     this.cdr.markForCheck();
@@ -3499,7 +3412,7 @@ export class DataHandlingComponent implements OnDestroy {
         ? [{ code: clusterCode, rows: clusterValues.map((value) => ({ value, count: null })) }]
         : []),
     ];
-    const configs = this.transformationConfigs();
+    const configs = this.transformationDraftState.configs();
 
     if (!configs.length && !clusterCode) {
       this.transformationStatistics = placeholderBlocks;
@@ -3563,7 +3476,7 @@ export class DataHandlingComponent implements OnDestroy {
     const preprocessing: PreprocessingConfig =
       this.expStudioService.withKMeansClusterRequirements({
         ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
-        ...(configs.length ? { categorical_column_creator: this.transformationConfigPayload() } : {}),
+        ...(configs.length ? { categorical_column_creator: this.transformationDraftState.payload() } : {}),
       }) ?? {};
     this.expStudioService
       .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
@@ -4001,7 +3914,7 @@ export class DataHandlingComponent implements OnDestroy {
   private persistAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
     const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
     this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
-    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    this.expStudioService.setTransformationPreprocessing(this.transformationDraftState.payload());
     this.expStudioService.setKMeansClusterPreprocessing(clusterCreator);
     this.appliedConfigWrite = JSON.stringify(this.expStudioService.appliedPreprocessingConfig() ?? null);
   }
