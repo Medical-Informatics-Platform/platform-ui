@@ -11,6 +11,8 @@
    Shared/one-off overrides that must win over styles.css live in the file that
    owns the rule's section, never duplicated. */
 
+@import './styles/search-and-empty-states.shared.css';
+
 .workflow-section-body.open {
   display: block;
 }
@@ -76,8 +78,7 @@
   outline-offset: -2px;
 }
 
-.empty-state,
-.empty-state-block {
+.empty-state {
   margin: 12px 0;
   text-align: center;
   font-size: 0.9rem;
@@ -94,22 +95,6 @@
   min-height: 160px;
   justify-content: center;
 }
-
-/* The icon is the only cue that a station is idle, so it must stay above 3:1. */
-.empty-state-block i {
-  font-size: 2.25rem;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-light) 18%, white 82%);
-  padding: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  box-shadow: none;
-}
-
-/* One notch below .station-card-title so the panel heading still leads. */
-.empty-state-block p { margin: 0; font-weight: 600; color: var(--text-main); }
-
-.empty-state-block span { font-size: 0.85rem; color: var(--text-muted); }
 
 /* Glassmorphic feedback cards */
 .glass-feedback {
@@ -135,15 +120,6 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* The preview card reads as the informational feedback variant the same way its
-   siblings do - through its own fill and edge, not a side stripe. */
-.search-inline {
-  position: relative;
-  max-width: 280px;
-  width: 100%;
-}
-
-.preprocessing-search,
 .table-input,
 .table-select {
   width: 100%;
@@ -161,29 +137,12 @@
     background 0.2s ease;
 }
 
-.preprocessing-search:focus-visible,
 .table-input:focus-visible,
 .table-select:focus-visible {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
   background: var(--card-bg);
-}
-
-/* Rail search: pill with a leading glyph, matching the tray/button vocabulary. */
-.search-inline .preprocessing-search {
-  border-radius: 999px;
-  padding-left: 30px;
-}
-
-.search-inline .search-inline-icon {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  pointer-events: none;
 }
 
 /* Documentation: the algorithm configuration panel's disclosure, copied. A plain

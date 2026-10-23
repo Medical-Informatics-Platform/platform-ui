@@ -1,3 +1,5 @@
+@import './styles/statistics-panel.shared.css';
+
 .workflow-section,
 .pipeline-node {
   scroll-margin-top: calc(
@@ -27,20 +29,6 @@
 
 .stats-panel-shell i {
   transform: translateY(1px);
-}
-
-.statistics-panel-code {
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: rgba(43, 51, 233, 0.06);
-  color: var(--primary-dark);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-
-.statistics-panel {
-  padding: 16px 20px 20px;
 }
 
 /* =========================================================================

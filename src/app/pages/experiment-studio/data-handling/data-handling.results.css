@@ -7,6 +7,8 @@
    order). This file is LAST in the styleUrl array, which is why the responsive
    overrides live here. */
 
+@import './styles/tables.shared.css';
+
 .toggle-switch {
   position: relative;
   display: inline-block;
@@ -67,17 +69,8 @@
   transform: translateX(20px);
 }
 
-.row-error {
-  margin-top: 5px;
-  color: #b91c1c;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: left;
-}
-
 .table-input:disabled,
-.table-select:disabled,
-button:disabled {
+.table-select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
@@ -90,69 +83,9 @@ button:disabled {
   color: color-mix(in srgb, var(--text-muted) 74%, white 26%);
 }
 
-.table-wrapper {
-  padding: 10px 12px 12px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.data-table th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: var(--studio-card-header-bg);
-  color: var(--text-muted);
-  text-align: center;
-  padding: 9px 14px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: var(--letter-spacing-config);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--studio-card-header-border);
-  box-shadow: none;
-}
-
-.data-table td {
-  text-align: center;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 6%, transparent);
-  font-variant-numeric: tabular-nums;
-}
-
-.data-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.data-table tbody tr:hover {
-  background-color: rgba(43, 51, 233, 0.03);
-  transition: background-color 0.2s ease;
-}
-
-.data-table td:first-child {
-  font-weight: 600;
-  color: var(--text-muted);
-  text-align: left;
-  padding-left: 16px;
-}
-
 /* Rules below are prefixed with .statistics-table-wrapper so they outrank the
    --numeric overrides above: emulated encapsulation adds one attribute per
    compound selector, so a shorter selector loses regardless of order. */
-
-/* The wrapper owns the card edge; the .data-table frame drew a second box inside it. */
-.statistics-table-wrapper {
-  padding: 0;
-}
 
 .hidden-charts-for-export {
   position: fixed;
@@ -194,10 +127,6 @@ button:disabled {
     padding: 12px;
   }
 
-  .search-inline {
-    max-width: none;
-  }
-
   .longitudinal-controls {
     flex-direction: column;
     align-items: stretch;
@@ -206,12 +135,6 @@ button:disabled {
   .visit-controls {
     flex-direction: column;
     gap: 8px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 6px 8px;
-    font-size: 12px;
   }
 
 }

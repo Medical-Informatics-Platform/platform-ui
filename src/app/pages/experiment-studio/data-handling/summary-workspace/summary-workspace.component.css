@@ -1,7 +1,11 @@
-/* The summary workspace's view of the Data Handling stylesheets. Rules for elements
-   that only live here moved from the panel; shared ones (tables, empty states,
-   search) are repeated, in the panel's cascade order: component, preprocessing,
-   results. */
+/* The summary workspace's slice of the Data Handling stylesheets, in the panel's
+   cascade order (component, preprocessing, results). Rules both render (panel
+   heading, search and empty states, tables) come from the shared partials in
+   ../styles/, which the panel imports too; the rest moved here from the panel. */
+
+@import '../styles/statistics-panel.shared.css';
+@import '../styles/search-and-empty-states.shared.css';
+@import '../styles/tables.shared.css';
 
 /* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
    scoped to the panel's own template, so it is repeated here for this one. */
@@ -95,16 +99,6 @@
   font-size: 1rem;
 }
 
-.statistics-panel-code {
-  padding: 1px 6px;
-  border-radius: var(--radius-sm);
-  background: rgba(43, 51, 233, 0.06);
-  color: var(--primary-dark);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 500;
-}
-
 .summary-export-group {
   position: relative;
   display: inline-flex;
@@ -117,10 +111,6 @@
 
 .summary-export-group .summary-export-caret.open {
   transform: rotate(180deg);
-}
-
-.statistics-panel {
-  padding: 16px 20px 20px;
 }
 
 /* Every workspace sits in a pipeline node's section and inherits the node's frame;
@@ -237,101 +227,6 @@
   }
 }
 
-.empty-state-block {
-  margin: 12px 0;
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  padding: 24px;
-  background: var(--studio-card-header-bg);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  box-shadow: none;
-  border-radius: var(--radius-lg, 12px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  min-height: 160px;
-  justify-content: center;
-}
-
-/* The icon is the only cue that a station is idle, so it must stay above 3:1. */
-.empty-state-block i {
-  font-size: 2.25rem;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-light) 18%, white 82%);
-  padding: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  box-shadow: none;
-}
-
-/* One notch below .station-card-title so the panel heading still leads. */
-.empty-state-block p { margin: 0; font-weight: 600; color: var(--text-main); }
-
-.empty-state-block span { font-size: 0.85rem; color: var(--text-muted); }
-
-/* The preview card reads as the informational feedback variant the same way its
-   siblings do - through its own fill and edge, not a side stripe. */
-.search-inline {
-  position: relative;
-  max-width: 280px;
-  width: 100%;
-}
-
-.preprocessing-search {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 34px;
-  border: 1px solid rgba(43, 51, 233, 0.15);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text-main);
-  border-radius: 8px;
-  padding: 6px 9px;
-  font-size: 0.8rem;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
-}
-
-.preprocessing-search:focus-visible {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
-  background: var(--card-bg);
-}
-
-/* Rail search: pill with a leading glyph, matching the tray/button vocabulary. */
-.search-inline .preprocessing-search {
-  border-radius: 999px;
-  padding-left: 30px;
-}
-
-.search-inline .search-inline-icon {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  pointer-events: none;
-}
-
-.row-error {
-  margin-top: 5px;
-  color: #b91c1c;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: left;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
 /* A quiet callout: secondary text with an accent edge, the same edge the
    statistics table uses for its section bands. */
 .federated-info-note {
@@ -363,55 +258,6 @@ button:disabled {
   line-height: 1.45;
 }
 
-.table-wrapper {
-  padding: 10px 12px 12px;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: var(--card-bg);
-  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.data-table th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: var(--studio-card-header-bg);
-  color: var(--text-muted);
-  text-align: center;
-  padding: 9px 14px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: var(--letter-spacing-config);
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--studio-card-header-border);
-  box-shadow: none;
-}
-
-.data-table td {
-  text-align: center;
-  padding: 9px 14px;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 6%, transparent);
-  font-variant-numeric: tabular-nums;
-}
-
-.data-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.data-table tbody tr:hover {
-  background-color: rgba(43, 51, 233, 0.03);
-  transition: background-color 0.2s ease;
-}
-
-.data-table td:first-child,
 .metric-cell {
   font-weight: 600;
   color: var(--text-muted);
@@ -475,11 +321,6 @@ button:disabled {
 
 .statistics-table-wrapper--numeric .metric-cell:hover {
   padding-left: 11px;
-}
-
-/* The wrapper owns the card edge; the .data-table frame drew a second box inside it. */
-.statistics-table-wrapper {
-  padding: 0;
 }
 
 .statistics-table-wrapper .statistics-table {
@@ -577,18 +418,4 @@ button:disabled {
   border-radius: 8px;
   padding: 10px 12px;
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
-}
-
-@media (max-width: 768px) {
-  .search-inline {
-    max-width: none;
-  }
-}
-
-@media (max-width: 768px) {
-  .data-table th,
-  .data-table td {
-    padding: 6px 8px;
-    font-size: 12px;
-  }
 }
