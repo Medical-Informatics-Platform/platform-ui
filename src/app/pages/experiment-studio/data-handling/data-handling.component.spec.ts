@@ -968,7 +968,7 @@ describe('DataHandlingComponent', () => {
         expect(component.isStepAdded('setup')).toBe(false);
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalled();
         expect(component.preprocessingStatus).toBe('none');
-        expect((component as any).userPreprocessingApplied).toBe(false);
+        expect(component.preprocessingState.userApplied).toBe(false);
     });
 
     it('reports applied status only after a real apply', () => {
@@ -987,7 +987,7 @@ describe('DataHandlingComponent', () => {
         component.applyPreprocessing();
         fixture.detectChanges();
 
-        expect((component as any).userPreprocessingApplied).toBe(true);
+        expect(component.preprocessingState.userApplied).toBe(true);
         expect(component.preprocessingStatus).toBe('applied');
     });
 
@@ -1837,7 +1837,7 @@ describe('DataHandlingComponent', () => {
 
         expect(component.ruleFor(age).action).toBe('median');
         expect(component.ruleFor(sex).action).toBe('drop');
-        expect((component as any).userPreprocessingApplied).toBe(false);
+        expect(component.preprocessingState.userApplied).toBe(false);
         // Internal status stays config-driven; the flag (and the emitted,
         // downgraded status) is what keeps the stepper from claiming Done.
         expect(component.preprocessingStatus).toBe('applied');
@@ -1877,7 +1877,7 @@ describe('DataHandlingComponent', () => {
         expect(component.prepVariableStateLabel('outlier', age)).toBe('Applied');
         // Internal status stays config-driven (outlier config is applied); the
         // user-apply flag is what keeps the stepper from claiming Done.
-        expect((component as any).userPreprocessingApplied).toBe(false);
+        expect(component.preprocessingState.userApplied).toBe(false);
         expect(component.preprocessingStatus).toBe('applied');
         expect(component.pendingChangeCount).toBe(0);
     });

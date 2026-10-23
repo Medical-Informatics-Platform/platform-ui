@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import type { PreprocessingGroup, VariableRow } from '../data-handling.models';
-import { groupPreprocessingVariables, pendingOrDefault } from './preprocessing-state.utils';
+import { cloneMissingRules, defaultMissingRule, groupPreprocessingVariables, isDefaultMissingRule, pendingOrDefault, serializeMissingRule } from './preprocessing-state.utils';
 
 describe('pendingOrDefault', () => {
   const stepDefault = () => 'default';
@@ -37,5 +37,22 @@ describe('groupPreprocessingVariables', () => {
     expect(groupPreprocessingVariables([row('a'), row('b')], stateOf)[0].title).toBe('Default (NA removal)');
     expect(stateOf).toHaveBeenCalledTimes(2);
     expect(groupPreprocessingVariables([], stateOf)).toEqual([]);
+  });
+});
+
+describe('missing-values rule helpers', () => {
+  it('recognises the step default and compares rules by action, value and enabled', () => {
+    expect(isDefaultMissingRule(defaultMissingRule('a'))).toBe(true);
+    expect(isDefaultMissingRule({ ...defaultMissingRule('a'), value: '0' })).toBe(false);
+    expect(isDefaultMissingRule(undefined)).toBe(false);
+    expect(serializeMissingRule(undefined)).toBe(serializeMissingRule({ variableCode: 'b', action: 'no_action', value: '', enabled: false }));
+    expect(serializeMissingRule(defaultMissingRule('a'))).toBe(serializeMissingRule(defaultMissingRule('b')));
+  });
+
+  it('clones each rule', () => {
+    const rules = { a: defaultMissingRule('a') };
+    const copy = cloneMissingRules(rules);
+    expect(copy).toEqual(rules);
+    expect(copy['a']).not.toBe(rules['a']);
   });
 });
