@@ -13,10 +13,6 @@
 
 @import './styles/search-and-empty-states.shared.css';
 
-.workflow-section-body.open {
-  display: block;
-}
-
 /* Stations sit in a gapped shell: the preview bar needs no extra bottom margin. */
 .preprocessing-shell .station-preview-bar {
   margin-bottom: 0;
