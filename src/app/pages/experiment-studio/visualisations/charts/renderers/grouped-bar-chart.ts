@@ -1,12 +1,5 @@
 import { EChartsOption } from 'echarts';
-
-// Color palette for bar chart segments - MIP brand colors
-const BAR_COLORS = [
-    '#2b33e9',  // MIP Dark Blue
-    '#7f9ce8',  // MIP Light Blue
-    '#ffba08',  // MIP Orange
-    '#dfefe4',  // MIP Light Green
-];
+import { CHART_SERIES_COLORS as BAR_COLORS } from '../chart-palette';
 
 /**
  * Builds a grouped bar chart for nominal variable distributions.
