@@ -179,3 +179,11 @@
     min-width: 0;
   }
 }
+
+.ar-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+}

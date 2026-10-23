@@ -1,4 +1,4 @@
-import { AlgorithmTableRegistry } from './algorithm-table-registry';
+import { trimTable, AlgorithmTableRegistry } from './algorithm-table-registry';
 
 describe('AlgorithmTableRegistry', () => {
   it('supports linear_regression_cv metrics provided as mean/std objects', () => {
@@ -647,5 +647,15 @@ describe('AlgorithmTableRegistry', () => {
 
     expect(anova[0].rows[0][5]).toBe('< 0.001');
     expect(anova[1].rows[0][7]).toBe('≤ 0.001');
+  });
+
+  it('trims covered columns and rows, and drops a table with nothing left', () => {
+    const table = { title: 'T', columns: ['Source', 'df', 'Sum Sq', 'F'], rows: [['A', 1, 10, 5], ['Residual', 98, 90, ''], ['average', 0, 0, 0]] };
+
+    expect(trimTable(table, { title: 'T', columns: ['df', 'F'], rows: ['average'] })).toEqual({
+      title: 'T', columns: ['Source', 'Sum Sq'], rows: [['A', 10], ['Residual', 90]],
+    });
+    expect(trimTable(table, { title: 'T' })).toBeNull();
+    expect(trimTable(table, { title: 'T', columns: ['df', 'Sum Sq', 'F'] })).toBeNull();
   });
 });
