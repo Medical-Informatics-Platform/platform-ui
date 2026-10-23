@@ -41,8 +41,8 @@ import { StationActionBarComponent } from '../shared/station-action-bar/station-
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
 import { HowToStripComponent } from './how-to-strip/how-to-strip.component';
-import { SummaryWorkspaceComponent } from './summary-workspace/summary-workspace.component';
 import { DATA_HANDLING } from './data-handling.context';
+import { PreprocessingStationComponent } from './preprocessing-station/preprocessing-station.component';
 import { CohortFilterStationComponent } from './cohort-filter-station/cohort-filter-station.component';
 import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
@@ -120,7 +120,7 @@ import {
 
 @Component({
   selector: 'app-data-handling',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, SummaryWorkspaceComponent, RuleBuilderForDirective, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, HowToStripComponent, PipelineTerminalComponent, RuleBuilderForDirective, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent, PreprocessingStationComponent],
   // Section components read the pipeline's state through this token (see data-handling.context.ts).
   providers: [
     { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },

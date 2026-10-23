@@ -9,80 +9,6 @@
 
 @import './styles/tables.shared.css';
 
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-/* The input is invisible and zero-sized, and styles.css excludes checkboxes from
-   the studio focus rule, so nothing else can draw the ring. Put it on the slider
-   (the element the user actually sees) with a solid token-coloured outline. */
-.toggle-switch input:focus-visible + .toggle-slider {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* OFF must read as a control and as "not on": the old near-white fill hit 1.2:1. */
-  background: color-mix(in srgb, var(--text-muted) 22%, white);
-  transition:
-    background 0.22s ease,
-    border-color 0.22s ease,
-    box-shadow 0.22s ease;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text-muted) 75%, transparent);
-}
-.toggle-slider:before {
-  content: "";
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  top: 2.5px;
-  background: var(--card-bg);
-  border-radius: 50%;
-  transition:
-    transform 0.22s var(--ease-standard),
-    box-shadow 0.22s ease;
-  /* Ring keeps the knob legible on both the OFF and ON track. */
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(15, 23, 42, 0.12);
-}
-.toggle-switch input:checked + .toggle-slider {
-  /* Flat primary: every other studio gradient is a near-white surface wash, and
-     a two-stop brand ramp is invisible on a 44x24 track anyway. */
-  background: var(--primary-color);
-  border-color: rgba(43,51,233,0.24);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
-}
-.toggle-switch input:checked + .toggle-slider:before {
-  transform: translateX(20px);
-}
-
-.table-input:disabled,
-.table-select:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
-.table-input:disabled,
-.table-select:disabled {
-  background: color-mix(in srgb, var(--text-muted) 6%, white 94%);
-  border-color: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  color: color-mix(in srgb, var(--text-muted) 74%, white 26%);
-}
-
 /* Rules below are prefixed with .statistics-table-wrapper so they outrank the
    --numeric overrides above: emulated encapsulation adds one attribute per
    compound selector, so a shorter selector loses regardless of order. */
@@ -121,16 +47,6 @@
 @media (max-width: 768px) {
   .modal-content {
     border-radius: var(--radius-lg, 12px);
-  }
-
-  .longitudinal-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .visit-controls {
-    flex-direction: column;
-    gap: 8px;
   }
 
 }

@@ -124,80 +124,6 @@
   max-width: 100%;
 }
 
-.btn-add-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.96);
-  color: #334155;
-  border: 1px solid rgba(127, 156, 232, 0.38);
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background var(--motion-exit) var(--ease-standard),
-    border-color var(--motion-exit) var(--ease-standard),
-    color var(--motion-exit) var(--ease-standard);
-  white-space: nowrap;
-}
-
-.btn-add-step i {
-  font-size: 0.76rem;
-  color: var(--primary-color);
-}
-
-.btn-add-step:hover {
-  background: rgba(43, 51, 233, 0.06);
-  border-color: rgba(43, 51, 233, 0.45);
-  color: var(--primary-color);
-  transform: none;
-  box-shadow: none;
-}
-
-.pipeline-subnode-status {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: 0.68rem;
-  font-weight: 650;
-  padding: 2px 8px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.pipeline-subnode-impact {
-  margin-left: auto;
-  font-size: 0.74rem;
-  color: var(--text-muted);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.pipeline-subnode-impact + .pipeline-subnode-status {
-  margin-left: 12px;
-}
-
-.pipeline-subnode-status[data-tone='applied'] {
-  background: color-mix(in srgb, var(--success) 12%, white);
-  color: #065f46;
-  border: 0;
-}
-
-.pipeline-subnode-status[data-tone='default'] {
-  background: color-mix(in srgb, var(--primary-color) 8%, white);
-  color: var(--primary-color);
-  border: 0;
-}
-
-.pipeline-subnode-status[data-tone='pending'] {
-  background: color-mix(in srgb, var(--accent-color) 16%, white);
-  color: #78350f;
-  border: 0;
-}
-
 /* Vertical Directional Connectors */
 .pipeline-connector {
   height: 32px;
@@ -236,42 +162,6 @@
   font-size: 0.65rem;
   z-index: 2;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
-/* Add-on action: the button is the dashed target itself (full width), so the
-   hover elevation lands on the thing the user is about to click. */
-.btn-add-dashed {
-  width: 100%;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 12px 16px;
-  background: color-mix(in srgb, var(--primary-color) 2.5%, white);
-  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 30%, transparent);
-  border-radius: var(--radius-md, 8px);
-  color: var(--primary-color);
-  font-family: inherit;
-  font-size: 0.84rem;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.btn-add-dashed:hover {
-  background: color-mix(in srgb, var(--primary-color) 7%, white);
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.08);
-}
-
-.btn-add-dashed:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.btn-add-dashed i {
-  font-size: 0.78rem;
 }
 
 @media (max-width: 768px) {

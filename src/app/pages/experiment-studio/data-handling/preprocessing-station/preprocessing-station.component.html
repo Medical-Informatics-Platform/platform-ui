@@ -1,0 +1,846 @@
+<!-- One preprocessing card's own footer: Discard · Preview processed data · Apply/Close,
+     all scoped to that card's pending edits. -->
+<ng-template #prepFooter let-step>
+  @if (dh.preprocessingApplyError[step]) {
+  <div class="glass-feedback glass-feedback-warning" role="alert">{{ dh.preprocessingApplyError[step] }}</div>
+  }
+  <app-station-action-bar
+    flush
+    [pendingCount]="dh.stepPendingCount(step)"
+    [statusText]="dh.stepPendingCount(step) ? 'change not applied yet — the run still uses your last applied rules.' : ''"
+    [tone]="dh.stepPendingCount(step) ? 'pending' : 'applied'"
+    resetLabel="Discard"
+    previewLabel="Preview processed data"
+    [applyLabel]="dh.stepApplyLabel(step)"
+    [applyIcon]="dh.stepPendingCount(step) ? 'fas fa-check' : 'fas fa-times'"
+    [applyVariant]="dh.stepPendingCount(step) ? 'primary' : 'quiet'"
+    [resetDisabled]="!dh.stepPendingCount(step) || dh.isApplyingPreprocessing"
+    [applyDisabled]="dh.isApplyingPreprocessing"
+    (reset)="dh.resetChanges(step)"
+    (preview)="dh.previewProcessedData(step)"
+    (apply)="dh.commitOrCloseStep(step)"
+  ></app-station-action-bar>
+</ng-template>
+
+<header class="pipeline-node-header" (click)="dh.onStepHeaderClick('setup', $event)">
+  <div class="pipeline-node-header-left">
+    <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
+    <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 3 · Always on</span>
+      <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="dh.isStepOpen('setup')" (click)="dh.toggleStep('setup')">Preprocessing</button></h3>
+      <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
+    </div>
+  </div>
+  <div class="pipeline-node-header-right">
+    @if (dh.recordsOut.processed !== null) {
+    <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ dh.recordsOut.processed!.toLocaleString() }}@if (dh.recordsOut.filtered !== null) { <span>of {{ dh.recordsOut.filtered!.toLocaleString() }}</span>}</span></span>
+    }
+    <span
+      class="pipeline-status-badge"
+      [class.applied]="dh.preprocessingBadgeTone === 'applied'"
+      [class.pending]="dh.preprocessingBadgeTone === 'pending'"
+      [class.default]="dh.preprocessingBadgeTone === 'default'"
+    >
+      {{ dh.preprocessingStatusLabel }}
+    </span>
+    @if (dh.isStepAdded('setup')) {
+    <button
+      type="button"
+      class="btn-remove-step-node"
+      title="Remove customization and revert to default NaN removal"
+      (click)="dh.removeStep('setup')">
+      <i class="fas fa-rotate-left" aria-hidden="true"></i>
+      <span>Revert to Default (Drop NaN)</span>
+    </button>
+    } @else {
+    <button type="button" class="btn-add-step" (click)="dh.addStep('setup')">
+      <i class="fas fa-sliders" aria-hidden="true"></i>
+      <span>Customize rules</span>
+    </button>
+    }
+    <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="dh.isStepOpen('setup')" aria-hidden="true"></i>
+  </div>
+</header>
+
+<!-- Collapsed overview: the rail of every sub-step the pipeline will run, followed
+     by the dashed rows that create the ones it does not hold yet. -->
+@if (!dh.sectionOpen().setup && !dh.sectionOpen().processed) {
+<div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
+  <p class="pipeline-subnodes-caption">Everything below runs in this order. Click a step to edit it; dashed rows add optional steps.</p>
+  @for (node of dh.appliedPreprocessingSubNodes; track node.id) {
+  <div class="pipeline-subnode-item" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.jumpToSubNode('setup', node.id)" title="Open this preprocessing stage">
+      <i [class]="node.icon" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">{{ node.title }}</span>
+        <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+      </span>
+      @if (node.impact) {
+      <span class="pipeline-subnode-impact">{{ node.impact }}</span>
+      }
+      <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+      <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+    </button>
+  </div>
+  }
+  <!-- Dashed rail rows: a sub-step the stage can still create, so a stage grows
+       without being expanded first. Each row is the whole add flow and the station
+       it opens is already narrowed to the matching sub-step. A row disappears only
+       once the rail itself holds the step, never because an editor was opened. -->
+  @if (!dh.outlierSubNodeApplied) {
+  <div class="pipeline-subnode-item is-ghost" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.addPreprocessingSubNode('outlier')" title="Add and open this step">
+      <i class="fas fa-line-chart" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">Add outlier clipping</span>
+        <span class="pipeline-subnode-subtitle">Cap extreme values so a few outliers don’t skew results — numerical variables only</span>
+      </span>
+      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+    </button>
+  </div>
+  }
+  @if (dh.isLongitudinalModel && !dh.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+  <div class="pipeline-subnode-item is-ghost" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.addPreprocessingSubNode('longitudinal')" title="Add and open this step">
+      <i class="fas fa-code-compare" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">Add longitudinal comparison</span>
+        <span class="pipeline-subnode-subtitle">Compare two visits per variable (required for two-visit pathologies)</span>
+      </span>
+      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+    </button>
+  </div>
+  }
+</div>
+}
+
+<!-- The editor exists only once the stage is opened: while the request still holds
+     the untouched default, the rail above is the whole card. -->
+@if (dh.isStepAdded('setup')) {
+<div class="pipeline-node-body">
+  @if (dh.sectionOpen().setup) {
+  <details app-how-to-strip [guide]="dh.howTo.setup"></details>
+  }
+  <div class="workflow-section-body" [class.open]="dh.sectionOpen().setup">
+    <div class="preprocessing-shell">
+    <app-station-card
+      collapsible
+      icon="fas fa-eraser"
+      title="Missing Values"
+      description="Choose what happens to missing values, one variable at a time."
+      [statusLabel]="dh.missingPreprocessingStatusLabel"
+      [status]="dh.statusTone(dh.missingPreprocessingStatusLabel, dh.hasPendingMissingChanges)"
+      [open]="dh.preprocessingStepOpen.missing"
+      (openChange)="dh.togglePreprocessingStep('missing')">
+      @if (dh.preprocessingStepDocumentation('missing_values_handler')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().missing"
+        (click)="dh.togglePreprocessingDoc('missing')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('missing_values_handler') && dh.preprocessingDocOpen().missing) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('missing_values_handler')"></div>
+      </div>
+      }
+
+      @if (dh.preprocessingVariables.length > 0) {
+      <section class="statistics-workspace preprocessing-workspace">
+        <aside class="statistics-browser preprocessing-browser" aria-label="Preprocessing variables">
+          <div class="statistics-browser-header">
+            <span>Variables · action</span>
+            <small>{{ dh.filteredPrepVariables('missing').length }} shown</small>
+            <div class="batch-menu">
+              <button
+                type="button"
+                class="studio-export-btn batch-menu-trigger"
+                [attr.aria-expanded]="dh.batchMenuOpen() === 'missing'"
+                (click)="dh.toggleBatchMenu('missing')">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                Set all
+              </button>
+              @if (dh.batchMenuOpen() === 'missing') {
+              <div class="batch-menu-list" role="menu">
+                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('mean')">Set all numerical to Mean imputation</button>
+                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('median')">Set all numerical to Median imputation</button>
+                <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('drop')">Reset all to Remove rows (Drop NaN)</button>
+              </div>
+              }
+            </div>
+          </div>
+          <div class="search-inline chart-search">
+            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+            <input id="preprocessing-search" class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search preprocessing variables" [(ngModel)]="dh.prepSearch.missing" />
+          </div>
+
+          @for (group of dh.prepGroups('missing'); track group.key) {
+          <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
+            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+            @for (variable of group.variables; track variable.code) {
+            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('missing', variable)" (click)="dh.selectPrepVariable('missing', variable)">
+              <span>{{ dh.variableLabel(variable) }}</span>
+              <span class="statistics-variable-meta">
+                @if (dh.coverageFor(variable); as coverage) {
+                <small class="preprocessing-variable-coverage" [attr.data-severity]="dh.coverageSeverity(coverage)" [title]="dh.coverageTitle(coverage)">{{ dh.coveragePercent(coverage) }}</small>
+                }
+                <span
+                  class="preprocessing-state-mini"
+                  [class.state-pending]="dh.prepVariableHasPendingChange('missing', variable)"
+                  [class.state-applied]="dh.prepVariableStateLabel('missing', variable) === 'Applied'"
+                  [class.state-default]="dh.prepVariableStateLabel('missing', variable) === 'Default'"
+                >
+                  {{ dh.prepVariableStateLabel('missing', variable) }}
+                </span>
+              </span>
+              <span class="prep-rail-action" [attr.data-state]="dh.prepVariableHasPendingChange('missing', variable) ? 'pending' : 'set'">
+                {{ dh.missingStrategyLabel(dh.ruleFor(variable).action) }}{{ dh.ruleFor(variable).action === 'drop' && dh.prepVariableStateLabel('missing', variable) === 'Default' ? ' · default' : '' }}{{ dh.prepVariableHasPendingChange('missing', variable) ? ' · not applied' : '' }}
+              </span>
+            </button>
+            }
+          </div>
+          }
+          @if (dh.prepGroups('missing').length === 0) {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to show selected variables.</span>
+          </div>
+          }
+        </aside>
+
+        <div class="statistics-panel preprocessing-detail-panel">
+          @if (dh.selectedPrepVariable('missing'); as variable) {
+          <div class="statistics-panel-header">
+            <div>
+              <span class="statistics-panel-kicker">{{ dh.variableTypeLabel(variable) }} variable</span>
+              <h4>{{ dh.variableLabel(variable) }} @if (variable.code) {<code class="statistics-panel-code">{{ variable.code }}</code>}</h4>
+            </div>
+            @if (dh.coverageFor(variable); as headerCoverage) {
+            <span class="preprocessing-header-coverage">{{ headerCoverage.missing.toLocaleString() }} of {{ headerCoverage.total.toLocaleString() }} values missing</span>
+            }
+            <span
+              class="preprocessing-state-chip"
+              [class.state-pending]="dh.prepVariableHasPendingChange('missing', variable)"
+              [class.state-applied]="dh.prepVariableStateLabel('missing', variable) === 'Applied'"
+              [class.state-default]="dh.prepVariableStateLabel('missing', variable) === 'Default'"
+            >
+              {{ dh.prepVariableStateLabel('missing', variable) }}
+            </span>
+          </div>
+
+          <div class="preprocessing-detail-section">
+            <div class="preprocessing-detail-heading">
+              <i class="fa fa-wrench" aria-hidden="true"></i>
+              <span>Missing value handling</span>
+            </div>
+            <fieldset class="missing-choice-grid">
+              <legend class="preprocessing-evidence-title">What to do with missing values</legend>
+              @for (action of dh.missingActions; track action.value) {
+              <label class="missing-choice" [class.is-selected]="dh.ruleFor(variable).action === action.value"
+                     [class.is-disabled]="dh.isMissingActionDisabled(variable, action.value)">
+                <input type="radio" [name]="'missing-' + variable.code" [value]="action.value"
+                       [checked]="dh.ruleFor(variable).action === action.value"
+                       [disabled]="dh.isMissingActionDisabled(variable, action.value)"
+                       (change)="dh.onMissingActionChange(variable, action.value)" />
+                <span class="missing-choice-label">{{ action.label }}</span>
+                <span class="missing-choice-effect">{{ dh.missingActionEffect(variable, action.value) }}</span>
+              </label>
+              }
+            </fieldset>
+            @if (dh.ruleFor(variable).action === 'constant') {
+              <label class="preprocessing-control">
+                <span>Fill with</span>
+                @if (dh.ruleFor(variable).action === 'constant' && dh.isCategoricalVariable(variable) && dh.enumOptions(variable).length > 0) {
+                <select class="table-select" [ngModel]="dh.ruleFor(variable).value" (ngModelChange)="dh.onMissingValueChange(variable, $event)">
+                  <option value="">Select category</option>
+                  @for (option of dh.enumOptions(variable); track option.code) {
+                  <option [ngValue]="option.code">{{ option.label }}</option>
+                  }
+                </select>
+                } @else {
+                <input class="table-input" type="text" [ngModel]="dh.ruleFor(variable).value" (ngModelChange)="dh.onMissingValueChange(variable, $event)" placeholder="Value" />
+                }
+              </label>
+              }
+            @if (dh.preprocessingValidationErrors[variable.code]) {
+            <div class="row-error">{{ dh.preprocessingValidationErrors[variable.code] }}</div>
+            }
+          </div>
+
+          @if (dh.coverageFor(variable); as coverage) {
+          <aside class="preprocessing-evidence" [attr.data-severity]="dh.coverageSeverity(coverage)">
+            <div class="preprocessing-evidence-group">
+              <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+              @if (dh.coverageByDataset(variable).length) {
+              <div class="coverage-tiles">
+                @for (tile of dh.coverageByDataset(variable); track tile.label) {
+                <div class="coverage-tile">
+                  <div class="coverage-tile-head">
+                    <strong>{{ tile.label }}</strong>
+                    <span>{{ tile.missing.toLocaleString() }} of {{ tile.total.toLocaleString() }}</span>
+                  </div>
+                  <span
+                    class="preprocessing-meter"
+                    role="img"
+                    [attr.aria-label]="tile.missing + ' of ' + tile.total + ' values missing (' + dh.coveragePercent(tile) + ')'"
+                  >
+                    <span class="preprocessing-meter-fill" [style.width.%]="dh.barWidth(tile.share, 800)"></span>
+                  </span>
+                  <div class="coverage-tile-head">
+                    <span>{{ dh.coveragePercent(tile) }} missing</span>
+                  </div>
+                </div>
+                }
+              </div>
+              } @else {
+              <dl class="preprocessing-stat-grid">
+                <div class="preprocessing-stat">
+                  <dt>Total rows</dt>
+                  <dd>{{ coverage.total.toLocaleString() }}</dd>
+                </div>
+                <div class="preprocessing-stat">
+                  <dt>Missing</dt>
+                  <dd>{{ coverage.missing.toLocaleString() }}</dd>
+                </div>
+                <div class="preprocessing-stat">
+                  <dt>Share missing</dt>
+                  <dd>{{ dh.coveragePercent(coverage) }}</dd>
+                </div>
+              </dl>
+              <span
+                class="preprocessing-meter"
+                role="img"
+                [attr.aria-label]="coverage.missing + ' of ' + coverage.total + ' values missing (' + dh.coveragePercent(coverage) + ')'"
+              >
+                <span class="preprocessing-meter-fill" [style.width.%]="coverage.share * 100"></span>
+              </span>
+              }
+            </div>
+
+            @let distribution = dh.distributionFor(variable);
+            @if (distribution.length) {
+            <div class="preprocessing-evidence-group">
+              <h5 class="preprocessing-evidence-title">Distribution</h5>
+              <dl class="preprocessing-stat-strip">
+                @for (point of distribution; track point.label) {
+                <div class="preprocessing-stat">
+                  <dt>{{ point.label }}</dt>
+                  <dd>{{ point.value }}</dd>
+                </div>
+                }
+              </dl>
+            </div>
+            }
+
+            @let categories = dh.categoryCountsFor(variable);
+            @if (categories.length) {
+            <div class="preprocessing-evidence-group preprocessing-evidence-wide">
+              <h5 class="preprocessing-evidence-title">Category frequencies</h5>
+              <ul class="preprocessing-frequency-list">
+                @for (category of categories; track category.label) {
+                <li class="preprocessing-frequency">
+                  <span class="preprocessing-frequency-label">{{ category.label }}</span>
+                  <span class="preprocessing-frequency-track">
+                    <span class="preprocessing-frequency-bar" [style.width.%]="category.share * 100"></span>
+                  </span>
+                  <span class="preprocessing-frequency-value">{{ category.value }}</span>
+                </li>
+                }
+              </ul>
+            </div>
+            }
+          </aside>
+          } @else {
+          <!-- The evidence slot is what makes this card read as a decision
+               rather than a bare select. When statistics are unavailable it
+               has to say so — blank space reads as a broken card. -->
+          <aside class="preprocessing-evidence" data-severity="none">
+            <div class="preprocessing-evidence-group">
+              <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+              <p class="preprocessing-consequence">{{ dh.summaryUnavailableNote() }}</p>
+            </div>
+          </aside>
+          }
+
+          } @else {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to choose a preprocessing variable.</span>
+          </div>
+          }
+        </div>
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No variables selected.</p>
+        <span>Select variables before configuring preprocessing.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'missing' }"></ng-container>
+  </app-station-card>
+
+  @if (!dh.showOutliersSection) {
+  <button type="button" class="btn-add-dashed" (click)="dh.enableOutlierHandling()">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+    <span>Add outlier handling — cap extreme values (optional)</span>
+  </button>
+  } @else {
+  <app-station-card
+    collapsible
+    icon="fas fa-line-chart"
+    title="Outlier Handling"
+    description="Caps extreme values per variable with a winsorizer."
+    [statusLabel]="dh.outlierPreprocessingStatusLabel"
+    [status]="dh.statusTone(dh.outlierPreprocessingStatusLabel, dh.hasPendingOutlierChanges)"
+    [open]="dh.preprocessingStepOpen.outlier"
+    (openChange)="dh.togglePreprocessingStep('outlier')">
+    <!-- Projected next to the status chip: one header, not a second strip glued on top. -->
+    <button type="button" class="btn-remove-step-node" stationAction (click)="dh.removeOutlierHandling()">
+      <i class="fas fa-trash-can" aria-hidden="true"></i>
+      <span>Remove Step</span>
+    </button>
+      @if (dh.preprocessingStepDocumentation('outlier_winsorizer')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().outlier"
+        (click)="dh.togglePreprocessingDoc('outlier')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('outlier_winsorizer') && dh.preprocessingDocOpen().outlier) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('outlier_winsorizer')"></div>
+      </div>
+      }
+
+      @if (dh.outlierPreprocessingVariables.length > 0) {
+      <section class="statistics-workspace preprocessing-workspace outlier-preprocessing-workspace">
+        <aside class="statistics-browser preprocessing-browser" aria-label="Outlier preprocessing variables">
+          <div class="statistics-browser-header">
+            <span>Variables</span>
+            <small>{{ dh.filteredPrepVariables('outlier').length }} shown</small>
+            <div class="batch-menu">
+              <button
+                type="button"
+                class="studio-export-btn batch-menu-trigger"
+                [attr.aria-expanded]="dh.batchMenuOpen() === 'outlier'"
+                (click)="dh.toggleBatchMenu('outlier')">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                Batch
+              </button>
+              @if (dh.batchMenuOpen() === 'outlier') {
+              <div class="batch-menu-list" role="menu">
+                <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(true)">Enable for all numerical</button>
+                <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(false)">Disable for all</button>
+              </div>
+              }
+            </div>
+          </div>
+          <div class="search-inline chart-search">
+            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+            <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search outlier preprocessing variables" [(ngModel)]="dh.prepSearch.outlier" />
+          </div>
+
+          @for (group of dh.prepGroups('outlier'); track group.key) {
+          <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
+            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+            @for (variable of group.variables; track variable.code) {
+            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('outlier', variable)" (click)="dh.selectPrepVariable('outlier', variable)">
+              <span>{{ dh.variableLabel(variable) }}</span>
+              <span class="statistics-variable-meta">
+                <span
+                  class="preprocessing-state-mini"
+                  [class.state-pending]="dh.prepVariableHasPendingChange('outlier', variable)"
+                  [class.state-applied]="dh.prepVariableStateLabel('outlier', variable) === 'Applied'"
+                >
+                  {{ dh.prepVariableStateLabel('outlier', variable) }}
+                </span>
+                <label class="toggle-switch is-mini" title="Enable outlier clipping for this variable"
+                       (click)="$event.stopPropagation()">
+                  <input type="checkbox" [checked]="dh.outlierRuleFor(variable).enabled"
+                         (change)="dh.onOutlierEnabledChange(variable, $any($event.target).checked)" />
+                  <span class="toggle-slider"></span>
+                </label>
+              </span>
+              <span class="prep-rail-action" [attr.data-state]="dh.outlierRuleFor(variable).enabled ? (dh.prepVariableHasPendingChange('outlier', variable) ? 'pending' : 'set') : 'off'">
+                {{ dh.outlierRuleSummary(variable) }}
+              </span>
+            </button>
+            }
+          </div>
+          }
+          @if (dh.prepGroups('outlier').length === 0) {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to show selected numerical variables.</span>
+          </div>
+          }
+        </aside>
+
+        <div class="preprocessing-detail-column">
+          <div class="statistics-panel preprocessing-detail-panel">
+            @if (dh.selectedPrepVariable('outlier'); as variable) {
+            <div class="statistics-panel-header">
+              <div>
+                <span class="statistics-panel-kicker">Numerical variable</span>
+                <h4>{{ dh.variableLabel(variable) }}</h4>
+              </div>
+              <span
+                class="preprocessing-state-chip"
+                [class.state-pending]="dh.prepVariableHasPendingChange('outlier', variable)"
+                [class.state-applied]="dh.prepVariableStateLabel('outlier', variable) === 'Applied'"
+              >
+                {{ dh.prepVariableStateLabel('outlier', variable) }}
+              </span>
+            </div>
+
+            <div class="preprocessing-detail-section">
+              <div class="preprocessing-detail-heading">
+                <i class="fa fa-line-chart" aria-hidden="true"></i>
+                <span>Outlier winsorizer</span>
+              </div>
+              @if (!dh.outlierRuleFor(variable).enabled) {
+              <p class="preprocessing-consequence">Turn on clipping for this variable in the list.</p>
+              }
+              <div class="preprocessing-control-grid outlier-control-grid">
+                <div class="preprocessing-control">
+                  <span>Method</span>
+                  <div class="modal-tabs" role="radiogroup" aria-label="Outlier method">
+                    @for (strategy of dh.outlierStrategies; track strategy.value) {
+                    <button type="button" role="radio"
+                            [class.active]="dh.outlierRuleFor(variable).strategy === strategy.value"
+                            [attr.aria-checked]="dh.outlierRuleFor(variable).strategy === strategy.value"
+                            [disabled]="!dh.outlierRuleFor(variable).enabled"
+                            (click)="dh.onOutlierStrategyChange(variable, strategy.value)">{{ strategy.label }}</button>
+                    }
+                  </div>
+                </div>
+                <div class="preprocessing-control">
+                  <span>Clip</span>
+                  <div class="modal-tabs" role="radiogroup" aria-label="Outlier clip">
+                    @for (tail of dh.outlierTails; track tail.value) {
+                    <button type="button" role="radio"
+                            [class.active]="dh.outlierRuleFor(variable).tail === tail.value"
+                            [attr.aria-checked]="dh.outlierRuleFor(variable).tail === tail.value"
+                            [disabled]="!dh.outlierRuleFor(variable).enabled"
+                            (click)="dh.onOutlierTailChange(variable, tail.value)">{{ dh.outlierTailDisplay(tail.value) }}</button>
+                    }
+                  </div>
+                </div>
+                <label class="preprocessing-control">
+                  <span>{{ dh.outlierFoldDisplay(dh.outlierRuleFor(variable).strategy) }}</span>
+                  <input class="table-input outlier-fold-input" type="number" step="any" [ngModel]="dh.outlierRuleFor(variable).fold" (ngModelChange)="dh.onOutlierFoldChange(variable, $event)" [disabled]="!dh.outlierRuleFor(variable).enabled" />
+                </label>
+              </div>
+              @if (dh.outlierRuleError(variable)) {
+              <div class="row-error">{{ dh.outlierRuleError(variable) }}</div>
+              }
+              @if (dh.outlierBoundsView(variable); as bounds) {
+              <div class="bounds-strip">
+                <div class="bounds-labels">
+                  @if (bounds.loLabel) {
+                  <span [style.left.%]="bounds.loPct"
+                        [style.transform]="(bounds.loPct ?? 0) < 12 ? 'translateX(0)' : ((bounds.loPct ?? 0) > 88 ? 'translateX(-100%)' : 'translateX(-50%)')">{{ bounds.loLabel }}</span>
+                  }
+                  @if (bounds.hiLabel) {
+                  <span [style.left.%]="bounds.hiPct"
+                        [style.transform]="(bounds.hiPct ?? 0) < 12 ? 'translateX(0)' : ((bounds.hiPct ?? 0) > 88 ? 'translateX(-100%)' : 'translateX(-50%)')">{{ bounds.hiLabel }}</span>
+                  }
+                </div>
+                <div class="bounds-track">
+                  <span class="bounds-iqr" [style.left.%]="bounds.iqrLeft" [style.width.%]="bounds.iqrWidth"></span>
+                  <span class="bounds-median" [style.left.%]="bounds.medianLeft"></span>
+                  @if (bounds.cappedLeft !== null) {
+                  <span class="bounds-capped" [style.left.%]="0" [style.width.%]="bounds.cappedLeft"></span>
+                  <span class="bounds-marker" [style.left.%]="bounds.loPct"></span>
+                  }
+                  @if (bounds.cappedRight !== null) {
+                  <span class="bounds-capped" [style.left.%]="bounds.hiPct" [style.width.%]="bounds.cappedRight"></span>
+                  <span class="bounds-marker" [style.left.%]="bounds.hiPct"></span>
+                  }
+                </div>
+                <div class="bounds-scale">
+                  <span class="is-min">{{ bounds.min.toLocaleString() }}</span>
+                  <span [style.left.%]="bounds.medianLeft">{{ dh.distributionMapValue(variable, 'Median') }}</span>
+                  <span class="is-max">{{ dh.distributionMapValue(variable, 'Max') }}</span>
+                </div>
+                <span class="preprocessing-consequence">{{ bounds.note }}</span>
+              </div>
+              }
+            </div>
+
+            @let distribution = dh.distributionFor(variable);
+            <aside class="preprocessing-evidence">
+              <h5 class="preprocessing-evidence-title">Distribution</h5>
+              @if (distribution.length) {
+              <dl class="preprocessing-stat-strip">
+                @for (point of distribution; track point.label) {
+                <div class="preprocessing-stat">
+                  <dt>{{ point.label }}</dt>
+                  <dd>{{ point.value }}</dd>
+                </div>
+                }
+              </dl>
+              @if (dh.coverageFor(variable); as coverage) {
+              <p class="preprocessing-consequence">{{ coverage.missing.toLocaleString() }} of {{ coverage.total.toLocaleString() }} values missing ({{ dh.coveragePercent(coverage) }}) are ignored by the winsorizer.</p>
+              }
+              } @else {
+              <p class="preprocessing-consequence">{{ dh.summaryUnavailableNote() }}</p>
+              }
+            </aside>
+
+            } @else {
+            <div class="empty-state-block compact-empty">
+              <i class="fa fa-search"></i>
+              <p>No variables match the current search.</p>
+              <span>Clear the search field to choose a numerical variable.</span>
+            </div>
+            }
+          </div>
+
+          <div class="outlier-report-section">
+            @if (dh.selectedPrepVariable('outlier'); as reportVariable) {
+            <div class="outlier-report-header">
+              <h5 class="preprocessing-evidence-title">Values that would be capped · per dataset</h5>
+              <button type="button" class="station-action-preview"
+                      [disabled]="!dh.hasOutlierRulesForPreview || dh.isLoadingOutlierPreview"
+                      (click)="dh.previewOutlierReport()">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                Refresh report
+              </button>
+            </div>
+
+            @if (dh.isLoadingOutlierPreview) {
+            <div class="studio-skeleton-card outlier-preview-skeleton" role="status" aria-label="Outlier report preview loading">
+              <span class="studio-skeleton-line medium"></span>
+              <span class="studio-skeleton-line short"></span>
+              <div class="studio-skeleton-table" aria-hidden="true">
+                @for (_ of [1, 2, 3, 4]; track _) {
+                <span class="studio-skeleton-cell head"></span>
+                }
+                @for (_ of [1, 2, 3, 4, 5, 6]; track _) {
+                <span class="studio-skeleton-cell"></span>
+                }
+              </div>
+            </div>
+            }
+
+            @if (!dh.isLoadingOutlierPreview && dh.outlierPreviewError) {
+            <div class="row-error">{{ dh.outlierPreviewError }}</div>
+            }
+
+            @if (!dh.isLoadingOutlierPreview && dh.outlierPreviewRowsFor(reportVariable).length > 0) {
+            <div class="table-wrapper statistics-table-wrapper">
+              <table class="data-table outlier-report-table">
+                <thead>
+                  <tr>
+                    <th>Dataset</th>
+                    <th>Lower bound</th>
+                    <th>Upper bound</th>
+                    <th>Below</th>
+                    <th>Above</th>
+                    <th>Share capped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of dh.outlierPreviewRowsFor(reportVariable); track row.variable + '-' + row.dataset) {
+                  <tr>
+                    <td>{{ row.dataset }}</td>
+                    <td>{{ row.lowerBound }}</td>
+                    <td>{{ row.upperBound }}</td>
+                    <td>{{ row.lowerOutliers }}</td>
+                    <td>{{ row.upperOutliers }}</td>
+                    <td class="share-cell">
+                      <span class="share-bar"><span [style.width.%]="dh.barWidth(row.outlierPercentage, 8)"></span></span>
+                      <strong>{{ row.outlierPercentage }}</strong>
+                    </td>
+                  </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            }
+
+            @if (dh.coverageFor(reportVariable); as reportCoverage) {
+            <p class="preprocessing-consequence">Bounds are fitted per dataset. {{ reportCoverage.missing.toLocaleString() }} missing values ({{ dh.coveragePercent(reportCoverage) }}) are skipped.</p>
+            }
+            }
+          </div>
+        </div>
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No numerical variables selected.</p>
+        <span>Outlier handling is available for selected numerical variables.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'outlier' }"></ng-container>
+  </app-station-card>
+  }
+
+  @if (dh.isLongitudinalModel) {
+  <app-station-card
+    collapsible
+    icon="fas fa-calendar"
+    title="Longitudinal Transformation"
+    description="Required for longitudinal pathologies: compare two visits per variable."
+    [statusLabel]="dh.longitudinalPreprocessingStatusLabel"
+    [status]="dh.statusTone(dh.longitudinalPreprocessingStatusLabel, dh.pendingLongitudinalChangeCount > 0)"
+    [open]="dh.preprocessingStepOpen.longitudinal"
+    (openChange)="dh.togglePreprocessingStep('longitudinal')">
+      @if (dh.preprocessingStepDocumentation('longitudinal_transformer')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().longitudinal"
+        (click)="dh.togglePreprocessingDoc('longitudinal')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('longitudinal_transformer') && dh.preprocessingDocOpen().longitudinal) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('longitudinal_transformer')"></div>
+      </div>
+      }
+
+      <div class="longitudinal-controls">
+        <div class="visit-controls">
+          <label>
+            <span>Visit 1</span>
+            <select class="table-select" [ngModel]="dh.longitudinalVisit1" (ngModelChange)="dh.onLongitudinalVisitChange('visit1', $event)">
+              <option value="">Select visit</option>
+              @for (visit of dh.visitOptions; track visit.code) {
+              <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            <span>Visit 2</span>
+            <select class="table-select" [ngModel]="dh.longitudinalVisit2" (ngModelChange)="dh.onLongitudinalVisitChange('visit2', $event)">
+              <option value="">Select visit</option>
+              @for (visit of dh.visitOptions; track visit.code) {
+              <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </div>
+      @if (dh.preprocessingValidationErrors['__longitudinal__']) {
+      <div class="row-error longitudinal-error">{{ dh.preprocessingValidationErrors['__longitudinal__'] }}</div>
+      }
+
+      @if (dh.preprocessingVariables.length > 0) {
+      <section class="statistics-workspace preprocessing-workspace">
+        <aside class="statistics-browser preprocessing-browser" aria-label="Longitudinal preprocessing variables">
+          <div class="statistics-browser-header">
+            <span>Variables</span>
+            <small>{{ dh.filteredPrepVariables('longitudinal').length }} shown</small>
+          </div>
+          <div class="search-inline chart-search">
+            <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+            <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="dh.prepSearch.longitudinal" />
+          </div>
+
+          @for (group of dh.prepGroups('longitudinal'); track group.key) {
+          <div class="statistics-variable-group preprocessing-variable-group">
+            <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+            @for (variable of group.variables; track variable.code) {
+            <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected('longitudinal', variable)" (click)="dh.selectPrepVariable('longitudinal', variable)">
+              <span>{{ dh.variableLabel(variable) }}</span>
+              <span class="statistics-variable-meta">
+                <small>{{ dh.variableTypeLabel(variable) }}</small>
+                <span
+                  class="preprocessing-state-mini"
+                  [class.state-pending]="dh.prepVariableHasPendingChange('longitudinal', variable)"
+                  [class.state-applied]="dh.prepVariableStateLabel('longitudinal', variable) === 'Applied'"
+                >
+                  {{ dh.prepVariableStateLabel('longitudinal', variable) }}
+                </span>
+              </span>
+            </button>
+            }
+          </div>
+          }
+          @if (dh.prepGroups('longitudinal').length === 0) {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to show selected variables.</span>
+          </div>
+          }
+        </aside>
+
+        <div class="statistics-panel preprocessing-detail-panel">
+          @if (dh.selectedPrepVariable('longitudinal'); as variable) {
+          <div class="statistics-panel-header">
+            <div>
+              <span class="statistics-panel-kicker">{{ dh.variableTypeLabel(variable) }} variable</span>
+              <h4>{{ dh.variableLabel(variable) }}</h4>
+            </div>
+            <span
+              class="preprocessing-state-chip"
+              [class.state-pending]="dh.prepVariableHasPendingChange('longitudinal', variable)"
+              [class.state-applied]="dh.prepVariableStateLabel('longitudinal', variable) === 'Applied'"
+            >
+              {{ dh.prepVariableStateLabel('longitudinal', variable) }}
+            </span>
+          </div>
+
+          <div class="preprocessing-detail-section">
+            <div class="preprocessing-detail-heading">
+              <i class="fa fa-calendar" aria-hidden="true"></i>
+              <span>Longitudinal strategy</span>
+            </div>
+            <label class="preprocessing-control">
+              <span>Strategy for {{ dh.variableLabel(variable) }}</span>
+              <select class="table-select" [ngModel]="dh.longitudinalStrategyFor(variable)" (ngModelChange)="dh.onLongitudinalStrategyChange(variable, $event)">
+                @for (strategy of dh.longitudinalStrategies; track strategy.value) {
+                <option [ngValue]="strategy.value" [disabled]="dh.isLongitudinalStrategyDisabled(variable, strategy.value)">{{ strategy.label }}</option>
+                }
+              </select>
+            </label>
+            @if (dh.preprocessingValidationErrors[variable.code]) {
+            <div class="row-error">{{ dh.preprocessingValidationErrors[variable.code] }}</div>
+            }
+          </div>
+          } @else {
+          <div class="empty-state-block compact-empty">
+            <i class="fa fa-search"></i>
+            <p>No variables match the current search.</p>
+            <span>Clear the search field to choose a longitudinal strategy variable.</span>
+          </div>
+          }
+        </div>
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No variables selected.</p>
+        <span>Select variables before configuring longitudinal transformation.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'longitudinal' }"></ng-container>
+  </app-station-card>
+  }
+
+  </div>
+  </div>
+  <div [dhSectionAnchor]="'processed'" class="workflow-section" data-guide="analysis-processed-summary">
+    <div
+      class="workflow-section-body"
+      app-summary-workspace
+      [class.open]="dh.sectionOpen().processed"
+      kind="processed"
+      [summary]="dh.processedSummary"
+      emptyHint="Select variables and datasets to load the processed data summary."></div>
+  </div>
+</div>
+}
