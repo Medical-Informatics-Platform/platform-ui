@@ -146,6 +146,27 @@
   border-color: #c6c8f2;
 }
 
+/* Missing from a selected dataset: grayed out, no role changes or drags; × still removes. */
+.chip.is-unavailable {
+  background: var(--unavailable-fill);
+  border-color: var(--unavailable-border);
+  border-style: dashed;
+  color: var(--unavailable-text);
+  cursor: not-allowed;
+}
+
+.row.is-unavailable {
+  opacity: var(--unavailable-opacity);
+}
+
+.row.is-unavailable .var-name {
+  color: var(--unavailable-text);
+}
+
+.row.is-unavailable .role-tray button {
+  cursor: not-allowed;
+}
+
 .chip-name {
   font-weight: 700;
   font-size: 0.8rem;
