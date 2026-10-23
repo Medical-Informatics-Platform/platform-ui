@@ -243,6 +243,8 @@ function mapMixedEffectsResult(
 
   if (typeof mapped?.grouping_var === 'string') {
     next.grouping_var = labelMap?.[mapped.grouping_var] ?? mapped.grouping_var;
+  } else if (Array.isArray(mapped?.grouping_var)) {
+    next.grouping_var = mapped.grouping_var.map((code: string) => labelMap?.[code] ?? code);
   }
 
   if (Array.isArray(mapped?.category_order)) {
@@ -403,6 +405,13 @@ export function mapAlgorithmResultEnums(
       const confusionMapped = mapConfusionMatrix(classesMapped.result, safeEnumMaps, yVar);
       const effectiveMap = confusionMapped.map ?? classesMapped.map;
 
+      // Gaussian only: the categorical table looks category_count up by feature code.
+      if (labelMap && Array.isArray(confusionMapped.result?.feature_names) && !confusionMapped.result?.category_count) {
+        confusionMapped.result = {
+          ...confusionMapped.result,
+          feature_names: confusionMapped.result.feature_names.map((code: string) => labelMap[code] ?? code),
+        };
+      }
       if (effectiveMap && confusionMapped.result?.classification_summary) {
         return {
           ...confusionMapped.result,
@@ -429,6 +438,45 @@ export function mapAlgorithmResultEnums(
       }
     case 'histogram':
       return mapMultipleHistograms(result, safeEnumMaps, yVar);
+    case 'outlier_report': {
+      if (!labelMap || !Array.isArray(result?.featurewise)) return result;
+      return {
+        ...result,
+        featurewise: result.featurewise.map((row: any) => ({ ...row, variable: labelMap[row?.variable] ?? row?.variable })),
+      };
+    }
+    case 'kmeans': {
+      if (!labelMap || !Array.isArray(result?.variables)) return result;
+      // Each profile line starts with a variable code: "nihss_adm_score is below the overall mean".
+      const profileLine = (line: unknown) => {
+        const text = String(line ?? '');
+        const code = result.variables.find((v: string) => text.startsWith(`${v} `));
+        return code && labelMap[code] ? labelMap[code] + text.slice(code.length) : text;
+      };
+      return {
+        ...result,
+        variables: result.variables.map((code: string) => labelMap[code] ?? code),
+        clusters: Array.isArray(result.clusters)
+          ? result.clusters.map((cluster: any) => ({
+            ...cluster,
+            center: mapObjectKeys(cluster?.center ?? {}, labelMap),
+            ...(Array.isArray(cluster?.profile) ? { profile: cluster.profile.map(profileLine) } : {}),
+          }))
+          : result.clusters,
+      };
+    }
+    case 'standardized_mean_difference': {
+      const map = getEnumMapForVar(safeEnumMaps, xVar);
+      if (!map || !Array.isArray(result?.comparisons)) return result;
+      return {
+        ...result,
+        comparisons: result.comparisons.map((row: any) => ({
+          ...row,
+          group1: map[normalizeKey(row.group1)] ?? row.group1,
+          group2: map[normalizeKey(row.group2)] ?? row.group2,
+        })),
+      };
+    }
     case 'linear_regression':
     case 'linear_regression_cv':
     case 'logistic_regression':
