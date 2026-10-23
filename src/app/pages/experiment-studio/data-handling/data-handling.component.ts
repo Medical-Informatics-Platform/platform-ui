@@ -1,0 +1,4116 @@
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  computed,
+  effect,
+  forwardRef,
+  inject,
+  signal,
+  untracked,
+  output,
+  input,
+  OnDestroy
+} from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { EChartsOption } from 'echarts';
+import { Subject, Subscription, takeUntil } from 'rxjs';
+import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
+import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
+import {
+  DATASET_VARIABLE_CODE,
+  HISTOGRAM_SPLIT_NONE,
+  HistogramSplitOption,
+  buildHistogramSplitOptions,
+  buildStackedHistogramSeries,
+  extractHistogramItems,
+  histogramCacheKey,
+} from '../visualisations/histogram/histogram-data';
+import { PdfExportService } from '../../../services/pdf-export.service';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import {
+  getFeaturewiseDescribeRows,
+  resolveDatasetDisplayLabel,
+} from '../../../core/describe-result.utils';
+import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
+import { StationStatus } from '../shared/station-card/station-card.component';
+import { DATA_HANDLING } from './data-handling.context';
+import { TransformationStationComponent } from './transformation-station/transformation-station.component';
+import { PreprocessingStationComponent } from './preprocessing-station/preprocessing-station.component';
+import { CohortFilterStationComponent } from './cohort-filter-station/cohort-filter-station.component';
+import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
+import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
+import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
+import { emptySummaryView, selectionKey, statisticBlockKey } from './utils/summary-view.utils';
+import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
+import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
+import { StatisticSummaryService } from './statistic-summary.service';
+import { categoryCounts, enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
+import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
+import { BackendFilter } from '../../../models/filters.model';
+import { CsvExportService } from '../../../services/csv-export.service';
+import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
+import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
+import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
+import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
+import { pluralize } from '../../../core/result-label.utils';
+import { filterOperatorPhrase } from '../../../core/filter-logic.utils';
+import {
+  cloneOutlierRules,
+  createDefaultOutlierRule,
+  defaultFoldForStrategy,
+  hydrateOutlierRules,
+  isOutlierEligibleVariable,
+  OUTLIER_STRATEGIES,
+  OUTLIER_TAILS,
+  OutlierRule,
+  OutlierStrategy,
+  OutlierTail,
+  outlierStrategyLabel,
+  outlierTailLabel,
+  serializeOutlierRules,
+  validateOutlierRule,
+} from '../../../core/outlier-rules';
+
+import {
+  TabKey,
+  SummaryKind,
+  SectionKey,
+  PipelineStep,
+  PrepStep,
+  StatisticVariableType,
+  PreprocessingStatus,
+  PrepKind,
+  SummaryAnchorKey,
+  SUMMARY_GUIDE_ANCHORS,
+  MissingAction,
+  LongitudinalStrategy,
+  CategoryFilter,
+  TransformationRule,
+  TransformationColumnDraft,
+  PipelineSubNode,
+  MetricKey,
+  SummaryView,
+  PivotBlock,
+  VariableRow,
+  EnumOption,
+  HistogramPreviewData,
+  HowToGuide,
+  PreprocessingRule,
+  PreprocessingGroup,
+  OutlierPreviewRow,
+  DescriptiveProgressState,
+} from './data-handling.models';
+import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
+import { TransformationColumnConfig, TransformationDraftStatus, emptyTransformationDraft, firstFilterCondition, nextTransformationDraftId, transformationConfigFor } from './utils/transformation-draft.utils';
+import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
+import {
+  formatInteger,
+  formatOutlierBound,
+  formatOutlierPercentage,
+  formatPercent,
+  parseNumber,
+} from './utils/statistic-format.utils';
+
+@Component({
+  selector: 'app-data-handling',
+  imports: [ChartRendererComponent, FormsModule, PipelineTerminalComponent, SectionAnchorDirective, SourceDataStationComponent, CohortFilterStationComponent, PreprocessingStationComponent, TransformationStationComponent],
+  // Section components read the pipeline's state through this token (see data-handling.context.ts).
+  providers: [
+    { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
+    RuleBuilderRegistry,
+    SectionAnchors,
+    TransformationDraftsService,
+    PreprocessingStateService,
+    StatisticSummaryService,
+  ],
+  templateUrl: './data-handling.component.html',
+  // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
+  // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
+  styleUrls: [
+    './data-handling.component.css',
+    './data-handling.preprocessing.css',
+    './data-handling.results.css',
+  ],
+  host: {
+    '(document:click)': 'closeBatchMenuOnOutsideClick($event)',
+  },
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class DataHandlingComponent implements OnDestroy {
+  readonly processedDataInput = input<PivotBlock[]>([], { alias: 'processedData' });
+  processedData: PivotBlock[] = [];
+  readonly variables = input<unknown[]>([]);
+  readonly filters = input<unknown[]>([]);
+  readonly progressStateChange = output<DescriptiveProgressState>();
+  /** Scroll targets of goToSection, registered by the elements themselves. */
+  private readonly sectionAnchors = inject(SectionAnchors);
+  /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
+  readonly ruleBuilders = inject(RuleBuilderRegistry);
+  readonly transformationDraftState = inject(TransformationDraftsService);
+  readonly preprocessingState = inject(PreprocessingStateService);
+  readonly statisticSummary = inject(StatisticSummaryService);
+
+  expStudioService = inject(ExperimentStudioService);
+  private readonly destroyed = new Subject<void>();
+  private studioNavigation = inject(ExperimentStudioNavigationService);
+  private pdfExportService = inject(PdfExportService);
+  private csvExportService = inject(CsvExportService);
+  private cdr = inject(ChangeDetectorRef);
+  private runtimeEnvService = inject(RuntimeEnvService);
+  readonly mipVersion = this.runtimeEnvService.mipVersion;
+
+  get rawSummary(): SummaryView {
+    return this.statisticSummary.raw;
+  }
+  set rawSummary(view: SummaryView) {
+    this.statisticSummary.raw = view;
+  }
+  get processedSummary(): SummaryView {
+    return this.statisticSummary.processed;
+  }
+  set processedSummary(view: SummaryView) {
+    this.statisticSummary.processed = view;
+  }
+  /** Step 0 snapshot: the same `SummaryView` the Raw and Processed surfaces use. */
+  get sourceSummary(): SummaryView {
+    return this.statisticSummary.source;
+  }
+  set sourceSummary(view: SummaryView) {
+    this.statisticSummary.source = view;
+  }
+  // The rule maps live in PreprocessingStateService; these keep the panel's names.
+  get pendingPreprocessingRules(): Record<string, PreprocessingRule> {
+    return this.preprocessingState.pendingMissing;
+  }
+  set pendingPreprocessingRules(value: Record<string, PreprocessingRule>) {
+    this.preprocessingState.pendingMissing = value;
+  }
+  get appliedPreprocessingRules(): Record<string, PreprocessingRule> {
+    return this.preprocessingState.appliedMissing;
+  }
+  set appliedPreprocessingRules(value: Record<string, PreprocessingRule>) {
+    this.preprocessingState.appliedMissing = value;
+  }
+  get pendingLongitudinalStrategies(): Record<string, LongitudinalStrategy> {
+    return this.preprocessingState.pendingLongitudinal;
+  }
+  set pendingLongitudinalStrategies(value: Record<string, LongitudinalStrategy>) {
+    this.preprocessingState.pendingLongitudinal = value;
+  }
+  get appliedLongitudinalStrategies(): Record<string, LongitudinalStrategy> {
+    return this.preprocessingState.appliedLongitudinal;
+  }
+  set appliedLongitudinalStrategies(value: Record<string, LongitudinalStrategy>) {
+    this.preprocessingState.appliedLongitudinal = value;
+  }
+  get pendingOutlierRules(): Record<string, OutlierRule> {
+    return this.preprocessingState.pendingOutlier;
+  }
+  set pendingOutlierRules(value: Record<string, OutlierRule>) {
+    this.preprocessingState.pendingOutlier = value;
+  }
+  get appliedOutlierRules(): Record<string, OutlierRule> {
+    return this.preprocessingState.appliedOutlier;
+  }
+  set appliedOutlierRules(value: Record<string, OutlierRule>) {
+    this.preprocessingState.appliedOutlier = value;
+  }
+  appliedLongitudinalEnabled = false;
+  longitudinalVisit1 = '';
+  longitudinalVisit2 = '';
+  appliedLongitudinalVisit1 = '';
+  appliedLongitudinalVisit2 = '';
+  preprocessingStatus: PreprocessingStatus = 'none';
+  isApplyingPreprocessing = false;
+  preprocessingValidationErrors: Record<string, string> = {};
+  outlierValidationErrors: Record<string, string> = {};
+  outlierPreviewRows: OutlierPreviewRow[] = [];
+  outlierPreviewError = '';
+  /** A card's own Apply that failed: its message, shown in that card's footer. */
+  preprocessingApplyError: Record<string, string | undefined> = {};
+  isLoadingOutlierPreview = false;
+  prepSearch: Record<PrepKind, string> = {
+    missing: '',
+    outlier: '',
+    longitudinal: '',
+  };
+  selectedPrepCode: Record<PrepKind, string | null> = {
+    missing: null,
+    outlier: null,
+    longitudinal: null,
+  };
+  // Record<string, ..>: the shared summary template indexes it with its own kind.
+  statisticsSearch: Record<string, string> = {
+    source: '',
+    raw: '',
+    processed: '',
+  };
+  isExporting = false;
+  isLoading = true;
+  readonly sectionOpen = signal<Record<SectionKey, boolean>>({
+    source: false,
+    raw: false,
+    setup: false,
+    filters: false,
+    processed: false,
+    transformation: false,
+  });
+  readonly summaryExpanded = signal<{ filters: boolean; setup: boolean }>({
+    filters: false,
+    setup: false,
+  });
+  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal' | 'transformation', boolean> = {
+    missing: true,
+    outlier: true,
+    longitudinal: true,
+    transformation: true,
+  };
+
+  readonly addedSteps = signal<Record<'filters' | 'setup' | 'transformation', boolean>>({
+    filters: false,
+    setup: false,
+    transformation: false,
+  });
+  readonly showUnappliedChangesWarning = signal(false);
+
+  isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
+    if (this.addedSteps()[step]) return true;
+    if (step === 'filters') return this.filterRuleCount() > 0;
+    const applied = this.expStudioService.appliedPreprocessingConfig();
+    if (!applied) return false;
+    if (step === 'transformation') {
+      return !!applied['categorical_column_creator'] || !!applied['kmeans_cluster_creator'];
+    }
+    return !!(
+      applied['missing_values_handler'] ||
+      applied['outlier_winsorizer'] ||
+      applied['longitudinal_transformer']
+    );
+  }
+
+  /** Opening a stage is a read: it shows the editor, it never writes the request. */
+  addStep(step: 'filters' | 'setup' | 'transformation'): void {
+    this.addedSteps.update((s) => ({ ...s, [step]: true }));
+    if (step === 'setup') this.ensureDefaultRulesForCurrentSelection();
+    this.goToSection(step);
+    this.cdr.markForCheck();
+  }
+
+  removeStep(step: 'filters' | 'setup' | 'transformation'): void {
+    this.addedSteps.update((s) => ({ ...s, [step]: false }));
+    if (step === 'filters') {
+      this.rawPreviewFilter = undefined;
+      this.expStudioService.setFilterLogic(null);
+      this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
+    } else if (step === 'setup') {
+      this.appliedPreprocessingRules = {};
+      this.pendingPreprocessingRules = {};
+      this.pendingOutlierRules = {};
+      this.appliedOutlierRules = {};
+      this.userEnabledOutliers.set(false);
+      this.persistAppliedDescriptivePreprocessing(null);
+      this.preprocessingStatus = 'none';
+      this.preprocessingState.userApplied = false;
+      this.processedDescribeSeq++;
+      this.clearProcessedPreviewSubscription();
+      this.clearHistogramSubscriptions(this.processedSummary);
+      this.processedSummary = emptySummaryView(false);
+      this.processedSummaryKey = '';
+      this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
+    } else if (step === 'transformation') {
+      this.resetTransformation();
+      this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    }
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * The station footer's primary slot commits pending conditions. An empty builder has
+   * nothing to commit and nothing to keep — an optional step with no rules is exactly the
+   * default collapsed step — so the same slot closes the station and hands the pipeline back.
+   */
+  commitOrCloseFilterStation(modal: FilterConfigModalComponent): void {
+    if (modal.activeRulesCount() > 0) {
+      modal.saveFilters();
+      return;
+    }
+    this.removeStep('filters');
+    this.requestSectionScroll('filters');
+  }
+
+  /** Folds the stage's editor and preview; nothing is removed or discarded. */
+  collapseStep(step: 'filters' | 'setup' | 'transformation'): void {
+    if (step === 'filters') return this.foldFilterStation();
+    if (step === 'setup') return this.foldPreprocessingStation();
+    this.sectionOpen.update((open) => ({ ...open, transformation: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('transformation');
+  }
+
+  /** A click anywhere on a step's header toggles it, except on the header's own buttons
+   *  (the title, Remove, Revert, Customize) and at the end of a text selection. */
+  onStepHeaderClick(step: PipelineStep, event: Event): void {
+    if ((event.target as Element).closest('button')) return;
+    if (window.getSelection()?.toString()) return;
+    this.toggleStep(step);
+  }
+
+  /** Folds an open step and opens a folded one; opening an optional step adds it. */
+  toggleStep(step: PipelineStep): void {
+    if (step === 'source') return this.toggleSourcePreview();
+    if (this.isStepOpen(step)) this.collapseStep(step);
+    else this.addStep(step);
+  }
+
+  /** A step outside the pipeline is never open, whatever its section flag says. */
+  isStepOpen(step: PipelineStep): boolean {
+    const open = this.sectionOpen();
+    if (step === 'source') return open.source;
+    if (!this.isStepAdded(step)) return false;
+    if (step === 'filters') return open.filters || open.raw;
+    if (step === 'setup') return open.setup || open.processed;
+    return open.transformation;
+  }
+
+  /** Apply saved the rules; fold the editor. Preview data is what opens the tables. */
+  private foldFilterStation(): void {
+    this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('filters');
+  }
+
+  /**
+   * Cohort Filtering's "Preview data": describe the cohort under the rules the editor
+   * holds — unapplied, including "no rules yet" — and hand the result to the Raw
+   * summary. Nothing is written; Apply (`saveFilters`) stays the only path to the
+   * request, and an invalid builder keeps the user on the editor with its own error.
+   */
+  previewFilterData(modal: FilterConfigModalComponent): void {
+    const pendingFilters = modal.exportFilterLogic() as BackendFilter | null;
+    if (modal.filterError()) {
+      this.cdr.markForCheck();
+      return;
+    }
+    this.rawPreviewFilter = pendingFilters ?? null;
+    this.goToSection('raw');
+  }
+
+  /**
+   * Apply wrote the pending rules. Drop any preview pin so later Preview data follows
+   * the store; do not open the Raw tables — that is Preview data's job.
+   */
+  onCohortFiltersApplied(): void {
+    this.rawPreviewFilter = undefined;
+    this.foldFilterStation();
+  }
+
+  /** Clear drops the stored cohort, which retires the preview pinned to it. */
+  clearFilterRules(modal: FilterConfigModalComponent): void {
+    this.rawPreviewFilter = undefined;
+    modal.clearFilters();
+  }
+
+  get activeStagesCount(): number {
+    return (['filters', 'setup', 'transformation'] as const).filter((step) => this.isStepAdded(step)).length;
+  }
+
+  /** Track if outlier section is explicitly enabled by user */
+  readonly userEnabledOutliers = signal<boolean>(false);
+
+  /**
+   * Which outlier card the editor shows: the station once the step is opened or holds a
+   * rule, the dashed add card while it is still dormant. The rail does not read this —
+   * see `outlierSubNodeApplied`.
+   */
+  get showOutliersSection(): boolean {
+    if (this.userEnabledOutliers()) return true;
+    const hasApplied = Object.values(this.appliedOutlierRules).some((r) => r && r.enabled);
+    const hasPending = Object.values(this.pendingOutlierRules).some((r) => r && r.enabled);
+    return hasApplied || hasPending;
+  }
+
+  enableOutlierHandling(): void {
+    this.userEnabledOutliers.set(true);
+    this.preprocessingStepOpen.outlier = true;
+    this.cdr.markForCheck();
+  }
+
+  removeOutlierHandling(): void {
+    this.userEnabledOutliers.set(false);
+    for (const code of Object.keys(this.pendingOutlierRules)) {
+      if (this.pendingOutlierRules[code]) {
+        this.pendingOutlierRules[code].enabled = false;
+      }
+    }
+    for (const code of Object.keys(this.appliedOutlierRules)) {
+      if (this.appliedOutlierRules[code]) {
+        this.appliedOutlierRules[code].enabled = false;
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  finishDataHandling(): void {
+    if (this.pendingChangeCount > 0 || this.transformationHasPendingChange) {
+      this.showUnappliedChangesWarning.set(true);
+      this.cdr.markForCheck();
+      return;
+    }
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  applyAndContinue(): void {
+    this.showUnappliedChangesWarning.set(false);
+    if (this.pendingChangeCount > 0) {
+      this.continueAfterApply = true;
+      this.applyPreprocessing();
+      return;
+    }
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  discardAndContinue(): void {
+    this.showUnappliedChangesWarning.set(false);
+    this.resetChanges();
+    this.discardPendingTransformation();
+    this.studioNavigation.navigateToSection('algorithm-section');
+  }
+
+  /** Header chip tone; the label reads off it so copy and colour cannot drift. */
+  get preprocessingBadgeTone(): 'applied' | 'pending' | 'default' {
+    if (this.pendingChangeCount > 0) return 'pending';
+    return this.preprocessingStatus === 'applied' ? 'applied' : 'default';
+  }
+
+  get preprocessingStatusLabel(): string {
+    switch (this.preprocessingBadgeTone) {
+      case 'pending':
+        return `In run · ${pluralize(this.pendingChangeCount, 'change')} not applied`;
+      case 'applied': {
+        const count = this.appliedPreprocessingCount;
+        return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
+      }
+      default:
+        return 'In run · Default';
+    }
+  }
+
+  /** Terminal card's preprocessing fact: default drop-NaN, or the applied step count. */
+  get terminalPreprocessingLine(): string {
+    if (this.preprocessingBadgeTone === 'default') return 'Missing values: remove rows (default)';
+    return `Preprocessing: ${pluralize(this.appliedPreprocessingCount, 'step')}`;
+  }
+
+  /**
+   * Sub-steps the pipeline will actually run, read from the persisted request
+   * config so the rail can never disagree with the next run. Missing values is
+   * always present: default NA removal is an active step even when untouched.
+   */
+  get appliedPreprocessingSubNodes(): PipelineSubNode[] {
+    const config = this.expStudioService.appliedPreprocessingConfig() ?? {};
+    const nodes: PipelineSubNode[] = [this.missingValuesSubNode(config)];
+
+    const outlier = config['outlier_winsorizer'] as { strategies?: Record<string, unknown> } | undefined;
+    const outlierStrategies = Object.values(outlier?.strategies ?? {});
+    if (outlierStrategies.length) {
+      nodes.push({
+        id: 'outlier',
+        icon: 'fas fa-line-chart',
+        title: 'Outlier Winsorizer',
+        subtitle: `Extreme values capped on ${outlierStrategies.length} ${outlierStrategies.length === 1 ? 'variable' : 'numerical variables'} (${Array.from(new Set(outlierStrategies.map((s) => outlierStrategyLabel(String(s))))).join(', ')})`,
+        statusLabel: 'Applied',
+        statusTone: this.hasPendingOutlierChanges ? 'pending' : 'applied',
+      });
+    }
+
+    const longitudinal = config['longitudinal_transformer'] as
+      | { visit1?: unknown; visit2?: unknown; strategies?: Record<string, unknown> }
+      | undefined;
+    if (longitudinal && this.isLongitudinalModel) {
+      const count = Object.keys(longitudinal.strategies ?? {}).length;
+      nodes.push({
+        id: 'longitudinal',
+        icon: 'fas fa-code-compare',
+        title: 'Longitudinal Comparison',
+        subtitle: `${this.visitLabel(longitudinal.visit1)} vs ${this.visitLabel(longitudinal.visit2)} strategy configured on ${count} ${count === 1 ? 'variable' : 'variables'}`,
+        statusLabel: 'Applied',
+        statusTone: this.pendingLongitudinalChangeCount > 0 ? 'pending' : 'applied',
+      });
+    }
+
+    return nodes;
+  }
+
+  /**
+   * Rail counterpart of the outlier step: whether the rail already draws it as a node.
+   * The dashed row that creates a sub-step must answer to the same source as the rail's own
+   * rows — the persisted request — so a sub-step always has exactly one representation. The
+   * editor's `showOutliersSection` also turns true on a merely opened step, which used to
+   * leave an untouched step that was closed again with neither a node nor an add row.
+   */
+  get outlierSubNodeApplied(): boolean {
+    return this.appliedPreprocessingSubNodes.some((node) => node.id === 'outlier');
+  }
+
+  get appliedPreprocessingCount(): number {
+    return this.appliedPreprocessingSubNodes.filter((node) => node.statusTone === 'applied').length;
+  }
+
+  /** A derived column only exists once its config is persisted; otherwise the stage stays empty. */
+  get appliedTransformationSubNodes(): PipelineSubNode[] {
+    const creators = this.expStudioService.appliedCategoricalCreators();
+    const statusTone: PipelineSubNode['statusTone'] =
+      this.transformationStatusLabel === 'Applied' ? 'applied' : 'pending';
+    const nodes: PipelineSubNode[] = [];
+    creators.forEach((raw, index) => {
+      const creator = raw as { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown };
+      const code = String(creator?.code ?? '').trim();
+      if (!code) return;
+      const ruleCount = Object.keys(creator?.rules ?? {}).length;
+      const fallback = String(creator?.default_enumeration ?? '').trim();
+      nodes.push({
+        id: `transformation:${code || index}`,
+        icon: 'fas fa-tag',
+        title: `Derived column: ${code}`,
+        subtitle: `${ruleCount} ${ruleCount === 1 ? 'category rule' : 'category rules'} configured${fallback ? ` · default: ${fallback}` : ''}`,
+        statusLabel: 'Applied',
+        statusTone,
+      });
+    });
+
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    if (clusterCreator) {
+      const variables = clusterCreator.reusable_preprocessing.cluster_variables ?? [];
+      nodes.push({
+        id: `transformation:kmeans:${clusterCreator.code}`,
+        icon: 'fas fa-diagram-project',
+        title: `K-means clusters: ${clusterCreator.code}`,
+        subtitle: `${clusterCreator.reusable_preprocessing.cluster_choices.length} clusters from ${variables.join(', ')}`,
+        statusLabel: 'Applied',
+        statusTone: 'applied',
+      });
+    }
+
+    return nodes;
+  }
+
+  get appliedTransformationCount(): number {
+    return this.appliedTransformationSubNodes.length;
+  }
+
+  /** Expands the owning stage and opens only the clicked station. */
+  jumpToSubNode(stage: 'setup' | 'transformation', subNode: PipelineSubNode['id']): void {
+    this.goToSection(stage);
+    if (stage === 'transformation') {
+      this.preprocessingStepOpen.transformation = true;
+      return;
+    }
+    for (const step of ['missing', 'outlier', 'longitudinal'] as const) {
+      this.preprocessingStepOpen[step] = step === subNode;
+    }
+    if (subNode === 'outlier') this.userEnabledOutliers.set(true);
+    this.cdr.markForCheck();
+  }
+
+  /** A dashed rail row adds and opens its sub-step in one click, writing nothing. */
+  addPreprocessingSubNode(subNode: 'outlier' | 'longitudinal'): void {
+    if (!this.isStepAdded('setup')) this.addStep('setup');
+    this.jumpToSubNode('setup', subNode);
+  }
+
+  /** Same for the Transformation stage: opens it on the type chooser at the end of its graph. */
+  addTransformationSubNode(): void {
+    this.addStep('transformation');
+  }
+
+isDraftShown(draft: TransformationColumnDraft): boolean {
+    return this.transformationDraftState.isShown(draft);
+  }
+
+  get kmeansCardShown(): boolean {
+    return this.kmeansClusterCardChosen() || !!this.expStudioService.appliedKMeansClusterCreator();
+  }
+
+  /** Nothing picked yet: the chooser is the whole stage, so it asks instead of offering. */
+  get transformationChooserOnly(): boolean {
+    return !this.kmeansCardShown && !this.transformationDrafts.some((draft) => this.isDraftShown(draft));
+  }
+
+  /** Type chooser row: the blank model draft is reused before a second one is stacked. */
+  chooseTransformation(kind: 'categorical' | 'kmeans'): void {
+    if (kind === 'kmeans') {
+      this.kmeansClusterCardChosen.set(true);
+      this.kmeansClusterCardOpen.set(true);
+    } else {
+      const blank = this.transformationDraftState.firstHidden();
+      if (blank) {
+        blank.chosen = true;
+        blank.open = true;
+      } else {
+        this.addTransformationDraft();
+      }
+    }
+    this.cdr.markForCheck();
+  }
+
+  private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
+    const handler = config['missing_values_handler'] as
+      | { strategies?: Record<string, unknown> }
+      | undefined;
+    const entries = Object.entries(handler?.strategies ?? {}).filter(([, action]) => action !== 'no_action');
+    const imputed = entries.filter(([, action]) => action !== 'drop');
+    const pending = this.hasPendingMissingChanges ? 'pending' : 'applied';
+    const droppedByDefault = this.rowsDroppedByDefault;
+    const impact = droppedByDefault != null
+      ? `−${droppedByDefault.toLocaleString()} records`
+      : undefined;
+
+    if (imputed.length) {
+      const summary = imputed.slice(0, 3).map(([code, action]) => {
+        const variable = this.preprocessingVariables.find((v) => v.code === code);
+        return `${variable ? this.variableLabel(variable) : code}: ${this.missingStrategyLabel(String(action))}`;
+      });
+      return {
+        id: 'missing',
+        icon: 'fas fa-eraser',
+        title: 'Missing Values Strategy',
+        subtitle: `Imputation configured for ${imputed.length} ${imputed.length === 1 ? 'variable' : 'variables'} (${summary.join(', ')}${imputed.length > 3 ? ', …' : ''})`,
+        statusLabel: 'Applied',
+        statusTone: pending,
+      };
+    }
+
+    if (entries.length) {
+      return {
+        id: 'missing',
+        icon: 'fas fa-eraser',
+        title: 'Missing Values Handler',
+        subtitle: `Rows with missing values removed for ${entries.length} ${entries.length === 1 ? 'variable' : 'variables'}`,
+        statusLabel: 'Applied',
+        statusTone: pending,
+        impact,
+      };
+    }
+
+    return {
+      id: 'missing',
+      icon: 'fas fa-eraser',
+      title: 'Missing values',
+      subtitle: `All ${pluralize(this.preprocessingVariables.length, 'variable')}: remove rows with a missing value (default)`,
+      statusLabel: 'In run · Default',
+      statusTone: 'default',
+      impact,
+    };
+  }
+
+  missingStrategyLabel(action: string): string {
+    return this.missingActions.find((item) => item.value === action)?.label ?? action;
+  }
+
+  private visitLabel(code: unknown): string {
+    const value = String(code ?? '');
+    return this.visitOptions.find((option) => option.code === value)?.label ?? value;
+  }
+
+  get filteringStatusLabel(): string {
+    const count = this.filterRuleCount();
+    if (count > 0) return `In run · ${pluralize(count, 'rule')}`;
+    return 'Not in run yet';
+  }
+
+  /** Builder match chip after Preview: filtered rows (raw summary) out of the unfiltered
+   *  source snapshot. The processed summary is excluded: its drop is preprocessing, not the filter. */
+  get filterPreviewStatus(): string {
+    const matched = this.getSummaryTotalRows(this.rawSummary);
+    const source = this.getSummaryTotalRows(this.sourceSummary);
+    if (matched === null || source === null) return '';
+    // Never round a partial match to 0% or 100%: those read as "none" and "the filter does nothing".
+    const share = matched === source ? 100
+      : matched === 0 || source === 0 ? 0
+      : Math.min(99, Math.max(1, Math.round((matched / source) * 100)));
+    return `Matches ${matched.toLocaleString()} of ${source.toLocaleString()} records · ${share}%`;
+  }
+
+  /** Header "Records out" per stage, read off the summaries already loaded; null hides it.
+   *  With no stored rule the Raw summary is the unfiltered cohort, so it stands in for the
+   *  source snapshot, which is only fetched when Raw data is previewed. A Raw summary
+   *  pinned to an unapplied preview stands in for neither. */
+  get recordsOut(): { source: number | null; filtered: number | null; processed: number | null } {
+    // A Raw summary pinned to unsaved preview rules does not describe the stored cohort.
+    const rawIsStoredCohort = this.rawSummaryKey === this.rawSummaryKeyFor();
+    const filtered = rawIsStoredCohort ? this.getSummaryTotalRows(this.rawSummary) : null;
+    const source = this.getSummaryTotalRows(this.sourceSummary)
+      ?? (this.filterRuleCount() === 0 ? filtered : null);
+    return { source, filtered, processed: this.getSummaryTotalRows(this.processedSummary) };
+  }
+
+  /** Collapsed Cohort filtering: one row per top-level rule of the stored filter. */
+  get cohortRuleRows(): Array<{ title: string; subtitle: string }> {
+    return (this.expStudioService.filterLogic()?.rules ?? []).map((node) => {
+      if ('rules' in node) {
+        const joiner = node.condition === 'OR' ? ' or ' : ' and ';
+        const title = node.rules
+          .map((child) => ('rules' in child ? '(…)' : this.filterConditionSentence(child)))
+          .join(joiner);
+        const scope = node.condition === 'OR' ? 'any' : 'all';
+        return { title, subtitle: `Group · matches ${scope} of ${pluralize(countFilterRules(node), 'condition')}` };
+      }
+      return { title: this.filterConditionSentence(node), subtitle: node.type === 'string' ? 'Categorical' : 'Numerical' };
+    });
+  }
+
+  get cohortMatchesAny(): boolean {
+    return this.expStudioService.filterLogic()?.condition === 'OR';
+  }
+
+  /** "How to use" strip copy per expanded stage; K-means is projected into its card. */
+  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans', HowToGuide> = {
+    source: {
+      steps: ['Pick a variable on the left', 'Switch between Table, Charts and Histogram', 'Note gaps or odd ranges — fix them in the steps below'],
+      note: 'Read only — this preview never changes the data or the run.',
+    },
+    filters: {
+      steps: ['Add a condition: variable, operator, value', 'Preview to see who matches', 'Apply to use the filter in the run'],
+      note: 'Records that match stay in the run. Everything else is left out — the raw data itself is never changed.',
+    },
+    setup: {
+      steps: ['Pick a variable', 'Choose what happens to its missing values', 'Apply — the run uses your rules'],
+      note: "Variables you don't touch keep the default: rows with a missing value are removed.",
+    },
+    transformation: {
+      steps: ['Choose the kind of column to add', 'Define it — category rules or a K-means run', 'Done on a rule loads its counts, then Apply'],
+      note: 'The new column joins your variable list, so you can pick it as an outcome or predictor in Algorithm Selection.',
+    },
+    kmeans: {
+      steps: ['Choose the variables to group by', 'Run the K-means report and check the clusters', 'Name the column and use it'],
+      note: 'Rows missing any chosen variable are left out. A finished K-means run can be reused if it used the same data model, datasets and filters.',
+    },
+  };
+
+  readonly missingActions: Array<{ value: MissingAction; label: string }> = [
+    { value: 'drop', label: 'Remove rows' },
+    { value: 'mean', label: 'Mean imputation' },
+    { value: 'median', label: 'Median imputation' },
+    { value: 'constant', label: 'Constant value' },
+  ];
+
+  /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
+  previewDraftId: 'kmeans' | null = null;
+  /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
+  countsDraftId: number | null = null;
+  /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
+  /** The nominal-column cards (state and rules in TransformationDraftsService). */
+  get transformationDrafts(): TransformationColumnDraft[] {
+    return this.transformationDraftState.drafts;
+  }
+  set transformationDrafts(drafts: TransformationColumnDraft[]) {
+    this.transformationDraftState.drafts = drafts;
+  }
+  transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
+  isTransformationStatsLoading = false;
+  transformationStatisticsError = '';
+  private transformationStatsRequestId = 0;
+
+  readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
+    { value: 'diff', label: 'Diff (Visit 2 - Visit 1)' },
+    { value: 'first', label: 'Use visit 1' },
+    { value: 'second', label: 'Use visit 2' },
+  ];
+  readonly outlierStrategies = OUTLIER_STRATEGIES;
+  readonly outlierTails = OUTLIER_TAILS;
+
+  readonly metricLabel: Record<MetricKey, string> = {
+    num_dtps: 'Datapoints',
+    num_na: 'Missing',
+    num_total: 'Total',
+    mean: 'Mean',
+    std: 'Standard Deviation',
+    min: 'Min',
+    q1: 'Q1',
+    q2: 'Median',
+    q3: 'Q3',
+    max: 'Max',
+  };
+
+  private selectionKey = '';
+  /** Cohort half of `selectionKey`, so a preprocessing write can be ignored on its own. */
+  private cohortSelectionKey = '';
+  /**
+   * JSON of the applied config written by this component. The selection effect
+   * rehydrates every card from that signal; this write must not, or a card Apply
+   * wipes the other cards' pending edits.
+   */
+  private appliedConfigWrite = '';
+  /** Card preview describes that card's pending rules over the applied rest. */
+  private processedPreviewScope: PrepStep | 'all' = 'all';
+  private get rawSummaryKey(): string {
+    return this.statisticSummary.loadedKey.raw;
+  }
+  private set rawSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.raw = key;
+  }
+  /**
+   * The cohort rules the Raw surface was last fetched with when they are unsaved
+   * editor state. `undefined` means the surface follows the stored `filterLogic()`,
+   * so the selection effect may refresh it; a value — including `null` for "no rules
+   * at all" — pins the Raw summary to what the modal holds, so Preview shows the
+   * cohort the user is composing rather than the older stored one.
+   */
+  private rawPreviewFilter: BackendFilter | null | undefined = undefined;
+  /** Supersedes an in-flight raw describe so a late response cannot win. */
+  private rawDescribeSeq = 0;
+  private get processedSummaryKey(): string {
+    return this.statisticSummary.loadedKey.processed;
+  }
+  private set processedSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.processed = key;
+  }
+  private get sourceSummaryKey(): string {
+    return this.statisticSummary.loadedKey.source;
+  }
+  private set sourceSummaryKey(key: string) {
+    this.statisticSummary.loadedKey.source = key;
+  }
+  private processedPreviewSubscription: Subscription | null = null;
+  private sourcePreviewSubscription: Subscription | null = null;
+  /** Supersedes in-flight processed/source describes so a late response cannot win. */
+  private processedDescribeSeq = 0;
+  private sourceDescribeSeq = 0;
+  private scrollRequestId = 0;
+  private continueAfterApply = false;
+  private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
+  private readonly guideState = inject(ExperimentStudioGuideStateService);
+
+  constructor() {
+    effect(() => {
+      const layout = getAnalysisGuideLayout(this.guideState.activeStepId());
+      if (!layout) return;
+
+      if (layout.expandSection === 'none') {
+        this.collapseAllWorkflowSections();
+      } else {
+        this.goToSection(layout.expandSection);
+      }
+
+      if (layout.summaryKind && layout.summaryTab) {
+        this.setSummaryTab(layout.summaryKind, layout.summaryTab);
+      }
+
+      if (layout.preprocessingStep) {
+        this.preprocessingStepOpen = {
+          missing: layout.preprocessingStep === 'missing',
+          outlier: layout.preprocessingStep === 'outlier',
+          longitudinal: layout.preprocessingStep === 'longitudinal',
+          transformation: false,
+        };
+      }
+      this.cdr.markForCheck();
+    });
+
+    effect(() => {
+      const incomingProcessedData = this.processedDataInput();
+      this.processedData = incomingProcessedData;
+      this.isLoading = incomingProcessedData.length === 0;
+      this.cdr.markForCheck();
+    });
+
+    effect(() => {
+      const variables = this.expStudioService.selectedVariables();
+      const filters = this.expStudioService.selectedFilters();
+      const filterLogic = this.expStudioService.filterLogic();
+      const appliedPreprocessing = this.expStudioService.appliedPreprocessingConfig();
+      const cohortKey = selectionKey(variables, filters, filterLogic);
+      const nextSelectionKey = selectionKey(variables, filters, filterLogic, appliedPreprocessing);
+      const echoed = this.appliedConfigWrite;
+      if (
+        echoed
+        && echoed === JSON.stringify(appliedPreprocessing ?? null)
+        && cohortKey === this.cohortSelectionKey
+      ) {
+        this.appliedConfigWrite = '';
+        this.selectionKey = nextSelectionKey;
+        return;
+      }
+      this.appliedConfigWrite = '';
+
+      if (nextSelectionKey === this.selectionKey) return;
+      this.cohortSelectionKey = cohortKey;
+      this.selectionKey = nextSelectionKey;
+      this.reconcilePreprocessingForSelection();
+
+      if (!variables.length && !filters.length) {
+        this.rawDescribeSeq++;
+        this.processedDescribeSeq++;
+        this.sourceDescribeSeq++;
+        this.clearProcessedPreviewSubscription();
+        this.clearSourcePreviewSubscription();
+        this.clearHistogramSubscriptions(this.rawSummary);
+        this.clearHistogramSubscriptions(this.sourceSummary);
+        this.clearHistogramSubscriptions(this.processedSummary);
+        this.rawSummary = emptySummaryView(false);
+        this.processedSummary = emptySummaryView(false);
+        this.sourceSummary = emptySummaryView(false);
+        this.rawSummaryKey = '';
+        this.sourceSummaryKey = '';
+        this.processedSummaryKey = '';
+        this.processedData = [];
+        this.isLoading = false;
+        this.expStudioService.clearDataExclusionWarnings();
+        this.cdr.markForCheck();
+        return;
+      }
+
+      // Raw is "the variables as stored": it is requested with a null preprocessing
+      // config, so applying preprocessing cannot change its numbers and must not
+      // spend a second full federated describe on it. A Cohort Filtering preview owns
+      // the surface instead, and ensureRawSummary re-runs the describe with those
+      // unsaved rules rather than falling back to the stored cohort read above.
+      this.ensureRawSummary();
+      this.fetchProcessedPreview();
+      // untracked: the snapshot refreshes with the selection, but sectionOpen must
+      // not become a dependency of this effect or every section switch refetches raw.
+      if (untracked(this.sectionOpen).source) this.ensureSourceSummary();
+    });
+
+    effect(() => {
+      const request = this.scrollSectionRequest();
+      if (!request) return;
+
+      setTimeout(() => {
+        if (this.scrollSectionRequest()?.requestId !== request.requestId) return;
+        this.scrollSectionIntoView(request.section);
+        if (this.scrollSectionRequest()?.requestId === request.requestId) {
+          this.scrollSectionRequest.set(null);
+        }
+      });
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.destroyed.next();
+    this.destroyed.complete();
+    this.clearProcessedPreviewSubscription();
+    this.clearSourcePreviewSubscription();
+    this.clearHistogramSubscriptions(this.rawSummary);
+    this.clearHistogramSubscriptions(this.sourceSummary);
+    this.clearHistogramSubscriptions(this.processedSummary);
+  }
+
+  get pendingChangeCount(): number {
+    return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount;
+  }
+
+  readonly filterRuleCount = computed(() =>
+    countFilterRules(this.expStudioService.filterLogic())
+  );
+
+  /** Two columns cannot share a name: exaflow errors when `code` already exists. */
+get transformationHasDuplicateCodes(): boolean {
+    return this.transformationDraftState.hasDuplicateCodes;
+  }
+
+get transformationHasPendingChange(): boolean {
+    return this.transformationDraftState.hasPendingChange;
+  }
+
+  get transformationStatusLabel(): string {
+    const validCount = this.transformationDraftState.configs().length;
+    // An applied K-means cluster column is a derived column of this stage, so the stage
+    // is not "Not defined" just because no categorical card is configured.
+    const hasAppliedColumn = validCount > 0 || !!this.expStudioService.appliedKMeansClusterCreator();
+    if (hasAppliedColumn && !this.transformationHasPendingChange) return 'Applied';
+    if (
+      hasAppliedColumn
+      || this.transformationHasPendingChange
+      || this.transformationDraftState.hasAnyWork
+    ) {
+      return 'Not applied';
+    }
+    return 'Not set';
+  }
+
+  /** Pipeline-header badge: shows the derived-column count once applied. */
+  get transformationBadgeLabel(): string {
+    const count = this.appliedTransformationCount;
+    if (this.transformationStatusLabel === 'Applied' && count > 0) {
+      return `${count} ${count === 1 ? 'Transformation' : 'Transformations'} active`;
+    }
+    return this.transformationStatusLabel === 'Applied' ? 'Applied' : 'Not in run yet';
+  }
+
+
+  /** Status chip for the K-means cluster column card on the Transformation step. */
+  get kmeansClusterStatusLabel(): string {
+    return this.expStudioService.appliedKMeansClusterCreator() ? 'Applied' : 'Not set';
+  }
+
+  /** Collapsible body state of the K-means cluster column card. */
+  readonly kmeansClusterCardOpen = signal(false);
+  /** Picked from the type chooser: the card stays in the graph while folded, like a chosen draft. */
+  readonly kmeansClusterCardChosen = signal(false);
+
+  /** True when a named category on any card is still missing an applied filter. */
+get transformationRulesNeedFilters(): boolean {
+    return this.transformationDraftState.rulesNeedFilters;
+  }
+
+  get pendingMissingChangeCount(): number {
+    return this.hasPendingMissingChanges ? 1 : 0;
+  }
+
+  get hasPendingMissingChanges(): boolean {
+    return this.preprocessingVariables.some((variable) => this.preprocessingState.missingHasPendingChange(variable.code));
+  }
+
+  get pendingOutlierChangeCount(): number {
+    return this.hasPendingOutlierChanges ? 1 : 0;
+  }
+
+  get hasPendingOutlierChanges(): boolean {
+    return this.outlierPreprocessingVariables.some((variable) => this.preprocessingState.outlierHasPendingChange(variable.code));
+  }
+
+  get pendingLongitudinalChangeCount(): number {
+    if (!this.isLongitudinalModel) return 0;
+    return this.serializeLongitudinalState(false) === this.serializeLongitudinalState(true) ? 0 : 1;
+  }
+
+  get preprocessingVariables(): VariableRow[] {
+    const selectedVars = this.expStudioService.selectedVariables() as VariableRow[];
+    return Array.from(
+      new Map(selectedVars.map((variable) => [variable.code, variable])).values()
+    ).filter((variable) => !!variable?.code);
+  }
+
+  filteredPrepVariables(kind: PrepKind): VariableRow[] {
+    const query = this.prepSearch[kind].trim().toLowerCase();
+    const pool = kind === 'outlier' ? this.outlierPreprocessingVariables : this.preprocessingVariables;
+    if (!query) return pool;
+    return pool.filter((variable) => {
+      const label = this.variableLabel(variable).toLowerCase();
+      return label.includes(query) || String(variable.code).toLowerCase().includes(query);
+    });
+  }
+
+  get outlierPreprocessingVariables(): VariableRow[] {
+    return this.preprocessingVariables.filter((variable) => isOutlierEligibleVariable(variable));
+  }
+
+  prepGroups(kind: PrepKind): PreprocessingGroup[] {
+    return groupPreprocessingVariables(this.filteredPrepVariables(kind), (variable) => {
+      if (this.prepVariableHasPendingChange(kind, variable)) return 'pending';
+      if (this.prepVariableIsApplied(kind, variable)) return 'applied';
+      if (kind === 'missing' && this.isPreprocessingVariableUsingDefault(variable)) return 'default';
+      return 'not-applied';
+    });
+  }
+
+  selectedPrepVariable(kind: PrepKind): VariableRow | null {
+    const filtered = this.filteredPrepVariables(kind);
+    if (!filtered.length) return null;
+    return filtered.find((variable) => variable.code === this.selectedPrepCode[kind]) ?? filtered[0];
+  }
+
+  selectPrepVariable(kind: PrepKind, variable: VariableRow): void {
+    this.selectedPrepCode[kind] = variable.code;
+    this.cdr.markForCheck();
+  }
+
+  isPrepVariableSelected(kind: PrepKind, variable: VariableRow): boolean {
+    return this.selectedPrepVariable(kind)?.code === variable.code;
+  }
+
+  prepVariableStateLabel(kind: PrepKind, variable: VariableRow): string {
+    if (this.prepVariableHasPendingChange(kind, variable)) return 'Pending';
+    if (this.prepVariableIsApplied(kind, variable)) return 'Applied';
+    if (kind === 'missing' && this.isPreprocessingVariableUsingDefault(variable)) return 'Default';
+    return 'Not applied';
+  }
+
+    prepVariableHasPendingChange(kind: PrepKind, variable: VariableRow): boolean {
+    switch (kind) {
+      case 'missing':
+        return this.preprocessingState.missingHasPendingChange(variable.code);
+      case 'outlier':
+        return this.preprocessingState.outlierHasPendingChange(variable.code);
+      case 'longitudinal': {
+        if (!this.isLongitudinalModel) return false;
+        const pendingStrategy = this.pendingLongitudinalStrategies[variable.code] ?? this.defaultLongitudinalStrategy(variable);
+        const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? null;
+        return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
+      }
+      default: {
+        const _exhaustive: never = kind;
+        return _exhaustive;
+      }
+    }
+  }
+
+  private prepVariableIsApplied(kind: PrepKind, variable: VariableRow): boolean {
+    switch (kind) {
+      case 'missing':
+        return this.hasAppliedPreprocessing(variable.code);
+      case 'outlier':
+        return this.hasAppliedOutlierPreprocessing(variable.code);
+      case 'longitudinal':
+        return this.hasAppliedLongitudinalPreprocessing(variable.code);
+      default: {
+        const _exhaustive: never = kind;
+        return _exhaustive;
+      }
+    }
+  }
+
+isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
+    return this.preprocessingState.isUsingDefaultMissing(variable.code);
+  }
+
+  get longitudinalVisitPairHasPendingChange(): boolean {
+    return this.longitudinalVisit1 !== this.appliedLongitudinalVisit1 || this.longitudinalVisit2 !== this.appliedLongitudinalVisit2;
+  }
+
+  get missingPreprocessingStatusLabel(): string {
+    if (this.hasPendingMissingChanges) {
+      return `${pluralize(this.pendingMissingChangeCount, 'change')} · not applied`;
+    }
+    if (Object.values(this.appliedPreprocessingRules).some((rule) => rule.enabled && rule.action !== 'no_action')) return 'Applied';
+    if (this.preprocessingVariables.some((variable) => this.isPreprocessingVariableUsingDefault(variable))) return 'Default · in run';
+    return 'Required';
+  }
+
+  get outlierPreprocessingStatusLabel(): string {
+    if (!this.outlierPreprocessingVariables.length) return 'Not available';
+    if (this.hasPendingOutlierChanges) {
+      return `${pluralize(this.pendingOutlierChangeCount, 'change')} · not applied`;
+    }
+    if (Object.values(this.appliedOutlierRules).some((rule) => rule.enabled)) return 'Applied';
+    return 'Optional';
+  }
+
+  get hasOutlierRulesForPreview(): boolean {
+    return !!this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
+  }
+
+  get longitudinalPreprocessingStatusLabel(): string {
+    if (!this.isLongitudinalModel) return 'Not available';
+    if (this.pendingLongitudinalChangeCount > 0) {
+      return `${pluralize(this.pendingLongitudinalChangeCount, 'change')} · not applied`;
+    }
+    if (this.appliedLongitudinalEnabled) return 'Applied';
+    return 'Required';
+  }
+
+  get selectedFilters(): VariableRow[] {
+    return this.expStudioService.selectedFilters() as VariableRow[];
+  }
+
+  get isLongitudinalModel(): boolean {
+    return !!this.expStudioService.selectedDataModel()?.longitudinal;
+  }
+
+  get visitOptions(): Array<{ code: string; label: string }> {
+    const visitVariable = this.findModelVariable('visitid');
+    return (visitVariable?.enumerations ?? [])
+      .map((item) => {
+        const code = item?.code === undefined || item?.code === null ? '' : String(item.code);
+        return {
+          code,
+          label: String(item?.label ?? item?.name ?? item?.code ?? ''),
+        };
+      })
+      .filter((item) => item.code);
+  }
+
+  setSummaryTab(kind: SummaryKind, tab: TabKey): void {
+    const summary = this.getSummary(kind);
+    summary.activeTab = tab;
+    this.summaryExportMenuKind.set(null);
+    if (tab === 'Histogram') {
+      const block = this.selectedStatisticBlock(kind);
+      if (block) this.ensureHistogramForBlock(kind, block);
+    }
+    this.cdr.markForCheck();
+  }
+
+  filteredStatisticBlocks(kind: SummaryKind): PivotBlock[] {
+    const summary = this.getSummary(kind);
+    const query = this.statisticsSearch[kind].trim().toLowerCase();
+    if (!query) return summary.data;
+    return summary.data.filter((block) => {
+      const variable = this.variableForBlock(block);
+      return [
+        block.name,
+        variable?.code,
+        variable?.label,
+        variable?.name,
+      ].some((value) => String(value ?? '').toLowerCase().includes(query));
+    });
+  }
+
+  statisticBlocks(kind: SummaryKind, type: StatisticVariableType): PivotBlock[] {
+    return this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+  }
+
+  selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
+    const summary = this.getSummary(kind);
+    summary.selectedStatisticKey = statisticBlockKey(block);
+    if (summary.activeTab === 'Histogram') {
+      this.ensureHistogramForBlock(kind, block);
+    }
+  }
+
+  selectedStatisticBlock(kind: SummaryKind): PivotBlock | null {
+    const filtered = this.filteredStatisticBlocks(kind);
+    if (!filtered.length) return null;
+    const selectedKey = this.getSummary(kind).selectedStatisticKey;
+    return filtered.find((block) => statisticBlockKey(block) === selectedKey) ?? filtered[0];
+  }
+
+  isStatisticBlockSelected(kind: SummaryKind, block: PivotBlock): boolean {
+    const selected = this.selectedStatisticBlock(kind);
+    return !!selected && statisticBlockKey(selected) === statisticBlockKey(block);
+  }
+
+  statisticBlockVariable(block: PivotBlock): VariableRow | null {
+    return this.variableForBlock(block);
+  }
+
+  statisticBlockTypeLabel(kind: SummaryKind, block: PivotBlock): string {
+    return this.statisticBlockType(kind, block) === 'numeric' ? 'Numerical' : 'Categorical';
+  }
+
+  selectedSummaryChartType(kind: SummaryKind, block: PivotBlock): 'numeric' | 'nominal' {
+    return this.statisticBlockType(kind, block);
+  }
+
+  selectedSummaryChartTypeLabel(kind: SummaryKind, block: PivotBlock): string {
+    return this.selectedSummaryChartType(kind, block) === 'numeric' ? 'Numerical' : 'Categorical';
+  }
+
+  selectedSummaryChartOptions(kind: SummaryKind, block: PivotBlock): EChartsOption[] {
+    const variable = this.statisticBlockVariable(block);
+    if (!variable) return [];
+
+    const summary = this.getSummary(kind);
+    if (this.selectedSummaryChartType(kind, block) === 'numeric') {
+      const index = summary.nonNominalVariables.findIndex((item) => item.code === variable.code);
+      return index >= 0 ? summary.chartsForBoxPlot[index] ?? [] : [];
+    }
+
+    const index = summary.nominalVariables.findIndex((item) => item.code === variable.code);
+    return index >= 0 ? summary.chartsForNominal[index] ?? [] : [];
+  }
+
+  selectedSummaryHistogramData(kind: SummaryKind, block: PivotBlock): HistogramPreviewData | null {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return null;
+    return this.getSummary(kind).histogramDataByVariable[this.histogramLookupKey(kind, block, code)] ?? null;
+  }
+
+  summaryHistogramLoading(kind: SummaryKind, block: PivotBlock): boolean {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return false;
+    return !!this.getSummary(kind).histogramLoadingByVariable[this.histogramLookupKey(kind, block, code)];
+  }
+
+  /** What a histogram run covers, spelled out for the loading state. The pooled
+     "all datasets" rollup is a result column, not a node, so it is not counted. */
+  summaryHistogramRunLabel(block: PivotBlock): string {
+    return this.federatedRunLabel(block.columns.filter((column) => !this.isRollupColumn(column)).length);
+  }
+
+  /** Fan-out wording for a run that has not returned yet, read from the live scope. */
+  summaryScopeRunLabel(): string {
+    const excluded = this.expStudioService.excludedDatasets();
+    const nodes = this.expStudioService.selectedDatasets().filter((ds) => !excluded.includes(ds)).length;
+    return this.federatedRunLabel(nodes);
+  }
+
+  private federatedRunLabel(nodes: number): string {
+    return `Calculated on ${nodes} dataset ${nodes === 1 ? 'node' : 'nodes'}`;
+  }
+
+  summaryHistogramError(kind: SummaryKind, block: PivotBlock): string {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return '';
+    return this.getSummary(kind).histogramErrorByVariable[this.histogramLookupKey(kind, block, code)] ?? '';
+  }
+
+  canSplitSummaryHistogram(kind: SummaryKind, block: PivotBlock): boolean {
+    return this.selectedSummaryChartType(kind, block) === 'numeric';
+  }
+
+  histogramSplitOptions(block: PivotBlock): HistogramSplitOption[] {
+    return buildHistogramSplitOptions({
+      plottedCode: this.variableCodeForBlock(block),
+      selectedVariables: this.expStudioService.selectedVariables(),
+      datasetLevelCount: this.expStudioService.selectedDatasets().length,
+    });
+  }
+
+  onHistogramSplitChange(kind: SummaryKind, block: PivotBlock, event: Event): void {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return;
+    const selected = (event.target as HTMLSelectElement).value;
+    const option = this.histogramSplitOptions(block).find((item) => item.code === selected);
+    const split = option && !option.disabled ? selected : HISTOGRAM_SPLIT_NONE;
+    const summary = this.getSummary(kind);
+    summary.histogramSplitByVariable = {
+      ...summary.histogramSplitByVariable,
+      [code]: split,
+    };
+    this.ensureHistogramForBlock(kind, block);
+    this.cdr.markForCheck();
+  }
+
+  /** The block's split, or none once it is no longer offered or enabled. */
+  histogramSplitValue(kind: SummaryKind, block: PivotBlock): string {
+    if (!this.canSplitSummaryHistogram(kind, block)) return HISTOGRAM_SPLIT_NONE;
+    const code = this.variableCodeForBlock(block);
+    if (!code) return HISTOGRAM_SPLIT_NONE;
+    const split = this.getSummary(kind).histogramSplitByVariable[code] ?? HISTOGRAM_SPLIT_NONE;
+    if (!split) return HISTOGRAM_SPLIT_NONE;
+    const option = this.histogramSplitOptions(block).find((item) => item.code === split);
+    return option && !option.disabled ? split : HISTOGRAM_SPLIT_NONE;
+  }
+
+  private histogramLookupKey(kind: SummaryKind, block: PivotBlock, code: string): string {
+    return histogramCacheKey(code, this.histogramSplitValue(kind, block));
+  }
+
+  goToSection(section: SectionKey): void {
+    const filtersStation = section === 'filters' || section === 'raw';
+    const setupStation = section === 'setup' || section === 'processed';
+    const previewFilters = section === 'raw';
+    const previewSetup = section === 'processed';
+    if (filtersStation) {
+      this.addedSteps.update((s) => ({ ...s, filters: true }));
+    }
+    if (setupStation) {
+      this.addedSteps.update((s) => ({ ...s, setup: true }));
+    }
+    if (section === 'transformation') {
+      this.addedSteps.update((s) => ({ ...s, transformation: true }));
+    }
+    this.summaryExpanded.set({
+      filters: previewFilters,
+      setup: previewSetup,
+    });
+    this.sectionOpen.set({
+      source: section === 'source',
+      filters: filtersStation && !previewFilters,
+      raw: previewFilters,
+      setup: setupStation && !previewSetup,
+      processed: previewSetup,
+      transformation: section === 'transformation',
+    });
+    if (section === 'raw') {
+      // The Raw summary must show the cohort it claims to: the stored rules, or the
+      // unsaved ones a Cohort Filtering preview pinned to it.
+      this.ensureRawSummary();
+    }
+    if (section === 'processed') {
+      // Pipeline consistency: the processed preview always mirrors the current
+      // pipeline state (cohort filter + configured preprocessing, pending edits
+      // included), not just the last persisted snapshot.
+      this.fetchProcessedPreview();
+    }
+    this.cdr.markForCheck();
+    this.requestSectionScroll(section);
+  }
+
+  /**
+   * Scrolling is a request, not a call: the section is measured only after the template
+   * has reacted to whatever just opened or closed. Shared by goToSection and the stations'
+   * Close action, which folds an editor away and must not leave the viewport stranded.
+   */
+  private requestSectionScroll(section: SectionKey): void {
+    this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
+  }
+
+  /**
+   * Step 0 is a read: it shows the selection as stored and can never write the
+   * experiment request, so it toggles a section instead of adding a stage.
+   */
+  toggleSourcePreview(): void {
+    if (this.sectionOpen().source) {
+      this.collapseAllWorkflowSections();
+      this.cdr.markForCheck();
+      return;
+    }
+    this.goToSection('source');
+    this.ensureSourceSummary();
+  }
+
+  /**
+   * The snapshot's own cache key: the variable and dataset scope it describes. The
+   * shared `selectionKey` also folds in the cohort filter and the applied preprocessing,
+   * neither of which this request carries, so keying on it would refetch an identical
+   * snapshot on every committed filter rule while the preview happens to be open.
+   */
+  private get sourceScopeKey(): string {
+    return JSON.stringify({
+      variables: this.preprocessingVariables.map((variable) => variable.code).sort(),
+      datasets: this.expStudioService.selectedDatasets(),
+    });
+  }
+
+  /** The snapshot follows the selection, so reopening it after a change refetches. */
+  ensureSourceSummary(): void {
+    if (this.sourceSummaryKey === this.sourceScopeKey && !this.sourceSummary.isLoading) return;
+    this.fetchSourceSummary();
+  }
+
+  /**
+   * The same describe run that feeds the Raw summary with the cohort filter and
+   * the preprocessing steps left off. It fills a `SummaryView`, so step 0 reuses
+   * the shared summary workspace - browser, statistics, charts, histograms,
+   * export - instead of a second presentation of its own.
+   */
+  fetchSourceSummary(): void {
+    const variableCodes = this.preprocessingVariables.map((item) => item.code);
+    const hasScope = !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
+    if (!hasScope || !variableCodes.length) {
+      this.sourceSummary = emptySummaryView(false);
+      this.sourceSummaryKey = '';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const requestedKey = this.sourceScopeKey;
+    const requestSeq = ++this.sourceDescribeSeq;
+    this.clearHistogramSubscriptions(this.sourceSummary);
+    this.sourceSummary = { ...this.sourceSummary, isLoading: true };
+    this.cdr.markForCheck();
+
+    // No filter payload, no preprocessing steps: the data exactly as selected.
+    this.clearSourcePreviewSubscription();
+    this.sourcePreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, null, null, null)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.sourceDescribeSeq) return;
+          this.clearSourcePreviewSubscription();
+          this.sourceSummary = this.buildSummaryFromResponse(response, 'source');
+          this.sourceSummaryKey = requestedKey;
+          this.refreshActiveHistogramPreview('source');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.sourceDescribeSeq) return;
+          this.clearSourcePreviewSubscription();
+          console.error(err);
+          this.sourceSummary = { ...this.sourceSummary, isLoading: false };
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /** Heading and aria text, so one summary template reads correctly for all three kinds. */
+  summaryKindLabel(kind: SummaryKind): string {
+    return kind === 'source' ? 'Source data' : kind === 'raw' ? 'Raw data' : 'Processed data';
+  }
+
+  /** Anchor name for one slot of the shared summary template; see `SUMMARY_GUIDE_ANCHORS`. */
+  summaryGuideAnchor(kind: SummaryKind, anchor: SummaryAnchorKey): string | null {
+    return SUMMARY_GUIDE_ANCHORS[kind][anchor];
+  }
+
+  /** Close on a data preview returns to the station editor (filters or preprocessing). */
+  toggleSummaryWorkspace(kind: SummaryKind): void {
+    if (kind === 'raw') {
+      this.goToSection(this.sectionOpen().raw ? 'filters' : 'raw');
+      return;
+    }
+    this.updatePreprocessingStatus();
+    this.goToSection(this.sectionOpen().processed ? 'setup' : 'processed');
+  }
+
+  collapseAllWorkflowSections(): void {
+    this.sectionOpen.set({
+      source: false,
+      raw: false,
+      setup: false,
+      filters: false,
+      processed: false,
+      transformation: false,
+    });
+    this.cdr.markForCheck();
+  }
+
+  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal' | 'transformation'): void {
+    this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
+  }
+
+  /** "How this works" disclosures, moved from the body summary into the card header. */
+  readonly preprocessingDocOpen = signal<Record<'missing' | 'outlier' | 'longitudinal', boolean>>({
+    missing: false,
+    outlier: false,
+    longitudinal: false,
+  });
+
+  togglePreprocessingDoc(step: 'missing' | 'outlier' | 'longitudinal'): void {
+    this.preprocessingDocOpen.update((open) => ({ ...open, [step]: !open[step] }));
+    this.cdr.markForCheck();
+  }
+
+  /** Maps a station status label onto the shared chip states (Default / Pending / Applied). */
+  statusTone(label: string, pending = false): StationStatus {
+    if (pending) return 'pending';
+    return label === 'Applied' ? 'applied' : 'default';
+  }
+
+  /**
+   * Persist live category-filter builders onto every rule (across all cards, or only
+   * `only`'s) without touching cohort filters. A rule is rewritten only when its builder
+   * can speak for it: a builder that rejects its own half-typed condition, or that could
+   * not read what the store holds, leaves that rule as it is rather than exporting an
+   * empty filter and erasing a configured category.
+   */
+  commitTransformationRuleFilters(only?: TransformationColumnDraft): void {
+    for (const draft of this.transformationDrafts) {
+      if (only && draft !== only) continue;
+      for (const rule of draft.rules) {
+        const builder = this.ruleBuilders.get(rule);
+        if (!builder) continue;
+        const logic = builder.exportFilterLogic();
+        // Keep walking the remaining cards: one broken builder must not stop the
+        // others from committing what they hold. The builder renders its own error.
+        if (builder.filterError()) continue;
+        rule.filter = logic;
+      }
+    }
+    this.onTransformationChange();
+  }
+
+  /** The K-means card's Preview: cluster counts, shown in place of its editor. */
+  previewTransformationCard(): void {
+    this.previewDraftId = 'kmeans';
+    this.refreshTransformationStatistics();
+    this.cdr.markForCheck();
+  }
+
+  closeTransformationPreview(): void {
+    this.previewDraftId = null;
+    this.cdr.markForCheck();
+  }
+
+  toggleTransformationPreview(): void {
+    if (this.previewDraftId) this.closeTransformationPreview();
+    else this.previewTransformationCard();
+  }
+
+  transformationStatsFor(code: string): Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> {
+    const target = code.trim();
+    return this.transformationStatistics.filter((block) => block.code === target);
+  }
+
+  /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
+draftHasNewWork(draft: TransformationColumnDraft): boolean {
+    return this.transformationDraftState.hasNewWork(draft);
+  }
+
+  /** A card's own Apply/Close: commit its rule builders, then fold it once it is settled.
+   *  Valid cards are persisted as they are typed, so this never writes other cards. */
+  commitTransformationDraft(draft: TransformationColumnDraft): void {
+    this.commitTransformationRuleFilters(draft);
+    // An untouched category row (no name, no rule) is dropped, not left to block Apply.
+    for (let index = draft.rules.length - 1; index >= 0; index--) {
+      const rule = draft.rules[index];
+      if (!rule.value.trim() && !rule.filter) this.removeTransformationRule(draft, index);
+    }
+    if (!this.draftHasNewWork(draft)) draft.open = false;
+    this.cdr.markForCheck();
+  }
+
+  /** Clear the transformation station: pending edits and the committed config alike. */
+resetTransformation(): void {
+    this.transformationDraftState.reset();
+    this.previewDraftId = null;
+    this.kmeansClusterCardChosen.set(false);
+    this.kmeansClusterCardOpen.set(false);
+    this.transformationStatistics = [];
+    this.transformationStatisticsError = '';
+    // The K-means cluster column is a derived column of this stage too.
+    this.expStudioService.setKMeansClusterPreprocessing(null);
+    this.onTransformationChange();
+  }
+
+  /** A new category opens straight onto its filter, with the first condition ready. */
+addTransformationRule(draft: TransformationColumnDraft): void {
+    const index = this.transformationDraftState.addRule(draft);
+    this.onTransformationChange();
+    this.cdr.detectChanges();
+    this.ruleBuilderAt(draft, index)?.ensureFirstCondition();
+  }
+
+  private ruleBuilderAt(draft: TransformationColumnDraft, index: number): RuleBuilder | undefined {
+    const rule = draft.rules[index];
+    return rule ? this.ruleBuilders.get(rule) : undefined;
+  }
+
+  /**
+   * Done on the rule being edited: save what its builder holds and fold back to the
+   * category list. A builder with an error stays open and shows its own message.
+   */
+  finishTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    const modal = this.ruleBuilderAt(draft, index);
+    if (modal) {
+      const logic = modal.exportFilterLogic();
+      if (modal.filterError()) {
+        this.cdr.markForCheck();
+        return;
+      }
+      draft.rules[index].filter = logic;
+    }
+    draft.openRuleIndex = null;
+    this.onTransformationChange();
+    this.countsDraftId = draft.id;
+    this.refreshTransformationStatistics();
+  }
+
+removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    this.transformationDraftState.removeRule(draft, index);
+    this.onTransformationChange();
+  }
+
+  toggleTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    draft.openRuleIndex = draft.openRuleIndex === index ? null : index;
+    this.cdr.markForCheck();
+  }
+
+  /** A one-line rule summary for the collapsed row. */
+  transformationRuleSummary(rule: TransformationRule): string {
+    const condition = firstFilterCondition(rule.filter);
+    return condition ? this.filterConditionSentence(condition) : 'No rule yet';
+  }
+
+  /** `Age is at least 60`: one condition in words, labelled from the selected variables. */
+  private filterConditionSentence(condition: { field: string; operator: string; value: unknown }): string {
+    const variable = this.expStudioService.selectedVariables()
+      .find((item) => String(item?.code ?? '') === condition.field);
+    const label = String(variable?.label ?? variable?.name ?? condition.field);
+    const enumLabel = (code: string) =>
+      variable?.enumerations?.find((item: { code?: unknown }) => String(item?.code) === code)?.label || code;
+    const values = (Array.isArray(condition.value) ? condition.value : [condition.value ?? ''])
+      .map((value) => enumLabel(String(value)))
+      .join(', ');
+    const phrase = filterOperatorPhrase(condition.operator);
+    return values ? `${label} ${phrase} ${values}` : `${label} ${phrase}`;
+  }
+
+  /** Loaded record count for one enumeration of a card's column. */
+  transformationCount(draft: TransformationColumnDraft, value: string): string {
+    const block = this.transformationStatistics.find((item) => item.code === draft.code.trim());
+    const row = block?.rows.find((item) => item.value === value);
+    return row?.count != null ? row.count.toLocaleString() : '—';
+  }
+
+  /** Per-card chip: Applied only when every category is complete and the name is unique.
+   *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
+transformationDraftStatus(draft: TransformationColumnDraft): TransformationDraftStatus {
+    return this.transformationDraftState.status(draft);
+  }
+
+  toggleTransformationDraft(draft: TransformationColumnDraft): void {
+    draft.open = !draft.open;
+    this.cdr.markForCheck();
+  }
+
+  /** Append another empty "Create new categorical column" card. */
+addTransformationDraft(): void {
+    // Opening another editor is a read: an empty card has no config to persist, so
+    // leave the stored transformation untouched until the user types/commits.
+    this.transformationDraftState.add();
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Remove a card. The last one is reset to the blank, unchosen model draft rather than
+   * removed, so the stage falls back to its type chooser (same as shared Clear).
+   */
+removeTransformationDraft(id: number): void {
+    if (this.transformationDraftState.remove(id)) this.onTransformationChange();
+  }
+
+  onTransformationInput(): void {
+    this.onTransformationChange();
+  }
+
+  preprocessingStepDocumentation(stepName: string): string {
+    const algorithms = Object.values(this.expStudioService.backendAlgorithms?.() ?? {}) as Array<{
+      preprocessing?: Array<{ name: string; documentation?: string }>;
+    }>;
+    const step = algorithms
+      .flatMap((algorithm) => algorithm.preprocessing ?? [])
+      .find((candidate) => candidate.name === stepName);
+    return step?.documentation?.trim() ?? '';
+  }
+
+  formatPreprocessingDocumentationHtml(stepName: string): string {
+    return buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName));
+  }
+
+
+  // ── Preprocessing evidence ────────────────────────────────────────────────
+  // A preprocessing form states a decision but never priced it. These read the
+  // descriptive stats already loaded for the Raw summary, so "Remove rows" can
+  // say how many rows it removes. Every helper returns null/empty when the
+  // stats have not arrived; the editor then shows no evidence at all rather
+  // than an estimate — an unpriced decision is honest, a made-up price is not.
+  summaryBlockFor(variable: VariableRow): PivotBlock | null {
+    return this.rawSummary.data.find((block) => this.variableCodeForBlock(block) === variable.code) ?? null;
+  }
+
+  coverageFor(variable: VariableRow): { total: number; missing: number; share: number } | null {
+    return this.blockCoverage(this.summaryBlockFor(variable));
+  }
+
+  /** Block-based coverage. Both rails price a variable the same way, so the
+   *  lookup lives here and coverageFor() stays the variable-based entry. */
+  blockCoverage(block: PivotBlock | null | undefined): { total: number; missing: number; share: number } | null {
+    if (!block) return null;
+    const total = this.statisticMetricNumber(block, 'Total');
+    if (total <= 0) return null;
+    const missing = Math.min(this.statisticMissingValue(block), total);
+    return { total, missing, share: missing / total };
+  }
+
+  /** Display form of a canonical pivot value: parse the stored string, then
+   *  locale-group it. Storage and CSV export use `formatNumber`, never this. */
+  displayNumber(value: string | undefined | null): string {
+    if (value === null || value === undefined || value === '') return value ?? '';
+    const n = Number(String(value).replace(/,/g, ''));
+    if (!Number.isFinite(n)) return value;
+    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  missingShareNote(block: PivotBlock, row: PivotBlock['rows'][number], dataset: string): string | null {
+    if (row.metric !== 'Missing') return null;
+    const parse = (metric: string) =>
+      Number((block.rows.find((item) => item.metric === metric)?.values[dataset] ?? '').replace(/,/g, ''));
+    const missing = parse('Missing');
+    const total = parse('Total');
+    if (!Number.isFinite(missing) || !Number.isFinite(total) || total <= 0) return null;
+    return this.coveragePercent({ share: Math.min(missing / total, 1) });
+  }
+
+  /** The rail's foot: coverage re-pooled over every variable currently shown.
+   *  Per-variable shares are not additive, so this sums the counts and divides
+   *  once — averaging 0.7% and 100% would state a number that describes no
+   *  dataset. Null when no shown block has statistics, so the foot disappears
+   *  rather than reporting 0%. */
+  selectionCoverage(kind: SummaryKind): { total: number; missing: number; share: number; variables: number } | null {
+    let total = 0;
+    let missing = 0;
+    let variables = 0;
+    for (const block of this.filteredStatisticBlocks(kind)) {
+      const coverage = this.blockCoverage(block);
+      if (!coverage) continue;
+      total += coverage.total;
+      missing += coverage.missing;
+      variables += 1;
+    }
+    if (variables === 0 || total <= 0) return null;
+    return { total, missing, share: Math.min(missing / total, 1), variables };
+  }
+
+  /** The pooled column is a rollup, not another dataset. Normalised through the
+   *  same label lookup the header uses, because the pivot columns are already
+   *  labelled and the header labels them again — this holds either way. */
+  isRollupColumn(column: string): boolean {
+    return this.datasetLabel(column) === this.datasetLabel('all datasets');
+  }
+
+  private isCountMetric(metric: string | undefined): boolean {
+    return metric === 'Datapoints' || metric === 'Missing' || metric === 'Total';
+  }
+
+  /** Group heading rendered above rows[index], or null when the row continues
+   *  the group above it. A group starts where count-ness changes. */
+  metricGroupLabel(rows: PivotBlock['rows'], index: number): string | null {
+    const here = this.isCountMetric(rows[index]?.metric);
+    if (index === 0 || this.isCountMetric(rows[index - 1]?.metric) !== here) {
+      return here ? 'Coverage' : 'Distribution';
+    }
+    return null;
+  }
+
+  coveragePercent(coverage: { share: number }): string {
+    return formatPercent(coverage.share * 100);
+  }
+
+  /** Bar length for a share scaled up so small shares stay visible (×1000: 5% is a half
+   *  bar), floored at 2% so a clean variable still shows the track. */
+  barWidth(share: unknown, scale: number): number {
+    return Math.max(2, Math.min(100, (parseNumber(share) ?? 0) * scale));
+  }
+
+  /** The full count belongs in its tooltip; the row only carries the share. */
+  coverageTitle(coverage: { total: number; missing: number }): string {
+    return `${coverage.missing.toLocaleString()} of ${coverage.total.toLocaleString()} values missing`;
+  }
+
+  /** An unpriced decision must say why it is unpriced, not render blank.
+     Shared by both preprocessing evidence panes. */
+  summaryUnavailableNote(): string {
+    return this.rawSummary.isLoading
+      ? 'Loading dataset statistics\u2026'
+      : 'No dataset statistics are available for this variable, so neither the distribution nor the row cost can be shown.';
+  }
+
+  /** Three bands. At the old single 10% floor 30% and 100% rendered in the same
+   *  red, so across a rail of variables the colour ranked nothing. 10% keeps the
+   *  studio's existing "worth noticing" onset; 50% is where a variable stops
+   *  being usable. The exact figure always sits beside the colour. */
+  coverageSeverity(coverage: { share: number }): 'none' | 'warning' | 'high' {
+    if (coverage.share >= 0.5) return 'high';
+    if (coverage.share >= 0.1) return 'warning';
+    return 'none';
+  }
+
+  distributionFor(variable: VariableRow): Array<{ label: string; value: string }> {
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    // A nominal block carries no quantile rows at all, so the lookups come back
+    // 'N/A'; those are absent data, not values, and must not render as a row of N/A.
+    return (['mean', 'std', 'min', 'q1', 'q2', 'q3', 'max'] as const)
+      .map((key) => ({
+        label: this.metricLabel[key],
+        value: this.displayNumber(this.statisticMetricText(block, this.metricLabel[key])),
+      }))
+      .filter((point) => point.value !== 'N/A');
+  }
+
+  /** Category frequencies. In the pivot these are the rows after the three
+   *  count metrics, so anything that is not a count metric is a category — but
+   *  only for a nominal block. A numeric block's remaining rows are Mean/Std/
+   *  Min/Q1/Q2/Q3/Max, which are not categories and were being relabelled. */
+  categoryCountsFor(variable: VariableRow, limit = 6): Array<{ label: string; value: string; share: number }> {
+    if (!this.isCategoricalVariable(variable)) return [];
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    const base = new Set(['Datapoints', 'Missing', 'Total']);
+    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
+    const datapoints = Number((block.rows.find((row) => row.metric === 'Datapoints')?.values[dataset] ?? '').replace(/,/g, ''));
+    return block.rows
+      .filter((row) => !base.has(row.metric))
+      .map((row) => {
+        const value = row.values[dataset] ?? '';
+        const count = Number(value.replace(/,/g, ''));
+        return {
+          label: row.metric,
+          value: this.displayNumber(value || '0'),
+          share: Number.isFinite(count) && datapoints > 0 ? Math.min(count / datapoints, 1) : 0,
+        };
+      })
+      .slice(0, limit);
+  }
+
+  /** The selected missing-value action restated in rows, so it can be judged. */
+  missingActionConsequence(variable: VariableRow): string | null {
+    const coverage = this.coverageFor(variable);
+    if (!coverage) return null;
+    const total = coverage.total.toLocaleString();
+    const missing = coverage.missing.toLocaleString();
+    const share = this.coveragePercent(coverage);
+    const action = this.ruleFor(variable).action;
+    if (action === 'drop') {
+      return coverage.missing > 0
+        ? `Drops up to ${missing} of ${total} rows (${share}).`
+        : `No missing values, so no rows are dropped.`;
+    }
+    if (action === 'no_action') return `${missing} of ${total} values (${share}) stay missing.`;
+    const fill = action === 'constant' ? 'a fixed value' : `the ${action}`;
+    return `Fills ${missing} of ${total} values (${share}) with ${fill}. Rows kept.`;
+  }
+
+  /**
+   * What each preprocessing card does for a scoped Apply / Discard. A scope of 'all' runs
+   * every card's op in this order, so a new card is added here and nowhere else.
+   */
+  private readonly prepStepOps: Record<PrepStep, {
+    pending: () => number;
+    validate: () => Record<string, string>;
+    commit: () => void;
+    reset: () => void;
+  }> = {
+    missing: {
+      pending: () => this.pendingMissingChangeCount,
+      validate: () => this.validatePendingMissingRules(),
+      commit: () => {
+        this.appliedPreprocessingRules = this.mergeRulesForCurrentSelection(
+          this.appliedPreprocessingRules,
+          this.pendingPreprocessingRules
+        );
+      },
+      reset: () => {
+        this.pendingPreprocessingRules = this.mergeRulesForCurrentSelection(
+          this.pendingPreprocessingRules,
+          this.appliedPreprocessingRules
+        );
+      },
+    },
+    outlier: {
+      pending: () => this.pendingOutlierChangeCount,
+      validate: () => this.validatePendingOutlierRules(),
+      commit: () => {
+        this.appliedOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+          this.appliedOutlierRules,
+          this.pendingOutlierRules
+        );
+      },
+      reset: () => {
+        this.pendingOutlierRules = this.mergeOutlierRulesForCurrentSelection(
+          this.pendingOutlierRules,
+          this.appliedOutlierRules
+        );
+      },
+    },
+    longitudinal: {
+      pending: () => this.pendingLongitudinalChangeCount,
+      validate: () => this.validatePendingLongitudinalRules(),
+      commit: () => {
+        this.appliedLongitudinalEnabled = this.isLongitudinalModel;
+        this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
+        this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
+        this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+      },
+      reset: () => {
+        this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
+        this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
+        this.pendingLongitudinalStrategies = { ...this.appliedLongitudinalStrategies };
+        this.ensureLongitudinalDefaults();
+      },
+    },
+  };
+
+  private stepsIn(scope: PrepStep | 'all'): PrepStep[] {
+    return scope === 'all' ? ['missing', 'outlier', 'longitudinal'] : [scope];
+  }
+
+  /** Pending edits of one preprocessing card; the stage count sums these. */
+  stepPendingCount(step: PrepStep): number {
+    return this.prepStepOps[step].pending();
+  }
+
+  stepApplyLabel(step: PrepStep): string {
+    if (this.isApplyingPreprocessing) return 'Applying…';
+    return this.stepPendingCount(step) > 0 ? 'Apply' : 'Close';
+  }
+
+  /** Card footer primary: apply only this card's edits, or fold the card when it has none. */
+  commitOrCloseStep(step: PrepStep): void {
+    if (this.stepPendingCount(step) > 0) {
+      this.applyPreprocessing(step);
+      return;
+    }
+    this.preprocessingStepOpen[step] = false;
+    this.cdr.markForCheck();
+  }
+
+  /** Choice-card effect line. Empty when the summary has not loaded: the label alone
+   *  is still better than the old select. */
+  missingActionEffect(variable: VariableRow, action: MissingAction): string {
+    const coverage = this.coverageFor(variable);
+    if (!coverage) return '';
+    const n = coverage.missing.toLocaleString();
+    switch (action) {
+      case 'drop':
+        return `Removes ${n} records (${this.coveragePercent(coverage)}) from the run`;
+      case 'mean':
+      case 'median': {
+        const value = this.distributionMapValue(variable, action);
+        return `Fills ${n} values with the ${action}${value ? `, ${value}` : ''}`;
+      }
+      case 'constant':
+        return `Fills ${n} values with a value you set`;
+      default:
+        return '';
+    }
+  }
+
+  distributionMapValue(variable: VariableRow, label: string): string {
+    return this.distributionFor(variable)
+      .find((point) => point.label.toLowerCase() === label.toLowerCase())?.value ?? '';
+  }
+
+  /** Per-dataset coverage for the missing-values evidence tiles. Derives the same
+   *  Missing/Total rows the table uses, split by dataset, minus the rollup column. */
+  coverageByDataset(variable: VariableRow): Array<{ label: string; missing: number; total: number; share: number }> {
+    const block = this.summaryBlockFor(variable);
+    if (!block) return [];
+    const totalRow = block.rows.find((row) => row.metric === 'Total');
+    const missingRow = block.rows.find((row) => row.metric === 'Missing');
+    if (!totalRow || !missingRow) return [];
+    return block.columns
+      .filter((dataset) => !this.isRollupColumn(dataset))
+      .map((dataset) => {
+        const total = parseNumber(totalRow.values[dataset]) ?? 0;
+        if (total <= 0) return null;
+        const missing = Math.min(parseNumber(missingRow.values[dataset]) ?? 0, total);
+        return {
+          label: this.datasetLabel(dataset),
+          missing,
+          total,
+          share: missing / total,
+        };
+      })
+      .filter((tile): tile is { label: string; missing: number; total: number; share: number } => !!tile);
+  }
+
+ruleFor(variable: VariableRow): PreprocessingRule {
+    return this.preprocessingState.missingRule(variable.code);
+  }
+
+  onMissingActionChange(variable: VariableRow, action: MissingAction): void {
+    const next = { ...this.ruleFor(variable), action };
+    next.enabled = true;
+    if (action !== 'constant') next.value = '';
+    if (action === 'constant' && this.isCategoricalVariable(variable)) {
+      const enumValues = this.enumOptions(variable).map((item) => item.code);
+      if (!enumValues.includes(next.value)) next.value = '';
+    }
+    this.pendingPreprocessingRules = {
+      ...this.pendingPreprocessingRules,
+      [variable.code]: next,
+    };
+    this.preprocessingValidationErrors = {
+      ...this.preprocessingValidationErrors,
+      [variable.code]: '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onMissingValueChange(variable: VariableRow, value: string): void {
+    this.pendingPreprocessingRules = {
+      ...this.pendingPreprocessingRules,
+      [variable.code]: { ...this.ruleFor(variable), value },
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onLongitudinalVisitChange(which: 'visit1' | 'visit2', value: string): void {
+    if (which === 'visit1') this.longitudinalVisit1 = value;
+    else this.longitudinalVisit2 = value;
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onLongitudinalStrategyChange(variable: VariableRow, strategy: LongitudinalStrategy): void {
+    this.pendingLongitudinalStrategies = {
+      ...this.pendingLongitudinalStrategies,
+      [variable.code]: strategy,
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  outlierStrategyDisplay(strategy: OutlierStrategy): string {
+    return this.outlierStrategies.find((item) => item.value === strategy)?.label ?? strategy;
+  }
+
+  outlierTailDisplay(tail: OutlierTail): string {
+    if (tail === 'left') return 'Low only';
+    if (tail === 'right') return 'High only';
+    return 'Both';
+  }
+
+  outlierFoldDisplay(strategy: OutlierStrategy): string {
+    switch (strategy) {
+      case 'gaussian': return '× std. dev.';
+      case 'iqr': return '× IQR';
+      case 'mad': return '× MAD';
+      case 'quantile': return 'Quantile';
+    }
+  }
+
+  outlierRuleSummary(variable: VariableRow): string {
+    const rule = this.outlierRuleFor(variable);
+    if (!rule.enabled) return 'Off';
+    return `${this.outlierStrategyDisplay(rule.strategy)} × ${rule.fold ?? '—'} · ${this.outlierTailDisplay(rule.tail)}`;
+  }
+
+  outlierPreviewRowsFor(variable: VariableRow): OutlierPreviewRow[] {
+    const label = this.variableLabel(variable);
+    return this.outlierPreviewRows.filter((row) => row.variable === label || row.variable === variable.code);
+  }
+
+  private outlierDistributionNumbers(variable: VariableRow): {
+    min: number; q1: number; median: number; q3: number; max: number; mean: number | null; std: number | null;
+  } | null {
+    const points = this.distributionFor(variable);
+    if (!points.length) return null;
+    const byLabel = new Map(points.map((point) => [point.label.toLowerCase(), point.value]));
+    const number = (label: string) => parseNumber(byLabel.get(label));
+    const min = number('min');
+    const q1 = number('q1');
+    const median = number('median');
+    const q3 = number('q3');
+    const max = number('max');
+    if (min === null || q1 === null || median === null || q3 === null || max === null) return null;
+    return { min, q1, median, q3, max, mean: number('mean'), std: number('standard deviation') };
+  }
+
+  /** Client-side bounds for the strategies the summary can price. MAD/quantile and
+   *  Gaussian without mean/std return null; the strip then says so. */
+  private outlierBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
+    const numbers = this.outlierDistributionNumbers(variable);
+    if (!numbers) return null;
+    const rule = this.outlierRuleFor(variable);
+    const k = Number(rule.fold);
+    if (!Number.isFinite(k)) return null;
+    let lo: number;
+    let hi: number;
+    switch (rule.strategy) {
+      case 'iqr': {
+        const iqr = numbers.q3 - numbers.q1;
+        lo = numbers.q1 - k * iqr;
+        hi = numbers.q3 + k * iqr;
+        break;
+      }
+      case 'gaussian': {
+        if (numbers.mean === null || numbers.std === null) return this.reportBounds(variable);
+        lo = numbers.mean - k * numbers.std;
+        hi = numbers.mean + k * numbers.std;
+        break;
+      }
+      default:
+        // MAD and arbitrary quantiles are not in the summary; the report's own
+        // bounds are the fallback once a report has run.
+        return this.reportBounds(variable);
+    }
+    return {
+      lo: rule.tail === 'right' ? null : lo,
+      hi: rule.tail === 'left' ? null : hi,
+    };
+  }
+
+  private reportBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
+    const row = this.outlierPreviewRowsFor(variable)[0];
+    if (!row) return null;
+    const lo = parseNumber(row.lowerBound);
+    const hi = parseNumber(row.upperBound);
+    if (lo === null && hi === null) return null;
+    return { lo, hi };
+  }
+
+  outlierBoundsView(variable: VariableRow): {
+    min: number; iqrLeft: number; iqrWidth: number; medianLeft: number;
+    loPct: number | null; hiPct: number | null; cappedLeft: number | null; cappedRight: number | null;
+    loLabel: string | null; hiLabel: string | null; note: string;
+  } | null {
+    const numbers = this.outlierDistributionNumbers(variable);
+    if (!numbers || numbers.max <= numbers.min) return null;
+    const span = numbers.max - numbers.min;
+    const pct = (value: number) => Math.max(0, Math.min(100, ((value - numbers.min) / span) * 100));
+    const bounds = this.outlierBounds(variable);
+    const loPct = bounds?.lo != null ? pct(bounds.lo) : null;
+    const hiPct = bounds?.hi != null ? pct(bounds.hi) : null;
+    const reportRows = this.outlierPreviewRowsFor(variable);
+    const cappedCount = reportRows.reduce(
+      (sum, row) => sum + (parseNumber(row.lowerOutliers) ?? 0) + (parseNumber(row.upperOutliers) ?? 0), 0);
+    const note = bounds
+      ? `Below ${bounds.lo?.toLocaleString() ?? '—'} or above ${bounds.hi?.toLocaleString() ?? '—'} → capped`
+        + (reportRows.length && cappedCount > 0 ? ` · ${cappedCount.toLocaleString()} values` : '')
+      : 'Bounds shown after Refresh report';
+
+    return {
+      min: numbers.min,
+      iqrLeft: pct(numbers.q1),
+      iqrWidth: Math.max(2, pct(numbers.q3) - pct(numbers.q1)),
+      medianLeft: pct(numbers.median),
+      loPct,
+      hiPct,
+      cappedLeft: loPct,
+      cappedRight: hiPct !== null ? 100 - hiPct : null,
+      loLabel: bounds?.lo != null ? bounds.lo.toLocaleString() : null,
+      hiLabel: bounds?.hi != null ? bounds.hi.toLocaleString() : null,
+      note,
+    };
+  }
+
+outlierRuleFor(variable: VariableRow): OutlierRule {
+    return this.preprocessingState.outlierRule(variable.code);
+  }
+
+  onOutlierEnabledChange(variable: VariableRow, enabled: boolean): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: { ...existing, enabled },
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierStrategyChange(variable: VariableRow, strategy: OutlierStrategy): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: {
+        ...existing,
+        enabled: true,
+        strategy,
+        fold: defaultFoldForStrategy(strategy),
+      },
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierTailChange(variable: VariableRow, tail: OutlierTail): void {
+    const existing = this.outlierRuleFor(variable);
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: { ...existing, enabled: true, tail },
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onOutlierFoldChange(variable: VariableRow, rawValue: string | number): void {
+    const existing = this.outlierRuleFor(variable);
+    const value = String(rawValue ?? '').trim();
+    const fold = value === '' ? null : Number(value);
+    const next: OutlierRule = {
+      ...existing,
+      enabled: true,
+      fold: typeof fold === 'number' && Number.isFinite(fold) ? fold : null,
+    };
+    this.pendingOutlierRules = {
+      ...this.pendingOutlierRules,
+      [variable.code]: next,
+    };
+    this.outlierValidationErrors = {
+      ...this.outlierValidationErrors,
+      [variable.code]: validateOutlierRule(next) ?? '',
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  batchMenuOpen = signal<'missing' | 'outlier' | null>(null);
+  summaryExportMenuKind = signal<SummaryKind | null>(null);
+
+  toggleBatchMenu(kind: 'missing' | 'outlier'): void {
+    this.batchMenuOpen.update((open) => (open === kind ? null : kind));
+    this.cdr.markForCheck();
+  }
+
+  toggleSummaryExportMenu(kind: SummaryKind): void {
+    this.summaryExportMenuKind.update((open) => (open === kind ? null : kind));
+    this.cdr.markForCheck();
+  }
+
+  closeBatchMenuOnOutsideClick(event: MouseEvent): void {
+    const target = event.target;
+    if (
+      this.batchMenuOpen() !== null
+      && !(target instanceof Element && target.closest('.batch-menu'))
+    ) {
+      this.batchMenuOpen.set(null);
+      this.cdr.markForCheck();
+    }
+    if (
+      this.summaryExportMenuKind() !== null
+      && !(target instanceof Element && target.closest('.summary-export-group'))
+    ) {
+      this.summaryExportMenuKind.set(null);
+      this.cdr.markForCheck();
+    }
+  }
+
+  applyBatchMissingStrategy(strategy: 'drop' | 'mean' | 'median'): void {
+    const variables =
+      strategy === 'drop'
+        ? this.preprocessingVariables
+        : this.preprocessingVariables.filter((variable) => this.isNumericVariable(variable));
+    variables.forEach((variable) => this.onMissingActionChange(variable, strategy));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
+  toggleAllOutliers(enabled: boolean): void {
+    this.outlierPreprocessingVariables.forEach((variable) => this.onOutlierEnabledChange(variable, enabled));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
+  outlierRuleError(variable: VariableRow): string {
+    const rule = this.outlierRuleFor(variable);
+    return this.outlierValidationErrors[variable.code] || validateOutlierRule(rule) || '';
+  }
+
+  longitudinalStrategyFor(variable: VariableRow): LongitudinalStrategy {
+    if (!this.pendingLongitudinalStrategies[variable.code]) {
+      this.pendingLongitudinalStrategies[variable.code] = this.defaultLongitudinalStrategy(variable);
+    }
+    return this.pendingLongitudinalStrategies[variable.code];
+  }
+
+  isMissingActionDisabled(variable: VariableRow, action: MissingAction): boolean {
+    return (action === 'mean' || action === 'median') && !this.isNumericVariable(variable);
+  }
+
+  isLongitudinalStrategyDisabled(variable: VariableRow, strategy: LongitudinalStrategy): boolean {
+    return strategy === 'diff' && !this.isNumericVariable(variable);
+  }
+
+  /** Discard pending edits: one card's (its footer) or every card's (leaving the stage). */
+  resetChanges(scope: PrepStep | 'all' = 'all'): void {
+    this.stepsIn(scope).forEach((step) => this.prepStepOps[step].reset());
+    this.preprocessingApplyError = {};
+    this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+    this.cdr.markForCheck();
+  }
+
+  previewOutlierReport(): void {
+    this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
+    if (
+      this.reportPendingValidationErrors({
+        ...this.validatePendingMissingRules(),
+        ...this.validatePendingOutlierRules(),
+      })
+    ) {
+      this.outlierPreviewRows = [];
+      this.outlierPreviewError = 'Fix the outlier preprocessing rules before previewing.';
+      return;
+    }
+
+    const outlierParameters = this.buildOutlierPreprocessingConfig(this.pendingOutlierRules);
+    if (!outlierParameters) {
+      this.outlierPreviewRows = [];
+      this.outlierPreviewError = 'Enable at least one outlier rule before previewing.';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const variableCodes = Object.keys((outlierParameters['strategies'] as Record<string, string>) ?? {});
+    const missingValuesHandler = this.buildMissingPreprocessingConfig(
+      this.pendingPreprocessingRules,
+      new Set(variableCodes)
+    );
+    const preprocessing = missingValuesHandler
+      ? { missing_values_handler: missingValuesHandler }
+      : null;
+
+    this.isLoadingOutlierPreview = true;
+    this.outlierPreviewRows = [];
+    this.outlierPreviewError = '';
+    this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
+    this.cdr.markForCheck();
+
+    this.expStudioService.loadOutlierReportPreview(variableCodes, outlierParameters, preprocessing).subscribe({
+      next: (response) => {
+        this.outlierPreviewRows = this.buildOutlierPreviewRows(response);
+        this.outlierPreviewError = this.outlierPreviewRows.length
+          ? ''
+          : 'No outlier report rows were returned for the enabled rules.';
+        this.isLoadingOutlierPreview = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error(err);
+        this.outlierPreviewRows = [];
+        this.outlierPreviewError = 'Outlier report preview failed.';
+        this.isLoadingOutlierPreview = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * Fold the station: editor and processed workspace both close, nothing is reverted.
+   * Used by Close (nothing to commit) and by Apply once the describe has landed.
+   * The node keeps its rail of applied sub-steps, and that rail is the way back into the editor.
+   */
+  private foldPreprocessingStation(): void {
+    this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
+    this.cdr.markForCheck();
+    this.requestSectionScroll('setup');
+  }
+
+  /**
+   * The Preprocessing station's "Preview data" action: describe the processed cohort
+   * under the current (pending) config without writing it into the request. It fills
+   * the shared processed SummaryView, so the preview shows data instead of an empty
+   * card; Apply remains the only path that persists the config.
+   */
+  previewProcessedData(scope: PrepStep | 'all' = 'all'): void {
+    this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
+    this.ensureLongitudinalDefaults();
+    if (this.reportPendingValidationErrors(this.validatePendingRulesFor(scope), scope)) return;
+    this.processedPreviewScope = scope;
+    // Navigating to the processed section performs the transient describe;
+    // it must not run twice for one click.
+    this.goToSection('processed');
+  }
+
+  /**
+   * Transient processed describe for the pending config. It shares the processed
+   * summary's cache key with the applied fetch, so an Apply (or an applied refresh)
+   * with identical inputs reuses the data instead of refetching.
+   */
+  private fetchProcessedPreview(): void {
+    const scope = this.processedPreviewScope;
+    this.processedPreviewScope = 'all';
+    if (Object.keys(this.validatePendingRulesFor(scope)).length > 0) return;
+    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const hasScope =
+      !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
+    if (!hasScope || !variableCodes.length) {
+      this.clearProcessedPreviewSubscription();
+      this.processedSummary = emptySummaryView(false);
+      this.processedSummaryKey = '';
+      this.cdr.markForCheck();
+      return;
+    }
+    const preprocessing = scope === 'all'
+      ? this.buildPreprocessingConfig(this.pendingPreprocessingRules, this.currentPreprocessingCodeSet())
+      : this.buildScopedPreprocessingConfig(scope);
+    const nextKey = this.buildProcessedSummaryKey(variableCodes, preprocessing ?? {});
+    // The key is claimed before the request goes out, so an in-flight or already
+    // settled fetch for the same config answers this call; re-requesting it would
+    // both spend a second federated describe and supersede the pending response.
+    if (nextKey === this.processedSummaryKey) return;
+    const previous = this.processedSummary;
+    const requestSeq = ++this.processedDescribeSeq;
+    this.clearHistogramSubscriptions(this.processedSummary);
+    this.clearProcessedPreviewSubscription();
+    this.processedSummaryKey = nextKey;
+    this.processedSummary = {
+      ...emptySummaryView(true),
+      activeTab: previous.activeTab,
+      selectedStatisticKey: previous.selectedStatisticKey,
+      histogramSplitByVariable: previous.histogramSplitByVariable,
+    };
+    this.cdr.markForCheck();
+    this.processedPreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, preprocessing)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+          this.refreshActiveHistogramPreview('processed');
+          this.emitProgressState();
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          console.error(err);
+          // Drop the claimed key so reopening the preview retries instead of
+          // trusting a summary that never arrived.
+          this.processedSummaryKey = '';
+          this.processedSummary = emptySummaryView(false);
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /**
+   * Apply pending edits: every card's (Apply & Continue) or one card's (its footer). A
+   * scoped apply writes that card's pending rules over the applied rest, leaves the other
+   * cards' edits pending, and folds only its own card.
+   */
+  applyPreprocessing(scope: PrepStep | 'all' = 'all'): void {
+    this.ensureDefaultRulesForCurrentSelection();
+    this.ensureOutlierDefaultsForCurrentSelection();
+    this.ensureLongitudinalDefaults();
+    if (this.stepsIn(scope).every((step) => this.stepPendingCount(step) === 0)) return;
+    this.preprocessingApplyError = {};
+    if (this.reportPendingValidationErrors(this.validatePendingRulesFor(scope))) return;
+    this.clearOutlierPreview();
+
+    const currentCodes = this.currentPreprocessingCodeSet();
+    const preprocessing = scope === 'all'
+      ? this.buildPreprocessingConfig(this.pendingPreprocessingRules, currentCodes)
+      : this.buildScopedPreprocessingConfig(scope);
+    if (!preprocessing) {
+      this.commitPendingToApplied(scope);
+      this.processedSummary = emptySummaryView(false);
+      this.persistAppliedDescriptivePreprocessing(
+        this.buildPreprocessingConfig(this.appliedPreprocessingRules)
+      );
+      this.preprocessingStatus = this.pendingChangeCount > 0
+        ? 'pending'
+        : this.buildPreprocessingConfig(this.appliedPreprocessingRules) ? 'applied' : 'none';
+      if (scope !== 'all') this.preprocessingStepOpen[scope] = false;
+      this.sectionOpen.update((open) => ({ ...open, processed: false }));
+      this.emitProgressState();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const requestSeq = ++this.processedDescribeSeq;
+    this.isApplyingPreprocessing = true;
+    this.clearHistogramSubscriptions(this.processedSummary);
+    this.clearProcessedPreviewSubscription();
+    this.processedSummary = emptySummaryView(true);
+    // Claim the summary key up front so the navigate-to-preview fetch is
+    // deduped against the apply request below (identical payload).
+    this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
+    if (scope === 'all') {
+      this.summaryExpanded.update((expanded) => ({ ...expanded, setup: true }));
+      this.goToSection('processed');
+    }
+    this.preprocessingValidationErrors = {};
+    this.outlierValidationErrors = {};
+    this.cdr.markForCheck();
+
+    this.processedPreviewSubscription = this.expStudioService
+      .loadDescriptiveOverview(variableCodes, preprocessing)
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
+          this.processedSummaryKey = this.buildProcessedSummaryKey(variableCodes, preprocessing);
+          this.commitPendingToApplied(scope);
+          // The describe above included the other cards' applied rules (and implicit
+          // defaults). Save only what is actually applied, so those defaults are not
+          // stored as an explicit missing-values handler.
+          this.persistAppliedDescriptivePreprocessing(
+            this.buildPreprocessingConfig(this.appliedPreprocessingRules)
+          );
+          this.preprocessingState.userApplied = true;
+          this.preprocessingStatus = this.pendingChangeCount > 0 ? 'pending' : 'applied';
+          this.isApplyingPreprocessing = false;
+          this.refreshActiveHistogramPreview('processed');
+          this.emitProgressState();
+          // Apply saves and closes: fold the card (or, for Apply & Continue, the station),
+          // and do not open the next one. The summary just computed stays reachable
+          // through Preview; moving on belongs to "Continue to Algorithm Selection".
+          if (scope === 'all') this.foldPreprocessingStation();
+          else this.preprocessingStepOpen[scope] = false;
+          if (this.continueAfterApply) {
+            this.continueAfterApply = false;
+              this.studioNavigation.navigateToSection('algorithm-section');
+          }
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.processedDescribeSeq) return;
+          this.clearProcessedPreviewSubscription();
+          console.error(err);
+          this.isApplyingPreprocessing = false;
+          // Nothing was applied, so the key claimed for this request is a lie;
+          // clear it so the next preview or apply refetches.
+          this.processedSummaryKey = '';
+          this.processedSummary = emptySummaryView(false);
+          if (scope === 'all') {
+            this.sectionOpen.update((open) => ({ ...open, processed: true }));
+          } else {
+            // A card's own Apply never left the card: keep it open and say why nothing changed.
+            this.preprocessingApplyError = { [scope]: 'Could not apply these changes. They are still pending — try Apply again.' };
+          }
+          this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * The Raw summary describe. `filterOverride` runs it against unsaved Cohort
+   * Filtering rules; the cache key always carries the filter that was actually sent,
+   * so a pending preview and the stored cohort never claim each other's numbers.
+   */
+  fetchDescriptiveStatistics(filterOverride?: BackendFilter | null): void {
+    if (!this.expStudioService.selectedDataModel() || this.expStudioService.selectedDatasets().length === 0) {
+      this.rawDescribeSeq++;
+      this.rawSummaryKey = '';
+      this.expStudioService.clearDataExclusionWarnings();
+      this.rawSummary = emptySummaryView(false);
+      this.processedData = [];
+      this.isLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.rawSummary = { ...this.rawSummary, isLoading: true };
+    this.isLoading = true;
+    this.expStudioService.clearDataExclusionWarnings();
+    this.cdr.markForCheck();
+
+    const items = this.preprocessingVariables;
+    if (!items.length) {
+      this.rawSummaryKey = '';
+      this.rawDescribeSeq++;
+      this.expStudioService.clearDataExclusionWarnings();
+      this.rawSummary = emptySummaryView(false);
+      this.processedData = [];
+      this.isLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const variableCodes = items.map((item) => item.code);
+    const requestSeq = ++this.rawDescribeSeq;
+    this.rawSummaryKey = this.rawSummaryKeyFor(filterOverride);
+    this.expStudioService
+      .loadDescriptiveOverview(variableCodes, null, null, filterOverride)
+      .subscribe({
+        next: (response) => {
+          // Selection changed while this was in flight; the newer run owns the summary.
+          if (requestSeq !== this.rawDescribeSeq) return;
+          this.expStudioService.setDataExclusionWarnings([], []);
+          this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
+          this.processedData = this.rawSummary.data;
+          this.isLoading = false;
+          this.refreshActiveHistogramPreview('raw');
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          if (requestSeq !== this.rawDescribeSeq) return;
+          console.error(err);
+          this.expStudioService.clearDataExclusionWarnings();
+          this.rawSummary = { ...this.rawSummary, isLoading: false };
+          this.isLoading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /**
+   * Cache key of the Raw summary for one cohort. The stored `filterLogic()` is the
+   * default; a pending preview keys on the rules it is showing instead, so the two
+   * states cannot reuse each other's response.
+   */
+private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
+    return this.statisticSummary.rawKeyFor(filterOverride);
+  }
+
+  /**
+   * Show the Raw summary for the cohort it is supposed to describe, spending at most
+   * one describe: an identical cohort (same rules, same selection) is already cached.
+   */
+  private ensureRawSummary(): void {
+    if (this.rawSummaryKey === this.rawSummaryKeyFor(this.rawPreviewFilter)) return;
+    this.fetchDescriptiveStatistics(this.rawPreviewFilter);
+  }
+
+  variableLabel(variable: VariableRow): string {
+    return variableLabel(variable);
+  }
+
+  datasetLabel(datasetCode: string): string {
+    if (!datasetCode) return datasetCode;
+    const map = this.expStudioService.getDatasetLabelMap();
+    return resolveDatasetDisplayLabel(String(datasetCode), map);
+  }
+
+  variableTypeLabel(variable: VariableRow): string {
+    if (this.isNumericVariable(variable)) return 'Numeric';
+    if (this.isCategoricalVariable(variable)) return 'Categorical';
+    return variable.type ?? 'Unknown';
+  }
+
+  enumOptions(variable: VariableRow): EnumOption[] {
+    return (variable.enumerations ?? [])
+      .map((item) => {
+        const raw = item.code ?? item.label ?? item.name;
+        if (raw === undefined || raw === null) return null;
+        return {
+          code: String(raw),
+          label: String(item.label ?? item.name ?? raw),
+        };
+      })
+      .filter((item): item is EnumOption => !!item);
+  }
+
+  async exportAllDescriptiveToPDF(kind: SummaryKind = 'raw'): Promise<void> {
+    this.isExporting = true;
+    this.cdr.markForCheck();
+    try {
+      const numericCharts = document.querySelectorAll(
+        `.hidden-charts-for-export.${kind}-export .numeric-charts-export app-chart-renderer`
+      ) as NodeListOf<HTMLElement>;
+
+      const nominalCharts = document.querySelectorAll(
+        `.hidden-charts-for-export.${kind}-export .nominal-charts-export app-chart-renderer`
+      ) as NodeListOf<HTMLElement>;
+
+      const dataModel = this.expStudioService.selectedDataModel();
+      const pathologyName = dataModel?.label || dataModel?.code || '';
+      const summary = this.getSummary(kind);
+
+      const labelMap = this.expStudioService.variableLabelMap();
+      const enumMaps = this.expStudioService.getCategoricalEnumMaps();
+      const filterLogic = this.expStudioService.filterLogic();
+      await this.pdfExportService.exportDescriptiveStatisticsPdf({
+        title: this.summaryKindLabel(kind),
+        pathologyName,
+        context: [
+          ['Datasets', this.expStudioService.selectedDatasets().map((code) => this.datasetLabel(code))],
+          // Source data is the selection before any cohort rule or preprocessing.
+          ['Filters', kind !== 'source' && filterLogic ? formatFilterExpression(filterLogic, { labelMap, enumMaps }) : null],
+          ['Preprocessing', kind === 'processed'
+            ? this.expStudioService.formatPreprocessingConfig(this.expStudioService.getAppliedDescriptivePreprocessing(), labelMap, enumMaps).split('\n')
+            : null],
+        ],
+        variables: this.pivotBlocksWithDatasetLabels(summary.data),
+        charts: numericCharts,
+        nonNominalVariables: summary.nonNominalVariables,
+        nominalCharts,
+        nominalVariables: summary.nominalVariables,
+        mipVersion: this.mipVersion,
+      });
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      this.isExporting = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  exportSummaryToCSV(kind: SummaryKind): void {
+    const summary = this.getSummary(kind);
+    if (!summary.data.length) return;
+
+    const rows = summary.data.flatMap((variable) =>
+      variable.rows.flatMap((row) =>
+        variable.columns.map((dataset) => ({
+          Variable: variable.name,
+          Metric: row.metric,
+          Dataset: this.datasetLabel(dataset),
+          Value: row.values[dataset] ?? '',
+        }))
+      )
+    );
+
+    const filename = `${kind}_data_summary.csv`;
+    this.csvExportService.exportToCsv(rows, ['Variable', 'Metric', 'Dataset', 'Value'], filename);
+  }
+
+  /** Every kind with a summary surface, in pipeline order. */
+  readonly summaryKinds: SummaryKind[] = ['source', 'raw', 'processed'];
+
+getSummary(kind: SummaryKind): SummaryView {
+    return this.statisticSummary.get(kind);
+  }
+
+  private scrollSectionIntoView(section: SectionKey): void {
+    const element = this.sectionAnchors.get(section)?.nativeElement;
+    if (!element) return;
+
+    requestAnimationFrame(() => {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
+    return this.statisticSummary.fromDescribeResponse(response, this.getSummary(kind), this.preprocessingVariables);
+  }
+
+  private refreshActiveHistogramPreview(kind: SummaryKind): void {
+    const summary = this.getSummary(kind);
+    if (summary.activeTab !== 'Histogram') return;
+    const block = this.selectedStatisticBlock(kind);
+    if (!block) return;
+    this.ensureHistogramForBlock(kind, block);
+  }
+
+  private buildProcessedSummaryKey(
+    variableCodes: string[],
+    preprocessing: PreprocessingConfig
+  ): string {
+    return JSON.stringify({
+      variableCodes,
+      preprocessing,
+      filterLogic: this.expStudioService.filterLogic(),
+    });
+  }
+
+  private ensureHistogramForBlock(kind: SummaryKind, block: PivotBlock): void {
+    const code = this.variableCodeForBlock(block);
+    if (!code) return;
+
+    const split = this.histogramSplitValue(kind, block);
+    const cacheKey = histogramCacheKey(code, split);
+    const summary = this.getSummary(kind);
+    if (summary.histogramSubscriptionsByVariable[cacheKey]) return;
+    if (summary.histogramLoadingByVariable[cacheKey]) return;
+    if (summary.histogramDataByVariable[cacheKey]) return;
+
+    if (!split) {
+      const fromDescribe = this.buildHistogramFromDescribeCounts(kind, code, block);
+      if (fromDescribe) {
+        summary.histogramDataByVariable = {
+          ...summary.histogramDataByVariable,
+          [cacheKey]: fromDescribe,
+        };
+        summary.histogramErrorByVariable = {
+          ...summary.histogramErrorByVariable,
+          [cacheKey]: '',
+        };
+        this.cdr.markForCheck();
+        return;
+      }
+    }
+
+    summary.histogramLoadingByVariable = {
+      ...summary.histogramLoadingByVariable,
+      [cacheKey]: true,
+    };
+    summary.histogramErrorByVariable = {
+      ...summary.histogramErrorByVariable,
+      [cacheKey]: '',
+    };
+    this.cdr.markForCheck();
+
+    // `histogram_sql` cannot run without a missing-value strategy, so even the
+    // unprocessed surfaces send the default drop for the plotted variable and nothing
+    // else. The processed surface sends its pending rules — never the derived columns,
+    // which are this variable's output, not its input. Grouping variables are not given
+    // a drop strategy: that would remove rows from the overall total.
+    const preprocessingOverride = this.histogramPreprocessingFor(kind, code);
+
+    // Step 0 previews the unfiltered cohort, so its histogram must drop the
+    // filter too - otherwise the tab would show the filtered cohort under a
+    // "no filters applied" heading.
+    const requestSeq = (summary.histogramRequestIdByVariable[cacheKey] ?? 0) + 1;
+    summary.histogramRequestIdByVariable = {
+      ...summary.histogramRequestIdByVariable,
+      [cacheKey]: requestSeq,
+    };
+    // Step 0 describes the unfiltered source; a Cohort Filtering preview pins the raw
+    // histograms to the same unsaved cohort its table came from; the processed surface
+    // keeps the applied cohort (undefined = the stored rules).
+    const filterOverride = kind === 'source' ? null : kind === 'raw' ? this.rawPreviewFilter : undefined;
+    this.expStudioService
+      .getAlgorithmResults(
+        AlgorithmNames.HISTOGRAM,
+        [code],
+        null,
+        preprocessingOverride,
+        filterOverride,
+        split ? [split] : null,
+      )
+      .pipe(takeUntil(this.destroyed))
+      .subscribe({
+        next: (response) => {
+          const nextSummary = this.getSummary(kind);
+          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
+          const parsed = this.parseHistogramResponse(response, code, block, kind, split);
+          if (parsed.data) {
+            nextSummary.histogramDataByVariable = {
+              ...nextSummary.histogramDataByVariable,
+              [cacheKey]: parsed.data,
+            };
+            nextSummary.histogramErrorByVariable = {
+              ...nextSummary.histogramErrorByVariable,
+              [cacheKey]: '',
+            };
+          } else {
+            nextSummary.histogramErrorByVariable = {
+              ...nextSummary.histogramErrorByVariable,
+              [cacheKey]: parsed.error,
+            };
+          }
+          nextSummary.histogramLoadingByVariable = {
+            ...nextSummary.histogramLoadingByVariable,
+            [cacheKey]: false,
+          };
+          nextSummary.histogramSubscriptionsByVariable = {
+            ...nextSummary.histogramSubscriptionsByVariable,
+            [cacheKey]: Subscription.EMPTY,
+          };
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          const nextSummary = this.getSummary(kind);
+          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
+          nextSummary.histogramLoadingByVariable = {
+            ...nextSummary.histogramLoadingByVariable,
+            [cacheKey]: false,
+          };
+          nextSummary.histogramErrorByVariable = {
+            ...nextSummary.histogramErrorByVariable,
+            [cacheKey]: 'Failed to load histogram preview.',
+          };
+          nextSummary.histogramSubscriptionsByVariable = {
+            ...nextSummary.histogramSubscriptionsByVariable,
+            [cacheKey]: Subscription.EMPTY,
+          };
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /**
+   * What one numerical histogram is plotted under. Raw and step 0 only ever add the
+   * default drop-NaN for the plotted variable: neither surface may show preprocessing
+   * or transformations it does not describe. The processed surface follows the pending
+   * editor state, and a variable those rules leave alone still gets the default drop,
+   * because a histogram without a handler is a failed request, not an unhandled cohort.
+   */
+  private histogramPreprocessingFor(kind: SummaryKind, code: string): PreprocessingConfig {
+    if (kind === 'processed') {
+      const pending = this.buildPreprocessingConfig(
+        this.pendingPreprocessingRules,
+        this.currentPreprocessingCodeSet(),
+      );
+      return this.withDefaultDropFor(pending, code);
+    }
+    return this.withDefaultDropFor(null, code);
+  }
+
+  /** Add `drop` for `code` unless the config already carries a strategy for it. */
+  private withDefaultDropFor(
+    preprocessing: PreprocessingConfig | null,
+    code: string
+  ): PreprocessingConfig {
+    const config: PreprocessingConfig = { ...(preprocessing ?? {}) };
+    const handler = { ...((config['missing_values_handler'] as Record<string, unknown>) ?? {}) };
+    const strategies = { ...((handler['strategies'] as Record<string, unknown>) ?? {}) };
+    if (strategies[code]) return config;
+    strategies[code] = 'drop';
+    handler['strategies'] = strategies;
+    config['missing_values_handler'] = handler;
+    return config;
+  }
+
+  private clearProcessedPreviewSubscription(): void {
+    this.processedPreviewSubscription?.unsubscribe();
+    this.processedPreviewSubscription = null;
+  }
+
+  private clearSourcePreviewSubscription(): void {
+    this.sourcePreviewSubscription?.unsubscribe();
+    this.sourcePreviewSubscription = null;
+  }
+
+  private clearHistogramSubscriptions(summary: SummaryView): void {
+    Object.values(summary.histogramSubscriptionsByVariable).forEach((subscription) => subscription.unsubscribe());
+    summary.histogramSubscriptionsByVariable = {};
+  }
+
+  private buildHistogramFromDescribeCounts(
+    kind: SummaryKind,
+    code: string,
+    block: PivotBlock
+  ): HistogramPreviewData | null {
+    const featurewise = this.getSummary(kind).featurewiseRows;
+    const row = featurewise.find((item) => item?.variable === code && String(item?.dataset ?? '') === 'all datasets')
+      ?? featurewise.find((item) => item?.variable === code);
+    const counts = categoryCounts(row?.data);
+    if (!Object.keys(counts).length) {
+      return null;
+    }
+
+    const variable = this.statisticBlockVariable(block);
+    const binCodes = Object.keys(counts);
+    const binsWithLabels = this.mapBinsToEnumLabels(binCodes, variable?.enumerations);
+    const mappedCounts = binCodes.map((key) => {
+      const value = counts[key];
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    });
+    if (!mappedCounts.some((count) => count !== null && count > 0)) {
+      return null;
+    }
+
+    return {
+      bins: binsWithLabels.map((bin) => String(bin)),
+      counts: mappedCounts,
+      variableName: block.name,
+      variableType: this.statisticBlockType(kind, block),
+    };
+  }
+
+  private extractTransientHistogramError(response: unknown, payload: unknown): string | null {
+    const candidates: unknown[] = [payload, response];
+    if (response && typeof response === 'object' && 'result' in (response as object)) {
+      candidates.push((response as { result?: unknown }).result);
+    }
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+        continue;
+      }
+      const record = candidate as Record<string, unknown>;
+      const data = record['data'];
+      if (typeof data === 'string' && data.trim()) {
+        return data.trim();
+      }
+      const message = record['message'];
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim();
+      }
+    }
+
+    return null;
+  }
+
+  private parseHistogramResponse(
+    response: unknown,
+    code: string,
+    block: PivotBlock,
+    kind: SummaryKind,
+    groupingCode: string | null = null
+  ): { data: HistogramPreviewData | null; error: string } {
+    if (!response) {
+      return { data: null, error: 'Failed to load histogram preview.' };
+    }
+
+    const payload = (response as { result?: unknown })?.result ?? response;
+    const histList = extractHistogramItems(response);
+    const stacked = buildStackedHistogramSeries(
+      histList,
+      code,
+      groupingCode,
+      (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+      this.expStudioService.selectedDatasets()
+    );
+    if (!stacked) {
+      const backendError = this.extractTransientHistogramError(response, payload);
+      if (backendError) {
+        return { data: null, error: backendError };
+      }
+      const fallback = kind === 'processed'
+        ? 'No histogram data available for this variable after preprocessing. The federated histogram preview returned no bins—often because preprocessing removed too many rows or the execution engine reported an error.'
+        : 'No histogram data available for this variable.';
+      return { data: null, error: fallback };
+    }
+
+    const { bins, counts: numericCounts } = stacked;
+    if (!numericCounts.some((count) => count !== null && count > 0)) {
+      return {
+        data: null,
+        error: 'Histogram counts are unavailable (privacy threshold or insufficient data after preprocessing).',
+      };
+    }
+
+    const variable = this.statisticBlockVariable(block);
+    const binsWithLabels = this.mapBinsToEnumLabels(bins, variable?.enumerations);
+    const binLabels = binsWithLabels.map((bin) => String(bin));
+    const splitLabel = groupingCode
+      ? (this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode)
+      : undefined;
+
+    return {
+      data: {
+        bins: binLabels,
+        counts: numericCounts,
+        groups: stacked.groups,
+        variableName: block.name,
+        variableType: this.statisticBlockType(kind, block),
+        splitLabel,
+      },
+      error: '',
+    };
+  }
+
+  private groupingEnumLabel(groupingVar: string, groupingEnum: string): string {
+    if (groupingVar.toLowerCase() === DATASET_VARIABLE_CODE) {
+      return this.expStudioService.getDatasetLabelMap()[groupingEnum] ?? groupingEnum;
+    }
+    const selected = (this.expStudioService.selectedVariables() as VariableRow[])
+      .find((variable) => variable.code === groupingVar);
+    const mapped = enumLabelMap(selected ?? this.findModelVariable(groupingVar) ?? undefined)
+      .get(groupingEnum);
+    return mapped ?? groupingEnum;
+  }
+
+  private buildOutlierPreviewRows(response: unknown): OutlierPreviewRow[] {
+    const payload = (response as { result?: unknown })?.result ?? response;
+    const featurewise = Array.isArray((payload as { featurewise?: unknown })?.featurewise)
+      ? ((payload as { featurewise: unknown[] }).featurewise)
+      : [];
+
+    return featurewise
+      .filter((row) => {
+        const item = row as { dataset?: unknown };
+        return String(item.dataset ?? '').trim().toLowerCase() !== 'all datasets';
+      })
+      .map((row) => {
+      const item = row as { variable?: unknown; dataset?: unknown; data?: Record<string, unknown> };
+      const data = item.data ?? {};
+      const variableCode = String(item.variable ?? '');
+      return {
+        variable: this.variableLabelForCode(variableCode),
+        dataset: String(item.dataset ?? '').trim() || '-',
+        strategy: outlierStrategyLabel(String(data['strategy'] ?? '')),
+        tail: outlierTailLabel(String(data['tail'] ?? '')),
+        fold: formatOutlierBound(data['fold']),
+        lowerBound: formatOutlierBound(data['lower_bound']),
+        upperBound: formatOutlierBound(data['upper_bound']),
+        lowerOutliers: formatInteger(data['lower_outlier_count'], '-'),
+        upperOutliers: formatInteger(data['upper_outlier_count'], '-'),
+        totalOutliers: formatInteger(data['total_outlier_count'], '-'),
+        outlierPercentage: formatOutlierPercentage(data['total_outlier_percentage']),
+      };
+    });
+  }
+
+  private variableLabelForCode(code: string): string {
+    const variable = this.preprocessingVariables.find((item) => item.code === code);
+    return variable ? this.variableLabel(variable) : code;
+  }
+
+
+
+
+
+
+  /** Copy pending → applied for one card or all of them. */
+  private commitPendingToApplied(scope: PrepStep | 'all'): void {
+    this.stepsIn(scope).forEach((step) => this.prepStepOps[step].commit());
+  }
+
+  /** The run config one card's Apply writes: its pending rules over the applied rest
+   *  (untouched variables on their defaults, exactly as a full apply would send them). */
+  private buildScopedPreprocessingConfig(step: PrepStep): PreprocessingConfig | null {
+    const config: PreprocessingConfig = {};
+    const missing = this.buildMissingPreprocessingConfig(step === 'missing'
+      ? this.pendingPreprocessingRules
+      : this.mergeRulesForCurrentSelection({}, this.appliedPreprocessingRules));
+    if (missing) config['missing_values_handler'] = missing;
+    const outlier = this.buildOutlierPreprocessingConfig(step === 'outlier'
+      ? this.pendingOutlierRules
+      : this.mergeOutlierRulesForCurrentSelection({}, this.appliedOutlierRules));
+    if (outlier) config['outlier_winsorizer'] = outlier;
+    const longitudinal = this.buildLongitudinalPreprocessingConfig(step !== 'longitudinal');
+    if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+    return Object.keys(config).length ? config : null;
+  }
+
+  private buildPreprocessingConfig(
+    rules: Record<string, PreprocessingRule>,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): PreprocessingConfig | null {
+    const config: PreprocessingConfig = {};
+    const missingValuesHandler = this.buildMissingPreprocessingConfig(rules, allowedCodes);
+    if (missingValuesHandler) config['missing_values_handler'] = missingValuesHandler;
+
+    const outlier = this.buildOutlierPreprocessingConfig(
+      rules === this.appliedPreprocessingRules ? this.appliedOutlierRules : this.pendingOutlierRules,
+      allowedCodes
+    );
+    if (outlier) config['outlier_winsorizer'] = outlier;
+
+    const longitudinal = this.buildLongitudinalPreprocessingConfig(rules === this.appliedPreprocessingRules, allowedCodes);
+    if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+
+    return Object.keys(config).length ? config : null;
+  }
+
+  /** Build the exaflow config for one card, or null when it is not yet complete. */
+buildTransformationConfigForDraft(draft: TransformationColumnDraft): TransformationColumnConfig | null {
+    return transformationConfigFor(draft);
+  }
+
+  onTransformationChange(): void {
+    // Transformation is written into APPLIED_DESCRIPTIVE_PREPROCESSING on edit (it
+    // does not wait for the shared Apply preprocessing button). The Pending/Applied
+    // chip derives from the live drafts, so no separate applied snapshot is kept.
+    this.expStudioService.setTransformationPreprocessing(this.transformationDraftState.payload());
+    this.invalidateCategoryCounts();
+    this.emitProgressState();
+    this.cdr.markForCheck();
+  }
+
+  /** Category counts describe the config at the last Done; any later edit drops them. */
+  private invalidateCategoryCounts(): void {
+    if (this.countsDraftId === null) return;
+    this.countsDraftId = null;
+    // ponytail: also cancels an in-flight K-means preview; scope per card if both overlap in practice.
+    this.transformationStatsRequestId++;
+    this.isTransformationStatsLoading = false;
+    this.transformationStatisticsError = '';
+    const clusterCode = String(this.expStudioService.appliedKMeansClusterCreator()?.code ?? '').trim();
+    this.transformationStatistics = this.transformationStatistics.filter((block) => block.code === clusterCode);
+  }
+
+  /** Placeholder (null-count) rows for one card so Preview shows the category shape. */
+  private placeholderRowsForDraft(draft: TransformationColumnDraft): Array<{ value: string; count: number | null }> {
+    const configuredValues = draft.rules.map((r) => r.value.trim()).filter((v) => v.length > 0);
+    const rows: Array<{ value: string; count: number | null }> = configuredValues.map((value) => ({ value, count: null }));
+    const def = draft.defaultEnumeration.trim();
+    if (def && !configuredValues.includes(def)) {
+      rows.push({ value: def, count: null });
+    }
+    return rows;
+  }
+
+  /**
+   * Why no card reached a complete config, phrased once for every named card that is short
+   * of one: a card with no named category needs a category, a card whose categories are
+   * unnamed by a filter needs the filter. A stage with no named cards at all has nothing to
+   * explain — the empty state already says so.
+   */
+  private transformationStatsGapNotice(): string {
+    const gaps: string[] = [];
+    if (this.transformationDrafts.some((draft) => draft.code.trim()
+      && !draft.rules.some((rule) => rule.value.trim().length > 0))) {
+      gaps.push('a named category');
+    }
+    if (this.transformationRulesNeedFilters) {
+      gaps.push('a filter on each one');
+    }
+    return gaps.length
+      ? `Each derived column needs ${gaps.join(' and ')} before counts can be loaded.`
+      : '';
+  }
+
+  /**
+   * The counts note belongs to rule-built columns. A K-means column carries its own
+   * sentence, in the same shape as the categorical column card.
+   */
+  showsRuleColumnCounts(): boolean {
+    const clusterCode = this.expStudioService.appliedKMeansClusterCreator()?.code?.trim();
+    return this.transformationStatistics.some((block) => block.code !== clusterCode);
+  }
+
+  /**
+   * Present an applied K-means column as a categorical column: a name, one assignment
+   * rule per cluster, and the variables that placed each record. Null for any other column.
+   */
+  kmeansColumnView(code: string): {
+    code: string;
+    lead: string;
+    foot: string;
+    rules: Record<string, string>;
+  } | null {
+    const creator = this.expStudioService.appliedKMeansClusterCreator();
+    const columnCode = creator?.code?.trim() ?? '';
+    if (!creator || columnCode !== code.trim()) return null;
+
+    const sources = creator.reusable_preprocessing.cluster_variables ?? [];
+    const variables = sources
+      .map((variable) => this.variableLabelForCode(variable))
+      .filter((label, index, all) => !!label && label !== sources[index] && all.indexOf(label) === index);
+    const choices = creator.reusable_preprocessing.cluster_choices ?? [];
+    const rules: Record<string, string> = {};
+    for (const choice of choices) {
+      const label = choice.label?.trim() ?? '';
+      rules[choice.cluster_id] = label && label !== choice.cluster_id
+        ? `Nearest cluster — ${label}`
+        : 'Nearest cluster';
+    }
+    const count = choices.length;
+    const clusterWord = count === 1 ? 'cluster' : 'clusters';
+    return {
+      code: columnCode,
+      lead: variables.length
+        ? `Each record is assigned to the nearest of these clusters, using ${variables.join(', ')}.`
+        : 'Each record is assigned to the nearest of these clusters.',
+      foot: variables.length
+        ? `${count} ${clusterWord} from ${variables.join(', ')} · covers every record that has those variables`
+        : `${count} ${clusterWord} · covers every record`,
+      rules,
+    };
+  }
+
+  refreshTransformationStatistics(): void {
+    // One stats table per derived column (categorical cards and the applied K-means
+    // cluster column); counts come from a single describe over all of them.
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    const clusterCode = String(clusterCreator?.code ?? '').trim();
+    const clusterValues = (clusterCreator?.reusable_preprocessing.cluster_choices ?? []).map(
+      (choice) => choice.cluster_id
+    );
+    const placeholderBlocks = [
+      ...this.transformationDrafts
+        .filter((draft) => draft.code.trim().length > 0)
+        .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) })),
+      ...(clusterCode
+        ? [{ code: clusterCode, rows: clusterValues.map((value) => ({ value, count: null })) }]
+        : []),
+    ];
+    const configs = this.transformationDraftState.configs();
+
+    if (!configs.length && !clusterCode) {
+      this.transformationStatistics = placeholderBlocks;
+      // Every named card gets a heading over this table, so a named card always needs a
+      // reason beside it: falling through to the "counts from a describe run" line would
+      // describe a describe that never ran.
+      this.transformationStatisticsError = this.transformationStatsGapNotice();
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const columnCodes = [
+      ...configs.map((config) => String(config['code'] ?? '').trim()).filter(Boolean),
+      ...(clusterCode ? [clusterCode] : []),
+    ];
+    const columnSet = new Set(columnCodes);
+    const sourceCodes = Array.from(
+      new Set(
+        [
+          ...configs.flatMap((config) =>
+            Object.values((config['rules'] as Record<string, BackendFilter>) ?? {}).flatMap((filter) =>
+              this.expStudioService.filterVariableCodes(filter)
+            )
+          ),
+          ...(clusterCreator?.reusable_preprocessing.cluster_variables ?? []),
+          ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
+        ]
+          .map((code) => String(code).trim())
+          .filter((code) => !!code && !columnSet.has(code))
+      )
+    );
+
+    if (!sourceCodes.length) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError = configs.length
+        ? 'Category filters must reference at least one data-model variable before counts can be loaded.'
+        : 'The K-means cluster column has no clustering variables to read.';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const requestId = ++this.transformationStatsRequestId;
+    this.isTransformationStatsLoading = true;
+    this.transformationStatisticsError = '';
+    this.transformationStatistics = placeholderBlocks;
+    this.cdr.markForCheck();
+
+    // Pipeline consistency: the preview runs the cohort filter, the preprocessing
+    // configured so far (applied rules plus pending edits), then the
+    // transformation under test. The service appends the applied K-means replay step
+    // last, with the missing-value handling it needs, exactly as a run would.
+    if (Object.keys(this.validatePendingRules()).length > 0) {
+      this.transformationStatistics = placeholderBlocks;
+      this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
+      this.isTransformationStatsLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    const preprocessing: PreprocessingConfig =
+      this.expStudioService.withKMeansClusterRequirements({
+        ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
+        ...(configs.length ? { categorical_column_creator: this.transformationDraftState.payload() } : {}),
+      }) ?? {};
+    this.expStudioService
+      .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
+      .subscribe({
+        next: (response) => {
+          if (requestId !== this.transformationStatsRequestId) return;
+          if (!response) {
+            this.transformationStatisticsError = 'Failed to load category counts.';
+            this.isTransformationStatsLoading = false;
+            this.cdr.markForCheck();
+            return;
+          }
+          this.transformationStatistics = [
+            ...configs.map((config) => {
+              const code = String(config['code'] ?? '').trim();
+              const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
+              const def = String(config['default_enumeration'] ?? '').trim();
+              return {
+                code,
+                rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
+              };
+            }),
+            ...(clusterCode
+              ? [{
+                  code: clusterCode,
+                  rows: this.buildTransformationStatisticsFromDescribe(response, clusterCode, clusterValues, ''),
+                }]
+              : []),
+          ];
+          const hasAnyCount = this.transformationStatistics.some((block) =>
+            block.rows.some((row) => typeof row.count === 'number' && Number.isFinite(row.count))
+          );
+          this.transformationStatisticsError = hasAnyCount
+            ? ''
+            : this.isErrorResponse(response)
+              ? 'Failed to load category counts.'
+              : 'No counts were returned (privacy threshold or insufficient data after preprocessing).';
+          this.isTransformationStatsLoading = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          if (requestId !== this.transformationStatsRequestId) return;
+          this.transformationStatisticsError = 'Failed to load category counts.';
+          this.isTransformationStatsLoading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  private isErrorResponse(response: unknown): boolean {
+    const r = response as { status?: unknown; result?: { type?: unknown; data?: unknown } } | null;
+    return r?.status === 'error' ||
+      (typeof r?.result?.type === 'string' && r.result.type.includes('error')) ||
+      typeof r?.result?.data === 'string';
+  }
+
+  /** Category counts as the same horizontal bar chart the summary uses for groups. */
+  transformationCountChart(block: { code: string; rows: Array<{ value: string; count: number | null }> }): HistogramPreviewData | null {
+    if (!block.rows.some((row) => typeof row.count === 'number')) return null;
+    return {
+      bins: block.rows.map((row) => row.value),
+      counts: block.rows.map((row) => row.count),
+      variableName: block.code,
+      variableType: 'nominal',
+    };
+  }
+
+  private buildTransformationStatisticsFromDescribe(
+    response: unknown,
+    columnCode: string,
+    configuredValues: string[],
+    defaultEnumeration: string
+  ): Array<{ value: string; count: number | null }> {
+    const featurewise = getFeaturewiseDescribeRows(response);
+    const row =
+      featurewise.find(
+        (item: { variable?: string; dataset?: string }) =>
+          item?.variable === columnCode && String(item?.dataset ?? '') === 'all datasets'
+      ) ??
+      featurewise.find((item: { variable?: string }) => item?.variable === columnCode);
+    const counts = (row as { data?: { counts?: Record<string, number> } })?.data?.counts ?? {};
+    const ordered = [...configuredValues];
+    if (defaultEnumeration && !ordered.includes(defaultEnumeration)) {
+      ordered.push(defaultEnumeration);
+    }
+    Object.keys(counts).forEach((key) => {
+      if (!ordered.includes(key)) ordered.push(key);
+    });
+    return ordered.map((value) => {
+      const raw = counts[value];
+      const count = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+      return { value, count };
+    });
+  }
+
+  private buildMissingPreprocessingConfig(
+    rules: Record<string, PreprocessingRule>,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    const strategies: Record<string, string> = {};
+    const fillValues: Record<string, string> = {};
+
+    Object.values(rules).forEach((rule) => {
+      if (!allowedCodes.has(rule.variableCode)) return;
+      if (!rule.enabled || rule.action === 'no_action') return;
+      strategies[rule.variableCode] = rule.action;
+      if (rule.action === 'constant') fillValues[rule.variableCode] = rule.value;
+    });
+
+    if (!Object.keys(strategies).length) return null;
+    const missingValuesHandler: Record<string, unknown> = { strategies };
+    if (Object.keys(fillValues).length) missingValuesHandler['fill_values'] = fillValues;
+    return missingValuesHandler;
+  }
+
+  private buildOutlierPreprocessingConfig(
+    rules: Record<string, OutlierRule>,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    const outlierCodes = new Set(
+      Array.from(this.currentOutlierPreprocessingCodeSet()).filter((code) => allowedCodes.has(code))
+    );
+    const serialized = serializeOutlierRules(rules, outlierCodes);
+    return serialized ? { ...serialized } : null;
+  }
+
+  private validatePendingRulesFor(scope: PrepStep | 'all'): Record<string, string> {
+    return Object.assign({}, ...this.stepsIn(scope).map((step) => this.prepStepOps[step].validate()));
+  }
+
+  private validatePendingRules(): Record<string, string> {
+    return this.validatePendingRulesFor('all');
+  }
+
+  /**
+   * Records what blocks a run (splitting off the codes the outlier step owns) and says
+   * whether the caller has to stop. Clears both maps when the rules are valid, so a
+   * fixed rule never leaves stale red text behind.
+   */
+  private reportPendingValidationErrors(
+    validationErrors: Record<string, string>,
+    scope: PrepStep | 'all' = 'all',
+  ): boolean {
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    const inScope = (code: string): boolean => {
+      if (scope === 'all') return true;
+      if (scope === 'outlier') return outlierCodes.has(code);
+      if (scope === 'longitudinal') return code === '__longitudinal__';
+      return !outlierCodes.has(code) && code !== '__longitudinal__';
+    };
+    const kept = Object.fromEntries(
+      Object.entries(this.preprocessingValidationErrors).filter(([code]) => !inScope(code))
+    );
+    if (Object.keys(validationErrors).length === 0) {
+      this.preprocessingValidationErrors = kept;
+      if (scope === 'all' || scope === 'outlier') this.outlierValidationErrors = {};
+      return false;
+    }
+    this.preprocessingValidationErrors = { ...kept, ...validationErrors };
+    if (scope === 'all' || scope === 'outlier') {
+      this.outlierValidationErrors = Object.fromEntries(
+        Object.entries(validationErrors).filter(([code]) => outlierCodes.has(code))
+      );
+    }
+    this.cdr.markForCheck();
+    return true;
+  }
+
+  private validatePendingMissingRules(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const currentCodes = this.currentPreprocessingCodeSet();
+    Object.values(this.pendingPreprocessingRules).forEach((rule) => {
+      if (!currentCodes.has(rule.variableCode)) return;
+      if (!rule.enabled || rule.action === 'no_action') return;
+      const variable = this.preprocessingVariables.find((row) => row.code === rule.variableCode);
+      if (!variable) return;
+      if ((rule.action === 'mean' || rule.action === 'median') && !this.isNumericVariable(variable)) {
+        errors[rule.variableCode] = 'Mean and median imputation are only available for numeric variables.';
+      }
+      if (rule.action === 'constant') {
+        const value = String(rule.value ?? '').trim();
+        if (!value) {
+          errors[rule.variableCode] = 'A constant value is required.';
+          return;
+        }
+        const enumCodes = this.enumCodes(variable);
+        if (enumCodes.length && !enumCodes.includes(value)) {
+          errors[rule.variableCode] = `Use one of the categorical enum codes: ${enumCodes.join(', ')}.`;
+        }
+      }
+    });
+    return errors;
+  }
+
+  private validatePendingOutlierRules(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    Object.values(this.pendingOutlierRules).forEach((rule) => {
+      if (!outlierCodes.has(rule.variableCode)) return;
+      const error = validateOutlierRule(rule);
+      if (error) errors[rule.variableCode] = error;
+    });
+    return errors;
+  }
+
+  private validatePendingLongitudinalRules(): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (this.isLongitudinalModel) {
+      if (!this.longitudinalVisit1 || !this.longitudinalVisit2) {
+        errors['__longitudinal__'] = 'Both longitudinal visits are required.';
+      } else if (this.longitudinalVisit1 === this.longitudinalVisit2) {
+        errors['__longitudinal__'] = 'Select two different longitudinal visits.';
+      }
+
+      this.preprocessingVariables.forEach((variable) => {
+        const strategy = this.longitudinalStrategyFor(variable);
+        if (strategy === 'diff' && !this.isNumericVariable(variable)) {
+          errors[variable.code] = 'Difference strategy is only available for numeric variables.';
+        }
+      });
+    }
+    return errors;
+  }
+
+  private updatePreprocessingStatus(): void {
+    if (this.pendingChangeCount > 0) this.preprocessingStatus = 'pending';
+    else if (this.buildPreprocessingConfig(this.appliedPreprocessingRules)) this.preprocessingStatus = 'applied';
+    else this.preprocessingStatus = 'none';
+    this.clearOutlierPreview();
+    if (this.sectionOpen().processed) this.fetchProcessedPreview();
+  }
+
+  private clearOutlierPreview(): void {
+    this.outlierPreviewRows = [];
+    this.outlierPreviewError = '';
+    this.isLoadingOutlierPreview = false;
+  }
+
+  private reconcilePreprocessingForSelection(): void {
+    const currentCodes = this.currentPreprocessingCodeSet();
+    const appliedPreprocessing = this.expStudioService.getAppliedDescriptivePreprocessing();
+    if (appliedPreprocessing) {
+      this.hydrateAppliedPreprocessing(appliedPreprocessing, currentCodes);
+      // Edit-mode hydration: the saved experiment already had preprocessing
+      // applied, so its step is genuinely complete (not a fresh auto-applied
+      // default). Create mode must stay out: auto-applied defaults there are
+      // persisted into the applied config without a user apply.
+      if (this.expStudioService.editingExistingExperiment()) {
+        this.preprocessingState.userApplied = true;
+      }
+    } else {
+      this.ensureDefaultRulesForCurrentSelection(currentCodes);
+      this.ensureOutlierDefaultsForCurrentSelection();
+      // No persisted config means this session has no explicit apply yet.
+      this.preprocessingState.userApplied = false;
+    }
+    this.preprocessingValidationErrors = Object.fromEntries(
+      Object.entries(this.preprocessingValidationErrors).filter(([code]) => currentCodes.has(code))
+    );
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    this.outlierValidationErrors = Object.fromEntries(
+      Object.entries(this.outlierValidationErrors).filter(([code]) => outlierCodes.has(code))
+    );
+    this.sectionOpen.update((open) => ({ ...open, processed: false }));
+    this.ensureLongitudinalDefaults();
+    if (!this.isApplyingPreprocessing) {
+      this.clearProcessedPreviewSubscription();
+    }
+    this.updatePreprocessingStatus();
+    this.syncAppliedPreprocessingForCurrentSelection();
+    this.fetchProcessedPreview();
+  }
+
+  private hydrateAppliedPreprocessing(
+    preprocessing: PreprocessingConfig,
+    currentCodes = this.currentPreprocessingCodeSet()
+  ): void {
+    const missingValues = preprocessing['missing_values_handler'] as {
+      strategies?: Record<string, unknown>;
+      fill_values?: Record<string, unknown>;
+    } | undefined;
+    const strategies = missingValues?.strategies ?? {};
+    const fillValues = missingValues?.fill_values ?? {};
+    const nextApplied = cloneMissingRules(this.appliedPreprocessingRules);
+    const nextPending = cloneMissingRules(this.pendingPreprocessingRules);
+
+    currentCodes.forEach((code) => {
+      const strategy = String(strategies[code] ?? '');
+      const action = this.isMissingAction(strategy) ? strategy : 'no_action';
+      const rule: PreprocessingRule = action === 'no_action'
+        ? emptyMissingRule(code)
+        : {
+          variableCode: code,
+          action,
+          value: fillValues[code] === undefined || fillValues[code] === null ? '' : String(fillValues[code]),
+          enabled: true,
+        };
+      nextApplied[code] = rule;
+      const existingPending = nextPending[code];
+      nextPending[code] = action === 'no_action'
+        ? {
+          ...(existingPending && serializeMissingRule(existingPending) !== serializeMissingRule(rule)
+            ? existingPending
+            : defaultMissingRule(code)),
+        }
+        : { ...rule };
+    });
+
+    this.appliedPreprocessingRules = nextApplied;
+    this.pendingPreprocessingRules = nextPending;
+
+    const outlier = preprocessing['outlier_winsorizer'];
+    const outlierCodes = this.currentOutlierPreprocessingCodeSet();
+    const hydratedOutlier = hydrateOutlierRules(outlier, outlierCodes);
+    const nextAppliedOutlier = cloneOutlierRules(this.appliedOutlierRules);
+    const nextPendingOutlier = cloneOutlierRules(this.pendingOutlierRules);
+    outlierCodes.forEach((code) => {
+      const rule = hydratedOutlier[code] ?? this.defaultOutlierRule(code);
+      nextAppliedOutlier[code] = { ...rule };
+      nextPendingOutlier[code] = { ...rule };
+    });
+    this.appliedOutlierRules = nextAppliedOutlier;
+    this.pendingOutlierRules = nextPendingOutlier;
+
+    const longitudinal = preprocessing['longitudinal_transformer'] as {
+      visit1?: unknown;
+      visit2?: unknown;
+      strategies?: Record<string, unknown>;
+    } | undefined;
+
+    if (!longitudinal || !this.isLongitudinalModel) {
+      this.appliedLongitudinalEnabled = false;
+      this.appliedLongitudinalVisit1 = '';
+      this.appliedLongitudinalVisit2 = '';
+      this.appliedLongitudinalStrategies = {};
+    } else {
+      this.appliedLongitudinalEnabled = true;
+      this.appliedLongitudinalVisit1 = longitudinal.visit1 === undefined || longitudinal.visit1 === null ? '' : String(longitudinal.visit1);
+      this.appliedLongitudinalVisit2 = longitudinal.visit2 === undefined || longitudinal.visit2 === null ? '' : String(longitudinal.visit2);
+      this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
+      this.longitudinalVisit2 = this.appliedLongitudinalVisit2;
+      const longitudinalStrategies = longitudinal.strategies ?? {};
+      const appliedStrategies: Record<string, LongitudinalStrategy> = {};
+      currentCodes.forEach((code) => {
+        const strategy = String(longitudinalStrategies[code] ?? '');
+        if (this.isLongitudinalStrategy(strategy)) appliedStrategies[code] = strategy;
+      });
+      this.appliedLongitudinalStrategies = appliedStrategies;
+      this.pendingLongitudinalStrategies = { ...appliedStrategies };
+    }
+
+    this.hydrateAppliedTransformation(preprocessing);
+  }
+
+  private hydrateAppliedTransformation(preprocessing: PreprocessingConfig): void {
+    const creators = (preprocessing['categorical_column_creator'] as
+      | Record<string, unknown>[]
+      | undefined) ?? [];
+    const drafts = creators
+      .map((creator) =>
+        this.draftFromCreatorConfig(
+          creator as { code?: unknown; rules?: Record<string, BackendFilter>; default_enumeration?: unknown }
+        )
+      );
+    if (drafts.length) {
+      this.transformationDrafts = drafts.map((draft) => ({ ...draft, chosen: true }));
+    }
+  }
+
+  /** Rebuild one editable card from a persisted categorical_column_creator config. */
+  private draftFromCreatorConfig(creator: {
+    code?: unknown;
+    rules?: Record<string, CategoryFilter>;
+    default_enumeration?: unknown;
+  }): TransformationColumnDraft {
+    const rules = creator.rules ?? {};
+    return {
+      id: nextTransformationDraftId(),
+      code: creator.code == null ? '' : String(creator.code),
+      defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
+      rules: Object.entries(rules).map(([value, filter]) => ({
+        value,
+        filter: filter ?? null,
+      })),
+      open: true,
+    };
+  }
+
+  private isMissingAction(value: string): value is MissingAction {
+    return ['drop', 'mean', 'median', 'constant'].includes(value);
+  }
+
+  private isLongitudinalStrategy(value: string): value is LongitudinalStrategy {
+    return ['first', 'second', 'diff'].includes(value);
+  }
+
+  private ensureDefaultRulesForCurrentSelection(currentCodes = this.currentPreprocessingCodeSet()): void {
+    const nextPending = cloneMissingRules(this.pendingPreprocessingRules);
+    let changed = false;
+    currentCodes.forEach((code) => {
+      if (!nextPending[code] && !this.appliedPreprocessingRules[code]) {
+        nextPending[code] = defaultMissingRule(code);
+        changed = true;
+      }
+    });
+    if (changed) this.pendingPreprocessingRules = nextPending;
+  }
+
+  private ensureOutlierDefaultsForCurrentSelection(currentCodes = this.currentOutlierPreprocessingCodeSet()): void {
+    const nextPending = cloneOutlierRules(this.pendingOutlierRules);
+    let changed = false;
+    currentCodes.forEach((code) => {
+      if (!nextPending[code] && !this.appliedOutlierRules[code]) {
+        nextPending[code] = this.defaultOutlierRule(code);
+        changed = true;
+      }
+    });
+    if (changed) this.pendingOutlierRules = nextPending;
+  }
+
+  private emitProgressState(): void {
+    this.progressStateChange.emit({
+      pendingChangeCount: this.pendingChangeCount,
+      // Report 'applied' only for an explicit user apply; auto-applied and
+      // hydrated defaults stay out of the emitted status so the studio stepper
+      // does not mark Data review Done without user work.
+      preprocessingStatus:
+        this.preprocessingStatus === 'applied' && !this.preprocessingState.userApplied
+          ? 'none'
+          : this.preprocessingStatus,
+      transformationStatusLabel: this.transformationStatusLabel,
+    });
+  }
+
+  private persistAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
+    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
+    this.expStudioService.setTransformationPreprocessing(this.transformationDraftState.payload());
+    this.expStudioService.setKMeansClusterPreprocessing(clusterCreator);
+    this.appliedConfigWrite = JSON.stringify(this.expStudioService.appliedPreprocessingConfig() ?? null);
+  }
+
+  private syncAppliedPreprocessingForCurrentSelection(): void {
+    this.persistAppliedDescriptivePreprocessing(
+      this.buildPreprocessingConfig(this.appliedPreprocessingRules)
+    );
+  }
+
+  private currentPreprocessingCodeSet(): Set<string> {
+    return new Set(this.preprocessingVariables.map((variable) => variable.code));
+  }
+
+  private currentOutlierPreprocessingCodeSet(): Set<string> {
+    return new Set(this.outlierPreprocessingVariables.map((variable) => variable.code));
+  }
+
+  private buildLongitudinalPreprocessingConfig(
+    applied: boolean,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    if (!this.isLongitudinalModel) return null;
+    const enabled = applied ? this.appliedLongitudinalEnabled : true;
+    if (!enabled) return null;
+
+    const visit1 = applied ? this.appliedLongitudinalVisit1 : this.longitudinalVisit1;
+    const visit2 = applied ? this.appliedLongitudinalVisit2 : this.longitudinalVisit2;
+    const sourceStrategies = applied ? this.appliedLongitudinalStrategies : this.pendingLongitudinalStrategies;
+    const strategies: Record<string, string> = {};
+
+    this.preprocessingVariables.forEach((variable) => {
+      if (!allowedCodes.has(variable.code)) return;
+      const strategy = sourceStrategies[variable.code] ?? (applied ? null : this.defaultLongitudinalStrategy(variable));
+      if (strategy) strategies[variable.code] = strategy;
+    });
+
+    if (!visit1 || !visit2 || !Object.keys(strategies).length) return null;
+    return { visit1, visit2, strategies };
+  }
+
+  private ensureLongitudinalDefaults(): void {
+    if (!this.isLongitudinalModel) {
+      this.appliedLongitudinalEnabled = false;
+      return;
+    }
+
+    const visits = this.visitOptions;
+    if (!this.longitudinalVisit1 && visits[0]) this.longitudinalVisit1 = visits[0].code;
+    if (!this.longitudinalVisit2 && visits[1]) this.longitudinalVisit2 = visits[1].code;
+
+    const next = { ...this.pendingLongitudinalStrategies };
+    this.preprocessingVariables.forEach((variable) => {
+      if (!next[variable.code]) next[variable.code] = this.defaultLongitudinalStrategy(variable);
+    });
+    this.pendingLongitudinalStrategies = next;
+  }
+
+  private defaultLongitudinalStrategy(variable: VariableRow): LongitudinalStrategy {
+    return this.isNumericVariable(variable) ? 'diff' : 'first';
+  }
+
+  private serializeLongitudinalState(applied: boolean): string {
+    const enabled = applied ? this.appliedLongitudinalEnabled : this.isLongitudinalModel;
+    const visit1 = applied ? this.appliedLongitudinalVisit1 : this.longitudinalVisit1;
+    const visit2 = applied ? this.appliedLongitudinalVisit2 : this.longitudinalVisit2;
+    const sourceStrategies = applied ? this.appliedLongitudinalStrategies : this.pendingLongitudinalStrategies;
+    const allowedCodes = this.currentPreprocessingCodeSet();
+    const strategies = Object.fromEntries(
+      this.preprocessingVariables
+        .filter((variable) => allowedCodes.has(variable.code))
+        .map((variable) => [
+          variable.code,
+          sourceStrategies[variable.code] ?? (applied ? null : this.defaultLongitudinalStrategy(variable)),
+        ])
+    );
+    return JSON.stringify({ enabled, visit1, visit2, strategies });
+  }
+
+private hasAppliedPreprocessing(variableCode: string): boolean {
+    return this.preprocessingState.hasAppliedMissing(variableCode);
+  }
+
+  private hasAppliedLongitudinalPreprocessing(variableCode: string): boolean {
+    if (!this.isLongitudinalModel || !this.appliedLongitudinalEnabled) return false;
+    if (!this.appliedLongitudinalVisit1 || !this.appliedLongitudinalVisit2) return false;
+    return !!this.appliedLongitudinalStrategies[variableCode];
+  }
+
+private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
+    return this.preprocessingState.hasAppliedOutlier(variableCode);
+  }
+
+  private mergeRulesForCurrentSelection(
+    base: Record<string, PreprocessingRule>,
+    source: Record<string, PreprocessingRule>
+  ): Record<string, PreprocessingRule> {
+    const next = cloneMissingRules(base);
+    this.currentPreprocessingCodeSet().forEach((code) => {
+      next[code] = source[code] ? { ...source[code] } : defaultMissingRule(code);
+    });
+    return next;
+  }
+
+  private mergeOutlierRulesForCurrentSelection(
+    base: Record<string, OutlierRule>,
+    source: Record<string, OutlierRule>
+  ): Record<string, OutlierRule> {
+    const next = cloneOutlierRules(base);
+    this.currentOutlierPreprocessingCodeSet().forEach((code) => {
+      next[code] = source[code] ? { ...source[code] } : this.defaultOutlierRule(code);
+    });
+    return next;
+  }
+
+  private defaultOutlierRule(variableCode: string): OutlierRule {
+    return createDefaultOutlierRule(variableCode, false);
+  }
+
+  private discardPendingTransformation(): void {
+    const persisted = this.expStudioService.appliedPreprocessingConfig();
+    if (persisted?.['categorical_column_creator']) {
+      this.hydrateAppliedTransformation(persisted);
+    } else {
+      this.transformationDrafts = [emptyTransformationDraft()];
+      this.transformationStatistics = [];
+      this.transformationStatisticsError = '';
+    }
+    this.onTransformationChange();
+  }
+
+  private getSummaryTotalRows(summary: SummaryView): number | null {
+    return pooledTotalRows(summary.featurewiseRows ?? []);
+  }
+
+  get cohortRetention(): { raw: number; processed: number; dropped: number; percentage: number } | null {
+    const raw = this.getSummaryTotalRows(this.rawSummary);
+    const processed = this.getSummaryTotalRows(this.processedSummary);
+    if (raw === null || processed === null) return null;
+    return {
+      raw,
+      processed,
+      dropped: Math.max(0, raw - processed),
+      percentage: raw > 0 ? (processed / raw) * 100 : 0,
+    };
+  }
+
+  /** Rows the default drop-NaN rule would remove. Only priced when both raw and
+   *  processed summaries have loaded; otherwise the rail stays honest and the
+   *  row falls back to its unpriced layout. */
+  private get rowsDroppedByDefault(): number | null {
+    const retention = this.cohortRetention;
+    return retention && retention.dropped > 0 ? retention.dropped : null;
+  }
+
+  private isNumericVariable(variable: VariableRow): boolean {
+    return ['real', 'int', 'integer', 'numeric', 'number'].includes(String(variable.type ?? '').toLowerCase());
+  }
+
+  isCategoricalVariable(variable: VariableRow): boolean {
+    return isCategoricalVariable(variable);
+  }
+
+  private enumCodes(variable: VariableRow): string[] {
+    return (variable.enumerations ?? [])
+      .map((item) => item.code ?? item.label ?? item.name)
+      .filter((value): value is string => value !== undefined && value !== null)
+      .map((value) => String(value));
+  }
+
+  private findModelVariable(code: string): VariableRow | null {
+    const model = this.expStudioService.selectedDataModel();
+    const target = code.toLowerCase();
+    const visit = this.flattenModelVariables(model?.variables ?? [], model?.groups ?? [])
+      .find((variable) => String(variable.code ?? '').toLowerCase() === target);
+    return visit ?? null;
+  }
+
+  private flattenModelVariables(variables: any[], groups: Array<{ variables?: any[]; groups?: any[] }>): VariableRow[] {
+    return [
+      ...variables,
+      ...groups.flatMap((group) => this.flattenModelVariables(group.variables ?? [], group.groups ?? [])),
+    ].filter((variable): variable is VariableRow => !!variable?.code);
+  }
+
+  private variableForBlock(block: PivotBlock): VariableRow | null {
+    const target = block.name.toLowerCase();
+    const code = block.code?.toLowerCase();
+    return this.preprocessingVariables.find((variable) =>
+      (code !== undefined && variable.code.toLowerCase() === code) ||
+      this.variableLabel(variable).toLowerCase() === target ||
+      variable.code.toLowerCase() === target
+    ) ?? null;
+  }
+
+  private variableCodeForBlock(block: PivotBlock): string | null {
+    if (block.code) return block.code;
+    return this.variableForBlock(block)?.code ?? null;
+  }
+
+  private mapBinsToEnumLabels(
+    bins: unknown[],
+    enumerations?: Array<{ code?: unknown; label?: string; name?: string }>
+  ): unknown[] {
+    if (!Array.isArray(bins) || !enumerations?.length) return bins;
+
+    const codeToLabel = new Map(
+      enumerations.map((entry) => [
+        String(entry?.code ?? entry?.label ?? entry?.name ?? ''),
+        entry?.label ?? entry?.name ?? String(entry?.code ?? ''),
+      ])
+    );
+
+    let mapped = 0;
+    const mappedBins = bins.map((bin) => {
+      const label = codeToLabel.get(String(bin));
+      if (label !== undefined) {
+        mapped += 1;
+        return label;
+      }
+      return bin;
+    });
+
+    return mapped > 0 ? mappedBins : bins;
+  }
+
+  private pivotBlocksWithDatasetLabels(blocks: PivotBlock[]): PivotBlock[] {
+    return blocks.map((block) => {
+      const labeledColumns = block.columns.map((code) => this.datasetLabel(code));
+      return {
+        ...block,
+        columns: labeledColumns,
+        rows: block.rows.map((row) => ({
+          metric: row.metric,
+          values: Object.fromEntries(
+            block.columns.map((code, index) => [labeledColumns[index], row.values[code]])
+          ),
+        })),
+      };
+    });
+  }
+
+  private statisticBlockType(kind: SummaryKind, block: PivotBlock): StatisticVariableType {
+    const summary = this.getSummary(kind);
+    const variable = this.statisticBlockVariable(block);
+    if (variable && summary.nominalVariables.some((item) => item.code === variable.code)) return 'nominal';
+    if (variable && this.isCategoricalVariable(variable)) return 'nominal';
+    const numericMetrics = new Set(['Mean', 'Standard Deviation', 'Minimum', 'Q1', 'Median', 'Q3', 'Maximum']);
+    return block.rows.some((row) => numericMetrics.has(row.metric)) ? 'numeric' : 'nominal';
+  }
+
+  private statisticMetricText(block: PivotBlock, metric: string): string {
+    const row = block.rows.find((item) => item.metric === metric);
+    if (!row) return 'N/A';
+    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
+    return row.values[dataset] ?? 'N/A';
+  }
+
+  private statisticMetricNumber(block: PivotBlock, metric: string): number {
+    const value = Number(this.statisticMetricText(block, metric).replace(/,/g, ''));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  private statisticMissingValue(block: PivotBlock): number {
+    return Math.round(this.statisticMetricNumber(block, 'Missing'));
+  }
+
+}

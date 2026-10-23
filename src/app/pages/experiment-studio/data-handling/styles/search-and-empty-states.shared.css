@@ -1,0 +1,108 @@
+/* Shared by the Data Handling panel and its section components: Inline search fields and empty-state blocks.
+   Imported at the top of each user's stylesheet (the panel imports it from the sheet
+   these rules came from), so every component renders them identically. */
+
+.empty-state-block {
+  margin: 12px 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  padding: 24px;
+  background: var(--studio-card-header-bg);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  box-shadow: none;
+  border-radius: var(--radius-lg, 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 160px;
+  justify-content: center;
+}
+
+/* The icon is the only cue that a station is idle, so it must stay above 3:1. */
+.empty-state-block i {
+  font-size: 2.25rem;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-light) 18%, white 82%);
+  padding: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  box-shadow: none;
+}
+
+/* One notch below .station-card-title so the panel heading still leads. */
+.empty-state-block p { margin: 0; font-weight: 600; color: var(--text-main); }
+
+.empty-state-block span { font-size: 0.85rem; color: var(--text-muted); }
+
+/* The preview card reads as the informational feedback variant the same way its
+   siblings do - through its own fill and edge, not a side stripe. */
+.search-inline {
+  position: relative;
+  max-width: 280px;
+  width: 100%;
+}
+
+.preprocessing-search {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 34px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.8rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.preprocessing-search:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  background: var(--card-bg);
+}
+
+/* Rail search: pill with a leading glyph, matching the tray/button vocabulary. */
+.search-inline .preprocessing-search {
+  border-radius: 999px;
+  padding-left: 30px;
+}
+
+.search-inline .search-inline-icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+
+/* Glassmorphic feedback cards */
+.glass-feedback {
+  margin: 0 0 12px;
+  padding: 14px 18px;
+  font-size: 0.82rem;
+  background: var(--card-bg);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+  color: var(--text-main);
+  animation: feedbackSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-feedback-warning {
+  background: rgba(255, 186, 8, 0.12);
+  border-color: rgba(255, 186, 8, 0.35);
+  color: #92400e;
+}
+
+@keyframes feedbackSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

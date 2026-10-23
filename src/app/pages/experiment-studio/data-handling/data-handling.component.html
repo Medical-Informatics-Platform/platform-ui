@@ -1,0 +1,122 @@
+<div class="stats-panel-shell" data-guide="analysis-section">
+  <div class="modal-content">
+    <div class="pipeline-canvas-shell" data-guide="analysis-progress-rail">
+      <header class="pipeline-canvas-header">
+        <div class="pipeline-header-title-group">
+          <h2>Data Handling Pipeline</h2>
+          <p>Get your records ready for analysis. Stages run top to bottom — Raw data is a read-only preview, Preprocessing always runs, and Filtering and Transformations are optional.</p>
+        </div>
+      </header>
+
+      <!-- NODE 0: SOURCE DATA - read-only snapshot, never part of the request -->
+      <section
+        app-source-data-station
+        class="pipeline-node is-readonly"
+        [class.is-active]="sectionOpen().source"
+        data-guide="analysis-source-data"
+      ></section>
+
+      <!-- CONNECTOR 0 -> 1 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="sectionOpen().source"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 1: COHORT FILTERING -->
+      <section
+        app-cohort-filter-station
+        [dhSectionAnchor]="'filters'"
+        class="pipeline-node filter-workflow-section"
+        [class.is-compact]="!sectionOpen().filters && !sectionOpen().raw"
+        data-guide="analysis-filtering"
+      ></section>
+
+      <!-- CONNECTOR 1 -> 2 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('filters')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 2: PREPROCESSING -->
+      <!-- MIP drops rows with missing values whether or not anyone configured it, so this
+           stage is part of the request from the first render and its rail tags the
+           untouched handler Default. -->
+      <section
+        app-preprocessing-station
+        [dhSectionAnchor]="'setup'"
+        class="pipeline-node preprocessing-section"
+        [class.is-active]="isStepAdded('setup')"
+        [class.is-compact]="!sectionOpen().setup && !sectionOpen().processed"
+        data-guide="analysis-preprocessing"
+      ></section>
+
+      <!-- CONNECTOR 2 -> 3 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('setup')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 3: DATA TRANSFORMATIONS -->
+      <section
+        app-transformation-station
+        [dhSectionAnchor]="'transformation'"
+        class="pipeline-node preprocessing-section"
+        [class.is-compact]="!sectionOpen().transformation"
+        data-guide="analysis-transformation"
+      ></section>
+
+      <!-- CONNECTOR 3 -> TERMINAL -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('transformation')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-arrow-down"></i></div>
+      </div>
+
+      <!-- PIPELINE TERMINAL -->
+      <div
+        app-pipeline-terminal
+        [retention]="cohortRetention"
+        [variableCount]="preprocessingVariables.length"
+        [datasetCount]="expStudioService.selectedDatasets().length"
+        [preprocessingLine]="terminalPreprocessingLine"
+        [showUnappliedWarning]="showUnappliedChangesWarning()"
+        (continue)="finishDataHandling()"
+        (applyAndContinue)="applyAndContinue()"
+        (discardAndContinue)="discardAndContinue()"
+        (stay)="showUnappliedChangesWarning.set(false)"
+      ></div>
+
+      <!-- Off-screen chart surfaces the PDF export reads by `${kind}-export` class. They
+           stay mounted while the summary is closed, so the export button always finds them. -->
+      @for (kind of summaryKinds; track kind) {
+      @if (getSummary(kind); as summary) {
+      <div
+        class="hidden-charts-for-export"
+        [class.source-export]="kind === 'source'"
+        [class.raw-export]="kind === 'raw'"
+        [class.processed-export]="kind === 'processed'"
+      >
+        <div class="numeric-charts-export">
+          @for (v of summary.nonNominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="summary.chartsForBoxPlot[i]"></app-chart-renderer>
+          }
+        </div>
+        <div class="nominal-charts-export">
+          @for (v of summary.nominalVariables; track v.code; let i = $index) {
+          <app-chart-renderer class="invisible" [charts]="summary.chartsForNominal[i]"></app-chart-renderer>
+          }
+        </div>
+      </div>
+      }
+      }
+    </div>
+  </div>
+</div>
+
+@if (isExporting) {
+<div class="pdf-overlay">
+  <div class="studio-skeleton-card" role="status" aria-label="Generating PDF">
+    <span class="studio-skeleton-line medium"></span>
+    <span class="studio-skeleton-line short"></span>
+  </div>
+</div>
+}

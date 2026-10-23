@@ -1,0 +1,259 @@
+/* The outlier step's own styles (bounds controls and strip, the report table), in the
+   step's cascade order. */
+
+@import '../../styles/statistics-panel.shared.css';
+@import '../../styles/search-and-empty-states.shared.css';
+@import '../../styles/tables.shared.css';
+@import '../../styles/preprocessing-step.shared.css';
+
+/* The panel's 1px icon nudge (`.stats-panel-shell i`), repeated for this template. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+.outlier-preview-skeleton {
+  margin: 0;
+}
+
+/* Mini variant of the studio switch, used in the outlier rail rows. */
+.toggle-switch.is-mini {
+  width: 30px;
+  height: 18px;
+}
+
+.toggle-switch.is-mini .toggle-slider:before {
+  width: 14px;
+  height: 14px;
+  left: 1px;
+  top: 1px;
+}
+
+.toggle-switch.is-mini input:checked + .toggle-slider:before {
+  transform: translateX(12px);
+}
+
+/* Outlier bounds strip. Pooled over all datasets; the report below is per dataset. */
+.bounds-strip {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+}
+
+.bounds-labels,
+.bounds-scale {
+  position: relative;
+  height: 18px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.bounds-labels span {
+  position: absolute;
+  top: 0;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.bounds-track {
+  position: relative;
+  height: 44px;
+}
+
+.bounds-track::before {
+  content: '';
+  position: absolute;
+  inset: 20px 0 auto;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.bounds-iqr {
+  position: absolute;
+  top: 12px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: rgba(43, 51, 233, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.35);
+}
+
+.bounds-median {
+  position: absolute;
+  top: 12px;
+  width: 2px;
+  height: 20px;
+  background: var(--primary-color);
+}
+
+.bounds-capped {
+  position: absolute;
+  top: 20px;
+  height: 4px;
+  background: color-mix(in srgb, var(--danger) 75%, var(--text-main));
+}
+
+.bounds-marker {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 36px;
+  background: var(--text-main);
+}
+
+.bounds-scale span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.bounds-scale .is-min {
+  left: 0;
+  transform: none;
+}
+
+.bounds-scale .is-max {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+.outlier-report-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.outlier-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.outlier-report-table .share-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.share-bar {
+  display: inline-block;
+  width: 74px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(43, 51, 233, 0.08);
+  overflow: hidden;
+}
+
+.share-bar > span {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--danger) 75%, var(--text-main));
+}
+
+.preprocessing-control-grid {
+  display: grid;
+  gap: 12px 18px;
+  /* auto-fit + 1fr gave a 200px select two 602px tracks. Tracks stop at 300px
+     and the row stops at its content instead of spanning the panel. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 300px));
+  justify-content: start;
+}
+
+.outlier-control-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px 22px;
+}
+
+.outlier-fold-input {
+  width: 84px;
+}
+
+@media (max-width: 720px) {
+  .outlier-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The input is invisible and zero-sized, and styles.css excludes checkboxes from
+   the studio focus rule, so nothing else can draw the ring. Put it on the slider
+   (the element the user actually sees) with a solid token-coloured outline. */
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* OFF must read as a control and as "not on": the old near-white fill hit 1.2:1. */
+  background: color-mix(in srgb, var(--text-muted) 22%, white);
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 75%, transparent);
+}
+
+.toggle-slider:before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2.5px;
+  background: var(--card-bg);
+  border-radius: 50%;
+  transition:
+    transform 0.22s var(--ease-standard),
+    box-shadow 0.22s ease;
+  /* Ring keeps the knob legible on both the OFF and ON track. */
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  /* Flat primary: every other studio gradient is a near-white surface wash, and
+     a two-stop brand ramp is invisible on a 44x24 track anyway. */
+  background: var(--primary-color);
+  border-color: rgba(43,51,233,0.24);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
+:host(.outlier-preprocessing-workspace) .preprocessing-detail-panel {
+  grid-template-columns: minmax(260px, 560px) minmax(0, 1fr);
+}
+
+@media (max-width: 900px) {
+  :host(.outlier-preprocessing-workspace) .preprocessing-detail-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

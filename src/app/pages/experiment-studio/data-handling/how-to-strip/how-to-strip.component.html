@@ -1,0 +1,11 @@
+<summary class="how-to-summary">
+  <span class="how-to-label">How to use</span>
+  <span class="how-to-peek">{{ guide().steps.length }} steps</span>
+  <i class="fas fa-chevron-down how-to-chevron" aria-hidden="true"></i>
+</summary>
+<div class="how-to-body">
+  @for (step of guide().steps; track step; let i = $index) {
+  <span class="how-to-step"><span class="how-to-number">{{ i + 1 }}</span>{{ step }}</span>
+  }
+  <span class="how-to-note">{{ guide().note }}</span>
+</div>

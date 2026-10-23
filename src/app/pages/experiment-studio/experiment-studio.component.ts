@@ -8,10 +8,8 @@ import { AuthService } from '../../services/auth.service';
 import { ExperimentsDashboardService } from '../../services/experiments-dashboard.service';
 import { ErrorService } from '../../services/error.service';
 import { StudioStepperComponent } from './stepper/studio-stepper.component';
-import {
-  DescriptiveProgressState,
-  StatisticAnalysisPanelComponent,
-} from './statistic-analysis-panel/statistic-analysis-panel.component';
+import { DataHandlingComponent } from './data-handling/data-handling.component';
+import { DescriptiveProgressState } from './data-handling/data-handling.models';
 import { countFilterRules } from '../../core/filter-display.utils';
 import { Subject, takeUntil } from 'rxjs';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
@@ -37,7 +35,7 @@ type AlgorithmSubstepKey = 'setup' | 'parameters';
     VariablesPanelComponent,
     AlgorithmPanelComponent,
     ExecutionPanelComponent,
-    StatisticAnalysisPanelComponent,
+    DataHandlingComponent,
     ExperimentStudioGuideComponent,
     StudioStepperComponent,
   ],
@@ -68,7 +66,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
   });
   readonly algorithmPanel = viewChild(AlgorithmPanelComponent);
   readonly runResult = this.expStudioService.runResult;
-  readonly statisticPanel = viewChild(StatisticAnalysisPanelComponent);
+  readonly dataHandling = viewChild(DataHandlingComponent);
 
   // --- Step views -------------------------------------------------
   activeSection = signal<StudioSectionId>('variables-top');
@@ -349,7 +347,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
     if (target === 'statistics-section' && stepId) {
       const section = this.guideStepToSection(stepId);
       if (section) {
-        this.statisticPanel()?.goToSection(section);
+        this.dataHandling()?.goToSection(section);
       }
     }
   };
@@ -363,7 +361,7 @@ export class ExperimentStudioComponent implements OnInit, OnDestroy {
   }
 
   private scrollToDescriptiveStep(section: DescriptiveStep): void {
-    requestAnimationFrame(() => this.statisticPanel()?.goToSection(section));
+    requestAnimationFrame(() => this.dataHandling()?.goToSection(section));
   }
 
   private runCurrentExperiment(): void {

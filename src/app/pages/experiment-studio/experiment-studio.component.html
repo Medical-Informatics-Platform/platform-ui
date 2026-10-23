@@ -95,7 +95,7 @@
         [class.is-visible]="activeSection() === 'statistics-section'"
         [class.is-complete]="descriptiveProgress().preprocessingStatus === 'applied'"
       >
-        <app-statistic-analysis-panel (progressStateChange)="descriptiveProgress.set($event)"></app-statistic-analysis-panel>
+        <app-data-handling (progressStateChange)="descriptiveProgress.set($event)"></app-data-handling>
         @if (!isDataReviewReady()) {
         <div class="studio-section-empty-state studio-section-empty-state--overlay">
           <div class="studio-section-empty-icon"><i class="fas fa-chart-line"></i></div>

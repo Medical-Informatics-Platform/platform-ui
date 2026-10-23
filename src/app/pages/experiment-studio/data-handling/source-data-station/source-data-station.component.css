@@ -1,0 +1,22 @@
+@import '../styles/pipeline-node.shared.css';
+
+/* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
+   scoped to the panel's own template, so it is repeated here for this one. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* No body to divide from while the snapshot is hidden. */
+:host(.pipeline-node.is-readonly:not(.is-active)) .pipeline-node-header {
+  border-bottom: none;
+}
+
+/* The panel's `.pipeline-node .workflow-section-body`, for this step's body. */
+:host(.pipeline-node) .workflow-section-body {
+  padding-inline: 16px;
+}
+
+/* The snapshot's workspace runs edge to edge. */
+:host(.pipeline-node.is-readonly) .workflow-section-body {
+  padding: 0;
+}

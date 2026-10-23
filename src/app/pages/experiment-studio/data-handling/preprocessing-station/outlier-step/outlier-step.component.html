@@ -1,0 +1,230 @@
+<aside
+  app-prep-variable-rail
+  class="statistics-browser preprocessing-browser"
+  aria-label="Outlier preprocessing variables"
+  step="outlier"
+  searchLabel="Search outlier preprocessing variables"
+  emptyHint="Clear the search field to show selected numerical variables.">
+  <div class="batch-menu">
+    <button
+      type="button"
+      class="studio-export-btn batch-menu-trigger"
+      [attr.aria-expanded]="dh.batchMenuOpen() === 'outlier'"
+      (click)="dh.toggleBatchMenu('outlier')">
+      <i class="fas fa-bolt" aria-hidden="true"></i>
+      Batch
+    </button>
+    @if (dh.batchMenuOpen() === 'outlier') {
+    <div class="batch-menu-list" role="menu">
+      <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(true)">Enable for all numerical</button>
+      <button type="button" role="menuitem" (click)="dh.toggleAllOutliers(false)">Disable for all</button>
+    </div>
+    }
+  </div>
+  <ng-template prepRailSlot="trail" let-variable>
+    <label class="toggle-switch is-mini" title="Enable outlier clipping for this variable"
+           (click)="$event.stopPropagation()">
+      <input type="checkbox" [checked]="dh.outlierRuleFor(variable).enabled"
+             (change)="dh.onOutlierEnabledChange(variable, $any($event.target).checked)" />
+      <span class="toggle-slider"></span>
+    </label>
+  </ng-template>
+  <ng-template prepRailSlot="action" let-variable>
+    <span class="prep-rail-action" [attr.data-state]="dh.outlierRuleFor(variable).enabled ? (dh.prepVariableHasPendingChange('outlier', variable) ? 'pending' : 'set') : 'off'">
+      {{ dh.outlierRuleSummary(variable) }}
+    </span>
+  </ng-template>
+</aside>
+
+<div class="preprocessing-detail-column">
+  <div class="statistics-panel preprocessing-detail-panel">
+    @if (dh.selectedPrepVariable('outlier'); as variable) {
+    @let rule = dh.outlierRuleFor(variable);
+    @let state = dh.prepVariableStateLabel('outlier', variable);
+    <div class="statistics-panel-header">
+      <div>
+        <span class="statistics-panel-kicker">Numerical variable</span>
+        <h4>{{ dh.variableLabel(variable) }}</h4>
+      </div>
+      <span
+        class="preprocessing-state-chip"
+        [class.state-pending]="dh.prepVariableHasPendingChange('outlier', variable)"
+        [class.state-applied]="state === 'Applied'"
+      >
+        {{ state }}
+      </span>
+    </div>
+
+    <div class="preprocessing-detail-section">
+      <div class="preprocessing-detail-heading">
+        <i class="fa fa-line-chart" aria-hidden="true"></i>
+        <span>Outlier winsorizer</span>
+      </div>
+      @if (!rule.enabled) {
+      <p class="preprocessing-consequence">Turn on clipping for this variable in the list.</p>
+      }
+      <div class="preprocessing-control-grid outlier-control-grid">
+        <div class="preprocessing-control">
+          <span>Method</span>
+          <div class="modal-tabs" role="radiogroup" aria-label="Outlier method">
+            @for (strategy of dh.outlierStrategies; track strategy.value) {
+            <button type="button" role="radio"
+                    [class.active]="rule.strategy === strategy.value"
+                    [attr.aria-checked]="rule.strategy === strategy.value"
+                    [disabled]="!rule.enabled"
+                    (click)="dh.onOutlierStrategyChange(variable, strategy.value)">{{ strategy.label }}</button>
+            }
+          </div>
+        </div>
+        <div class="preprocessing-control">
+          <span>Clip</span>
+          <div class="modal-tabs" role="radiogroup" aria-label="Outlier clip">
+            @for (tail of dh.outlierTails; track tail.value) {
+            <button type="button" role="radio"
+                    [class.active]="rule.tail === tail.value"
+                    [attr.aria-checked]="rule.tail === tail.value"
+                    [disabled]="!rule.enabled"
+                    (click)="dh.onOutlierTailChange(variable, tail.value)">{{ dh.outlierTailDisplay(tail.value) }}</button>
+            }
+          </div>
+        </div>
+        <label class="preprocessing-control">
+          <span>{{ dh.outlierFoldDisplay(rule.strategy) }}</span>
+          <input class="table-input outlier-fold-input" type="number" step="any" [ngModel]="rule.fold" (ngModelChange)="dh.onOutlierFoldChange(variable, $event)" [disabled]="!rule.enabled" />
+        </label>
+      </div>
+      @if (dh.outlierRuleError(variable)) {
+      <div class="row-error">{{ dh.outlierRuleError(variable) }}</div>
+      }
+      @if (dh.outlierBoundsView(variable); as bounds) {
+      <div class="bounds-strip">
+        <div class="bounds-labels">
+          @if (bounds.loLabel) {
+          <span [style.left.%]="bounds.loPct"
+                [style.transform]="boundLabelShift(bounds.loPct)">{{ bounds.loLabel }}</span>
+          }
+          @if (bounds.hiLabel) {
+          <span [style.left.%]="bounds.hiPct"
+                [style.transform]="boundLabelShift(bounds.hiPct)">{{ bounds.hiLabel }}</span>
+          }
+        </div>
+        <div class="bounds-track">
+          <span class="bounds-iqr" [style.left.%]="bounds.iqrLeft" [style.width.%]="bounds.iqrWidth"></span>
+          <span class="bounds-median" [style.left.%]="bounds.medianLeft"></span>
+          @if (bounds.cappedLeft !== null) {
+          <span class="bounds-capped" [style.left.%]="0" [style.width.%]="bounds.cappedLeft"></span>
+          <span class="bounds-marker" [style.left.%]="bounds.loPct"></span>
+          }
+          @if (bounds.cappedRight !== null) {
+          <span class="bounds-capped" [style.left.%]="bounds.hiPct" [style.width.%]="bounds.cappedRight"></span>
+          <span class="bounds-marker" [style.left.%]="bounds.hiPct"></span>
+          }
+        </div>
+        <div class="bounds-scale">
+          <span class="is-min">{{ bounds.min.toLocaleString() }}</span>
+          <span [style.left.%]="bounds.medianLeft">{{ dh.distributionMapValue(variable, 'Median') }}</span>
+          <span class="is-max">{{ dh.distributionMapValue(variable, 'Max') }}</span>
+        </div>
+        <span class="preprocessing-consequence">{{ bounds.note }}</span>
+      </div>
+      }
+    </div>
+
+    @let distribution = dh.distributionFor(variable);
+    <aside class="preprocessing-evidence">
+      <h5 class="preprocessing-evidence-title">Distribution</h5>
+      @if (distribution.length) {
+      <dl class="preprocessing-stat-strip">
+        @for (point of distribution; track point.label) {
+        <div class="preprocessing-stat">
+          <dt>{{ point.label }}</dt>
+          <dd>{{ point.value }}</dd>
+        </div>
+        }
+      </dl>
+      @if (dh.coverageFor(variable); as coverage) {
+      <p class="preprocessing-consequence">{{ coverage.missing.toLocaleString() }} of {{ coverage.total.toLocaleString() }} values missing ({{ dh.coveragePercent(coverage) }}) are ignored by the winsorizer.</p>
+      }
+      } @else {
+      <p class="preprocessing-consequence">{{ dh.summaryUnavailableNote() }}</p>
+      }
+    </aside>
+
+    } @else {
+    <div class="empty-state-block compact-empty">
+      <i class="fa fa-search"></i>
+      <p>No variables match the current search.</p>
+      <span>Clear the search field to choose a numerical variable.</span>
+    </div>
+    }
+  </div>
+
+  <div class="outlier-report-section">
+    @if (dh.selectedPrepVariable('outlier'); as reportVariable) {
+    <div class="outlier-report-header">
+      <h5 class="preprocessing-evidence-title">Values that would be capped · per dataset</h5>
+      <button type="button" class="station-action-preview"
+              [disabled]="!dh.hasOutlierRulesForPreview || dh.isLoadingOutlierPreview"
+              (click)="dh.previewOutlierReport()">
+        <i class="fas fa-eye" aria-hidden="true"></i>
+        Refresh report
+      </button>
+    </div>
+
+    @if (dh.isLoadingOutlierPreview) {
+    <div class="studio-skeleton-card outlier-preview-skeleton" role="status" aria-label="Outlier report preview loading">
+      <span class="studio-skeleton-line medium"></span>
+      <span class="studio-skeleton-line short"></span>
+      <div class="studio-skeleton-table" aria-hidden="true">
+        @for (_ of [1, 2, 3, 4]; track _) {
+        <span class="studio-skeleton-cell head"></span>
+        }
+        @for (_ of [1, 2, 3, 4, 5, 6]; track _) {
+        <span class="studio-skeleton-cell"></span>
+        }
+      </div>
+    </div>
+    }
+
+    @if (!dh.isLoadingOutlierPreview && dh.outlierPreviewError) {
+    <div class="row-error">{{ dh.outlierPreviewError }}</div>
+    }
+
+    @if (!dh.isLoadingOutlierPreview && dh.outlierPreviewRowsFor(reportVariable).length > 0) {
+    <div class="table-wrapper statistics-table-wrapper">
+      <table class="data-table outlier-report-table">
+        <thead>
+          <tr>
+            <th>Dataset</th>
+            <th>Lower bound</th>
+            <th>Upper bound</th>
+            <th>Below</th>
+            <th>Above</th>
+            <th>Share capped</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of dh.outlierPreviewRowsFor(reportVariable); track row.variable + '-' + row.dataset) {
+          <tr>
+            <td>{{ row.dataset }}</td>
+            <td>{{ row.lowerBound }}</td>
+            <td>{{ row.upperBound }}</td>
+            <td>{{ row.lowerOutliers }}</td>
+            <td>{{ row.upperOutliers }}</td>
+            <td class="share-cell">
+              <span class="share-bar"><span [style.width.%]="dh.barWidth(row.outlierPercentage, 8)"></span></span>
+              <strong>{{ row.outlierPercentage }}</strong>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+
+    @if (dh.coverageFor(reportVariable); as reportCoverage) {
+    <p class="preprocessing-consequence">Bounds are fitted per dataset. {{ reportCoverage.missing.toLocaleString() }} missing values ({{ dh.coveragePercent(reportCoverage) }}) are skipped.</p>
+    }
+    }
+  </div>
+</div>
