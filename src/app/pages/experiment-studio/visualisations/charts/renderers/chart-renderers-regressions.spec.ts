@@ -1,5 +1,6 @@
 import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
 import { buildKMeansChart } from './k-means-chart';
+import { buildPCAHeatmapChart } from './pca-heatmap-chart';
 import { buildTTestIntervalChart } from './mean-plot-chart';
 import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './naive-bayes-priors-chart';
 import { buildBoxPlotChart } from './box-plot-chart';
@@ -239,5 +240,35 @@ describe('Chart renderers regressions', () => {
     const series = (charts[0] as any).series;
     expect(series[0].data).toEqual([[1.5, 0]]);
     expect(series[1].data).toEqual([[-0.5, 0]]);
+  });
+
+  it('draws a missing k-means centre value as missing, not NaN', () => {
+    const [heatmap] = buildKMeansChart({
+      variables: ['a', 'b', 'c'],
+      clusters: [
+        { label: 'Cluster 0', size_interval: '10-20', center: { a: 1, b: 2, c: 3 } },
+        { label: 'Cluster 1', size_interval: '10-20', center: { a: 3, b: null, c: 5 } },
+      ],
+    }) as any[];
+
+    const data = heatmap.series[0].data;
+    expect(data.every((cell: any) => cell.value.slice(0, 3).every((n: number) => Number.isFinite(n)))).toBe(true);
+    const missing = data.find((cell: any) => cell.value[0] === 1 && cell.value[1] === 1);
+    expect(missing.value[3]).toBeNull();
+    expect(heatmap.series[0].label.formatter({ value: missing.value })).toBe('—');
+    // Variable b's mean comes from the one cluster that reports it, so that cluster sits at it.
+    expect(data.find((cell: any) => cell.value[0] === 1 && cell.value[1] === 0).value[2]).toBe(0);
+  });
+
+  it('keeps each PCA variance share on its own component when an eigenvalue is missing', () => {
+    const charts = buildPCAHeatmapChart({
+      eigenvectors: [[0.7, 0.7], [0.7, -0.7], [0.1, 0.2]],
+      eigenvalues: [3, null, 1],
+      variable_names: ['x', 'y'],
+    }) as any[];
+
+    const variance = charts.find((chart) => chart.title?.text === 'Variance explained');
+    expect(variance.series[0].data).toEqual([75, null, 25]);
+    expect(variance.xAxis.data.map((label: string) => label.split('\n')[0])).toEqual(['PC1', 'PC2', 'PC3']);
   });
 });

@@ -6,7 +6,7 @@ import {
   fileSlug,
   formatExportDate,
 } from '../core/export.utils';
-import { TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import { exportTable, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
 import {
   HISTOGRAM_RESIDUAL_LABEL,
   HistogramGroupSeries,
@@ -69,10 +69,11 @@ export class CsvExportService {
     this.downloadCsv(toCsv(headers, data.map((row) => headers.map((header) => row[header]))), filename);
   }
 
-  /** One result table as shown on screen. */
+  /** One result table with exact values: what the screen rounds (p-values, shares) is exported as sent. */
   exportTableCsv(table: TableSpec, fallbackName: string): void {
     if (!table?.columns || !table.rows) return;
-    this.downloadCsv(toCsv(table.columns, table.rows), `${fileSlug(table.title || fallbackName, 'table').toLowerCase()}.csv`);
+    const exported = exportTable(table);
+    this.downloadCsv(toCsv(exported.columns, exported.rows), `${fileSlug(table.title || fallbackName, 'table').toLowerCase()}.csv`);
   }
 
   /**
@@ -87,8 +88,9 @@ export class CsvExportService {
     const tableFiles = payload.tables.map((table, index) => {
       const title = table.title || `Results table ${index + 1}`;
       const name = `tables/${String(index + 1).padStart(2, '0')}_${fileSlug(title, 'table').toLowerCase()}.csv`;
-      zip.file(name, BOM + toCsv(table.columns, table.rows));
-      return { name, title, table };
+      const exported = exportTable(table);
+      zip.file(name, BOM + toCsv(exported.columns, exported.rows));
+      return { name, title, table: exported };
     });
     zip.file('result.json', JSON.stringify(payload.result ?? null, null, 2));
     zip.file('README.txt', this.experimentReadme(payload.details, tableFiles));
@@ -103,7 +105,7 @@ export class CsvExportService {
 
   private experimentReadme(
     details: ExperimentExportDetails,
-    tableFiles: Array<{ name: string; title: string; table: TableSpec }>,
+    tableFiles: Array<{ name: string; title: string; table: { columns: string[]; rows: unknown[][] } }>,
   ): string {
     const setup = filledContextRows(experimentContextRows(details)).flatMap(([label, values]) =>
       values.length > 1 ? [`${label}:`, ...values.map((value) => `  - ${value}`)] : [`${label}: ${values[0]}`]
@@ -112,7 +114,7 @@ export class CsvExportService {
       ...tableFiles.map(({ name, title, table }) =>
         `${name}\n    ${title}: ${table.rows.length} row${table.rows.length === 1 ? '' : 's'}; columns: ${table.columns.join(', ')}`
       ),
-      'result.json\n    The full result returned by the engine, unrounded. The tables round values for reading.',
+      'result.json\n    The full result returned by the engine, unrounded. The tables round most values for reading; p-values, shares and probabilities in them are exact.',
     ];
     return [
       details.experimentName,

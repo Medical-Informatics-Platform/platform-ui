@@ -1,6 +1,6 @@
 import { formatInteger, formatPValue, formatRatio, formatSignedNumber, formatSummaryNumber, toFiniteNumber } from '../result-format';
 import { readConfusionMatrix } from '../charts/renderers/confusion-matrix-chart';
-import { TableTrim } from '../auto-renderer/algorithm-table-registry';
+import { formatTTestKey, TableTrim } from '../auto-renderer/algorithm-table-registry';
 import { KeyFigure } from './key-figures.component';
 
 /** Cohen's conventions for d / SMD: 0.2 small, 0.5 medium, 0.8 large. */
@@ -206,6 +206,15 @@ function foldAccuracy(result: any): { mean: number; sd: number | null; folds: nu
   };
 }
 
+/** The largest actual class of a pooled confusion matrix and its share: what always guessing it would score. */
+function majorityClass(confusion: { labels: string[]; matrix: number[][] }): { label: string; share: number } | null {
+  const totals = confusion.matrix.map((row) => row.reduce((sum, value) => sum + value, 0));
+  const total = totals.reduce((sum, value) => sum + value, 0);
+  if (!(total > 0)) return null;
+  const index = totals.reduce((best, value, i) => (value > totals[best] ? i : best), 0);
+  return { label: confusion.labels[index], share: totals[index] / total };
+}
+
 /**
  * Cross-validated classifiers: fold accuracy next to the majority-class baseline it has to beat,
  * then balanced accuracy and macro F1 from the pooled confusion matrix (both weigh every class
@@ -216,13 +225,8 @@ function classificationCvFigures(result: any): KeyFigure[] {
   const accuracy = foldAccuracy(result);
   const confusion = readConfusionMatrix(result?.confusion_matrix);
 
-  // The share of the largest actual class: what always guessing that class would score.
-  const baseline = (() => {
-    if (!confusion) return null;
-    const totals = confusion.matrix.map((row) => row.reduce((sum, value) => sum + value, 0));
-    const total = totals.reduce((sum, value) => sum + value, 0);
-    return total > 0 ? Math.max(...totals) / total : null;
-  })();
+  const majority = confusion ? majorityClass(confusion) : null;
+  const baseline = majority?.share ?? null;
 
   if (accuracy) {
     const spread = accuracy.sd === null ? '' : `± ${(accuracy.sd * 100).toFixed(1)} pts`;
@@ -239,15 +243,13 @@ function classificationCvFigures(result: any): KeyFigure[] {
     const { labels, matrix } = confusion;
     const rowTotals = matrix.map((row) => row.reduce((sum, value) => sum + value, 0));
     const colTotals = labels.map((_, j) => matrix.reduce((sum, row) => sum + row[j], 0));
-    const total = rowTotals.reduce((sum, value) => sum + value, 0);
     const supported = labels.map((_, i) => i).filter((i) => rowTotals[i] > 0);
 
-    if (total > 0) {
-      const majority = supported.reduce((best, i) => (rowTotals[i] > rowTotals[best] ? i : best), supported[0]);
+    if (majority) {
       figures.push({
         label: 'Majority baseline',
-        value: percent(rowTotals[majority] / total),
-        note: `Accuracy of always predicting ${labels[majority]}`,
+        value: percent(majority.share),
+        note: `Accuracy of always predicting ${majority.label}`,
       });
     }
     if (supported.length > 1) {
@@ -333,25 +335,119 @@ export const FIGURE_NOTES: Record<string, string> = {
     'squaring makes large misses count more. MAE (mean absolute error) is the average size of that error, so an RMSE well above the MAE points to a few large misses.',
 };
 
+/** The t-test rows the figures show: each key only when its figure (or that figure's note) prints it. */
+function ttestShownRows(result: any): string[] {
+  const has = (key: string) => toFiniteNumber(result?.[key]) !== null;
+  const firstKey = (keys: string[]) => keys.find(has) ?? null;
+  const meanDiff = has('mean_diff');
+  const p = firstKey(['p', 'p_value']);
+  const t = has('t_stat');
+  const df = firstKey(['df', 'dof']);
+  const d = firstKey(['cohens_d', 'cohen_d']);
+  const nObs = has('n_obs');
+  const se = firstKey(['se_diff', 'se_difference', 'std_err_diff']);
+  const keys = [
+    ...(meanDiff ? ['mean_diff'] : []),
+    ...(meanDiff && has('ci_lower') && has('ci_upper') ? ['ci_lower', 'ci_upper'] : []),
+    ...(meanDiff && se ? [se] : []),
+    ...(p ? [p] : []),
+    ...(p && t ? ['t_stat'] : []),
+    ...(p && t && df ? [df] : []),
+    ...(d ? [d] : []),
+    ...(nObs ? ['n_obs'] : []),
+    ...(nObs && has('std') ? ['std'] : []),
+  ];
+  return keys.map(formatTTestKey);
+}
+
+/** One summary table's rows the figures show, by label, each only when its value is a finite number. */
+function metricRows(result: any, rows: Array<[label: string, key: string, shown: boolean]>): string[] {
+  return rows.filter(([, key, shown]) => shown && toFiniteNumber(result?.[key]) !== null).map(([label]) => label);
+}
+
+/** Linear regression CV: an error metric's row once its figure shows both the mean and the SD.
+ *  The F diagnostic has no figure, and an undefined metric ([null, null]) keeps its row. */
+function linearRegressionCvShownRows(result: any): string[] {
+  const known = (raw: any) => {
+    const [mean, sd] = (Array.isArray(raw) ? raw : [raw?.mean, raw?.std]).map(toFiniteNumber);
+    return mean !== null && sd !== null;
+  };
+  return [
+    ...(known(result?.root_mean_sq_error ?? result?.mean_sq_error) ? ['Root mean squared error'] : []),
+    ...(known(result?.mean_abs_error) ? ['Mean absolute error'] : []),
+    ...(known(result?.r_squared) ? ['R-squared'] : []),
+  ];
+}
+
+/** ANOVA columns the figures show: p, F and both degrees of freedom of every model term, or none. */
+function anovaTwoWayShownColumns(result: any): string[] {
+  const terms: unknown[] = Array.isArray(result?.terms) ? result.terms : [];
+  const at = (key: string, index: number) => toFiniteNumber(Array.isArray(result?.[key]) ? result[key][index] : null);
+  const residual = terms.findIndex((term) => /^residuals?$/i.test(String(term)));
+  const modelTerms = terms.map((_, i) => i).filter((i) => i !== residual);
+  const complete = residual >= 0 && at('df', residual) !== null && modelTerms.length > 0 &&
+    modelTerms.every((i) => at('f_pvalue', i) !== null && at('f_stat', i) !== null && at('df', i) !== null);
+  return complete ? ['df', 'F', 'Prob>F'] : [];
+}
+
+function anovaOneWayShownColumns(result: any): string[] {
+  const table = result?.anova_table;
+  const has = (key: string) => toFiniteNumber(table?.[key]) !== null;
+  if (!has('p_value')) return [];
+  return ['Prob>F', ...(has('f_stat') ? ['F'] : []), ...(has('f_stat') && has('df_explained') && has('df_residual') ? ['df'] : [])];
+}
+
+function rowsTrim(title: string, rows: string[]): TableTrim[] {
+  return rows.length ? [{ title, rows }] : [];
+}
+
+function columnsTrim(title: string, columns: string[]): TableTrim[] {
+  return columns.length ? [{ title, columns }] : [];
+}
+
 /**
  * What the figures show of each result's tables, so the result view does not repeat it on screen
- * (exports keep every table): a title alone covers the whole table, columns or rows only those.
+ * (exports keep every table). Worked out from the result itself: a row or column is covered only
+ * when the figures print its value, so nothing a figure leaves out is hidden with it.
  */
-export const TABLES_SHOWN_AS_FIGURES: Record<string, TableTrim[]> = {
-  ttest_independent: [{ title: 'Independent T-Test' }],
-  ttest_paired: [{ title: 'Paired T-Test' }],
-  ttest_onesample: [{ title: 'One-Sample T-Test' }],
-  chi_squared: [{ title: 'Chi-Squared Test Summary' }],
-  fisher_exact: [{ title: "Fisher's Exact Test Summary" }],
-  standardized_mean_difference: [{ title: 'Standardized Mean Difference' }],
-  linear_regression_cv: [{ title: 'Error metrics' }],
+const SHOWN_AS_FIGURES: Record<string, (result: any) => TableTrim[]> = {
+  ttest_independent: (result) => rowsTrim('Independent T-Test', ttestShownRows(result)),
+  ttest_paired: (result) => rowsTrim('Paired T-Test', ttestShownRows(result)),
+  ttest_onesample: (result) => rowsTrim('One-Sample T-Test', ttestShownRows(result)),
+  chi_squared: (result) => {
+    const p = toFiniteNumber(result?.p_value) !== null;
+    const chi2 = p && toFiniteNumber(result?.chi2) !== null;
+    return rowsTrim('Chi-Squared Test Summary', metricRows(result, [
+      ['p-value', 'p_value', p],
+      ['Chi-Squared statistic', 'chi2', chi2],
+      ['Degrees of freedom', 'dof', chi2],
+    ]));
+  },
+  fisher_exact: (result) => rowsTrim("Fisher's Exact Test Summary", metricRows(result, [
+    ['p-value', 'p_value', true],
+    ['Odds ratio', 'odds_ratio', true],
+  ])),
+  // One figure per comparison: the table goes only when every comparison has its figure.
+  standardized_mean_difference: (result) => {
+    const comparisons: any[] = Array.isArray(result?.comparisons) ? result.comparisons : [];
+    return comparisons.length && comparisons.every((comparison) => toFiniteNumber(comparison?.smd) !== null)
+      ? [{ title: 'Standardized Mean Difference' }]
+      : [];
+  },
+  linear_regression_cv: (result) => rowsTrim('Error metrics', linearRegressionCvShownRows(result)),
   // F, its degrees of freedom and p are in the figures; the sums and mean squares stay.
-  anova_oneway: [{ title: 'ANOVA Summary', columns: ['df', 'F', 'Prob>F'] }],
-  anova_twoway: [{ title: 'Two-Way ANOVA', columns: ['df', 'F', 'Prob>F'] }],
-  // Fold means and SDs are in the figures; the per-fold rows stay.
-  naive_bayes_gaussian_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
-  naive_bayes_categorical_cv: [{ title: 'Accuracy per fold', rows: ['Mean ± SD'] }],
+  anova_oneway: (result) => columnsTrim('ANOVA Summary', anovaOneWayShownColumns(result)),
+  anova_twoway: (result) => columnsTrim('Two-Way ANOVA', anovaTwoWayShownColumns(result)),
+  // Fold mean and SD are in the accuracy figure; the per-fold rows stay.
+  naive_bayes_gaussian_cv: (result) => rowsTrim('Accuracy per fold', foldAccuracy(result)?.sd != null ? ['Mean ± SD'] : []),
+  naive_bayes_categorical_cv: (result) => rowsTrim('Accuracy per fold', foldAccuracy(result)?.sd != null ? ['Mean ± SD'] : []),
 };
+
+/** The parts of a result's tables its figures already show. */
+export function tablesShownAsFigures(algorithm: string | null, result: any): TableTrim[] {
+  const shown = algorithm ? SHOWN_AS_FIGURES[algorithm] : undefined;
+  return shown && result && typeof result === 'object' ? shown(result) : [];
+}
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */
 export function buildSummaryFigures(algorithm: string | null, result: any, context?: SummaryContext): KeyFigure[] | null {

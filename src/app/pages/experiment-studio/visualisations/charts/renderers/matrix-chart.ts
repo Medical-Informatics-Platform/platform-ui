@@ -7,12 +7,23 @@ const AXIS_COLOR = '#475569';
 
 type Matrix = Record<string, unknown> & { variables?: string[] };
 
-/**
- * One correlation heatmap. A square matrix keeps only the lower triangle (each pair once,
- * no diagonal of 1s); a y-by-x matrix is drawn whole. p-values and the 95% CI travel in
- * the tooltip, and the pairs table under the chart lists them in full.
- */
-export function buildMatrixChart(result: any): EChartsOption[] {
+/** A Pearson result's correlation, p-value and CI matrices, read the same way by the chart and the pairs table. */
+export interface CorrelationMatrices {
+  correlations: Matrix;
+  pValues: Matrix | null;
+  ciLower: Matrix | null;
+  ciUpper: Matrix | null;
+  /** Column variables, in the order the engine sent them. */
+  cols: string[];
+  /** Row variables, in the order the engine sent them. */
+  rows: string[];
+  /** Rows and columns name the same variables: every pair appears twice and the diagonal is 1. */
+  square: boolean;
+  /** One finite value of a matrix, or null. */
+  cell: (matrix: Matrix | null, row: string, col: string) => number | null;
+}
+
+export function readCorrelations(result: any): CorrelationMatrices | null {
   const pickMatrix = (...keys: string[]): Matrix | null => {
     for (const key of keys) {
       const candidate = result?.[key];
@@ -22,26 +33,39 @@ export function buildMatrixChart(result: any): EChartsOption[] {
   };
 
   const correlations = pickMatrix('correlations');
-  if (!correlations) return [];
-  // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
-  const pValues = pickMatrix('p_values', 'p-values', 'pvalues');
-  const ciLower = pickMatrix('ci_lo', 'low_confidence_intervals');
-  const ciUpper = pickMatrix('ci_hi', 'high_confidence_intervals');
-
-  const allCols: string[] = correlations.variables ?? [];
-  const allRows = Object.keys(correlations).filter((key) => key !== 'variables');
-  if (!allCols.length || !allRows.length) return [];
-
-  const square = allRows.length === allCols.length && allRows.every((row) => allCols.includes(row));
-  const rows = square ? allCols.slice(1) : allRows;
-  const cols = square ? allCols.slice(0, -1) : allCols;
-
+  if (!correlations) return null;
+  const cols: string[] = correlations.variables ?? [];
+  const rows = Object.keys(correlations).filter((key) => key !== 'variables');
   const cell = (matrix: Matrix | null, row: string, col: string): number | null => {
     const values = matrix?.[row];
-    const index = (matrix?.variables ?? allCols).indexOf(col);
+    const index = (matrix?.variables ?? cols).indexOf(col);
     const value = Array.isArray(values) && index >= 0 ? Number(values[index]) : NaN;
     return Number.isFinite(value) ? value : null;
   };
+  return {
+    correlations,
+    // Backwards compatibility: saved Pearson results may use historical p-value and CI aliases.
+    pValues: pickMatrix('p_values', 'p-values', 'pvalues'),
+    ciLower: pickMatrix('ci_lo', 'low_confidence_intervals'),
+    ciUpper: pickMatrix('ci_hi', 'high_confidence_intervals'),
+    cols,
+    rows,
+    square: rows.length === cols.length && rows.every((row) => cols.includes(row)),
+    cell,
+  };
+}
+
+/**
+ * One correlation heatmap. A square matrix keeps only the lower triangle (each pair once,
+ * no diagonal of 1s); a y-by-x matrix is drawn whole. p-values and the 95% CI travel in
+ * the tooltip, and the pairs table under the chart lists them in full.
+ */
+export function buildMatrixChart(result: any): EChartsOption[] {
+  const matrices = readCorrelations(result);
+  if (!matrices || !matrices.cols.length || !matrices.rows.length) return [];
+  const { correlations, pValues, ciLower, ciUpper, square, cell } = matrices;
+  const rows = square ? matrices.cols.slice(1) : matrices.rows;
+  const cols = square ? matrices.cols.slice(0, -1) : matrices.cols;
 
   const data = rows.flatMap((row, i) =>
     cols.flatMap((col, j) => {
