@@ -359,8 +359,8 @@ describe('AlgorithmTableRegistry', () => {
 
   it('renders classical Cox regression coefficients and summary', () => {
     const tables = AlgorithmTableRegistry['cox_regression_classical']({
-      dependent_var: 'Age',
-      event_var: 'Sex',
+      dependent_var: 'Days to follow-up',
+      event_var: 'Death',
       indep_vars: ['Intercept', 'Age'],
       summary: {
         n_obs: 200,
@@ -395,8 +395,8 @@ describe('AlgorithmTableRegistry', () => {
     expect(tables[0].rows[0][0]).toBe('Age');
     expect(tables[0].rows[0][1]).toBe('0.741');
     expect(tables[0].rows[0][3]).toBe('0.002');
-    expect(tables[1].rows).toContainEqual(['Follow-up time', 'Sex']);
-    expect(tables[1].rows).toContainEqual(['Event indicator', 'Age']);
+    expect(tables[1].rows).toContainEqual(['Follow-up time', 'Days to follow-up']);
+    expect(tables[1].rows).toContainEqual(['Event indicator', 'Death']);
     expect(tables[1].rows).toContainEqual(['Tied events handling', 'breslow']);
     expect(tables[1].rows).toContainEqual(['Model converged', 'Yes']);
   });
