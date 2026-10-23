@@ -23,6 +23,7 @@ describe('AlgorithmPanelComponent', () => {
     algorithmY: ReturnType<typeof signal<any[]>>;
     algorithmX: ReturnType<typeof signal<any[]>>;
     algorithmAssignableVariables: ReturnType<typeof signal<any[]>>;
+    unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
     selectedFilters: ReturnType<typeof signal<any[]>>;
     selectedDatasets: ReturnType<typeof signal<string[]>>;
     selectedDataModel: ReturnType<typeof signal<any>>;
@@ -92,6 +93,7 @@ describe('AlgorithmPanelComponent', () => {
       algorithmY: signal<any[]>([]),
       algorithmX: signal<any[]>([]),
       algorithmAssignableVariables: signal<any[]>([{ code: 'y', label: 'Y variable', type: 'real' }]),
+      unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
       selectedFilters: signal<any[]>([]),
       selectedDatasets: signal<string[]>([]),
       selectedDataModel: signal<any>(null),
@@ -171,6 +173,63 @@ describe('AlgorithmPanelComponent', () => {
     expect(nativeElement.textContent).toContain('Fourth');
     expect((nativeElement.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement)?.disabled).toBe(false);
     expect(fixture.componentInstance.canRun()).toBe(true);
+  });
+
+  describe('variables missing from a selected dataset', () => {
+    const unavailable = new Map<string, readonly string[]>([
+      ['age', ['Dataset B']],
+      ['sex', ['Dataset B', 'Dataset C']],
+    ]);
+
+    it('blocks the run while an outcome, predictor or filter is unavailable', () => {
+      const component = fixture.componentInstance;
+      experimentStudioService.unavailableVariables.set(unavailable);
+      experimentStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
+      experimentStudioService.algorithmX.set([{ code: 'mmse', label: 'MMSE' }]);
+      experimentStudioService.selectedFilters.set([{ code: 'sex', label: 'Sex' }]);
+      fixture.detectChanges();
+
+      expect(component.canRun()).toBe(false);
+      expect(component.runDisabledReason()).toBe('Remove variables not available in: Dataset B, Dataset C');
+      expect(component.algorithmNeeds()).toContainEqual(expect.objectContaining({
+        key: 'unavailable-variables',
+        met: false,
+        title: 'Remove variables not available in: Dataset B, Dataset C',
+      }));
+      expect((fixture.nativeElement as HTMLElement).textContent)
+        .toContain('Remove variables not available in: Dataset B, Dataset C');
+
+      component.onClickRunExp();
+      expect(experimentStudioService.runSelectedAlgorithm).not.toHaveBeenCalled();
+      expect(experimentStudioService.setRunning).not.toHaveBeenCalled();
+    });
+
+    it('checks predictors on their own', () => {
+      experimentStudioService.unavailableVariables.set(unavailable);
+      experimentStudioService.algorithmX.set([{ code: 'age', label: 'Age' }]);
+
+      expect(fixture.componentInstance.canRun()).toBe(false);
+      expect(fixture.componentInstance.runDisabledReason()).toBe('Remove variables not available in: Dataset B');
+    });
+
+    it('runs again once the unavailable variables are removed', () => {
+      const component = fixture.componentInstance;
+      experimentStudioService.unavailableVariables.set(unavailable);
+      experimentStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
+      expect(component.canRun()).toBe(false);
+
+      experimentStudioService.algorithmY.set([{ code: 'mmse', label: 'MMSE' }]);
+      expect(component.canRun()).toBe(true);
+      expect(component.runDisabledReason()).toBe('Execute experiment');
+      expect(component.algorithmNeeds().some((need) => need.key === 'unavailable-variables')).toBe(false);
+    });
+
+    it('ignores unavailable variables the run does not use', () => {
+      experimentStudioService.unavailableVariables.set(unavailable);
+      experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age' }]);
+
+      expect(fixture.componentInstance.canRun()).toBe(true);
+    });
   });
 
   it('keeps required parameters in the primary list and knows the friendly needs copy', async () => {
