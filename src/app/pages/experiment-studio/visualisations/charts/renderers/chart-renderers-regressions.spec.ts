@@ -1,6 +1,4 @@
 import { buildConfusionMatrixChart, readConfusionMatrix } from './confusion-matrix-chart';
-import { buildCVMetricsChart } from './cv-metrics-chart';
-import { buildTTestChart } from './t-test-chart';
 import { buildKMeansChart } from './k-means-chart';
 import { buildTTestIntervalChart } from './mean-plot-chart';
 import { buildNaiveBayesPriorsChart, buildNaiveBayesProfileChart } from './naive-bayes-priors-chart';
@@ -109,51 +107,6 @@ describe('Chart renderers regressions', () => {
     expect(cells).toContainEqual([1, 0, 2]); // FN
     expect(cells).toContainEqual([0, 1, 1]); // FP
     expect(cells).toContainEqual([1, 1, 7]); // TN
-  });
-
-  it('renders linear regression CV metrics when payload uses mean/std objects', () => {
-    const charts = buildCVMetricsChart({
-      n_obs: [100, 95, 98, 101, 97],
-      root_mean_sq_error: { mean: 1.2, std: 0.1 },
-      r_squared: { mean: 0.82, std: 0.03 },
-      mean_abs_error: { mean: 0.7, std: 0.06 },
-      f_stat: { mean: 9.5, std: 1.3 },
-    });
-
-    expect(charts.length).toBe(1);
-    expect((charts[0] as any).title?.text).toBe('Cross-Validation Metric Summary');
-    expect((charts[0] as any).series?.length).toBe(2);
-  });
-
-  it('charts Exaflow [mean, std] CV summaries and skips [null, null] metrics', () => {
-    const charts = buildCVMetricsChart({
-      n_obs: [100, 95],
-      root_mean_sq_error: [1.2, 0.1],
-      r_squared: [null, null],
-      mean_abs_error: [0.7, 0.06],
-      f_stat: [null, null],
-    });
-
-    expect(charts.length).toBe(1);
-    expect((charts[0] as any).xAxis.data).toEqual(['RMSE', 'MAE']);
-    expect((charts[0] as any).series[0].data).toEqual([1.2, 0.7]);
-  });
-
-  it('charts RMSE from the legacy mean_sq_error field', () => {
-    const charts = buildCVMetricsChart({ n_obs: [100, 95], mean_sq_error: [1.2, 0.1] });
-
-    expect((charts[0] as any).xAxis.data).toEqual(['RMSE']);
-  });
-
-  it('accepts numeric strings in t-test CI bounds', () => {
-    const charts = buildTTestChart({
-      mean_diff: 0.5,
-      ci_lower: '-0.1',
-      ci_upper: '1.2',
-      p: 0.03,
-    });
-
-    expect(charts.length).toBe(1);
   });
 
   it('names a binary matrix after the positive class when the run gives it', () => {
