@@ -184,7 +184,8 @@ class PdfReport {
     autoTable(this.doc, {
       startY: this.y,
       head: [spec.columns ?? []],
-      body: (spec.rows ?? []).map((row) => row.map((cell) => (cell === null || cell === undefined ? '' : String(cell)))),
+      // jsPDF's built-in Helvetica has no narrow no-break space (the on-screen thousands separator).
+      body: (spec.rows ?? []).map((row) => row.map((cell) => (cell === null || cell === undefined ? '' : String(cell).replace(/\u202f/g, ' ')))),
       margin: { left: this.margin.left, right: this.margin.right, top: this.margin.top, bottom: this.margin.bottom },
       styles: { fontSize: 8, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
       headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold' },
