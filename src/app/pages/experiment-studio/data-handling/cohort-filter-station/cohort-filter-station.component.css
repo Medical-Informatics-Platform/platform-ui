@@ -1,0 +1,31 @@
+@import '../styles/pipeline-node.shared.css';
+
+/* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
+   scoped to the panel's own template, so it is repeated here for this one. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* The panel's `.pipeline-node .workflow-section-body`, for this step's bodies. */
+:host(.pipeline-node) .workflow-section-body {
+  padding-inline: 16px;
+}
+
+/* Live match chip under the cohort builder, filled by Preview. */
+.filter-match-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 14px 10px;
+}
+
+.filter-match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #065f46;
+  background: color-mix(in srgb, var(--success) 12%, white);
+}

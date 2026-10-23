@@ -129,122 +129,12 @@
 
       <!-- NODE 1: COHORT FILTERING -->
       <section
+        app-cohort-filter-station
         [dhSectionAnchor]="'filters'"
         class="pipeline-node filter-workflow-section"
         [class.is-compact]="!sectionOpen().filters && !sectionOpen().raw"
         data-guide="analysis-filtering"
-      >
-        <header class="pipeline-node-header" (click)="onStepHeaderClick('filters', $event)">
-          <div class="pipeline-node-header-left">
-            <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 2 · Optional</span>
-              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('filters')" (click)="toggleStep('filters')">Cohort filtering</button></h3>
-              <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
-            </div>
-          </div>
-          <div class="pipeline-node-header-right">
-            @if (filterRuleCount() > 0 && recordsOut.filtered !== null) {
-            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.filtered!.toLocaleString() }}@if (recordsOut.source !== null) { <span>of {{ recordsOut.source!.toLocaleString() }}</span>}</span></span>
-            }
-            <span class="pipeline-status-badge" [class.applied]="filterRuleCount() > 0" [class.optional]="filterRuleCount() === 0">
-              {{ filteringStatusLabel }}
-            </span>
-            @if (isStepAdded('filters')) {
-            <button
-              type="button"
-              class="btn-remove-step-node"
-              title="Remove cohort filtering from pipeline"
-              (click)="removeStep('filters')">
-              <i class="fas fa-trash-can" aria-hidden="true"></i>
-              <span>Remove Step</span>
-            </button>
-            }
-            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('filters')" aria-hidden="true"></i>
-          </div>
-        </header>
-
-        <!-- Collapsed overview: the stored rules, each a way back into the builder. -->
-        @if (!sectionOpen().filters && !sectionOpen().raw) {
-        <div class="pipeline-subnodes-tree">
-          @if (cohortRuleRows.length) {
-          <p class="pipeline-subnodes-caption">Records are kept only if they match {{ cohortMatchesAny ? 'any of these rules' : 'these rules' }}. Click a rule to edit it.</p>
-          }
-          <div role="list" aria-label="Cohort filtering rules">
-            @for (row of cohortRuleRows; track $index) {
-            <div class="pipeline-subnode-item" role="listitem">
-              <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-              <button type="button" class="pipeline-subnode-content" (click)="goToSection('filters')" title="Edit this rule">
-                <i class="fas fa-filter" aria-hidden="true"></i>
-                <span class="pipeline-subnode-text">
-                  <span class="pipeline-subnode-title">{{ row.title }}</span>
-                  <span class="pipeline-subnode-subtitle">{{ row.subtitle }}</span>
-                </span>
-                <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-              </button>
-            </div>
-            }
-            <div class="pipeline-subnode-item is-ghost" role="listitem">
-              <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-              <button type="button" class="pipeline-subnode-content" (click)="goToSection('filters')" title="Open the rule builder">
-                <i class="fas fa-plus" aria-hidden="true"></i>
-                <span class="pipeline-subnode-text">
-                  <span class="pipeline-subnode-title">Add condition</span>
-                  <span class="pipeline-subnode-subtitle">Narrow the cohort further</span>
-                </span>
-                <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-        }
-
-        @if (isStepAdded('filters')) {
-        <div class="pipeline-node-body">
-          <!-- Outside the padded body so the strip spans the node right under its header. -->
-          @if (sectionOpen().filters) {
-          <details app-how-to-strip [guide]="howTo.filters"></details>
-          }
-          <div class="workflow-section-body" [class.open]="sectionOpen().filters">
-            <app-station-card>
-            <!-- Apply saves and folds the editor. Preview data opens the Raw tables. -->
-            <app-filter-config-modal
-              #filterModal
-              [filterLogic]="expStudioService.filterLogic()"
-              (filtersApplied)="onCohortFiltersApplied()"
-            ></app-filter-config-modal>
-            @if (filterPreviewStatus) {
-            <div class="filter-match-row">
-              <span class="filter-match-chip"><i class="fas fa-users" aria-hidden="true"></i>{{ filterPreviewStatus }}</span>
-            </div>
-            }
-            <app-station-action-bar
-              stationFooter
-              flush
-              resetLabel="Clear"
-              previewLabel="Preview matching records"
-              statusText="Rules take effect only when applied."
-              [applyLabel]="filterModal.activeRulesCount() > 0 ? 'Apply filters' : 'Close'"
-              [applyIcon]="filterModal.activeRulesCount() > 0 ? 'fas fa-check' : 'fas fa-times'"
-              [applyVariant]="filterModal.activeRulesCount() > 0 ? 'primary' : 'quiet'"
-              (reset)="clearFilterRules(filterModal)"
-              (preview)="previewFilterData(filterModal)"
-              (apply)="commitOrCloseFilterStation(filterModal)"
-            ></app-station-action-bar>
-          </app-station-card>
-          </div>
-          <div [dhSectionAnchor]="'raw'" class="workflow-section" data-guide="analysis-raw-summary">
-            <div
-              class="workflow-section-body"
-              app-summary-workspace
-              [class.open]="sectionOpen().raw"
-              kind="raw"
-              [summary]="rawSummary"
-              emptyHint="Select variables and datasets to load the data summary."></div>
-          </div>
-        </div>
-        }
-    </section>
+      ></section>
 
       <!-- CONNECTOR 1 -> 2 -->
       <div class="pipeline-connector" aria-hidden="true">
