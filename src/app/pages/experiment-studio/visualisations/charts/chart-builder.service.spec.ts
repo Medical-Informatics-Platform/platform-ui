@@ -40,8 +40,9 @@ describe('ChartBuilderService', () => {
     });
 
     expect(charts.length).toBe(2);
-    expect((charts[0] as any).title?.text).toBe('Eigenvectors');
-    expect((charts[1] as any).title?.text).toBe('Scree Plot (Eigenvalues)');
+    expect((charts[0] as any).title?.text).toBe('Component weights');
+    expect((charts[1] as any).title?.text).toBe('Variance explained');
+    expect((charts[1] as any).series[0].data).toEqual([66.7, 33.3]);
   });
 
   it('uses fallback title when result title is missing', () => {
@@ -58,7 +59,7 @@ describe('ChartBuilderService', () => {
     expect((charts[0] as any).title?.text).toBe('SVM Support Vector Distribution');
   });
 
-  it('renders pearson p-values and CI charts for legacy key aliases', () => {
+  it('draws one lower-triangle correlation heatmap and reads legacy p-value and CI aliases', () => {
     const matrix = {
       variables: ['v1', 'v2'],
       v1: [1, 0.25],
@@ -67,17 +68,18 @@ describe('ChartBuilderService', () => {
 
     const charts = service.getChartsForAlgorithm('pearson_correlation', {
       correlations: matrix,
-      'p-values': matrix,
+      'p-values': { variables: ['v1', 'v2'], v1: [0, 0.0004], v2: [0.0004, 0] },
       low_confidence_intervals: matrix,
       high_confidence_intervals: matrix,
     });
 
-    expect(charts.length).toBe(4);
-    const titles = charts.map((c) => (c as any).title?.text);
-    expect(titles).toContain('Correlation Matrix');
-    expect(titles).toContain('P-Values');
-    expect(titles).toContain('Confidence Interval (Lower 95%)');
-    expect(titles).toContain('Confidence Interval (Upper 95%)');
+    expect(charts.length).toBe(1);
+    const series = (charts[0] as any).series[0];
+    expect(series.data.map((cell: any) => cell.value)).toEqual([[0, 0, 0.25]]);
+    const tooltip = (charts[0] as any).tooltip.formatter({ value: [0, 0, 0.25] });
+    expect(tooltip).toContain('v2 × v1');
+    expect(tooltip).toContain('p < 0.001');
+    expect(tooltip).toContain('95% CI 0.250 to 0.250');
   });
 
   it('renders describe box plots from featurewise rows', () => {

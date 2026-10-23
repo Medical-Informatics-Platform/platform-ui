@@ -1,4 +1,17 @@
 import { EChartsOption } from "echarts";
+import { CHART_SERIES_COLORS, DIVERGING_COLORS, cellLabelColor } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
+
+const AXIS_COLOR = '#475569';
+const TEXT_COLOR = '#0f172a';
+
+/** Share of total variance per component, in percent. */
+function varianceShares(eigenvalues: unknown): number[] {
+  if (!Array.isArray(eigenvalues)) return [];
+  const values = eigenvalues.map((value) => Number(value)).filter((value) => Number.isFinite(value));
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return total > 0 ? values.map((value) => (value / total) * 100) : [];
+}
 
 export function buildPCAHeatmapChart(result: any): EChartsOption[] {
   const matrix = result?.eigenvectors;
@@ -29,140 +42,144 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       variableNames = [...variableNames, ...padding];
     }
   }
+
+  const shares = varianceShares(result?.eigenvalues);
   const componentNames = Array.from({ length: nComponents }, (_, i) => `PC${i + 1}`);
+  const componentLabels = componentNames.map((name, i) =>
+    shares[i] === undefined ? name : `${name} · ${shares[i].toFixed(1)}%`
+  );
 
-  const heatmapData: [number, number, number][] = [];
-
-  for (let i = 0; i < nComponents; i++) {
-    for (let j = 0; j < nVariables; j++) {
-      const value = matrix[i][j];
-      heatmapData.push([j, i, value]);
-    }
-  }
+  // Variables as rows and components as columns: long variable names wrap on the left, and
+  // the short component headers fit even a 360px compare column.
+  const componentHeaders = componentNames.map((name, i) =>
+    shares[i] === undefined ? name : `${name}\n${shares[i].toFixed(1)}%`
+  );
+  const heatmapData = matrix.flatMap((row: number[], component: number) =>
+    row.map((value, variable) => ({
+      value: [component, variable, value],
+      label: { color: cellLabelColor(value) },
+    }))
+  );
 
   const charts: EChartsOption[] = [];
-  // 1. Loadings Heatmap
   charts.push({
+    mipChartHeight: 150 + 40 * nVariables,
     title: {
-      text: 'Eigenvectors',
-      left: 'center'
+      // Unit eigenvectors, not loadings (eigenvector × √eigenvalue): named for what they are.
+      text: 'Component weights',
+      subtext: "Each variable's eigenvector weight per component",
+      left: 'center',
     },
     tooltip: {
       position: 'top',
       formatter: (params: any) => {
-        const [x, y, val] = params.value;
-        return `PC: ${componentNames[y]}<br/>Var: ${variableNames[x]}<br/>Weight: ${val.toFixed(3)}`;
+        const [component, variable, val] = params.value;
+        return `${componentLabels[component]}<br/>${escapeHtml(variableNames[variable])}: <b>${val.toFixed(3)}</b>`;
       },
     },
     grid: {
-      height: '65%',
-      top: '15%',
-      left: '10%',
-      right: '10%',
-      bottom: '25%',
+      top: 84,
+      left: 8,
+      right: 16,
+      bottom: 56,
       containLabel: true,
     },
     xAxis: {
       type: 'category',
-      data: variableNames,
-      splitArea: { show: true },
-      axisLabel: {
-        fontSize: 12,
-        rotate: 45,
-        interval: 0,
-        width: 100,
-        overflow: 'break'
-      },
+      data: componentHeaders,
+      position: 'top',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 15 },
     },
     yAxis: {
       type: 'category',
-      data: componentNames,
-      splitArea: { show: true },
-      axisLabel: {
-        fontSize: 12, // Consistent font size
-        interval: 0
-      }
+      data: variableNames,
+      inverse: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: AXIS_COLOR, interval: 0, width: 120, overflow: 'break' },
     },
     visualMap: {
       min: -1,
       max: 1,
-      calculable: true,
-      orient: 'vertical',
-      left: '95%',
-      top: 'center',
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 4,
+      itemWidth: 12,
+      itemHeight: 160,
+      text: ['+1', '−1'],
+      textStyle: { color: AXIS_COLOR },
+      inRange: { color: DIVERGING_COLORS },
     },
     series: [
       {
-        name: 'Eigenvector weights',
+        name: 'Component weights',
         type: 'heatmap',
         data: heatmapData,
+        itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
         label: {
           show: true,
-          fontSize: 14,
+          fontSize: 12,
           formatter: (params: any) => params.value[2]?.toFixed(2),
-        },
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.5)',
-          },
         },
       },
     ],
-  });
+  } as EChartsOption);
 
-  // 2. Scree Plot (Eigenvalues)
-  const eigenvalues = result?.eigenvalues;
-  if (Array.isArray(eigenvalues) && eigenvalues.length > 0) {
+  if (shares.length) {
+    let running = 0;
+    const cumulative = shares.map((share) => (running += share));
+    const round1 = (value: number) => Math.round(value * 10) / 10;
     charts.push({
+      mipChartHeight: 340,
       title: {
-        text: 'Scree Plot (Eigenvalues)',
-        left: 'center'
+        text: 'Variance explained',
+        left: 'center',
       },
+      legend: { top: 32, data: ['Per component', 'Cumulative'], textStyle: { color: AXIS_COLOR } },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'shadow' }
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (value: any) => `${Number(value).toFixed(1)}%`,
       },
-      grid: {
-        height: '65%',
-        top: '15%',
-        left: '10%',
-        right: '10%',
-        bottom: '15%',
-        containLabel: true
-      },
+      grid: { top: 80, left: 8, right: 16, bottom: 12, containLabel: true },
       xAxis: {
         type: 'category',
-        data: componentNames,
-        axisLabel: { interval: 0, rotate: 30 }
+        // Eigenvalue under each component, so the PCA summary table is not needed on screen.
+        data: componentNames.map((name, i) => {
+          const eigenvalue = Number(result.eigenvalues[i]);
+          return Number.isFinite(eigenvalue) ? `${name}\nλ ${eigenvalue.toFixed(2)}` : name;
+        }),
+        axisLabel: { color: AXIS_COLOR, interval: 0, lineHeight: 16 },
       },
       yAxis: {
         type: 'value',
-        name: 'Eigenvalue',
-        nameLocation: 'middle',
-        nameGap: 50
+        max: 100,
+        axisLabel: { color: AXIS_COLOR, formatter: '{value}%' },
+        splitLine: { lineStyle: { color: '#e2e8f0' } },
       },
       series: [
         {
-          name: 'Eigenvalue',
+          name: 'Per component',
           type: 'bar',
-          data: eigenvalues.map((v: number) => parseFloat(v.toFixed(3))),
-          itemStyle: { color: '#5470c6' },
-          label: {
-            show: true,
-            position: 'top'
-          }
+          barMaxWidth: 48,
+          data: shares.map(round1),
+          itemStyle: { color: CHART_SERIES_COLORS[0] },
+          // One decimal like the weights' column headers: "14.0%", not "14%".
+          label: { show: true, position: 'top', color: TEXT_COLOR, formatter: (p: any) => `${Number(p.value).toFixed(1)}%` },
         },
         {
-          name: 'Eigenvalue (Line)',
+          name: 'Cumulative',
           type: 'line',
-          data: eigenvalues.map((v: number) => parseFloat(v.toFixed(3))),
-          itemStyle: { color: '#ee6666' },
+          data: cumulative.map(round1),
+          itemStyle: { color: CHART_SERIES_COLORS[2] },
+          lineStyle: { color: CHART_SERIES_COLORS[2] },
           symbol: 'circle',
-          symbolSize: 8
-        }
-      ]
-    });
+          symbolSize: 8,
+        },
+      ],
+    } as EChartsOption);
   }
 
   return charts;
