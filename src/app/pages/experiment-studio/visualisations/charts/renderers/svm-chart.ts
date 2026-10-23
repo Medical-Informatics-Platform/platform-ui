@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 /**
  * Scientific SVM visualization:
@@ -43,7 +44,7 @@ export function buildSVMChart(result: any): EChartsOption[] {
       formatter: (params: any) => {
         const p = params[0];
         return `
-          <strong>Range:</strong> ${p.name}<br>
+          <strong>Range:</strong> ${escapeHtml(p.name)}<br>
           <strong>Count:</strong> ${p.value}
         `;
       },

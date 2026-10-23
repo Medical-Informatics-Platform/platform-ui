@@ -1,4 +1,5 @@
 import { EChartsOption } from 'echarts';
+import { escapeHtml } from '../../../../../core/html.utils';
 import {
   getDescribeDatasetLabels,
   getFeaturewiseDescribeRows,
@@ -171,7 +172,7 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
     `<div style="display:flex;justify-content:space-between;gap:20px">` +
     `<span style="color:${AXIS}">${name}</span><b>${fmt(value)}</b></div>`;
   const tooltipFor = (s: BoxStats, title: string, quartileNote = '') =>
-    `<div style="font-weight:700;margin-bottom:6px">${title}</div>` +
+    `<div style="font-weight:700;margin-bottom:6px">${escapeHtml(title)}</div>` +
     tooltipRow('Max', s.max) +
     tooltipRow(`Q3${quartileNote}`, s.q3) +
     tooltipRow(`Median${quartileNote}`, s.median) +

@@ -1,5 +1,6 @@
 import { EChartsOption } from 'echarts';
 import { CHART_SERIES_COLORS as BAR_COLORS } from '../chart-palette';
+import { escapeHtml } from '../../../../../core/html.utils';
 
 /**
  * Builds a grouped bar chart for nominal variable distributions.
@@ -106,11 +107,11 @@ export function buildGroupedBarChart(
             },
             formatter: (params: any) => {
                 const dataset = params[0]?.axisValue ?? '';
-                let html = `<b>${dataset}</b><br/>`;
+                let html = `<b>${escapeHtml(dataset)}</b><br/>`;
                 for (const p of params) {
                     const pct = p.data?.value ?? p.value;
                     const cnt = p.data?.count ?? 0;
-                    html += `${p.marker} ${p.seriesName}: ${pct}% (n=${cnt})<br/>`;
+                    html += `${p.marker} ${escapeHtml(p.seriesName)}: ${pct}% (n=${cnt})<br/>`;
                 }
                 return html;
             },
