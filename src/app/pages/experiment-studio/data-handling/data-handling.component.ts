@@ -20,14 +20,12 @@ import { FormsModule } from '@angular/forms';
 import { EChartsOption } from 'echarts';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ExperimentStudioService, PreprocessingConfig } from '../../../services/experiment-studio.service';
-import { escapeHtml } from '../../../core/html.utils';
 import { ChartBuilderService } from '../visualisations/charts/chart-builder.service';
 import { ChartRendererComponent } from '../visualisations/charts/charts-renderer/charts-renderer.component';
 import { HistogramComponent } from '../visualisations/histogram/histogram.component';
 import {
   DATASET_VARIABLE_CODE,
   HISTOGRAM_SPLIT_NONE,
-  HistogramGroupSeries,
   HistogramSplitOption,
   buildHistogramSplitOptions,
   buildStackedHistogramSeries,
@@ -45,7 +43,7 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
-import { BackendFilter, BackendRule } from '../../../models/filters.model';
+import { BackendFilter } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
@@ -72,176 +70,44 @@ import {
   validateOutlierRule,
 } from '../../../core/outlier-rules';
 
-type TabKey = 'Statistics' | 'Charts' | 'Histogram';
-type SummaryKind = 'source' | 'raw' | 'processed';
-type SectionKey = 'source' | 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
-type PipelineStep = 'source' | 'filters' | 'setup' | 'transformation';
-type PrepStep = 'missing' | 'outlier' | 'longitudinal';
-type DistributionSubTab = 'Numeric' | 'Nominal';
-type StatisticVariableType = 'numeric' | 'nominal';
-type PreprocessingStatus = 'none' | 'pending' | 'applied';
-type PrepKind = 'missing' | 'outlier' | 'longitudinal';
-
-type SummaryAnchorKey = 'charts' | 'details' | 'export';
-
-/**
- * Where each summary surface wears a `data-guide` anchor. They are not uniform: the Raw
- * surface owns the overlay-tab and export anchors, the Processed surface only its details
- * panel, and step 0 is a read-only duplicate of the Raw surface, so it wears none — the
- * same anchor on a hidden node would hand the tour or a QA selector the wrong surface.
- */
-/** Backend step docs arrive as prose whose bullets are '-', '*' or '\u2022'; all of them
-   become real list items, so the block reads like the algorithm documentation. */
-const DOCUMENTATION_BULLET = /^[-*\u2022\u00b7]\s+/;
-
-const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string | null>> = {
-  source: { charts: null, details: null, export: null },
-  raw: { charts: 'analysis-charts', details: 'analysis-raw-details', export: 'analysis-export' },
-  processed: { charts: null, details: 'analysis-processed-details', export: null },
-};
-
-type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
-type LongitudinalStrategy = 'first' | 'second' | 'diff';
-
-/**
- * The record-level rule behind one category. exaflow takes either a group of rules or a
- * single condition, and saved experiments hold both shapes - so the draft keeps whichever
- * it was given instead of pretending a bare condition cannot exist.
- */
-type CategoryFilter = BackendFilter | BackendRule;
-
-interface TransformationRule {
-  value: string;
-  filter: CategoryFilter | null;
-}
-
-/** One "Create new categorical column" card. The stage holds an ordered list. */
-interface TransformationColumnDraft {
-  id: number;
-  code: string;
-  defaultEnumeration: string;
-  rules: TransformationRule[];
-  open: boolean;
-  /** Rule index whose filter editor is expanded; at most one open per card. */
-  openRuleIndex?: number | null;
-  /** Picked from the type chooser (or restored from the store). The stage keeps one blank
-   *  draft as its model; until it is chosen it stays off screen and the chooser shows. */
-  chosen?: boolean;
-}
-
-/** A summary cell as a number: tolerates grouping commas and a trailing %; null when not numeric. */
-function parseNumber(value: unknown): number | null {
-  const text = String(value ?? '').replace(/[,%]/g, '').trim();
-  const number = Number(text);
-  return text !== '' && Number.isFinite(number) ? number : null;
-}
-
-let transformationDraftSeq = 0;
-function emptyTransformationDraft(): TransformationColumnDraft {
-  return { id: ++transformationDraftSeq, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
-}
-
-/** One sub-step of a pipeline stage, rendered on the pipeline-overview rail. */
-interface PipelineSubNode {
-  // Preprocessing stations use fixed ids; transformation sub-nodes carry a
-  // `transformation:<code>` id so the rail can list one card per derived column.
-  id: string;
-  icon: string;
-  title: string;
-  subtitle: string;
-  statusLabel: string;
-  statusTone: 'applied' | 'default' | 'pending';
-  /** Optional consequence line (e.g. rows the default drop-NaN would remove). */
-  impact?: string;
-}
-
-type MetricKey =
-  | 'num_dtps' | 'num_na' | 'num_total'
-  | 'mean' | 'std' | 'min' | 'q1' | 'q2' | 'q3' | 'max';
-
-interface SummaryView {
-  activeTab: TabKey;
-  data: PivotBlock[];
-  featurewiseRows: any[];
-  isLoading: boolean;
-  showDistributions: boolean;
-  distributionSubTab: DistributionSubTab;
-  nonNominalVariables: VariableRow[];
-  nominalVariables: VariableRow[];
-  chartsForBoxPlot: EChartsOption[][];
-  chartsForNominal: EChartsOption[][];
-  histogramDataByVariable: Record<string, HistogramPreviewData>;
-  histogramLoadingByVariable: Record<string, boolean>;
-  histogramErrorByVariable: Record<string, string>;
-  histogramSubscriptionsByVariable: Record<string, Subscription>;
-  histogramRequestIdByVariable: Record<string, number>;
-  histogramSplitByVariable: Record<string, string>;
-  activeBoxPlotIndex: number;
-  activeNominalIndex: number;
-  selectedStatisticKey: string | null;
-}
-
-interface PivotBlock {
-  code?: string;
-  name: string;
-  columns: string[];
-  rows: Array<{ metric: string; values: Record<string, string> }>;
-}
-
-interface VariableRow {
-  code: string;
-  name?: string;
-  label?: string;
-  type?: string;
-  enumerations?: Array<{ code?: string; label?: string; name?: string }>;
-}
-
-interface EnumOption {
-  code: string;
-  label: string;
-}
-
-interface HistogramPreviewData {
-  bins: string[];
-  counts: Array<number | null>;
-  variableName: string;
-  variableType?: string;
-  groups?: HistogramGroupSeries[];
-  splitLabel?: string;
-}
-
-interface PreprocessingRule {
-  variableCode: string;
-  action: MissingAction;
-  value: string;
-  enabled: boolean;
-}
-
-interface PreprocessingGroup {
-  key: 'pending' | 'applied' | 'default' | 'not-applied';
-  title: string;
-  variables: VariableRow[];
-}
-
-interface OutlierPreviewRow {
-  variable: string;
-  dataset: string;
-  strategy: string;
-  tail: string;
-  fold: string;
-  lowerBound: string;
-  upperBound: string;
-  lowerOutliers: string;
-  upperOutliers: string;
-  totalOutliers: string;
-  outlierPercentage: string;
-}
-
-export interface DescriptiveProgressState {
-  pendingChangeCount: number;
-  preprocessingStatus: PreprocessingStatus;
-  transformationStatusLabel: string;
-}
+import {
+  TabKey,
+  SummaryKind,
+  SectionKey,
+  PipelineStep,
+  PrepStep,
+  StatisticVariableType,
+  PreprocessingStatus,
+  PrepKind,
+  SummaryAnchorKey,
+  SUMMARY_GUIDE_ANCHORS,
+  MissingAction,
+  LongitudinalStrategy,
+  CategoryFilter,
+  TransformationRule,
+  TransformationColumnDraft,
+  PipelineSubNode,
+  MetricKey,
+  SummaryView,
+  PivotBlock,
+  VariableRow,
+  EnumOption,
+  HistogramPreviewData,
+  PreprocessingRule,
+  PreprocessingGroup,
+  OutlierPreviewRow,
+  DescriptiveProgressState,
+} from './data-handling.models';
+import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
+import { emptyTransformationDraft, nextTransformationDraftId } from './utils/transformation-draft.utils';
+import {
+  formatInteger,
+  formatNumber,
+  formatOutlierBound,
+  formatOutlierPercentage,
+  formatPercent,
+  parseNumber,
+} from './utils/statistic-format.utils';
 
 @Component({
   selector: 'app-data-handling',
@@ -1996,82 +1862,9 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   formatPreprocessingDocumentationHtml(stepName: string): string {
-    return this.buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName));
+    return buildPreprocessingDocumentationHtml(this.preprocessingStepDocumentation(stepName));
   }
 
-  private buildPreprocessingDocumentationHtml(text: string): string {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return '';
-    }
-
-    const lines = trimmed.includes('\n')
-      ? trimmed.split(/\r?\n/)
-      : trimmed.split(/\s+(?:[-*\u2022\u00b7])\s+(?=[A-Za-z])/);
-
-    const parts: string[] = [];
-    let listItems: string[] = [];
-    let isIntroParagraph = true;
-
-    const flushList = (): void => {
-      if (!listItems.length) {
-        return;
-      }
-      parts.push('<ul class="preprocessing-doc-list">' + listItems.join('') + '</ul>');
-      listItems = [];
-    };
-
-    const pushParagraph = (line: string): void => {
-      const escaped = escapeHtml(line);
-      if (line.endsWith(':') && line.length <= 120) {
-        parts.push('<p class="preprocessing-doc-section-title">' + escaped + '</p>');
-        isIntroParagraph = false;
-        return;
-      }
-
-      const classes = isIntroParagraph
-        ? 'preprocessing-doc-paragraph preprocessing-doc-intro'
-        : 'preprocessing-doc-paragraph';
-      parts.push('<p class="' + classes + '">' + escaped + '</p>');
-      isIntroParagraph = false;
-    };
-
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) {
-        continue;
-      }
-
-      const isBullet = DOCUMENTATION_BULLET.test(line);
-      let itemText = isBullet ? line.replace(DOCUMENTATION_BULLET, '').trim() : line;
-      const colonIndex = itemText.indexOf(':');
-      const looksLikeListItem =
-        isBullet ||
-        (colonIndex > 0 && colonIndex < 40 && itemText.slice(colonIndex + 1).trim().length > 0);
-
-      if (looksLikeListItem && colonIndex > 0) {
-        const term = escapeHtml(itemText.slice(0, colonIndex).trim());
-        const description = escapeHtml(itemText.slice(colonIndex + 1).trim());
-        // The term keeps its colon: the item is read as one line of prose, not a table.
-        listItems.push(
-          '<li><span class="preprocessing-doc-term">' + term + ':</span> ' +
-          '<span class="preprocessing-doc-desc">' + description + '</span></li>'
-        );
-        continue;
-      }
-
-      if (isBullet) {
-        listItems.push('<li><span class="preprocessing-doc-desc">' + escapeHtml(itemText) + '</span></li>');
-        continue;
-      }
-
-      flushList();
-      pushParagraph(line);
-    }
-
-    flushList();
-    return parts.join('');
-  }
 
   // ── Preprocessing evidence ────────────────────────────────────────────────
   // A preprocessing form states a decision but never priced it. These read the
@@ -2158,7 +1951,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   coveragePercent(coverage: { share: number }): string {
-    return this.formatPercent(coverage.share * 100);
+    return formatPercent(coverage.share * 100);
   }
 
   /** Bar length for a share scaled up so small shares stay visible (×1000: 5% is a half
@@ -3623,13 +3416,13 @@ export class DataHandlingComponent implements OnDestroy {
         dataset: String(item.dataset ?? '').trim() || '-',
         strategy: outlierStrategyLabel(String(data['strategy'] ?? '')),
         tail: outlierTailLabel(String(data['tail'] ?? '')),
-        fold: this.formatOutlierBound(data['fold']),
-        lowerBound: this.formatOutlierBound(data['lower_bound']),
-        upperBound: this.formatOutlierBound(data['upper_bound']),
-        lowerOutliers: this.formatInteger(data['lower_outlier_count'], '-'),
-        upperOutliers: this.formatInteger(data['upper_outlier_count'], '-'),
-        totalOutliers: this.formatInteger(data['total_outlier_count'], '-'),
-        outlierPercentage: this.formatOutlierPercentage(data['total_outlier_percentage']),
+        fold: formatOutlierBound(data['fold']),
+        lowerBound: formatOutlierBound(data['lower_bound']),
+        upperBound: formatOutlierBound(data['upper_bound']),
+        lowerOutliers: formatInteger(data['lower_outlier_count'], '-'),
+        upperOutliers: formatInteger(data['upper_outlier_count'], '-'),
+        totalOutliers: formatInteger(data['total_outlier_count'], '-'),
+        outlierPercentage: formatOutlierPercentage(data['total_outlier_percentage']),
       };
     });
   }
@@ -3639,40 +3432,10 @@ export class DataHandlingComponent implements OnDestroy {
     return variable ? this.variableLabel(variable) : code;
   }
 
-  /** Canonical (painted + exported) pivot cell: fixed 2 decimals, no grouping. */
-  private formatNumber(value: unknown): string {
-    if (value === null || value === undefined || value === '') return 'N/A';
-    const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
-    if (!Number.isFinite(n)) return String(value);
-    return n.toFixed(2);
-  }
 
-  /** Outlier preview bounds keep the old 6-decimal preview precision. */
-  private formatOutlierBound(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    const n = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
-    if (!Number.isFinite(n)) return String(value);
-    return n.toLocaleString(undefined, { maximumFractionDigits: 6 });
-  }
 
-  private formatInteger(value: unknown, empty = 'N/A'): string {
-    if (value === null || value === undefined || value === '') return empty;
-    const n = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(n)) return String(value);
-    return String(Math.round(n));
-  }
 
-  private formatPercent(pct: number, digits?: number): string {
-    const d = digits ?? (pct >= 10 || pct === 0 ? 0 : 1);
-    return `${pct.toFixed(d)}%`;
-  }
 
-  private formatOutlierPercentage(value: unknown): string {
-    if (value === null || value === undefined || value === '') return '-';
-    const num = typeof value === 'number' ? value : parseFloat(String(value));
-    if (!Number.isFinite(num)) return '-';
-    return this.formatPercent(num, 2);
-  }
 
   /** Copy pending → applied for one card or all of them. */
   private commitPendingToApplied(scope: PrepStep | 'all'): void {
@@ -4315,7 +4078,7 @@ export class DataHandlingComponent implements OnDestroy {
   }): TransformationColumnDraft {
     const rules = creator.rules ?? {};
     return {
-      id: ++transformationDraftSeq,
+      id: nextTransformationDraftId(),
       code: creator.code == null ? '' : String(creator.code),
       defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
       rules: Object.entries(rules).map(([value, filter]) => ({
@@ -4717,7 +4480,7 @@ export class DataHandlingComponent implements OnDestroy {
               metric.key === 'num_datapoints' ? byDataset[ds]?.num_dtps :
                 metric.key === 'num_missing' ? byDataset[ds]?.num_na :
                   byDataset[ds]?.num_total;
-            values[ds] = this.formatInteger(raw);
+            values[ds] = formatInteger(raw);
           }
           return { metric: metric.label, values };
         });
@@ -4728,7 +4491,7 @@ export class DataHandlingComponent implements OnDestroy {
           const label = enumMap.get(key) ?? key;
           const values: Record<string, string> = {};
           for (const ds of datasetOrder) {
-            values[ds] = this.formatInteger(byDataset[ds]?.counts?.[key]);
+            values[ds] = formatInteger(byDataset[ds]?.counts?.[key]);
           }
           rows.push({ metric: label, values });
         });
@@ -4748,7 +4511,7 @@ export class DataHandlingComponent implements OnDestroy {
                     metric.key === 'std' ? byDataset[ds]?.std :
                       metric.key === 'q2' ? byDataset[ds]?.q2 :
                         byDataset[ds]?.[metric.key];
-            values[ds] = countKeys.has(metric.key) ? this.formatInteger(raw) : this.formatNumber(raw);
+            values[ds] = countKeys.has(metric.key) ? formatInteger(raw) : formatNumber(raw);
           }
           return { metric: metric.label, values };
         });
