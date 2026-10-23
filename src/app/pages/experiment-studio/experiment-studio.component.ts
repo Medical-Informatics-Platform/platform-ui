@@ -8,10 +8,8 @@ import { AuthService } from '../../services/auth.service';
 import { ExperimentsDashboardService } from '../../services/experiments-dashboard.service';
 import { ErrorService } from '../../services/error.service';
 import { StudioStepperComponent } from './stepper/studio-stepper.component';
-import {
-  DescriptiveProgressState,
-  DataHandlingComponent,
-} from './data-handling/data-handling.component';
+import { DataHandlingComponent } from './data-handling/data-handling.component';
+import { DescriptiveProgressState } from './data-handling/data-handling.models';
 import { countFilterRules } from '../../core/filter-display.utils';
 import { Subject, takeUntil } from 'rxjs';
 import { ExperimentStudioGuideComponent } from './guide/experiment-studio-guide.component';
