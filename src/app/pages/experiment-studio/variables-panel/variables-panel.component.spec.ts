@@ -78,7 +78,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('does not auto-add a variable on single bubble click', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const node = { code: 'age_value', label: 'Age', type: 'real' };
+    const node = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
     const addSpy = vi.spyOn(component, 'addVariableFromBubble').mockReturnValue(undefined);
@@ -93,7 +93,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('keeps double click as the explicit add action', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const node = { code: 'age_value', label: 'Age', type: 'real' };
+    const node = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
     const addSpy = vi.spyOn(component, 'addVariableFromBubble').mockReturnValue(undefined);
@@ -107,26 +107,26 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('adds the selected node when it is not in the pool', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     component.toggleSelectedNodeInPool();
 
     expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledWith({
       code: 'age_value',
       label: 'Age',
-      type: 'real',
+      type: 'continuous',
     });
     expect(experimentStudioService.setVariables).not.toHaveBeenCalled();
   });
 
   it('removes the selected node when it is already in the pool', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     component.toggleSelectedNodeInPool();
 
@@ -140,7 +140,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const node = { code: 'age_value', label: 'Age', type: 'real' };
+    const node = { code: 'age_value', label: 'Age', type: 'continuous' };
     component.d3Data = {
       code: 'root',
       label: 'Root',
@@ -179,7 +179,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.unavailableVariables.set(new Map([['sex_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const age = { code: 'age_value', label: 'Age', type: 'real' };
+    const age = { code: 'age_value', label: 'Age', type: 'continuous' };
     const sex = { code: 'sex_value', label: 'Sex', type: 'string' };
     component.selectedNode = { code: 'demo', label: 'Demographics', children: [age, sex] };
 
@@ -193,7 +193,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     expect(component.selectionToggleDisabled()).toBe(true);
     expect(component.selectionToggleTitle()).toBe('Not available in the selected datasets');
@@ -202,11 +202,11 @@ describe('VariablesPanelComponent bubble selection', () => {
   });
 
   it('still removes a pooled variable that became unavailable', () => {
-    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'continuous' }]);
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     expect(component.selectionToggleDisabled()).toBe(false);
     component.toggleSelectedNodeInPool();
@@ -217,7 +217,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.selectedDatasets.set([]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     component.toggleSelectedNodeInPool();
 
@@ -522,7 +522,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('captions a selected variable as a distribution', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const node = { code: 'age_value', label: 'Age', type: 'real' };
+    const node = { code: 'age_value', label: 'Age', type: 'continuous' };
 
     component.onSelectedNodeChange(node);
 
@@ -537,7 +537,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       code: 'acute_treatment',
       label: 'Acute treatment',
       children: [
-        { code: 'age_value', label: 'Age', type: 'real', children: [{ code: 'a', label: 'A' }] },
+        { code: 'age_value', label: 'Age', type: 'continuous', children: [{ code: 'a', label: 'A' }] },
       ],
     };
 
@@ -552,11 +552,11 @@ describe('VariablesPanelComponent bubble selection', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     experimentStudioService.selectedVariables.set([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] },
     ]);
 
-    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'continuous' });
     expect(component.canSplitHistogram()).toBe(true);
     expect(component.histogramSplitOptions().map((option) => option.code)).toEqual(['dataset', 'sex']);
 
@@ -566,10 +566,10 @@ describe('VariablesPanelComponent bubble selection', () => {
 
   it('offers an unavailable split grayed out and disabled, and keeps an active one', () => {
     const sex = { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] };
-    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }, sex]);
+    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'continuous' }, sex]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'continuous' });
     component.histogramSplit.set('sex');
     TestBed.tick();
 
@@ -598,7 +598,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.selectedDatasets.set(['ds0', 'ds1']);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'continuous' });
     expect(component.histogramSplitOptions().find((option) => option.code === 'dataset')?.disabled).toBe(false);
 
     experimentStudioService.selectedDatasets.set(Array.from({ length: 9 }, (_, i) => `ds${i}`));
@@ -617,7 +617,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
-    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'continuous' });
     await new Promise((resolve) => setTimeout(resolve, 0));
     component.onHistogramSplitChange({ target: { value: 'dataset' } } as unknown as Event);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -647,7 +647,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     ]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'continuous' });
     component.onHistogramSplitChange({ target: { value: 'sex' } } as unknown as Event);
     expect(component.histogramSplit()).toBe('sex');
 
@@ -668,7 +668,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('warns when privacy-null edge bins were trimmed on a numeric histogram', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'real' });
+    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'continuous' });
     component.histogramData.set({
       bins: ['0', '10', '20', '30'],
       counts: [null, 8, 12, null],
@@ -703,7 +703,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       code: 'stroke',
       label: 'Stroke 3.7',
       children: [
-        { code: 'inr', label: 'INR', type: 'real' },
+        { code: 'inr', label: 'INR', type: 'continuous' },
       ],
     };
 
@@ -741,8 +741,8 @@ describe('VariablesPanelComponent bubble selection', () => {
       code: 'g1',
       label: 'Acute treatment',
       children: [
-        { code: 'a', label: 'A', type: 'real' },
-        { code: 'b', label: 'B', type: 'real' },
+        { code: 'a', label: 'A', type: 'continuous' },
+        { code: 'b', label: 'B', type: 'continuous' },
       ],
     };
     component.d3Data = { code: 'stroke', label: 'Stroke 3.7', children: [group] };
@@ -761,7 +761,7 @@ describe('VariablesPanelComponent bubble selection', () => {
 
   function flushLeafHistogram(component: VariablesPanelComponent): Promise<void> {
     component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
-    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
+    component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'continuous' });
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
 
