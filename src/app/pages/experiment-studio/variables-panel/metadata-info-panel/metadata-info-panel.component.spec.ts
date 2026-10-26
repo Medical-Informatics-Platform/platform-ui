@@ -61,8 +61,6 @@ describe('MetadataInfoPanelComponent', () => {
       code: 'acute_treat_evt_anaesth',
       description: 'Type of anesthesia',
       type: 'nominal',
-      sql_type: 'text',
-      isCategorical: true,
       units: 'N/A',
       methodology: 'Clinical abstraction',
       enumerations: [
@@ -97,12 +95,12 @@ describe('MetadataInfoPanelComponent', () => {
       label: 'Vitals',
       code: 'vitals',
       children: [
-        { label: 'Blood pressure', code: 'bp', type: 'real' },
+        { label: 'Blood pressure', code: 'bp', type: 'continuous' },
         {
           label: 'Metabolic',
           code: 'metabolic',
           children: [
-            { label: 'Glucose', code: 'glucose', type: 'real' },
+            { label: 'Glucose', code: 'glucose', type: 'continuous' },
           ],
         },
       ],

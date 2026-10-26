@@ -1,3 +1,4 @@
+import { isNumericalVariableType } from './data-model.utils';
 export type OutlierStrategy = 'gaussian' | 'iqr' | 'mad' | 'quantile';
 export type OutlierTail = 'left' | 'right' | 'both';
 
@@ -43,8 +44,6 @@ const OUTLIER_DEFAULT_FOLDS: Record<OutlierStrategy, number> = {
   quantile: 0.05,
 };
 
-const OUTLIER_NUMERIC_TYPES = new Set(['real', 'int', 'integer', 'numeric', 'number']);
-
 function isOutlierStrategy(value: unknown): value is OutlierStrategy {
   return value === 'gaussian' || value === 'iqr' || value === 'mad' || value === 'quantile';
 }
@@ -56,7 +55,7 @@ function isOutlierTail(value: unknown): value is OutlierTail {
 export function isOutlierEligibleVariable(variable: OutlierVariable): boolean {
   if (!variable?.code) return false;
   if (Array.isArray(variable.enumerations) && variable.enumerations.length > 0) return false;
-  return OUTLIER_NUMERIC_TYPES.has(String(variable.type ?? '').toLowerCase());
+  return isNumericalVariableType(variable.type);
 }
 
 export function createDefaultOutlierRule(variableCode: string, enabled = false): OutlierRule {

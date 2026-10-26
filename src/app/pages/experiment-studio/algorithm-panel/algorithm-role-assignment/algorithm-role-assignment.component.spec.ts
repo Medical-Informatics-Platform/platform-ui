@@ -15,10 +15,10 @@ describe('AlgorithmRoleAssignmentComponent', () => {
     unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
   };
 
-  const age = { code: 'age', label: 'Age', type: 'real' };
+  const age = { code: 'age', label: 'Age', type: 'continuous' };
   const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
-  const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
-  const derived = { code: 'derived_col', label: 'Derived column', type: 'real', isCreatedColumn: true };
+  const bmi = { code: 'bmi', label: 'BMI', type: 'continuous' };
+  const derived = { code: 'derived_col', label: 'Derived column', type: 'continuous', isCreatedColumn: true };
 
   beforeEach(async () => {
     experimentStudioService = {
@@ -202,9 +202,9 @@ describe('AlgorithmRoleAssignmentComponent', () => {
       sex,
       bmi,
       derived,
-      { code: 'a', label: 'A', type: 'real' },
-      { code: 'b', label: 'B', type: 'real' },
-      { code: 'c', label: 'C', type: 'real' },
+      { code: 'a', label: 'A', type: 'continuous' },
+      { code: 'b', label: 'B', type: 'continuous' },
+      { code: 'c', label: 'C', type: 'continuous' },
     ]);
     fixture.detectChanges();
 

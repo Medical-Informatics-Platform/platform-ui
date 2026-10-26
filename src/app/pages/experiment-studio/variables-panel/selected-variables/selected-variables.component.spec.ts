@@ -64,7 +64,7 @@ describe('SelectedVariablesComponent', () => {
 
   it('reports the selected chip count', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
@@ -80,7 +80,7 @@ describe('SelectedVariablesComponent', () => {
   });
 
   it('lists every selected variable in the popover', () => {
-    experimentStudioService.selectedVariables.set(Array.from({ length: 7 }, (_, i) => ({ code: `v${i}`, label: `Var ${i}`, type: 'real' })));
+    experimentStudioService.selectedVariables.set(Array.from({ length: 7 }, (_, i) => ({ code: `v${i}`, label: `Var ${i}`, type: 'continuous' })));
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
     openPopover(fixture);
@@ -92,7 +92,7 @@ describe('SelectedVariablesComponent', () => {
   it('renders no Values column in the table', () => {
     experimentStudioService.selectedVariables.set([
       { code: 'sex_value', label: 'Sex', type: 'string', enumerations: [{ code: '1', label: 'Male' }] },
-      { code: 'age_value', label: 'Age', type: 'real', minValue: 0, maxValue: 90 },
+      { code: 'age_value', label: 'Age', type: 'continuous', minValue: 0, maxValue: 90 },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
@@ -105,7 +105,7 @@ describe('SelectedVariablesComponent', () => {
 
   it('removes a single variable from the pool', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
@@ -120,7 +120,7 @@ describe('SelectedVariablesComponent', () => {
 
   it('clears the whole pool', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
@@ -132,7 +132,7 @@ describe('SelectedVariablesComponent', () => {
 
   it('renders the pool card inline instead of the count trigger', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
@@ -157,10 +157,10 @@ describe('SelectedVariablesComponent', () => {
   });
 
   it('marks the selected node chip in the inline pool', () => {
-    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'continuous' }]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.componentRef.setInput('mode', 'inline');
-    fixture.componentRef.setInput('selectedNode', { code: 'age_value', label: 'Age', type: 'real' });
+    fixture.componentRef.setInput('selectedNode', { code: 'age_value', label: 'Age', type: 'continuous' });
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.pool-chip')?.classList).toContain('is-current');
@@ -168,7 +168,7 @@ describe('SelectedVariablesComponent', () => {
 
   it('emits the clicked inline chip and removes one from the pool', () => {
     experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
+      { code: 'age_value', label: 'Age', type: 'continuous' },
       { code: 'sex_value', label: 'Sex', type: 'string' },
     ]);
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
@@ -189,7 +189,7 @@ describe('SelectedVariablesComponent', () => {
   });
 
   it('grays a pooled variable that became unavailable, ignores its clicks and keeps it removable', () => {
-    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'real' }]);
+    experimentStudioService.selectedVariables.set([{ code: 'age_value', label: 'Age', type: 'continuous' }]);
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset B']]]));
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.componentRef.setInput('mode', 'inline');
