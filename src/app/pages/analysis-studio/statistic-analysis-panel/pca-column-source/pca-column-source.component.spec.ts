@@ -72,16 +72,16 @@ describe('PcaColumnSourceComponent', () => {
   beforeEach(async () => {
     studio = {
       selectedVariables: vi.fn().mockReturnValue([
-        { code: 'age', label: 'Age', type: 'real' },
-        { code: 'bmi', label: 'BMI', type: 'real' },
+        { code: 'age', label: 'Age', type: 'continuous' },
+        { code: 'bmi', label: 'BMI', type: 'continuous' },
       ]),
       selectedDataModel: vi.fn().mockReturnValue({
         variables: [{ code: 'age' }, { code: 'bmi' }, { code: 'chol' }],
         groups: [],
       }),
       algorithmAssignableVariables: vi.fn().mockReturnValue([
-        { code: 'age', label: 'Age', type: 'real' },
-        { code: 'bmi', label: 'BMI', type: 'real' },
+        { code: 'age', label: 'Age', type: 'continuous' },
+        { code: 'bmi', label: 'BMI', type: 'continuous' },
       ]),
       getActiveDataModelCode: vi.fn().mockReturnValue(CONTEXT.dataModel),
       requestDatasets: vi.fn().mockReturnValue(CONTEXT.datasets),
@@ -174,9 +174,9 @@ describe('PcaColumnSourceComponent', () => {
       { id: 'pca-step-1', name: 'pca_column_creator', parameters: {} },
     ]);
     studio.algorithmAssignableVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
-      { code: 'bmi', label: 'BMI', type: 'real' },
-      { code: 'pca_pc1', label: 'pca_pc1', type: 'real', isCreatedColumn: true },
+      { code: 'age', label: 'Age', type: 'continuous' },
+      { code: 'bmi', label: 'BMI', type: 'continuous' },
+      { code: 'pca_pc1', label: 'pca_pc1', type: 'continuous', isCreatedColumn: true },
     ]);
     fixture.detectChanges();
     component.setSourceMode('fit');
@@ -194,9 +194,9 @@ describe('PcaColumnSourceComponent', () => {
       self,
     ]);
     studio.algorithmAssignableVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
-      { code: 'bmi', label: 'BMI', type: 'real' },
-      { code: 'pca_pc1', label: 'pca_pc1', type: 'real', isCreatedColumn: true },
+      { code: 'age', label: 'Age', type: 'continuous' },
+      { code: 'bmi', label: 'BMI', type: 'continuous' },
+      { code: 'pca_pc1', label: 'pca_pc1', type: 'continuous', isCreatedColumn: true },
     ]);
     fixture.detectChanges();
     component.setSourceMode('fit');
@@ -371,9 +371,9 @@ describe('PcaColumnSourceComponent', () => {
 
     it('drops a finished report recipe when the picks change afterwards', () => {
       studio.selectedVariables.mockReturnValue([
-        { code: 'age', label: 'Age', type: 'real' },
-        { code: 'bmi', label: 'BMI', type: 'real' },
-        { code: 'chol', label: 'Chol', type: 'real' },
+        { code: 'age', label: 'Age', type: 'continuous' },
+        { code: 'bmi', label: 'BMI', type: 'continuous' },
+        { code: 'chol', label: 'Chol', type: 'continuous' },
       ]);
       fixture.detectChanges();
       component.runReport();

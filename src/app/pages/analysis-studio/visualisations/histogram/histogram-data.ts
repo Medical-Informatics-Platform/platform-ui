@@ -1,4 +1,5 @@
 import { UnavailableVariablesMap, unavailableTooltipFor } from '../../../../core/variable-availability.utils';
+import { isCategoricalVariableType } from '../../../../core/data-model.utils';
 
 /** Grouping CDE present in every data model. Always offered as a histogram split. */
 export const DATASET_VARIABLE_CODE = 'dataset';
@@ -80,7 +81,6 @@ export interface HistogramSplitVariable {
   label?: string | null;
   name?: string | null;
   type?: string | null;
-  isCategorical?: boolean;
   enumerations?: unknown[] | null;
 }
 
@@ -100,14 +100,11 @@ export function histogramCacheKey(variableCode: string, splitCode: string): stri
 export function isNominalHistogramNode(
   node: {
     type?: string | null;
-    isCategorical?: boolean;
     enumerations?: unknown[] | null;
   } | null | undefined
 ): boolean {
   if (!node) return false;
-  const type = String(node.type ?? '').toLowerCase();
-  if (type === 'nominal' || type === 'text') return true;
-  if (node.isCategorical) return true;
+  if (isCategoricalVariableType(node.type)) return true;
   return Array.isArray(node.enumerations) && node.enumerations.length > 0;
 }
 

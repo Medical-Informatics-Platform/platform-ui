@@ -150,12 +150,12 @@ describe('VariablesPanelComponent data exploration layout', () => {
       expect(host.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('nominal · n/a · 0–1');
     });
 
-    it('shows an integer range as integers', () => {
-      component.onSelectedNodeChange({ label: 'Age', code: 'age', type: 'integer', units: 'years', minValue: '1.0', maxValue: '150.0' });
+    it('shows a discrete range as integers', () => {
+      component.onSelectedNodeChange({ label: 'Age', code: 'age', type: 'discrete', units: 'years', minValue: '1.0', maxValue: '150.0' });
       fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
       fixture.detectChanges();
 
-      expect(fixture.nativeElement.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('integer · years · 1–150');
+      expect(fixture.nativeElement.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('discrete · years · 1–150');
     });
 
     it('counts what a group holds and what its button will add', () => {

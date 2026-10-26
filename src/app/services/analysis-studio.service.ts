@@ -26,7 +26,12 @@ import {
 } from '../core/algorithm-parameter.utils';
 import { formatFilterExpression } from '../core/filter-display.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
-import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
+import {
+  buildEnumMapForVariables,
+  findDataModelByCodeVersion,
+  isCategoricalVariableType,
+  specificationAcceptsVariableType,
+} from '../core/data-model.utils';
 import {
   UnavailableVariablesMap,
   collectVariableCodes,
@@ -438,7 +443,7 @@ export class AnalysisStudioService {
           label: names[i],
           name: names[i],
           // Without a resolved spec (catalog pending or failed) PCA scores are still numerical.
-          type: (column ? column.stattype === 'numerical' : step.name === 'pca_column_creator') ? 'real' : 'nominal',
+          type: (column ? column.stattype === 'numerical' : step.name === 'pca_column_creator') ? 'continuous' : 'nominal',
           enumerations: AnalysisStudioService.dedupeEnumerations(column?.enumerations ?? []),
           isCreatedColumn: true,
         });
@@ -525,13 +530,13 @@ export class AnalysisStudioService {
           return false;
         }
 
-        const varIsNominal = varTypes.includes(VariableTypes.NOMINAL);
+        const varIsNominal = varTypes.some(isCategoricalVariableType);
 
         if (varIsNominal && yReq.stattypes?.includes(VariableTypes.NOMINAL)) {
           return true;
         }
 
-        const yExists = varTypes.some(t => yReq.types.includes(t));
+        const yExists = varTypes.some(t => specificationAcceptsVariableType(yReq.types, t));
 
         if (!yExists) {
           return false;
@@ -542,7 +547,7 @@ export class AnalysisStudioService {
             return false;
           }
 
-          const xExists = varTypes.some(t => xReq.types.includes(t));
+          const xExists = varTypes.some(t => specificationAcceptsVariableType(xReq.types, t));
           if (!xExists) {
             return false;
           }
@@ -1749,8 +1754,6 @@ export class AnalysisStudioService {
         code: v.code ?? '',
         value: 1,
         type: v.type ?? 'unknown',
-        isCategorical: v.isCategorical ?? !!v.enumerations?.length,
-        sql_type: v.sql_type,
         description: v.description ?? '',
         enumerations: v.enumerations ?? [],
         methodology: v.methodology,

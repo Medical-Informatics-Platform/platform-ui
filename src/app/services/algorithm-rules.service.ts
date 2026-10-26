@@ -8,6 +8,7 @@ import {
 import { D3HierarchyNode } from '../models/data-model.interface';
 import { VariableTypes, AlgorithmRoles } from '../core/constants/algorithm.constants';
 import { resolveInputMaxCount, resolveInputMinCount } from '../core/algorithm-input-counts';
+import { specificationAcceptsVariableType } from '../core/data-model.utils';
 
 type SelectionRole = 'y' | 'x';
 type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
@@ -95,10 +96,9 @@ export class AlgorithmRulesService {
         }
 
         if (selected.length > 0 && types.length > 0) {
-            const reqTypes = types.map((type) => this.normalizeType(type));
             const invalid = selected.find((node) => {
-                const normalized = this.normalizeType((node as any).type);
-                return !!normalized && !reqTypes.includes(normalized);
+                const type = (node as any).type;
+                return !!type && !specificationAcceptsVariableType(types, type);
             });
             if (invalid) {
                 this.pushUnique(messages, this.typeRequirementMessage(label, types));
@@ -199,17 +199,6 @@ export class AlgorithmRulesService {
     private pushUnique(messages: string[], message: string): void {
         if (!messages.includes(message)) {
             messages.push(message);
-        }
-    }
-
-    private normalizeType(t: string | undefined | null): string | undefined {
-        if (!t) return undefined;
-        switch (t) {
-            case VariableTypes.NOMINAL: return VariableTypes.TEXT;
-            case VariableTypes.INTEGER: return VariableTypes.INT;
-            case 'polynominal': return VariableTypes.TEXT;
-            case 'ordinal': return VariableTypes.TEXT;
-            default: return t;
         }
     }
 

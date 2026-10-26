@@ -11,7 +11,7 @@ describe('collapsible tree partially available variables', () => {
         code: 'demographics',
         children: [
           { label: 'Sex', code: 'sex', type: 'nominal' },
-          { label: 'Age', code: 'age', type: 'real' },
+          { label: 'Age', code: 'age', type: 'continuous' },
         ],
       },
     ],

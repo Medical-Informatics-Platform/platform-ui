@@ -30,7 +30,6 @@ export interface NormalizedVariableNode {
   label: string;
   code: string;
   description: string;
-  sqlType: string;
   type: string;
   isCategorical: boolean;
   units: string;

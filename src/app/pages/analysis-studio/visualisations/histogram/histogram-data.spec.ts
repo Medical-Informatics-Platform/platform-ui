@@ -39,7 +39,7 @@ describe('histogram split helpers', () => {
         { code: 'sex', label: 'Sex', type: 'nominal', enumerations: ['M', 'F'] },
         { code: 'age', label: 'Age', type: 'nominal', enumerations: ['young', 'old'] },
         { code: 'dataset', label: 'Dataset', type: 'nominal', enumerations: ['a', 'b', 'c'] },
-        { code: 'weight', label: 'Weight', type: 'real' },
+        { code: 'weight', label: 'Weight', type: 'continuous' },
       ],
       datasetLevelCount: 2,
     });
@@ -67,9 +67,12 @@ describe('histogram split helpers', () => {
   });
 
   it('treats nominal and categorical nodes as non-splittable plots', () => {
-    expect(isNominalHistogramNode({ type: 'real' })).toBe(false);
+    expect(isNominalHistogramNode({ type: 'continuous' })).toBe(false);
+    expect(isNominalHistogramNode({ type: 'discrete' })).toBe(false);
     expect(isNominalHistogramNode({ type: 'nominal' })).toBe(true);
-    expect(isNominalHistogramNode({ type: 'real', isCategorical: true })).toBe(true);
+    expect(isNominalHistogramNode({ type: 'ordinal' })).toBe(true);
+    expect(isNominalHistogramNode({ type: 'binary' })).toBe(true);
+    expect(isNominalHistogramNode({ type: 'real' })).toBe(false);
   });
 
   it('keys the histogram cache by variable and split', () => {

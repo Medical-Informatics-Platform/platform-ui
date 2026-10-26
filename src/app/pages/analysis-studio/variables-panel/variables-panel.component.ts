@@ -946,11 +946,11 @@ export class VariablesPanelComponent implements OnDestroy {
       return [groups ? plural(groups, 'group') : '', plural(variables, 'variable')].filter(Boolean).join(' · ');
     }
     const text = (value: unknown) => (value === null || value === undefined ? '' : String(value).trim());
-    // An integer variable: show its bounds as the integers they allow ("1.0" -> "1").
+    // A discrete variable: show its bounds as the integers they allow ("1.0" -> "1").
     const bound = (value: unknown, round: (n: number) => number) => {
       const raw = text(value);
       const n = Number(raw);
-      return node.type === 'integer' && raw && Number.isFinite(n) ? String(round(n)) : raw;
+      return node.type === 'discrete' && raw && Number.isFinite(n) ? String(round(n)) : raw;
     };
     const min = bound(node.minValue, Math.ceil);
     const max = bound(node.maxValue, Math.floor);
