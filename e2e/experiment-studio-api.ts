@@ -101,7 +101,7 @@ function strokeModel() {
           { code: 'm12', label: 'Month 12' },
         ],
       },
-      { code: 'age', label: 'Age', type: 'real', sql_type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
@@ -170,7 +170,7 @@ function dataModel() {
           { code: 'adni', label: 'ADNI' },
         ],
       },
-      { code: 'age', label: 'Age', type: 'real', sql_type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
@@ -189,7 +189,7 @@ function dataModel() {
           { code: 'e4', label: 'e4' },
         ],
       },
-      { code: 'mmse', label: 'MMSE', type: 'real', sql_type: 'real' },
+      { code: 'mmse', label: 'MMSE', type: 'continuous' },
     ],
     groups: [],
   };

@@ -25,8 +25,8 @@ describe('createZoomableCirclePacking', () => {
           {
             label: 'Demographics',
             children: [
-              { code: 'sex', label: 'Sex', type: 'text', value: 1 },
-              { code: 'age_value', label: 'Age', type: 'real', value: 1 },
+              { code: 'sex', label: 'Sex', type: 'nominal', value: 1 },
+              { code: 'age_value', label: 'Age', type: 'continuous', value: 1 },
             ],
             value: 2,
           },
@@ -90,8 +90,8 @@ describe('createZoomableCirclePacking unavailable variables', () => {
           {
             label: 'Demographics',
             children: [
-              { code: 'sex', label: 'Sex', type: 'text', value: 1 },
-              { code: 'age_value', label: 'Age', type: 'real', value: 1 },
+              { code: 'sex', label: 'Sex', type: 'nominal', value: 1 },
+              { code: 'age_value', label: 'Age', type: 'continuous', value: 1 },
             ],
             value: 2,
           },

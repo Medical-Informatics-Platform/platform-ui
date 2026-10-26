@@ -58,3 +58,41 @@ export function countLeafNodes(node: unknown): number {
   }
   return children.reduce((total: number, child) => total + countLeafNodes(child), 0);
 }
+
+/**
+ * CDE variable types. `type` is the only typing field a CDE carries: numerical
+ * `continuous`/`discrete`, categorical `nominal`/`ordinal`/`binary`.
+ */
+export const NUMERICAL_VARIABLE_TYPES: readonly string[] = ['continuous', 'discrete'];
+export const CATEGORICAL_VARIABLE_TYPES: readonly string[] = ['nominal', 'ordinal', 'binary'];
+
+/** Algorithm specifications still declare input `types` as `real`, `int`, or `text`. */
+const SPECIFICATION_TYPE_BY_VARIABLE_TYPE: Readonly<Record<string, string>> = {
+  continuous: 'real',
+  discrete: 'int',
+  nominal: 'text',
+  ordinal: 'text',
+  binary: 'text',
+};
+
+function normalizeVariableType(type: unknown): string {
+  return String(type ?? '').trim().toLowerCase();
+}
+
+export function isNumericalVariableType(type: unknown): boolean {
+  return NUMERICAL_VARIABLE_TYPES.includes(normalizeVariableType(type));
+}
+
+export function isCategoricalVariableType(type: unknown): boolean {
+  return CATEGORICAL_VARIABLE_TYPES.includes(normalizeVariableType(type));
+}
+
+/**
+ * Whether an algorithm input declaring `specTypes` accepts a CDE of `type`:
+ * continuous → real, discrete → int (also accepted by real slots), categorical → text.
+ */
+export function specificationAcceptsVariableType(specTypes: readonly string[], type: unknown): boolean {
+  const specType = SPECIFICATION_TYPE_BY_VARIABLE_TYPE[normalizeVariableType(type)];
+  if (!specType) return false;
+  return specTypes.includes(specType) || (specType === 'int' && specTypes.includes('real'));
+}

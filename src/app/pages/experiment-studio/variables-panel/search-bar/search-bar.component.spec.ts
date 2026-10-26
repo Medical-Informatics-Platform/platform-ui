@@ -15,7 +15,7 @@ describe('SearchBarComponent', () => {
           {
             code: 'age',
             label: 'Age at onset',
-            type: 'integer',
+            type: 'discrete',
           },
           {
             code: 'gender',
@@ -31,7 +31,7 @@ describe('SearchBarComponent', () => {
           {
             code: 'blood_pressure',
             label: 'Blood Pressure',
-            type: 'real',
+            type: 'continuous',
           },
         ],
       },
@@ -61,7 +61,7 @@ describe('SearchBarComponent', () => {
 
   it('indexes hierarchy and discovers variable types', () => {
     const { component } = setupComponent();
-    expect(component.variableTypes).toEqual(['integer', 'nominal', 'real']);
+    expect(component.variableTypes).toEqual(['continuous', 'discrete', 'nominal']);
   });
 
   it('filters variables by search query', () => {

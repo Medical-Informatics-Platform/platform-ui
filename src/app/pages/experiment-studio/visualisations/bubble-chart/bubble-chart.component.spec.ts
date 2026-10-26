@@ -50,8 +50,8 @@ describe('BubbleChartComponent tutorial highlighting', () => {
           {
             label: 'Demographics',
             children: [
-              { code: 'sex', label: 'Sex', type: 'text' },
-              { code: 'age_value', label: 'Age', type: 'real' },
+              { code: 'sex', label: 'Sex', type: 'nominal' },
+              { code: 'age_value', label: 'Age', type: 'continuous' },
             ],
           },
         ],
@@ -65,7 +65,7 @@ describe('BubbleChartComponent tutorial highlighting', () => {
 
   it('removes the tutorial highlight once the target is added to the pool', () => {
     guideState.activeStepId.set('add-sex-covariate');
-    setInputs({ selectedVariables: [{ code: 'sex', label: 'Sex', type: 'text' }] });
+    setInputs({ selectedVariables: [{ code: 'sex', label: 'Sex', type: 'nominal' }] });
 
     expect((component as any).getPendingTutorialHighlightCode()).toBeNull();
   });
@@ -76,7 +76,7 @@ describe('BubbleChartComponent tutorial highlighting', () => {
 
     expect((component as any).getPendingTutorialHighlightCode()).toBe('age_value');
 
-    setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'real' }] });
+    setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'continuous' }] });
 
     expect((component as any).getPendingTutorialHighlightCode()).toBeNull();
   });
@@ -90,7 +90,7 @@ describe('BubbleChartComponent tutorial highlighting', () => {
     expect(legend.textContent).toContain('Selected');
     expect(fixture.nativeElement.querySelector('.map-legend-swatch.selected')).not.toBeNull();
 
-    setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'real' }] });
+    setInputs({ selectedVariables: [{ code: 'age_value', label: 'Age', type: 'continuous' }] });
 
     expect(legend.textContent).toContain('In pool');
 

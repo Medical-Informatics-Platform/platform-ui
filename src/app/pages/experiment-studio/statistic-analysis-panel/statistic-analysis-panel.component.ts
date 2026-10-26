@@ -54,6 +54,7 @@ import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guid
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import { pluralize } from '../../../core/result-label.utils';
 import { filterOperatorPhrase } from '../../../core/filter-logic.utils';
+import { isCategoricalVariableType, isNumericalVariableType } from '../../../core/data-model.utils';
 import {
   cloneOutlierRules,
   createDefaultOutlierRule,
@@ -3560,12 +3561,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
 
     const nominalVariables = unique.filter(
-      (v) => v?.type === 'nominal' || varsWithCounts.has(v.code)
+      (v) => isCategoricalVariableType(v?.type) || varsWithCounts.has(v.code)
     );
     const nominalCodes = new Set(nominalVariables.map((v) => v.code));
-    const nonNominalVariables = unique.filter(
-      (v) => !nominalCodes.has(v.code) && v?.type !== 'text'
-    );
+    const nonNominalVariables = unique.filter((v) => !nominalCodes.has(v.code));
     const showDistributions = nonNominalVariables.length > 0 || nominalVariables.length > 0;
     const distributionSubTab = nonNominalVariables.length > 0 ? 'Numeric' : 'Nominal';
 
@@ -4579,11 +4578,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   private isNumericVariable(variable: VariableRow): boolean {
-    return ['real', 'int', 'integer', 'numeric', 'number'].includes(String(variable.type ?? '').toLowerCase());
+    return isNumericalVariableType(variable.type);
   }
 
   isCategoricalVariable(variable: VariableRow): boolean {
-    return String(variable.type ?? '').toLowerCase() === 'nominal' || !!variable.enumerations?.length;
+    return isCategoricalVariableType(variable.type) || !!variable.enumerations?.length;
   }
 
   private enumCodes(variable: VariableRow): string[] {

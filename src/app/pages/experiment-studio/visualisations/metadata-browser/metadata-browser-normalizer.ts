@@ -7,6 +7,7 @@ import {
   NormalizedMetadataIndex,
   NormalizedVariableNode,
 } from './metadata-browser.model';
+import { isCategoricalVariableType } from '../../../../core/data-model.utils';
 
 const ROOT_FALLBACK_LABEL = 'Data model';
 
@@ -103,7 +104,6 @@ export function normalizeMetadataTree(root: D3HierarchyNode): NormalizedMetadata
       label,
       code,
       description: normalizeString(node.description),
-      sqlType: normalizeString(node.sql_type),
       type: normalizeString(node.type || 'unknown'),
       isCategorical: normalizeCategorical(node),
       units: normalizeString(node.units),
@@ -338,11 +338,7 @@ function normalizeEnumerations(value: unknown): NormalizedEnumeration[] {
 }
 
 function normalizeCategorical(node: D3HierarchyNode): boolean {
-  const record = node as D3HierarchyNode & { is_categorical?: unknown };
-  if (typeof node.isCategorical === 'boolean') return node.isCategorical;
-  if (typeof record.is_categorical === 'boolean') return record.is_categorical;
-  if (typeof record.is_categorical === 'string') return record.is_categorical.toLowerCase() === 'true';
-  return Array.isArray(node.enumerations) && node.enumerations.length > 0;
+  return isCategoricalVariableType(node.type) || (Array.isArray(node.enumerations) && node.enumerations.length > 0);
 }
 
 function matchScore(

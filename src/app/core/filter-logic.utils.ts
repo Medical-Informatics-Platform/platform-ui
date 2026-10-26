@@ -1,3 +1,4 @@
+import { isCategoricalVariableType } from './data-model.utils';
 /**
  * The one operator vocabulary the app shares between the filter builder, the filter
  * display, and anything that sends a filter tree to the backend.
@@ -75,7 +76,7 @@ export function isMultiValueFilterOperator(operator: string): boolean {
 
 /** Operator symbols offered for a data-model variable type. */
 export function filterOperatorSymbolsForType(type: string | null | undefined): string[] {
-  const numeric = String(type ?? '').toLowerCase() !== 'nominal';
+  const numeric = !isCategoricalVariableType(type);
   return FILTER_OPERATORS.filter((entry) => numeric || !entry.numericOnly).map((entry) => entry.symbol);
 }
 

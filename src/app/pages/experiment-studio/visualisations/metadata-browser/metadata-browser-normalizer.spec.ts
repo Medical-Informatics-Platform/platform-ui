@@ -23,8 +23,6 @@ describe('metadata browser normalizer', () => {
                 code: 'dataset',
                 description: 'Variable used to differentiate datasets',
                 type: 'nominal',
-                sql_type: 'text',
-                isCategorical: true,
                 enumerations: [
                   { code: 'SSR', label: 'Swiss Stroke Registry' },
                   { code: 'GRSR', label: 'Greek Stroke Registry' },
@@ -37,7 +35,6 @@ describe('metadata browser normalizer', () => {
             code: 'sex',
             description: 'Patient sex',
             type: 'nominal',
-            sql_type: 'text',
             enumerations: [{ code: '1', label: 'Female' }],
           },
         ],
@@ -54,8 +51,7 @@ describe('metadata browser normalizer', () => {
                 label: 'Glucose',
                 code: 'glucose',
                 description: 'Blood glucose value',
-                type: 'real',
-                sql_type: 'real',
+                type: 'continuous',
                 units: 'mmol/L',
                 minValue: 0,
                 maxValue: 50,
@@ -76,8 +72,7 @@ describe('metadata browser normalizer', () => {
                 label: 'Glucose copy',
                 code: 'glucose',
                 description: 'Duplicate code under another path',
-                type: 'real',
-                sql_type: 'real',
+                type: 'continuous',
               },
             ],
           },
@@ -165,8 +160,8 @@ describe('metadata browser normalizer', () => {
           label: 'Demographics',
           code: 'demographics',
           children: [
-            { label: 'Age', code: 'age', type: 'integer', sql_type: 'integer' },
-            { label: 'Native imaged setting', code: 'native', type: 'nominal', sql_type: 'text' },
+            { label: 'Age', code: 'age', type: 'discrete' },
+            { label: 'Native imaged setting', code: 'native', type: 'nominal' },
           ],
         },
         {
@@ -176,8 +171,7 @@ describe('metadata browser normalizer', () => {
             {
               label: 'Age acquisition note',
               code: 'age-note',
-              type: 'text',
-              sql_type: 'text',
+              type: 'nominal',
             },
           ],
         },
@@ -200,7 +194,7 @@ describe('metadata browser normalizer', () => {
         {
           label: 'Group A',
           code: 'group-a',
-          children: [{ label: 'Note', code: 'note', type: 'text', sql_type: 'text' }],
+          children: [{ label: 'Note', code: 'note', type: 'nominal' }],
         },
         {
           label: 'Group B',
@@ -209,8 +203,7 @@ describe('metadata browser normalizer', () => {
             {
               label: 'Unrelated',
               code: 'unrelated',
-              type: 'text',
-              sql_type: 'text',
+              type: 'nominal',
               description: 'Contains a note about the visit',
             },
           ],
