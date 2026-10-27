@@ -5,7 +5,12 @@
     <span class="kmeans-cluster-source-applied-detail">
       {{ clusterCount() }} clusters from {{ clusterVariables().join(', ') }}
     </span>
-    <button type="button" class="kmeans-cluster-source-remove" (click)="remove()">Remove</button>
+    <button
+      type="button"
+      class="kmeans-cluster-source-remove"
+      [disabled]="!canRemove()"
+      [title]="removeTooltip()"
+      (click)="remove()">Remove</button>
   </div>
   } @else {
   <div class="kmeans-mode-switch" role="group" aria-label="K-means column source">

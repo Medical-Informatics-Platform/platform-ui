@@ -84,12 +84,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'appliedKMeansClusterCreator',
             'setKMeansClusterPreprocessing',
             'withKMeansClusterRequirements',
+            'buildTransformationDescribePreprocessing',
+            'transformationSourceCodesForInput',
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
             'upsertTransformation',
             'removeTransformation',
             'transformationDependents',
+            'outputsInUse',
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
@@ -119,6 +122,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
         mockExpService.transformationDependents.mockReturnValue([]);
+        mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
             const current = [...(mockExpService.appliedTransformations() as any[])];
             const index = current.findIndex((existing) => existing.id === step.id);
@@ -126,6 +130,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 ? [...current, step]
                 : current.map((existing, i) => (i === index ? step : existing));
             (mockExpService.appliedTransformations as any).set(next);
+            return true;
         });
         mockExpService.removeTransformation.mockImplementation((id: string) => {
             (mockExpService.appliedTransformations as any).set(
@@ -161,6 +166,24 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             next['kmeans_cluster_creator'] = creator;
             return next;
         });
+        mockExpService.buildTransformationDescribePreprocessing.mockImplementation((singletons: any) => {
+            const steps: { name: string; parameters: Record<string, unknown> }[] = [];
+            if (singletons && typeof singletons === 'object') {
+                for (const [name, parameters] of Object.entries(singletons)) {
+                    if (parameters && typeof parameters === 'object') {
+                        steps.push({ name, parameters: parameters as Record<string, unknown> });
+                    }
+                }
+            }
+            for (const step of mockExpService.appliedTransformations() as any[]) {
+                if (Array.isArray(step.parameters?.new_column_names)
+                    && step.parameters.new_column_names.some((n: unknown) => String(n ?? '').trim())) {
+                    steps.push({ name: step.name, parameters: step.parameters });
+                }
+            }
+            return steps.length ? steps : null;
+        });
+        mockExpService.transformationSourceCodesForInput.mockReturnValue([]);
         mockExpService.appliedCategoricalCreators.mockImplementation(() => {
             const fromStore = (mockExpService.appliedTransformations() as any[])
                 .filter((step) => step.name === 'categorical_column_creator')
@@ -198,7 +221,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 provideZonelessChangeDetection(),
                 provideEchartsCore({ echarts: () => import('echarts') }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
-                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]), listPcaExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: (() => { const s = createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']); s.getChartsForAlgorithm.mockReturnValue([]); return s; })() },
                 { provide: PdfExportService, useValue: createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']) }
             ]

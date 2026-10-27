@@ -1522,7 +1522,7 @@
             <div class="transformation-graph">
               @for (step of cards(); track step.id) {
               <div class="transformation-card-wrap" [attr.data-step-id]="step.id">
-              @if (!isCreatorAvailable(step.name) || step.name === 'pca_column_creator') {
+              @if (!isCreatorAvailable(step.name)) {
               <app-station-card
                 collapsible
                 [icon]="creatorChooserCopy(step.name).icon"
@@ -1729,6 +1729,8 @@
                 <app-kmeans-cluster-source
                   [stepId]="step.id"
                   [columnNameError]="kmeansColumnNameError"
+                  [canRemove]="canRemoveTransformation(step.id)"
+                  [removeTooltip]="removeTransformationTooltip(step.id)"
                   [class.is-previewing]="previewDraftId === step.id"
                   (runRequested)="previewTransformationCard(step.id)"
                 />
@@ -1743,6 +1745,44 @@
                   applyVariant="quiet"
                   (preview)="toggleTransformationPreview()"
                   (apply)="closeTransformationPreview(); toggleCardOpen(step.id, false)"
+                ></app-station-action-bar>
+                }
+              </app-station-card>
+              } @else if (step.name === 'pca_column_creator') {
+              <app-station-card
+                collapsible
+                icon="fas fa-chart-line"
+                [title]="stepTitle(step)"
+                description="Project numerical variables onto principal components."
+                [statusLabel]="stepStatus(step).label"
+                [status]="stepStatus(step).tone"
+                [open]="isCardOpen(step.id)"
+                (openChange)="toggleCardOpen(step.id, $event)">
+                <button
+                  type="button"
+                  class="btn-remove-step-node"
+                  stationAction
+                  [disabled]="!canRemoveTransformation(step.id)"
+                  [title]="removeTransformationTooltip(step.id)"
+                  (click)="removeTransformationDraft(step.id)">
+                  <i class="fas fa-trash-can" aria-hidden="true"></i>
+                  <span>Remove column</span>
+                </button>
+                <app-pca-column-source
+                  [stepId]="step.id"
+                  [columnNameError]="kmeansColumnNameError"
+                  [canRemove]="canRemoveTransformation(step.id)"
+                  [removeTooltip]="removeTransformationTooltip(step.id)"
+                />
+                @if (stepOutputNames(step).length) {
+                <app-station-action-bar
+                  stationFooter
+                  flush
+                  tone="applied"
+                  applyLabel="Close"
+                  applyIcon="fas fa-times"
+                  applyVariant="quiet"
+                  (apply)="toggleCardOpen(step.id, false)"
                 ></app-station-action-bar>
                 }
               </app-station-card>

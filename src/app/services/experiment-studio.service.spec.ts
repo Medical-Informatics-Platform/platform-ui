@@ -1823,7 +1823,7 @@ describe('ExperimentStudioService', () => {
 
       expect(service.appliedKMeansClusterCreator()?.new_column_names[0]).toBe('kmeans_cluster');
       expect(service.appliedPreprocessingConfig()?.['kmeans_cluster_creator'])
-        .toEqual(clusterFixture(['a', 'b']));
+        .toEqual([clusterFixture(['a', 'b'])]);
 
       const clusterNode = service.algorithmAssignableVariables().find((v) => v.code === 'kmeans_cluster');
       expect(clusterNode).toBeTruthy();
@@ -2015,6 +2015,37 @@ describe('ExperimentStudioService', () => {
       }, { age: 'Age', bmi: 'BMI' })).toContainEqual(expect.objectContaining({
         label: 'K-means cluster column',
         lines: ['km_fit', 'Clustered on Age, BMI'],
+      }));
+    });
+
+    it('summarizes every repeated creator of a run, its PCA columns and their drops', () => {
+      service.upsertTransformation({
+        id: 'km1',
+        name: 'kmeans_cluster_creator',
+        parameters: { new_column_names: ['km_a'], variables: ['age'], k: 2, enumeration_prefix: 'cluster_' },
+      });
+      service.upsertTransformation({
+        id: 'km2',
+        name: 'kmeans_cluster_creator',
+        parameters: { new_column_names: ['km_b'], variables: ['age'], k: 3, enumeration_prefix: 'cluster_' },
+      });
+      service.upsertTransformation({
+        id: 'pca',
+        name: 'pca_column_creator',
+        parameters: { new_column_names: ['pca_pc1'], selected_components: ['PC1'], n_components: 1, variables: ['age', 'bmi'] },
+      });
+
+      const entries = service.getEffectivePreprocessingEntries('mock_algo', { age: 'Age', bmi: 'BMI' });
+
+      expect(entries.filter((entry) => entry.label === 'K-means cluster column').map((entry) => entry.lines?.[0]))
+        .toEqual(['km_a', 'km_b']);
+      expect(entries).toContainEqual(expect.objectContaining({
+        label: 'PCA component columns',
+        lines: ['pca_pc1', 'Components PC1 from Age, BMI'],
+      }));
+      expect(entries).toContainEqual(expect.objectContaining({
+        label: 'Missing values',
+        lines: ['Age: remove rows', 'BMI: remove rows'],
       }));
     });
 
@@ -2215,6 +2246,47 @@ describe('ExperimentStudioService', () => {
       });
     });
 
+    it('describe preview for K-means-on-PCA keeps pca then kmeans and CDE-only sources', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.upsertTransformation(pcaAStep);
+      service.upsertTransformation(kmeansOnPcaA);
+
+      const steps = service.buildTransformationDescribePreprocessing(null);
+      expect(steps?.map((step) => step.name)).toEqual([
+        'missing_values_handler',
+        'pca_column_creator',
+        'kmeans_cluster_creator',
+      ]);
+      const missing = steps?.find((step) => step.name === 'missing_values_handler');
+      expect(Object.keys(missing!.parameters['strategies'] as object)).not.toContain('pca_a1');
+      expect(Object.keys(missing!.parameters['strategies'] as object)).not.toContain('pca_a2');
+      expect(service.transformationSourceCodesForInput()).toEqual([
+        'lefthippocampus',
+        'righthippocampus',
+      ]);
+
+      service.loadDescriptiveOverview(['km'], steps, service.transformationSourceCodesForInput())
+        .subscribe();
+      const req = httpMock.expectOne('/services/experiments/preview');
+      const body = req.request.body;
+      expect(body.analysis.preprocessing.map((s: AnalysisPreprocessingStep) => s.name)).toEqual([
+        'missing_values_handler',
+        'pca_column_creator',
+        'kmeans_cluster_creator',
+      ]);
+      expect(body.analysis.inputdata.variables).toEqual(
+        expect.arrayContaining(['lefthippocampus', 'righthippocampus']),
+      );
+      expect(body.analysis.inputdata.variables).not.toContain('pca_a1');
+      expect(body.analysis.inputdata.variables).not.toContain('pca_a2');
+      const previewMissing = body.analysis.preprocessing.find(
+        (s: AnalysisPreprocessingStep) => s.name === 'missing_values_handler',
+      );
+      expect(Object.keys(previewMissing!.parameters['strategies'] as object)).not.toContain('pca_a1');
+      req.flush({ status: 'success', result: { featurewise: [] } });
+    });
+
     it('reports dependents of a step', () => {
       service.upsertTransformation(pcaAStep);
       service.upsertTransformation(kmeansOnPcaA);
@@ -2320,6 +2392,28 @@ describe('ExperimentStudioService', () => {
 
       service.setTransformationPreprocessing([creator('grp2')]);
       expect(names()).toEqual([['pca_a1', 'pca_a2'], ['grp2']]);
+    });
+
+    it('refuses an upsert that drops a column a later step reads', () => {
+      service.upsertTransformation(pcaAStep);
+      service.upsertTransformation(kmeansOnPcaA);
+
+      const accepted = service.upsertTransformation({
+        ...pcaAStep,
+        parameters: { ...pcaAStep.parameters, new_column_names: ['pca_a1'], n_components: 1 },
+      });
+
+      expect(accepted).toBe(false);
+      expect(service.appliedTransformations()[0].parameters['new_column_names']).toEqual(['pca_a1', 'pca_a2']);
+      expect(service.outputsInUse('pcaA', ['pca_a1'])).toEqual(['pca_a2']);
+    });
+
+    it('writes nothing when an upsert repeats the stored step', () => {
+      service.upsertTransformation(pcaAStep);
+      const before = service.appliedTransformations();
+
+      expect(service.upsertTransformation({ ...pcaAStep })).toBe(true);
+      expect(service.appliedTransformations()).toBe(before);
     });
   });
 });

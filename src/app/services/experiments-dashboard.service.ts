@@ -137,6 +137,21 @@ export class ExperimentsDashboardService {
       .pipe(map((page) => page?.experiments ?? []));
   }
 
+  /**
+   * The user's own PCA experiments (newest first) that can provide component columns.
+   * Own scope only — same rationale as {@link listKMeansExperiments}.
+   */
+  listPcaExperiments(): Observable<BackendExperiment[]> {
+    return this.http
+      .get<ExperimentsPage>(this.apiUrl, {
+        params: this.buildServerParams(0, 50, true, 'created-desc', {
+          ...DEFAULT_FILTERS,
+          algorithm: 'pca',
+        }),
+      })
+      .pipe(map((page) => page?.experiments ?? []));
+  }
+
   private applyServerPage(response: ExperimentsPage | null): void {
     this.isLoading.set(false);
     const mappedExperiments = (response?.experiments || []).map(mapBackendToFrontend);
