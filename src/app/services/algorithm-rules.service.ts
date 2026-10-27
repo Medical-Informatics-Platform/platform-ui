@@ -8,7 +8,7 @@ import {
 import { D3HierarchyNode } from '../models/data-model.interface';
 import { VariableTypes, AlgorithmRoles } from '../core/constants/algorithm.constants';
 import { resolveInputMaxCount, resolveInputMinCount } from '../core/algorithm-input-counts';
-import { specificationAcceptsVariableType } from '../core/data-model.utils';
+import { isFreeTextCde, specificationAcceptsVariableType } from '../core/data-model.utils';
 
 type SelectionRole = 'y' | 'x';
 type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
@@ -103,6 +103,11 @@ export class AlgorithmRulesService {
             if (invalid) {
                 this.pushUnique(messages, this.typeRequirementMessage(label, types));
             }
+        }
+
+        // Derived columns get their categories from the creator config, not the CDE.
+        if (selected.some((node) => !(node as any).isCreatedColumn && isFreeTextCde(node as any))) {
+            messages.push(label + ' contains a free-text variable, which cannot be analysed.');
         }
 
         if (selected.length > 0 && stattypes.length > 0) {

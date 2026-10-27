@@ -1,5 +1,6 @@
 import {
   isCategoricalVariableType,
+  isFreeTextCde,
   isNumericalVariableType,
   specificationAcceptsVariableType,
 } from './data-model.utils';
@@ -23,5 +24,13 @@ describe('CDE variable types', () => {
     expect(specificationAcceptsVariableType(['text'], 'binary')).toBe(true);
     expect(specificationAcceptsVariableType(['real', 'int'], 'nominal')).toBe(false);
     expect(specificationAcceptsVariableType(['real'], 'real')).toBe(false);
+  });
+
+  it('treats a categorical CDE without enumerations as free text Exaflow cannot analyse', () => {
+    expect(isFreeTextCde({ type: 'nominal' })).toBe(true);
+    expect(isFreeTextCde({ type: 'ordinal', enumerations: [] })).toBe(true);
+    expect(isFreeTextCde({ type: 'nominal', enumerations: [{ code: 'M' }] })).toBe(false);
+    expect(isFreeTextCde({ type: 'continuous' })).toBe(false);
+    expect(isFreeTextCde(null)).toBe(false);
   });
 });
