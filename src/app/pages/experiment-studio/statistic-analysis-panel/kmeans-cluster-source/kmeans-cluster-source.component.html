@@ -1,11 +1,115 @@
 <section class="kmeans-cluster-source">
   @if (applied(); as creator) {
   <div class="kmeans-cluster-source-applied">
-    <span class="kmeans-cluster-source-applied-code">Column {{ creator.code }}</span>
+    <span class="kmeans-cluster-source-applied-code">Column {{ appliedColumnName() }}</span>
     <span class="kmeans-cluster-source-applied-detail">
       {{ clusterCount() }} clusters from {{ clusterVariables().join(', ') }}
     </span>
-    <button type="button" class="kmeans-cluster-source-remove" (click)="remove()">Remove</button>
+    <button
+      type="button"
+      class="kmeans-cluster-source-remove"
+      [disabled]="!canRemove()"
+      [title]="removeTooltip()"
+      (click)="remove()">Remove</button>
+  </div>
+  } @else {
+  <div class="kmeans-mode-switch" role="group" aria-label="K-means column source">
+    <button type="button" class="kmeans-mode-btn"
+            [class.active]="sourceMode() === 'result'"
+            [attr.aria-pressed]="sourceMode() === 'result'"
+            (click)="setSourceMode('result')">
+      From a K-means result
+    </button>
+    <button type="button" class="kmeans-mode-btn"
+            [class.active]="sourceMode() === 'fit'"
+            [attr.aria-pressed]="sourceMode() === 'fit'"
+            (click)="setSourceMode('fit')">
+      Fit on selected variables
+    </button>
+  </div>
+
+  @if (sourceMode() === 'fit') {
+  <div class="kmeans-step">
+    <div class="kmeans-step-head">
+      <span class="kmeans-step-number">1</span>Choose the numerical variables to cluster
+    </div>
+
+    @if (fitNumericVariables().length === 0) {
+    <p class="kmeans-cluster-source-note">No numerical variables in this experiment yet.</p>
+    } @else {
+    <div class="kmeans-cluster-source-vars">
+      @for (variable of fitNumericVariables(); track variable.code) {
+      <button type="button" class="kmeans-cluster-source-var"
+              [class.is-selected]="fitSelectedCodes().includes(variable.code)"
+              [attr.aria-pressed]="fitSelectedCodes().includes(variable.code)"
+              (click)="toggleRunVariable(variable.code)">
+        <i class="fas" [class.fa-check]="fitSelectedCodes().includes(variable.code)" [class.fa-plus]="!fitSelectedCodes().includes(variable.code)" aria-hidden="true"></i>
+        {{ variable.label || variable.code }}
+      </button>
+      }
+    </div>
+    }
+
+    <div class="kmeans-cluster-source-field">
+      <label for="kmeans-fit-k">Number of clusters</label>
+      <input id="kmeans-fit-k" type="number" min="1" step="1"
+             [value]="fitK()"
+             (input)="setFitK($any($event.target).value)" />
+    </div>
+
+    <button type="button" class="kmeans-cluster-source-advanced"
+            aria-controls="kmeans-fit-params"
+            [attr.aria-expanded]="advancedOpen()"
+            (click)="advancedOpen.set(!advancedOpen())">
+      <i class="fas fa-sliders" aria-hidden="true"></i>
+      <span class="kmeans-params-label">Parameters</span>
+      @if (!advancedOpen() && parameterSummary()) {
+      <span class="kmeans-params-summary">{{ parameterSummary() }}</span>
+      }
+      <i class="fas kmeans-params-chevron" [class.fa-chevron-down]="!advancedOpen()" [class.fa-chevron-up]="advancedOpen()" aria-hidden="true"></i>
+    </button>
+
+    @if (advancedOpen()) {
+    <div id="kmeans-fit-params" class="kmeans-cluster-source-params">
+      @for (field of fitParameterFields; track field.key) {
+      <div class="kmeans-cluster-source-field">
+        <label [attr.for]="'kmeans-fit-param-' + field.key">{{ field.label || field.key }}</label>
+        @if (field.type === 'select') {
+        <select [id]="'kmeans-fit-param-' + field.key"
+                [value]="parameterValue(field)"
+                (change)="setParameter(field.key, $any($event.target).value)">
+          @for (opt of field.options ?? []; track optionBindingValue(opt)) {
+          <option [value]="optionBindingValue(opt)">{{ optionLabel(opt) }}</option>
+          }
+        </select>
+        } @else {
+        <input [id]="'kmeans-fit-param-' + field.key" type="number"
+               [step]="field.types?.includes('real') ? 'any' : 1"
+               [value]="parameterValue(field)"
+               (input)="setParameter(field.key, $any($event.target).value)" />
+        }
+      </div>
+      }
+    </div>
+    }
+
+    <div class="kmeans-cluster-source-field">
+      <label for="kmeans-fit-code">New column name</label>
+      <input id="kmeans-fit-code" type="text"
+             [ngModel]="code()" (ngModelChange)="code.set($event)"
+             placeholder="e.g. kmeans_cluster" />
+    </div>
+
+    @if (error()) {
+    <p class="kmeans-cluster-source-error">{{ error() }}</p>
+    }
+
+    <button type="button" class="kmeans-cluster-source-apply"
+            [disabled]="fitSelectedCodes().length === 0 || !code().trim() || fitK() < 1"
+            (click)="applyFit()">
+      <i class="fas fa-check" aria-hidden="true"></i>
+      Add cluster column
+    </button>
   </div>
   } @else {
   @if (loading()) {
@@ -178,6 +282,7 @@
     {{ hiddenCount() }} K-means experiments hidden because their data model, datasets or filters
     differ.
   </p>
+  }
   }
   }
 </section>

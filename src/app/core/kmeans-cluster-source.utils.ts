@@ -7,9 +7,10 @@ export const KMEANS_CLUSTER_CREATOR = 'kmeans_cluster_creator';
 /** Result type of the K-means cluster report. Its reusable_preprocessing is the creator input. */
 export const KMEANS_RESULT_TYPE = 'privacy_safe_cluster_report';
 
-/** Preprocessing block stored in a K-means result that can be replayed as a cluster column. */
+/** Preprocessing block stored in a K-means result that can be replayed as a cluster column.
+ *  Matches exaflow `KMeansReusablePreprocessing` (no schema_version, has enumeration_prefix). */
 export interface KMeansReusablePreprocessing {
-  schema_version: string;
+  enumeration_prefix: string;
   preprocessing_name: string;
   cluster_variables: string[];
   centers: Record<string, Record<string, number>>;
@@ -18,10 +19,46 @@ export interface KMeansReusablePreprocessing {
   cluster_choices: { cluster_id: string; label: string }[];
 }
 
-/** Parameters of the kmeans_cluster_creator preprocessing step. */
-export interface KMeansClusterCreatorConfig {
-  code: string;
-  reusable_preprocessing: KMeansReusablePreprocessing;
+/** Clustering variable codes from a stored creator: recipe `cluster_variables` or fit `variables`. */
+export function kmeansCreatorVariables(
+  creator: Record<string, unknown> | null | undefined,
+): string[] {
+  const reusable = creator?.['reusable_preprocessing'];
+  if (isPlainObject(reusable) && Array.isArray(reusable['cluster_variables'])) {
+    return reusable['cluster_variables'].map((code) => String(code).trim()).filter((code) => !!code);
+  }
+  const variables = creator?.['variables'];
+  return Array.isArray(variables)
+    ? variables.map((code) => String(code).trim()).filter((code) => !!code)
+    : [];
+}
+
+/**
+ * Cluster category ids/labels: recipe `cluster_choices`, or synthetic
+ * `${enumeration_prefix || 'cluster_'}${1..k}` for fit mode.
+ */
+export function kmeansCreatorClusterChoices(
+  creator: Record<string, unknown> | null | undefined,
+): Array<{ cluster_id: string; label: string }> {
+  const reusable = creator?.['reusable_preprocessing'];
+  if (isPlainObject(reusable) && Array.isArray(reusable['cluster_choices'])) {
+    return reusable['cluster_choices']
+      .filter(isPlainObject)
+      .map((choice) => ({
+        cluster_id: String(choice['cluster_id'] ?? '').trim(),
+        label: String(choice['label'] ?? '').trim(),
+      }))
+      .filter((choice) => !!choice.cluster_id);
+  }
+  const k = typeof creator?.['k'] === 'number' ? creator['k'] : 0;
+  if (!Number.isFinite(k) || k < 1) return [];
+  const prefix = typeof creator?.['enumeration_prefix'] === 'string' && creator['enumeration_prefix']
+    ? creator['enumeration_prefix']
+    : 'cluster_';
+  return Array.from({ length: Math.floor(k) }, (_, index) => {
+    const id = `${prefix}${index + 1}`;
+    return { cluster_id: id, label: id };
+  });
 }
 
 /** Source of the data the current draft experiment runs on. */
@@ -55,18 +92,19 @@ function sortKeys(value: unknown): unknown {
 }
 
 /**
- * Whether a finished K-means run can still provide clusters for the current draft:
- * same data model, same datasets, same cohort filters.
+ * Whether a finished analysis run can still provide a recipe for the current draft:
+ * matching algorithm, same data model, same datasets, same cohort filters.
  */
-export function kmeansSourceIsReusable(
+export function analysisSourceIsReusable(
   experiment: BackendExperiment,
-  current: KMeansSourceContext
+  algorithmName: string,
+  current: KMeansSourceContext,
 ): boolean {
   const analysis = experiment?.analysis as unknown as
     | { algorithm?: { name?: unknown }; inputdata?: Record<string, unknown> }
     | undefined;
   const inputdata = analysis?.inputdata;
-  if (analysis?.algorithm?.name !== 'kmeans' || experiment?.status !== 'success') return false;
+  if (analysis?.algorithm?.name !== algorithmName || experiment?.status !== 'success') return false;
   if (!inputdata || inputdata['data_model'] !== current.dataModel) return false;
 
   const sourceDatasets = (Array.isArray(inputdata['datasets']) ? inputdata['datasets'] : [])
@@ -99,6 +137,10 @@ export function extractReusablePreprocessing(result: unknown): KMeansReusablePre
   }
   if (!Array.isArray(candidate['cluster_variables']) || !Array.isArray(candidate['cluster_choices'])
     || !isPlainObject(candidate['centers'])) {
+    return null;
+  }
+  // The creator names the cluster categories with this prefix; a block without it cannot replay.
+  if (typeof candidate['enumeration_prefix'] !== 'string' || !candidate['enumeration_prefix']) {
     return null;
   }
 

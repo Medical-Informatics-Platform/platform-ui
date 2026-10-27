@@ -15,7 +15,7 @@ function buildSetup(overrides: Partial<ExperimentRunSetup> = {}): ExperimentRunS
     covariates: ['age'],
     filterLogic: { condition: 'AND', rules: [], valid: true },
     preprocessing: [{ label: 'Missing values', value: '3m mRS: drop' }],
-    parameters: { conf_level: 0.95, data_transformation: { column: 'x' } },
+    parameters: { conf_level: 0.95 },
     ...overrides,
   };
 }
@@ -106,7 +106,7 @@ describe('ExperimentSetupSummaryComponent', () => {
 
   it('lists configured parameters and drops unset or duplicated ones', () => {
     const html = render(buildSetup({
-      parameters: { conf_level: 0.95, groupA: '1', notes: '', data_transformation: { column: 'x' } },
+      parameters: { conf_level: 0.95, groupA: '1', notes: '' },
     }));
 
     // Name and value are asserted apart: the whitespace between two cells is the
@@ -117,7 +117,7 @@ describe('ExperimentSetupSummaryComponent', () => {
     ].join(' = '));
     expect(rows).toContain('Confidence level = 0.95');
     expect(rows).toContain('Group A = female');
-    expect(html.textContent).not.toContain('column');
+    expect(html.textContent).not.toContain('notes');
   });
 
   it('says so when the cohort was not filtered', () => {

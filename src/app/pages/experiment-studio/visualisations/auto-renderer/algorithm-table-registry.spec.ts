@@ -207,18 +207,70 @@ describe('AlgorithmTableRegistry', () => {
     expect(exportTable(tables[0]).rows[0]).toEqual(['0', '50', Math.exp(-0.7)]);
   });
 
-  it('renders pca summary and keeps pca_with_transformation alias', () => {
+  it('renders no pca summary for a result without components', () => {
     const payload = {
       title: 'Eigenvalues and Eigenvectors',
       n_obs: 120,
       eigenvalues: [3.1, 1.2, 0.7],
     };
-    const base = AlgorithmTableRegistry['pca'](payload);
-    const transformed = AlgorithmTableRegistry['pca_with_transformation'](payload);
 
-    expect(base.length).toBe(1);
-    expect(base[0].title).toBe('PCA Summary');
-    expect(transformed).toEqual(base);
+    expect(AlgorithmTableRegistry['pca'](payload as any)).toEqual([]);
+  });
+
+  it('names pca weight rows with the labels a caller supplies over the raw codes', () => {
+    const tables = AlgorithmTableRegistry['pca']({
+      title: 'Eigenvalues and Eigenvectors',
+      n_obs: 120,
+      eigenvalues: [1.2, 0.8],
+      eigenvectors: [
+        [0.7, 0.2],
+        [0.1, 0.9],
+      ],
+      variables: ['age', 'bmi'],
+      variable_names: ['Age', 'BMI'],
+    } as any);
+
+    const weights = tables.find((table) => table.title === 'Component weights')!;
+    expect(weights.rows.map((row) => row[0])).toEqual(['Age', 'BMI']);
+  });
+
+  it('renders pca summary percentages from explained_variance_ratio', () => {
+    const tables = AlgorithmTableRegistry['pca']({
+      title: 'Eigenvalues and Eigenvectors',
+      n_obs: 120,
+      eigenvalues: [3.42, 0.58],
+      eigenvectors: [
+        [0.7, 0.2],
+        [0.1, 0.9],
+      ],
+      variables: ['age', 'bmi'],
+      components: [
+        {
+          component_id: 'PC1',
+          explained_variance: 3.42,
+          explained_variance_ratio: 0.855,
+          cumulative_explained_variance: 0.855,
+          loadings: { age: 0.7, bmi: 0.2 },
+        },
+        {
+          component_id: 'PC2',
+          explained_variance: 0.58,
+          explained_variance_ratio: 0.145,
+          cumulative_explained_variance: 1,
+          loadings: { age: 0.1, bmi: 0.9 },
+        },
+      ],
+      reusable_preprocessing: null,
+    });
+
+    expect(tables[0].columns).toEqual([
+      'Component',
+      'Eigenvalue',
+      'Variance explained (%)',
+      'Cumulative (%)',
+    ]);
+    expect(tables[0].rows[0]).toEqual(['PC1', '3.42', '85.5%', '85.5%']);
+    expect(tables[0].rows[1]).toEqual(['PC2', '0.58', '14.5%', '100.0%']);
   });
 
   it('renders quartiles tables and preserves unavailable quantile values', () => {

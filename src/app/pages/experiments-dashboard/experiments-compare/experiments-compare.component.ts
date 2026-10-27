@@ -267,11 +267,9 @@ export class ExperimentsCompareComponent implements OnDestroy {
 
   enrichResult(exp: Experiment, result: any): any {
     if (!result || !exp) return result;
-    return enrichPcaResult(
-      result,
-      exp.algorithmName,
-      this.getVariablesWithLabels(exp).map((v) => v.label),
-      this.getCovariatesWithLabels(exp).map((c) => c.label)
-    );
+    return enrichPcaResult(result, exp.algorithmName, [
+      ...this.getVariablesWithLabels(exp),
+      ...this.getCovariatesWithLabels(exp),
+    ]);
   }
 }

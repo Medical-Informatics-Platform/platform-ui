@@ -175,6 +175,26 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     expect(emitted![0].uuid).toBe('u1');
   });
 
+  it('lists PCA experiments newest first', () => {
+    let emitted: BackendExperiment[] | undefined;
+
+    service.listPcaExperiments().subscribe((experiments) => (emitted = experiments));
+
+    const req = httpMock.expectOne((candidate) => candidate.url === apiUrl);
+    expect(req.request.params.get('algorithm')).toBe('pca');
+    expect(req.request.params.get('mine')).toBe('true');
+    expect(req.request.params.get('notMine')).toBe('false');
+
+    req.flush({
+      experiments: [{ uuid: 'pca-1' }],
+      totalExperiments: 1,
+      totalPages: 1,
+      currentPage: 0,
+    });
+
+    expect(emitted![0].uuid).toBe('pca-1');
+  });
+
   it('resolves members that are already loaded without asking the backend', () => {
     service.experiments.set([frontendExperiment('a'), frontendExperiment('b')]);
     let resolved: Experiment[] | undefined;

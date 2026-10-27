@@ -32,25 +32,32 @@ describe('StatisticAnalysisPanelComponent', () => {
             'getAppliedDescriptivePreprocessing',
             'setFilters',
             'setFilterLogic',
-            'setTransformationPreprocessing',
             'filterVariableCodes',
-            'appliedCategoricalCreators',
-            'appliedKMeansClusterCreator',
-            'setKMeansClusterPreprocessing',
-            'withKMeansClusterRequirements',
+            'buildTransformationDescribePreprocessing',
+            'transformationSourceCodesForInput',
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
+            'upsertTransformation',
+            'removeTransformation',
+            'clearTransformations',
+            'transformationDependents',
+            'outputsInUse',
+            'availableCreatorNames',
+            'hasPreprocessingSpec',
+            'catalogLoaded',
+            'stepOutputNames',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
             excludedDatasets: signal([]),
-            selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7', variables: [] }),
             unavailableVariables: signal(new Map()),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal(null),
+            appliedTransformations: signal([] as { id: string; name: string; parameters: Record<string, unknown> }[]),
             backendAlgorithms: signal({})
         });
         mockChartBuilder = createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']);
@@ -60,15 +67,50 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
         mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.mockReturnValue(null);
-        // Pass-through by default; the creator-appending behaviour is the service's, not the panel's.
-        mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => config ?? null);
+        mockExpService.buildTransformationDescribePreprocessing.mockImplementation((singletons: any) => {
+            const steps: { name: string; parameters: Record<string, unknown> }[] = [];
+            if (singletons && typeof singletons === 'object') {
+                for (const [name, parameters] of Object.entries(singletons)) {
+                    if (parameters && typeof parameters === 'object') {
+                        steps.push({ name, parameters: parameters as Record<string, unknown> });
+                    }
+                }
+            }
+            for (const step of mockExpService.appliedTransformations() as any[]) {
+                if (Array.isArray(step.parameters?.new_column_names) && step.parameters.new_column_names.some((n: unknown) => String(n ?? '').trim())) {
+                    steps.push({ name: step.name, parameters: step.parameters });
+                }
+            }
+            return steps.length ? steps : null;
+        });
+        mockExpService.transformationSourceCodesForInput.mockReturnValue([]);
         mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
         mockExpService.requestFilters.mockReturnValue(null);
         mockExpService.getActiveDataModelCode.mockReturnValue('Stroke:3.7');
-        mockExpService.appliedCategoricalCreators.mockImplementation(() => {
-            const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
-            return Array.isArray(value) ? value : [];
+        mockExpService.availableCreatorNames.mockReturnValue([
+            'categorical_column_creator',
+            'kmeans_cluster_creator',
+        ]);
+        mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
+            ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
+        );
+        mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.transformationDependents.mockReturnValue([]);
+        mockExpService.outputsInUse.mockReturnValue([]);
+        mockExpService.upsertTransformation.mockImplementation((step: any) => {
+            const current = [...(mockExpService.appliedTransformations() as any[])];
+            const index = current.findIndex((existing) => existing.id === step.id);
+            const next = index === -1
+                ? [...current, step]
+                : current.map((existing, i) => (i === index ? step : existing));
+            (mockExpService.appliedTransformations as any).set(next);
+            return true;
+        });
+        mockExpService.clearTransformations.mockImplementation(() =>
+            (mockExpService.appliedTransformations as any).set([]));
+        mockExpService.removeTransformation.mockImplementation((id: string) => {
+            const next = (mockExpService.appliedTransformations() as any[]).filter((step) => step.id !== id);
+            (mockExpService.appliedTransformations as any).set(next);
         });
         // Mirrors the real collector: a group walks its rules, a condition is its field.
         mockExpService.filterVariableCodes.mockImplementation((logic: any) => {
@@ -94,7 +136,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                     echarts: () => import('echarts'),
                 }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
-                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]), listPcaExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: mockChartBuilder },
                 { provide: PdfExportService, useValue: mockPdfService }
             ]
@@ -160,6 +202,14 @@ describe('StatisticAnalysisPanelComponent', () => {
      * Pipeline nodes render collapsed until they hold work or were opened this visit,
      * so a spec that reads a station's editor has to open it first. Opening is a read.
      */
+    /** Seed N categorical cards through the store-backed chooser (drafts start empty). */
+    function ensureCategoricalDrafts(count = 1): void {
+        while (component.transformationDrafts.length < count) {
+            component.chooseTransformation('categorical_column_creator');
+        }
+        fixture.detectChanges();
+    }
+
     function openStation(step: 'filters' | 'setup' | 'transformation'): HTMLElement {
         component.addStep(step);
         fixture.detectChanges();
@@ -2293,7 +2343,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             }],
         };
         const transformation = {
-            code: 'mrs_good_outcome',
+            new_column_names: ['mrs_good_outcome'],
             strategy: 'filter_rules',
             rules: { good: filter },
             default_enumeration: 'unknown',
@@ -2306,6 +2356,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set([transformation].map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -2315,7 +2369,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(draft.defaultEnumeration).toBe('unknown');
         expect(draft.rules).toEqual([{ value: 'good', filter }]);
         expect(component.transformationStatusLabel).toBe('Applied');
-        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([transformation]);
+        expect(component.cards().map((step) => step.parameters)).toEqual([transformation]);
     });
 
     it('hydrates a category rule stored as a bare condition, and keeps it through Apply', () => {
@@ -2328,7 +2382,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const acs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' };
         const pcs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'equal', value: '4', type: 'string' };
         const transformation = {
-            code: 'stroke_territory_cohort',
+            new_column_names: ['stroke_territory_cohort'],
             strategy: 'filter_rules',
             rules: { ACS: acs, PCS: pcs },
             default_enumeration: 'other_or_unknown',
@@ -2336,6 +2390,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         const preprocessing = { categorical_column_creator: [transformation] };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set([transformation].map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([clinical]);
         fixture.detectChanges();
 
@@ -2364,6 +2422,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('drops an untouched category on Apply and keeps the stage pending while one is half-filled', () => {
         const filter = { condition: 'AND' as const, rules: [{ field: 'age', operator: 'greater', value: 65 }] } as any;
+        ensureCategoricalDrafts(1);
         const draft = component.transformationDrafts[0];
         draft.code = 'elderly';
         draft.rules = [{ value: 'old', filter }, { value: '', filter: null }];
@@ -2384,6 +2443,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('drops loaded category counts once the column is edited', () => {
+        ensureCategoricalDrafts(1);
         const draft = component.transformationDrafts[0];
         draft.code = 'elderly';
         component.countsDraftId = draft.id;
@@ -2411,12 +2471,16 @@ describe('StatisticAnalysisPanelComponent', () => {
             }],
         };
         const creators = [
-            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
-            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+            { new_column_names: ['group_a'], strategy: 'filter_rules', rules: { a: filter } },
+            { new_column_names: ['group_b'], strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
         ];
         const preprocessing = { categorical_column_creator: creators };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set(creators.map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -2427,11 +2491,11 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Applied');
 
         // Re-persisting the same cards keeps them as an ordered array of two.
-        mockExpService.setTransformationPreprocessing.mockClear();
+        mockExpService.upsertTransformation.mockClear();
         component.onTransformationChange();
-        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
-            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
-            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+        expect(component.cards().map((step) => step.parameters)).toEqual([
+            { new_column_names: ['group_a'], strategy: 'filter_rules', rules: { a: filter } },
+            { new_column_names: ['group_b'], strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
         ]);
     });
 
@@ -2475,31 +2539,33 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(cards().length).toBe(1);
         expect(cardActions().length).toBe(1);
 
-        // The last card is cleared back to the blank, unchosen draft, so the chooser is alone.
+        // The last card is removed, so the chooser is alone.
         cardActions()[0].click();
         fixture.detectChanges();
 
-        expect(component.transformationDrafts.length).toBe(1);
+        expect(component.transformationDrafts.length).toBe(0);
         expect(cards().length).toBe(0);
         expect(component.transformationChooserOnly).toBe(true);
     });
 
     it('clears the primary card instead of removing the last one', () => {
+        ensureCategoricalDrafts(1);
         const draft = component.transformationDrafts[0];
         draft.code = 'group_a';
         draft.rules = [{ value: 'a', filter: { condition: 'AND', rules: [] } }];
 
         component.removeTransformationDraft(draft.id);
 
-        expect(component.transformationDrafts.length).toBe(1);
-        expect(component.transformationDrafts[0].code).toBe('');
-        expect(component.transformationDrafts[0].rules).toEqual([]);
+        expect(component.transformationDrafts.length).toBe(0);
+        expect(component.cards().length).toBe(0);
+        expect(component.transformationChooserOnly).toBe(true);
     });
 
     it('commits a column card without leaving the pipeline', () => {
         const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
         const filter = categoryFilter();
         openStation('transformation');
+        ensureCategoricalDrafts(1);
         const draft = component.transformationDrafts[0];
         draft.code = 'mrs_good_outcome';
         draft.rules = [{ value: 'good', filter }];
@@ -2511,7 +2577,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.commitTransformationDraft(draft);
         fixture.detectChanges();
 
-        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalled();
+        expect(mockExpService.upsertTransformation).toHaveBeenCalled();
         expect(navigate).not.toHaveBeenCalled();
 
         // The card's own Apply folds just that card: the stage stays open for the next
@@ -2530,6 +2596,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // Collapsing the stage would reveal an empty overview, and a card Close never folds
         // the stage around it any more.
         openStation('transformation');
+        ensureCategoricalDrafts(1);
         component.transformationRuleModals = { toArray: () => [] } as any;
 
         component.commitTransformationDraft(component.transformationDrafts[0]);
@@ -2538,11 +2605,27 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDrafts[0].open).toBe(false);
     });
 
+    it('keeps the stored column and flags the card when an emptied card is read by a later step', () => {
+        openStation('transformation');
+        ensureCategoricalDrafts(1);
+        const draft = component.transformationDrafts[0];
+        draft.code = 'grp';
+        draft.rules = [];
+        // A later step reads 'grp'; an edit that writes no column would orphan it.
+        mockExpService.outputsInUse.mockImplementation((_id: string, next: string[]) => (next.length ? [] : ['grp']));
+        mockExpService.upsertTransformation.mockClear();
+
+        component.onTransformationChange();
+
+        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+        expect(component.transformationDraftStatus(draft).label).toBe('Column in use');
+    });
+
     it('applies the first card when two derived columns share a name', () => {
         const navigate = vi.spyOn(TestBed.inject(ExperimentStudioNavigationService), 'navigateToSection').mockReturnValue(undefined);
         const filter = categoryFilter();
         openStation('transformation');
-        component.addTransformationDraft();
+        ensureCategoricalDrafts(2);
         component.transformationDrafts[0].code = 'group';
         component.transformationDrafts[0].rules = [{ value: 'a', filter }];
         component.transformationDrafts[1].code = 'group';
@@ -2559,24 +2642,25 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.commitTransformationDraft(component.transformationDrafts[1]);
         fixture.detectChanges();
 
-        // Apply no longer refuses. The duplicate is named by the card's own chip and by
-        // the stage status, and only the first occurrence of a shared code is persisted.
+        // Apply no longer refuses. The second card owns the collision chip; only the first
+        // occurrence of a shared code is persisted.
+        expect(component.transformationDraftStatus(component.transformationDrafts[0]).label).toBe('Applied');
         expect(component.transformationDraftStatus(component.transformationDrafts[1]).label).toBe('Duplicate name');
         expect(component.transformationStatusLabel).toBe('Not applied');
         expect(navigate).not.toHaveBeenCalled();
-        // Each card answers for itself: the clash names both cards 'Duplicate name', so both
-        // keep their editor open with 'Apply' in the primary slot, and the stage stays open.
-        expect(component.transformationDrafts[0].open).toBe(true);
+        expect(component.transformationDrafts[0].open).toBe(false);
         expect(component.transformationDrafts[1].open).toBe(true);
         expect(component.sectionOpen().transformation).toBe(true);
-        const persisted = mockExpService.setTransformationPreprocessing.mock.lastCall![0];
-        expect(persisted).toEqual([expect.objectContaining({ code: 'group' })]);
+        const persisted = component.cards()
+            .map((step) => step.parameters)
+            .filter((parameters) => Array.isArray(parameters['new_column_names']) && parameters['new_column_names'].length);
+        expect(persisted).toEqual([expect.objectContaining({ new_column_names: ['group'] })]);
     });
 
     it('copies live category filters onto rules before preview and apply', () => {
         const filter = categoryFilter('age', 'greater', 65);
         const secondFilter = categoryFilter('sex', 'equal', 1);
-        component.addTransformationDraft();
+        ensureCategoricalDrafts(2);
         component.transformationDrafts[0].code = 'mrs_good_outcome';
         component.transformationDrafts[0].rules = [{ value: 'good', filter: null }];
         component.transformationDrafts[1].code = 'mrs_bad_outcome';
@@ -2592,9 +2676,9 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.commitTransformationRuleFilters();
         expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
         expect(component.transformationDrafts[1].rules[0].filter).toBe(secondFilter as any);
-        expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
-            expect.objectContaining({ code: 'mrs_good_outcome' }),
-            expect.objectContaining({ code: 'mrs_bad_outcome' }),
+        expect(component.cards().map((step) => step.parameters)).toEqual([
+            expect.objectContaining({ new_column_names: ['mrs_good_outcome'] }),
+            expect.objectContaining({ new_column_names: ['mrs_bad_outcome'] }),
         ]);
     });
 
@@ -3172,9 +3256,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         it('loads counts for the complete cards on Done and drops the unfinished ones', () => {
             const filter = categoryFilter();
             openStation('transformation');
-            component.addTransformationDraft();
-            component.addTransformationDraft();
-            component.addTransformationDraft();
+            ensureCategoricalDrafts(4);
             const [first, second, unfiltered, nameless] = component.transformationDrafts;
             first.code = 'group_a';
             first.rules = [{ value: 'a', filter }];
@@ -3221,8 +3303,11 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('runs the applied K-means creator and shows the cluster column counts', () => {
             const creator = {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 2,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_variables: ['age', 'sex'],
                     cluster_choices: [
                         { cluster_id: 'cluster_0', label: 'Cluster 0' },
@@ -3230,11 +3315,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                     ],
                 },
             };
-            mockExpService.appliedKMeansClusterCreator.mockReturnValue(creator as any);
-            mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => ({
-                ...(config ?? {}),
-                kmeans_cluster_creator: creator,
-            }));
+            mockExpService.transformationSourceCodesForInput.mockReturnValue(['age', 'sex']);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [{
@@ -3245,17 +3326,23 @@ describe('StatisticAnalysisPanelComponent', () => {
                 },
             }));
             openStation('transformation');
+            mockExpService.upsertTransformation({
+                id: 'kmeans-preview',
+                name: 'kmeans_cluster_creator',
+                parameters: creator,
+            });
             fixture.detectChanges();
 
-            component.previewTransformationCard();
+            component.previewTransformationCard('kmeans-preview');
             fixture.detectChanges();
 
-            // The creator goes into the describe as a preprocessing step, read over its own
-            // clustering variables, and the cluster column comes back as a variable with counts.
+            // Ordered-step describe: K-means is a preprocessing step over its CDE sources.
             const [columns, preprocessing, sourceCodes] =
                 mockExpService.loadDescriptiveOverview.mock.lastCall!;
             expect(columns).toEqual(['kmeans_cluster']);
-            expect((preprocessing as any)?.['kmeans_cluster_creator']).toBe(creator);
+            expect(Array.isArray(preprocessing)).toBe(true);
+            expect((preprocessing as any[]).some((step) => step.name === 'kmeans_cluster_creator')).toBe(true);
+            expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
             expect(sourceCodes).toContain('age');
             expect(sourceCodes).toContain('sex');
             expect(component.transformationStatistics).toEqual([{
@@ -3273,6 +3360,55 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(preview?.textContent).toContain('2 clusters · covers every record');
             expect(preview?.querySelector('.transformation-stats-table')).toBeNull();
             expect(preview?.querySelectorAll('.transformation-rule-row').length).toBe(2);
+        });
+
+        it('previews a fit-mode K-means creator from variables + synthetic cluster_1..k', () => {
+            const creator = {
+                new_column_names: ['km_fit'],
+                variables: ['age', 'bmi'],
+                k: 2,
+                enumeration_prefix: 'cluster_',
+            };
+            mockExpService.transformationSourceCodesForInput.mockReturnValue(['age', 'bmi']);
+            mockExpService.loadDescriptiveOverview.mockReturnValue(of({
+                result: {
+                    featurewise: [{
+                        dataset: 'all datasets',
+                        variable: 'km_fit',
+                        data: { counts: { cluster_1: 9, cluster_2: 4 } },
+                    }],
+                },
+            }));
+            openStation('transformation');
+            mockExpService.upsertTransformation({
+                id: 'kmeans-fit-preview',
+                name: 'kmeans_cluster_creator',
+                parameters: creator,
+            });
+            fixture.detectChanges();
+
+            component.previewTransformationCard('kmeans-fit-preview');
+            fixture.detectChanges();
+
+            const [columns, preprocessing, sourceCodes] =
+                mockExpService.loadDescriptiveOverview.mock.lastCall!;
+            expect(columns).toEqual(['km_fit']);
+            expect(Array.isArray(preprocessing)).toBe(true);
+            expect((preprocessing as any[]).some((step) => step.name === 'kmeans_cluster_creator')).toBe(true);
+            expect(sourceCodes).toContain('age');
+            expect(sourceCodes).toContain('bmi');
+            expect(component.transformationStatistics).toEqual([{
+                code: 'km_fit',
+                rows: [
+                    { value: 'cluster_1', count: 9 },
+                    { value: 'cluster_2', count: 4 },
+                ],
+            }]);
+            expect(component.kmeansColumnView('km_fit')?.rules).toEqual({
+                cluster_1: 'Nearest cluster',
+                cluster_2: 'Nearest cluster',
+            });
+            expect(component.transformationStatisticsError).not.toContain('no clustering variables');
         });
 
         it('keeps a rejected category open on Done without loading counts', () => {
@@ -3306,7 +3442,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('shows a preview error when the K-means card has no counts', () => {
             openStation('transformation');
-            component.chooseTransformation('kmeans');
+            ensureCategoricalDrafts(1);
+            component.chooseTransformation('kmeans_cluster_creator');
             component.transformationDrafts[0].code = 'pro';
             component.transformationRuleModals = { toArray: () => [] } as any;
             fixture.detectChanges();
@@ -3322,6 +3459,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('explains a named card instead of claiming counts that never ran', () => {
             openStation('transformation');
+            ensureCategoricalDrafts(1);
             component.transformationDrafts[0].code = 'pro';
             component.transformationRuleModals = { toArray: () => [] } as any;
             fixture.detectChanges();
@@ -3362,6 +3500,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('shows a load error when describe fails, and insufficient data only when it succeeds with no counts', () => {
             (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'real' }]);
+            ensureCategoricalDrafts(1);
             const draft = component.transformationDrafts[0];
             draft.code = 'cohort';
             draft.rules = [{ value: 'ACS', filter: categoryFilter() }];
@@ -3390,7 +3529,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('names every gap when no card can be described', () => {
             openStation('transformation');
-            component.addTransformationDraft();
+            ensureCategoricalDrafts(2);
             const [unfiltered, nameless] = component.transformationDrafts;
             unfiltered.code = 'group_a';
             unfiltered.rules = [{ value: 'a', filter: null }];
@@ -3408,6 +3547,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('keeps the card primary slot live while no column can be formed', () => {
             openStation('transformation');
+            ensureCategoricalDrafts(1);
             const draft = component.transformationDrafts[0];
             draft.code = 'pro';
             component.transformationRuleModals = { toArray: () => [] } as any;
@@ -3438,7 +3578,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         it('keeps the unfinished card open while its own Apply folds the complete one', () => {
             const filter = categoryFilter();
             openStation('transformation');
-            component.addTransformationDraft();
+            ensureCategoricalDrafts(2);
             const [complete, unfinished] = component.transformationDrafts;
             complete.code = 'group_a';
             complete.rules = [{ value: 'a', filter }];
@@ -3461,13 +3601,17 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.sectionOpen().transformation).toBe(true);
             const body = workflowSection('Transformation').querySelector('.workflow-section-body');
             expect(body?.classList.contains('open')).toBe(true);
-            expect(mockExpService.setTransformationPreprocessing.mock.lastCall![0])
-                .toEqual([expect.objectContaining({ code: 'group_a' })]);
+            expect(
+                component.cards()
+                    .map((step) => step.parameters)
+                    .filter((parameters) => Array.isArray(parameters['new_column_names']) && parameters['new_column_names'].length),
+            ).toEqual([expect.objectContaining({ new_column_names: ['group_a'] })]);
         });
 
         it('loads category counts once every started card is complete', () => {
             const filter = categoryFilter();
             openStation('transformation');
+            ensureCategoricalDrafts(1);
             const draft = component.transformationDrafts[0];
             draft.code = 'group_a';
             draft.rules = [{ value: 'a', filter }];
@@ -3488,14 +3632,113 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.countsDraftId).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
-                expect.objectContaining({
-                    categorical_column_creator: [expect.objectContaining({ code: 'group_a' })],
-                }),
+                [
+                    expect.objectContaining({
+                        name: 'categorical_column_creator',
+                        parameters: expect.objectContaining({ new_column_names: ['group_a'] }),
+                    }),
+                ],
                 ['age']
             );
+            expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
             expect(component.transformationStatistics).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 7 }] },
             ]);
+        });
+    });
+
+    describe('Task 4: repeated transformation cards', () => {
+        it('lets two K-means cards coexist', () => {
+            openStation('transformation');
+            component.chooseTransformation('kmeans_cluster_creator');
+            component.chooseTransformation('kmeans_cluster_creator');
+            fixture.detectChanges();
+
+            const kmeans = component.cards().filter((step) => step.name === 'kmeans_cluster_creator');
+            expect(kmeans).toHaveLength(2);
+            expect(kmeans[0].id).not.toBe(kmeans[1].id);
+            expect(
+                workflowSection('Transformation').querySelectorAll('.transformation-graph app-station-card').length,
+            ).toBe(2);
+        });
+
+        it('shows a duplicate name error and leaves the store unchanged', () => {
+            openStation('transformation');
+            mockExpService.upsertTransformation({
+                id: 'pca-1',
+                name: 'pca_column_creator',
+                parameters: { new_column_names: ['pca_pc1'] },
+            });
+            fixture.detectChanges();
+            const before = structuredClone(mockExpService.appliedTransformations());
+
+            expect(component.columnNameError('pca-2', 'pca_pc1')).toBe('Name already used');
+            expect(mockExpService.appliedTransformations()).toEqual(before);
+        });
+
+        it('keeps a nominal column a later step reads from being renamed', () => {
+            openStation('transformation');
+            component.chooseTransformation('categorical_column_creator');
+            const id = component.cards()[0].id;
+            mockExpService.outputsInUse.mockImplementation((stepId: string, next: string[]) =>
+                stepId === id && !next.includes('grp') ? ['grp'] : [],
+            );
+            const draft = component.draftForStep(id)!;
+            draft.code = 'grp_renamed';
+            mockExpService.upsertTransformation.mockClear();
+
+            expect(component.columnNameError(id, 'grp_renamed')).toBe('Used by a later step: grp');
+            component.onTransformationChange();
+            expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+            expect(component.transformationDraftStatus(draft).label).not.toBe('Duplicate name');
+        });
+
+        it('disables remove when a step has dependents', () => {
+            openStation('transformation');
+            mockExpService.upsertTransformation({
+                id: 'pcaA',
+                name: 'pca_column_creator',
+                parameters: { new_column_names: ['pca_a1'] },
+            });
+            mockExpService.upsertTransformation({
+                id: 'kmeans',
+                name: 'kmeans_cluster_creator',
+                parameters: {
+                    new_column_names: ['km'],
+                    reusable_preprocessing: { cluster_variables: ['pca_a1'] },
+                },
+            });
+            mockExpService.transformationDependents.mockImplementation((id: string) =>
+                id === 'pcaA'
+                    ? [{ id: 'kmeans', name: 'kmeans_cluster_creator', parameters: { new_column_names: ['km'] } }]
+                    : [],
+            );
+            fixture.detectChanges();
+
+            expect(component.canRemoveTransformation('pcaA')).toBe(false);
+            const removeBtn = workflowSection('Transformation').querySelector(
+                '[data-step-id="pcaA"] .btn-remove-step-node',
+            ) as HTMLButtonElement | null;
+            expect(removeBtn?.disabled).toBe(true);
+            expect(removeBtn?.title).toContain('km');
+        });
+
+        it('hides pca_column_creator in the chooser when absent from specs', () => {
+            mockExpService.availableCreatorNames.mockReturnValue([
+                'categorical_column_creator',
+                'kmeans_cluster_creator',
+            ]);
+            openStation('transformation');
+            fixture.detectChanges();
+
+            const titles = Array.from(
+                workflowSection('Transformation').querySelectorAll(
+                    '.transformation-chooser .pipeline-subnode-title',
+                ),
+            ).map((el) => el.textContent?.trim());
+            expect(titles.some((title) => /pca/i.test(title ?? ''))).toBe(false);
+            expect(titles).toContain('Nominal column from rules');
+            expect(titles).toContain('K-means cluster column');
         });
     });
 });

@@ -946,7 +946,7 @@
 /* =========================================================================
    Algorithm panel review pass: step kickers, compact role band, catalog,
    needs checklist, parameter layout, advanced grouping, option switches,
-   transformations and the readiness bar.
+   and the readiness bar.
    ========================================================================= */
 
 .algorithm-step-kicker {
@@ -1310,7 +1310,7 @@
   padding-bottom: 6px;
 }
 
-/* Option rows: cross-validation and transformations use the studio switch. */
+/* Option rows: cross-validation uses the studio switch. */
 .config-option-row {
   display: flex;
   align-items: center;
@@ -1415,47 +1415,6 @@
   cursor: not-allowed;
 }
 
-/* Transformation rows */
-.transformation-empty {
-  margin: 0;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-.transformation-options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.transformation-row,
-.transformation-set-all {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  align-items: center;
-  gap: 4px 16px;
-  padding: 4px 0;
-}
-
-.transformation-row-label {
-  min-width: 0;
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.transformation-tray {
-  flex-wrap: wrap;
-  width: max-content;
-  max-width: 100%;
-}
-
-.transformation-tray button {
-  min-height: 26px;
-  padding: 0 10px;
-  font-size: 0.72rem;
-}
-
 /* Muted validation: invalid keeps a danger edge; valid is neutral. */
 .config-input.ng-valid.ng-touched,
 .config-select.ng-valid.ng-touched {
@@ -1549,9 +1508,7 @@
   }
 
   .config-field,
-  .config-option-detail .config-field,
-  .transformation-row,
-  .transformation-set-all {
+  .config-option-detail .config-field {
     grid-template-columns: 1fr;
   }
 

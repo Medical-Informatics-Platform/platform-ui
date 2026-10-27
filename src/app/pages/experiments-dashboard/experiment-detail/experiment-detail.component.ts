@@ -314,17 +314,14 @@ export class ExperimentDetailsComponent {
       }));
   });
 
-  /** Enriches PCA results with actual variable labels so the heatmap doesn't fall back to Var1/Var2. */
-  readonly enrichedResult = computed(() => {
-    const result = this.experimentResult();
-    if (!result) return result;
-    return enrichPcaResult(
-      result,
+  /** Labels the variables of a PCA result so the heatmap and weights table do not show raw codes. */
+  readonly enrichedResult = computed(() =>
+    enrichPcaResult(
+      this.experimentResult(),
       this.experimentalAlgorithmName(),
-      this.variablesWithLabels().map((v) => v.label),
-      this.covariatesWithLabels().map((v) => v.label)
-    );
-  });
+      [...this.variablesWithLabels(), ...this.covariatesWithLabels()],
+    )
+  );
 
   onExportPdf(): void {
     const element = this.resultsCardRef?.nativeElement;
@@ -357,22 +354,6 @@ export class ExperimentDetailsComponent {
     const baseName = this.selectedExperiment()?.name?.trim() || 'experiment results';
     const filename = baseName.replace(/\s+/g, '_');
 
-    const paramData = fullExperiment?.analysis?.algorithm?.parameters || {};
-    const transObj = (paramData as any)?.data_transformation || {};
-    const transLines: string[] = [];
-    const transTypes = ['standardize', 'center', 'exp'];
-
-    transTypes.forEach(type => {
-      const vars = transObj[type];
-      if (Array.isArray(vars) && vars.length > 0) {
-        vars.forEach(v => {
-          const label = this.labelMap()[v] || v;
-          transLines.push(`${label}: ${type}`);
-        });
-      }
-    });
-    const transformations = transLines.length > 0 ? transLines : null;
-
     const algoCode = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
     const algoConfig = this.expStudioService.backendAlgorithms()[algoCode];
     const algoLabel = algoConfig?.label || algoCode;
@@ -391,7 +372,7 @@ export class ExperimentDetailsComponent {
         variables: this.variablesWithLabels().map((v) => v.label),
         covariates: this.covariatesWithLabels().map((c) => c.label),
         filters: this.filterPreview() ? [this.filterPreview()] : this.filtersWithLabels().map((f) => f.label),
-        transformations,
+        transformations: null,
         mipVersion: this.selectedExperiment()?.mipVersion ?? fullExperiment?.mipVersion ?? null,
       },
       algorithmKey: algoCode,

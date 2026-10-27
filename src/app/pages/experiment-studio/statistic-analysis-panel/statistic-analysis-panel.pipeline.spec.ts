@@ -26,6 +26,28 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     function seedAppliedConfig(config: Record<string, unknown> | null): void {
         (mockExpService.appliedPreprocessingConfig as any).set(config);
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(config as never);
+        // Mirror creators into the ordered store when the seed carries them. Singleton-only
+        // writes (Apply preprocessing) must not wipe transformation steps already in the store.
+        const hasCreators = !!config && (
+            'categorical_column_creator' in config
+            || 'kmeans_cluster_creator' in config
+            || 'pca_column_creator' in config
+        );
+        if (!hasCreators) return;
+        const steps: { id: string; name: string; parameters: Record<string, unknown> }[] = [];
+        const categorical = config?.['categorical_column_creator'];
+        for (const parameters of Array.isArray(categorical) ? categorical : categorical ? [categorical] : []) {
+            steps.push({ id: crypto.randomUUID(), name: 'categorical_column_creator', parameters: parameters as Record<string, unknown> });
+        }
+        const kmeans = config?.['kmeans_cluster_creator'];
+        if (kmeans && typeof kmeans === 'object') {
+            steps.push({ id: 'kmeans-seed', name: 'kmeans_cluster_creator', parameters: kmeans as Record<string, unknown> });
+        }
+        const pca = config?.['pca_column_creator'];
+        if (pca && typeof pca === 'object') {
+            steps.push({ id: crypto.randomUUID(), name: 'pca_column_creator', parameters: pca as Record<string, unknown> });
+        }
+        (mockExpService.appliedTransformations as any).set(steps);
     }
 
     /** A stage card of the pipeline canvas, as rendered. */
@@ -56,24 +78,30 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'getAppliedDescriptivePreprocessing',
             'setFilters',
             'setFilterLogic',
-            'setTransformationPreprocessing',
             'filterVariableCodes',
-            'appliedCategoricalCreators',
-            'appliedKMeansClusterCreator',
-            'setKMeansClusterPreprocessing',
-            'withKMeansClusterRequirements',
+            'buildTransformationDescribePreprocessing',
+            'transformationSourceCodesForInput',
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
+            'upsertTransformation',
+            'removeTransformation',
+            'clearTransformations',
+            'transformationDependents',
+            'outputsInUse',
+            'availableCreatorNames',
+            'hasPreprocessingSpec',
+            'catalogLoaded',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
-            selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7', variables: [] }),
             unavailableVariables: signal(new Map()),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal<Record<string, unknown> | null>(null),
+            appliedTransformations: signal([] as { id: string; name: string; parameters: Record<string, unknown> }[]),
             backendAlgorithms: signal({})
         });
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
@@ -81,30 +109,53 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
         mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.mockImplementation(
-            () => (mockExpService.appliedPreprocessingConfig() as any)?.['kmeans_cluster_creator'] ?? null,
+        mockExpService.availableCreatorNames.mockReturnValue([
+            'categorical_column_creator',
+            'kmeans_cluster_creator',
+        ]);
+        mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
+            ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
-        mockExpService.setKMeansClusterPreprocessing.mockImplementation((creator: unknown) => {
-            const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
-            if (creator) next['kmeans_cluster_creator'] = creator;
-            else delete next['kmeans_cluster_creator'];
-            seedAppliedConfig(Object.keys(next).length ? next : null);
+        mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.transformationDependents.mockReturnValue([]);
+        mockExpService.outputsInUse.mockReturnValue([]);
+        mockExpService.upsertTransformation.mockImplementation((step: any) => {
+            const current = [...(mockExpService.appliedTransformations() as any[])];
+            const index = current.findIndex((existing) => existing.id === step.id);
+            const next = index === -1
+                ? [...current, step]
+                : current.map((existing, i) => (i === index ? step : existing));
+            (mockExpService.appliedTransformations as any).set(next);
+            return true;
+        });
+        mockExpService.clearTransformations.mockImplementation(() =>
+            (mockExpService.appliedTransformations as any).set([]));
+        mockExpService.removeTransformation.mockImplementation((id: string) => {
+            (mockExpService.appliedTransformations as any).set(
+                (mockExpService.appliedTransformations() as any[]).filter((step) => step.id !== id),
+            );
         });
         mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
         mockExpService.requestFilters.mockReturnValue(null);
         mockExpService.getActiveDataModelCode.mockReturnValue('Stroke:3.7');
-        mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => {
-            const creator = mockExpService.appliedKMeansClusterCreator();
-            if (!creator) return config ?? null;
-            const next: Record<string, unknown> = { ...(config ?? {}) };
-            delete next['kmeans_cluster_creator'];
-            next['kmeans_cluster_creator'] = creator;
-            return next;
+        mockExpService.buildTransformationDescribePreprocessing.mockImplementation((singletons: any) => {
+            const steps: { name: string; parameters: Record<string, unknown> }[] = [];
+            if (singletons && typeof singletons === 'object') {
+                for (const [name, parameters] of Object.entries(singletons)) {
+                    if (parameters && typeof parameters === 'object') {
+                        steps.push({ name, parameters: parameters as Record<string, unknown> });
+                    }
+                }
+            }
+            for (const step of mockExpService.appliedTransformations() as any[]) {
+                if (Array.isArray(step.parameters?.new_column_names)
+                    && step.parameters.new_column_names.some((n: unknown) => String(n ?? '').trim())) {
+                    steps.push({ name: step.name, parameters: step.parameters });
+                }
+            }
+            return steps.length ? steps : null;
         });
-        mockExpService.appliedCategoricalCreators.mockImplementation(() => {
-            const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
-            return Array.isArray(value) ? value : [];
-        });
+        mockExpService.transformationSourceCodesForInput.mockReturnValue([]);
         // Mirrors the real collector: a group walks its rules, a condition is its field.
         mockExpService.filterVariableCodes.mockImplementation((logic: any) => {
             const codes = new Set<string>();
@@ -121,12 +172,6 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
         mockExpService.setAppliedDescriptivePreprocessing.mockImplementation((config: unknown) =>
             seedAppliedConfig(config as Record<string, unknown> | null));
-        mockExpService.setTransformationPreprocessing.mockImplementation((config: unknown) => {
-            const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
-            if (config) next['categorical_column_creator'] = config;
-            else delete next['categorical_column_creator'];
-            seedAppliedConfig(Object.keys(next).length ? next : null);
-        });
 
         await TestBed.configureTestingModule({
             imports: [StatisticAnalysisPanelComponent],
@@ -134,7 +179,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 provideZonelessChangeDetection(),
                 provideEchartsCore({ echarts: () => import('echarts') }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
-                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]), listPcaExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: (() => { const s = createSpyObj('ChartBuilderService', ['getChartsForAlgorithm']); s.getChartsForAlgorithm.mockReturnValue([]); return s; })() },
                 { provide: PdfExportService, useValue: createSpyObj('PdfExportService', ['exportDescriptiveStatisticsPdf']) }
             ]
@@ -168,7 +213,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('counts transformation-only work as Transformation, not Preprocessing', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'group',
+                new_column_names: ['group'],
                 strategy: 'filter_rules',
                 rules: { mild: { field: 'age', operator: '<', value: 50 } },
             }],
@@ -185,13 +230,13 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         mockExpService.setAppliedDescriptivePreprocessing.mockClear();
-        mockExpService.setTransformationPreprocessing.mockClear();
+        mockExpService.upsertTransformation.mockClear();
         component.addStep('setup');
         component.goToSection('setup');
         fixture.detectChanges();
 
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
-        expect(mockExpService.setTransformationPreprocessing).not.toHaveBeenCalled();
+        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
         expect((component as any).userPreprocessingApplied).toBe(false);
     });
 
@@ -347,7 +392,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('opens the transformation stage from the collapsed rail without inventing a column', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'mrs_good_outcome',
+                new_column_names: ['mrs_good_outcome'],
                 strategy: 'filter_rules',
                 rules: { good: { field: 'age', operator: '<', value: 50 } },
             }],
@@ -359,7 +404,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(rows.live.map((row) => row.textContent)).toEqual([expect.stringMatching('mrs_good_outcome')]);
         expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add derived column')]);
 
-        mockExpService.setTransformationPreprocessing.mockClear();
+        mockExpService.upsertTransformation.mockClear();
         (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
@@ -377,7 +422,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.transformationDrafts.length).toBe(1);
         expect(graphCards().length).toBe(1);
         expect(blankCards()).toBe(0);
-        expect(mockExpService.setTransformationPreprocessing).not.toHaveBeenCalled();
+        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
     });
 
     it('lists one sub-node per applied preprocessing step with its summary', () => {
@@ -400,7 +445,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('surfaces the applied derived column as a transformation sub-node', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'mrs_good_outcome',
+                new_column_names: ['mrs_good_outcome'],
                 strategy: 'filter_rules',
                 rules: {
                     good: { field: 'age', operator: '<', value: 50 },
@@ -424,12 +469,12 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         seedAppliedConfig({
             categorical_column_creator: [
                 {
-                    code: 'mrs_good_outcome',
+                    new_column_names: ['mrs_good_outcome'],
                     strategy: 'filter_rules',
                     rules: { good: { field: 'age', operator: '<', value: 50 } },
                 },
                 {
-                    code: 'mrs_bad_outcome',
+                    new_column_names: ['mrs_bad_outcome'],
                     strategy: 'filter_rules',
                     rules: {
                         bad: { field: 'age', operator: '>=', value: 50 },
@@ -455,8 +500,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('surfaces the applied K-means cluster column as a transformation sub-node', () => {
         seedAppliedConfig({
             kmeans_cluster_creator: {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 2,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_choices: [
                         { cluster_id: 'c1', label: 'Cluster 1' },
                         { cluster_id: 'c2', label: 'Cluster 2' },
@@ -468,8 +516,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         const nodes = component.appliedTransformationSubNodes;
-        const clusterNode = nodes.find((node) => node.id === 'transformation:kmeans:kmeans_cluster');
-        expect(clusterNode?.title).toBe('K-means clusters: kmeans_cluster');
+        const clusterNode = nodes.find((node) => node.title === 'K-means clusters: kmeans_cluster');
+        expect(clusterNode?.id).toBe('transformation:kmeans-seed');
         expect(clusterNode?.subtitle).toBe('2 clusters from a, b');
         expect(clusterNode?.statusLabel).toBe('Applied');
         expect(clusterNode?.statusTone).toBe('applied');
@@ -478,8 +526,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('counts the cluster column as the stage status on its own', () => {
         seedAppliedConfig({
             kmeans_cluster_creator: {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 1,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
                     cluster_variables: ['a'],
                 },
@@ -495,8 +546,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('folds every derived column card on Apply so the overview can list them', () => {
         seedAppliedConfig({
             categorical_column_creator: [
-                { code: 'mrs_good_outcome', strategy: 'filter_rules', rules: { good: { field: 'age', operator: '<', value: 50 } } },
-                { code: 'mrs_bad_outcome', strategy: 'filter_rules', rules: { bad: { field: 'age', operator: '>=', value: 50 } } },
+                { new_column_names: ['mrs_good_outcome'], strategy: 'filter_rules', rules: { good: { field: 'age', operator: '<', value: 50 } } },
+                { new_column_names: ['mrs_bad_outcome'], strategy: 'filter_rules', rules: { bad: { field: 'age', operator: '>=', value: 50 } } },
             ],
         });
         (mockExpService.selectedVariables as any).set([age]);
@@ -805,7 +856,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             fixture.detectChanges();
 
             expect(graphCards().length).toBe(2);
-            expect(chooserRows().length).toBe(1);
+            // Chooser always lists every creator in the specs (repeated cards are allowed).
+            expect(chooserRows().length).toBe(2);
         });
 
         it('counts pending preprocessing changes in the badge and apply label', () => {
@@ -979,7 +1031,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         it('keeps a chosen K-means card in the graph when it is folded', () => {
             component.addStep('transformation');
             component.chooseTransformation('kmeans');
-            component.kmeansClusterCardOpen.set(false);
+            component.toggleCardOpen(component.cards()[0].id, false);
 
             expect(component.kmeansCardShown).toBe(true);
             expect(component.transformationChooserOnly).toBe(false);
@@ -988,8 +1040,22 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         it('Clear drops the K-means card and its preview, back to the chooser', () => {
             component.addStep('transformation');
             component.chooseTransformation('kmeans');
-            mockExpService.setKMeansClusterPreprocessing({ code: 'cluster', reusable_preprocessing: {} } as any);
-            component.previewTransformationCard();
+            const stepId = component.cards().find((step) => step.name === 'kmeans_cluster_creator')!.id;
+            mockExpService.upsertTransformation({
+                id: stepId,
+                name: 'kmeans_cluster_creator',
+                parameters: {
+                    new_column_names: ['cluster'],
+                    k: 1,
+                    enumeration_prefix: 'cluster_',
+                    reusable_preprocessing: {
+                        enumeration_prefix: 'cluster_',
+                        cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
+                        cluster_variables: ['a'],
+                    },
+                },
+            });
+            component.previewTransformationCard(stepId);
 
             component.resetTransformation();
 
@@ -1000,13 +1066,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         it('previewing the K-means card commits no categorical card', () => {
             component.addStep('transformation');
+            component.chooseTransformation('kmeans');
+            const stepId = component.cards().find((step) => step.name === 'kmeans_cluster_creator')!.id;
             const commit = vi.spyOn(component, 'commitTransformationRuleFilters').mockReturnValue(undefined);
             vi.spyOn(component, 'refreshTransformationStatistics').mockReturnValue(undefined);
 
-            component.previewTransformationCard();
+            component.previewTransformationCard(stepId);
 
             expect(commit).not.toHaveBeenCalled();
-            expect(component.previewDraftId).toBe('kmeans');
+            expect(component.previewDraftId).toBe(stepId);
         });
 
         it('hides Records out while the Raw summary is pinned to an unapplied preview', () => {

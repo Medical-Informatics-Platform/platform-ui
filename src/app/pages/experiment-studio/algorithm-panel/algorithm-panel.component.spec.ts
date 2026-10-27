@@ -46,8 +46,6 @@ describe('AlgorithmPanelComponent', () => {
     isCrossValidationOnly: Mock;
     getCrossValidationBase: Mock;
     getCrossValidationVariant: Mock;
-    getTransformationBase: Mock;
-    getTransformationVariant: Mock;
     hasAppliedDescriptivePreprocessing: Mock;
     hasRequestPreprocessingForRun: Mock;
     isAlgorithmAvailable: Mock;
@@ -116,8 +114,6 @@ describe('AlgorithmPanelComponent', () => {
       isCrossValidationOnly: vi.fn().mockReturnValue(false),
       getCrossValidationBase: vi.fn().mockReturnValue(null),
       getCrossValidationVariant: vi.fn().mockReturnValue(null),
-      getTransformationBase: vi.fn().mockReturnValue(null),
-      getTransformationVariant: vi.fn().mockReturnValue(null),
       hasAppliedDescriptivePreprocessing: vi.fn().mockReturnValue(true),
       hasRequestPreprocessingForRun: vi.fn().mockReturnValue(false),
       isAlgorithmAvailable: vi.fn().mockReturnValue(true),

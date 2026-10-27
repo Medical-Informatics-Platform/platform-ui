@@ -3,7 +3,9 @@ import { seedLinearExperiment, StudioApi } from './experiment-studio-api';
 import { expect, lastRequest, test } from './fixtures';
 import {
   addKMeansColumn,
+  addKMeansOnColumns,
   addNominalColumn,
+  addPcaColumns,
   addVariable,
   alphaInput,
   applyFilters,
@@ -372,7 +374,7 @@ test.describe('filters and transformations', () => {
     expect(steps).toContainEqual({
       name: 'categorical_column_creator',
       parameters: {
-        code: 'sex_group',
+        new_column_names: ['sex_group'],
         strategy: 'filter_rules',
         rules: { female: { condition: 'AND', rules: [expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' })], valid: true } },
         default_enumeration: 'other',
@@ -380,7 +382,64 @@ test.describe('filters and transformations', () => {
     });
     expect(steps).toContainEqual({
       name: 'kmeans_cluster_creator',
-      parameters: expect.objectContaining({ code: 'kmeans_cluster' }),
+      parameters: expect.objectContaining({
+        new_column_names: ['kmeans_cluster'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+      }),
+    });
+  });
+
+  test('PCA columns then K-means on those outputs for logistic regression', async ({ page, api }) => {
+    await openNewStudio(page);
+    await addVariable(page, 'Age');
+    await addVariable(page, 'MMSE');
+    await addVariable(page, 'Sex');
+    await goToDataHandling(page);
+    await addPcaColumns(page);
+    await addKMeansOnColumns(page, ['pca_pc1', 'pca_pc2'], { stepAdded: true });
+    await expect(page.locator('app-pca-column-source .pca-column-source-applied-code')).toHaveText('pca_pc1, pca_pc2');
+    await expect(page.locator('app-kmeans-cluster-source .kmeans-cluster-source-applied-code')).toHaveText('Column kmeans_cluster');
+
+    await goToAlgorithms(page);
+    await assignRole(page, 'Sex', 'Outcome');
+    await assignRole(page, 'pca_pc1', 'Predictor');
+    await assignRole(page, 'kmeans_cluster', 'Predictor');
+    await expectAlgorithm(page, 'Logistic regression', 'Regression');
+    await runExperiment(page);
+
+    const run = lastRequest(api, 'POST', RUNS, 'logistic_regression').analysis;
+    const names = (run.preprocessing ?? []).map((step: { name: string }) => step.name);
+    const pcaIndex = names.indexOf('pca_column_creator');
+    const kmeansIndex = names.indexOf('kmeans_cluster_creator');
+    expect(pcaIndex).toBeGreaterThanOrEqual(0);
+    expect(kmeansIndex).toBeGreaterThan(pcaIndex);
+    expect(run.preprocessing[pcaIndex]).toEqual({
+      name: 'pca_column_creator',
+      parameters: {
+        variables: ['age', 'mmse'],
+        selected_components: ['PC1', 'PC2'],
+        new_column_names: ['pca_pc1', 'pca_pc2'],
+        n_components: 2,
+      },
+    });
+    expect(run.preprocessing[kmeansIndex]).toEqual({
+      name: 'kmeans_cluster_creator',
+      parameters: expect.objectContaining({
+        new_column_names: ['kmeans_cluster'],
+        variables: ['pca_pc1', 'pca_pc2'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+      }),
+    });
+    expect(run.inputdata.variables).toEqual(expect.arrayContaining(['age', 'mmse', 'sex']));
+    for (const code of ['pca_pc1', 'pca_pc2', 'kmeans_cluster']) {
+      expect(run.inputdata.variables).not.toContain(code);
+    }
+    expect(run.algorithm).toMatchObject({
+      name: 'logistic_regression',
+      y: ['sex'],
+      x: expect.arrayContaining(['pca_pc1', 'kmeans_cluster']),
     });
   });
 });

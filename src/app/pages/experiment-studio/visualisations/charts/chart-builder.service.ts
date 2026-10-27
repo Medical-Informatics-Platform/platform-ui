@@ -15,14 +15,13 @@ export class ChartBuilderService {
     // enrich with display names
     const enrichedInput = this.enrichLabels(result);
 
-    // PCA: the studio's current selection names the heatmap columns, unless the caller
-    // (a saved experiment in the dashboard) already supplied that run's own variable names.
-    if ((algorithm === 'pca' || algorithm === 'pca_with_transformation') && !enrichedInput?.variable_names?.length) {
-      const allSelected = this.experimentService.algorithmAssignableVariables();
-
-      if (allSelected.length > 0) {
-        // We use a unique property name to avoid collisions
-        (enrichedInput as any).variable_names = allSelected.map(v => v.label || v.name || v.code);
+    // PCA: heatmap columns come from the result's own variable codes (request y order),
+    // labelled through the studio label map — never the current studio selection. Labels a
+    // saved experiment already supplied (`variable_names`) are kept.
+    if (algorithm === 'pca' && !enrichedInput?.variable_names?.length) {
+      const variables = Array.isArray(enrichedInput?.variables) ? enrichedInput.variables : [];
+      if (variables.length > 0) {
+        (enrichedInput as any).variable_names = variables;
       }
     }
 

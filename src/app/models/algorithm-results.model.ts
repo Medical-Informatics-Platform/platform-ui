@@ -1,3 +1,5 @@
+import type { PCAReusablePreprocessing } from '../core/pca-column-source.utils';
+
 export interface AnovaResult {
     anova_table: AnovaTable;
     tuckey_test: TuckeyTestItem[];
@@ -369,11 +371,22 @@ export interface NaiveBayesGaussianResult {
     feature_names: string[];
 }
 
+export interface PCAComponent {
+    component_id: string;
+    explained_variance: number;
+    explained_variance_ratio: number;
+    cumulative_explained_variance: number;
+    loadings: Record<string, number>;
+}
+
 export interface PCAResult {
     title: string;
     n_obs: number;
     eigenvalues: number[];
     eigenvectors: number[][];
+    variables: string[];
+    components: PCAComponent[];
+    reusable_preprocessing: PCAReusablePreprocessing | null;
 }
 
 export interface PearsonResult {

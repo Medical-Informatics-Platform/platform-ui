@@ -232,3 +232,43 @@ export async function addKMeansColumn(page: Page, { stepAdded = false } = {}) {
   await expect(source.getByText('Column kmeans_cluster')).toBeVisible();
   await expect(source.getByText(/2 clusters from age/)).toBeVisible();
 }
+
+/**
+ * Fit-mode PCA card on the selected numerical CDEs (defaults PC1+PC2 → pca_pc1, pca_pc2).
+ * `stepAdded`: transformation stage already open with the type chooser visible.
+ */
+export async function addPcaColumns(page: Page, { stepAdded = false } = {}) {
+  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
+  await page.getByRole('button', { name: /PCA component columns/ }).click();
+  const source = page.locator('app-pca-column-source');
+  await source.getByRole('button', { name: 'Fit on selected variables' }).click();
+  await source.getByRole('button', { name: 'Add component columns' }).click();
+  await expect(source.getByText('pca_pc1, pca_pc2')).toBeVisible();
+}
+
+/**
+ * Fit-mode K-means card that clusters only on the given earlier columns (e.g. PCA outputs).
+ * Deselects every other numerical option in the fit pool.
+ */
+export async function addKMeansOnColumns(page: Page, columns: string[], { stepAdded = false } = {}) {
+  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
+  await page.getByRole('button', { name: /K-means cluster column/ }).click();
+  const source = page.locator('app-kmeans-cluster-source').last();
+  await source.getByRole('button', { name: 'Fit on selected variables' }).click();
+  const keep = new Set(columns);
+  for (const button of await source.locator('.kmeans-cluster-source-var').all()) {
+    const label = (await button.innerText()).replace(/\s+/g, ' ').trim();
+    const code = columns.find((candidate) => label.includes(candidate))
+      ?? (label.includes('Age') ? 'age' : label.includes('MMSE') ? 'mmse' : label);
+    const selected = (await button.getAttribute('aria-pressed')) === 'true';
+    const wanted = keep.has(code);
+    if (selected !== wanted) await button.click();
+  }
+  await source.locator('#kmeans-fit-k').fill('2');
+  await source.getByRole('button', { name: 'Add cluster column' }).click();
+  // applyFit emits runRequested → preview hides the source; leave preview to assert the applied row.
+  const card = page.locator('app-station-card', { hasText: 'K-means cluster column · kmeans_cluster' });
+  await expect(card).toContainText('Applied');
+  await card.getByRole('button', { name: 'Back to column' }).click();
+  await expect(source.getByText('Column kmeans_cluster')).toBeVisible();
+}
