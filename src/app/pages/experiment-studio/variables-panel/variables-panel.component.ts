@@ -21,7 +21,7 @@ import {
   normalizeMetadataTree,
   selectionFromSearchResult,
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
-import { countLeafNodes } from '../../../core/data-model.utils';
+import { countLeafNodes, isFreeTextCde } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { isVariableUnavailable } from '../../../core/variable-availability.utils';
 import {
@@ -645,6 +645,12 @@ export class VariablesPanelComponent implements OnDestroy {
         counts: rows.map((row: { bin: string; count: number }) => row.count),
         variableName: String(node?.label ?? 'Groups'),
       });
+      return;
+    }
+
+    if (isFreeTextCde(node)) {
+      this.isLoadingHistogram.set(false);
+      this.emptyChartMessage.set('Free-text variable: no histogram available.');
       return;
     }
 

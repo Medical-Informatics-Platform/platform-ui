@@ -171,8 +171,8 @@ describe('ExperimentStudioService', () => {
     label: 'Data Model',
     variables: [
       { code: 'age', label: 'Age', type: 'continuous' } as any,
-      { code: 'sex', label: 'Sex', type: 'nominal' } as any,
-      { code: 'site', label: 'Site', type: 'nominal' } as any,
+      { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'M', label: 'Male' }, { code: 'F', label: 'Female' }] } as any,
+      { code: 'site', label: 'Site', type: 'nominal', enumerations: [{ code: 'A', label: 'A' }] } as any,
     ],
     groups: [],
     datasets: ['ds1'],

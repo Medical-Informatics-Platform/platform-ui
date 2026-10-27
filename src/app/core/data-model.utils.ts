@@ -88,6 +88,14 @@ export function isCategoricalVariableType(type: unknown): boolean {
 }
 
 /**
+ * A categorical CDE without enumerations holds free text (e.g. a subject id).
+ * Exaflow's request validator rejects it as an algorithm input.
+ */
+export function isFreeTextCde(variable: { type?: unknown; enumerations?: unknown[] | null } | null | undefined): boolean {
+  return isCategoricalVariableType(variable?.type) && !variable?.enumerations?.length;
+}
+
+/**
  * Whether an algorithm input declaring `specTypes` accepts a CDE of `type`:
  * continuous → real, discrete → int (also accepted by real slots), categorical → text.
  */
