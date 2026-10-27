@@ -44,41 +44,76 @@
         </div>
       </section>
 
-      @if (notebookEnabled) {
+      @if (authConfig()) {
         <section class="info-section remote-access">
           <h3>Use MIP from your own computer</h3>
-          <ol class="remote-steps">
-            <li>
-              <a class="token-btn" [href]="hubTokenUrl" target="_blank" rel="noopener"
-                 aria-label="Create API token (opens in a new tab)">
+
+          <p class="remote-text">Install the client and point it at this portal:</p>
+          <div class="snippet">
+            <pre><code>{{ setupSnippet }}</code></pre>
+            <button class="copy-btn snippet-copy-btn" type="button" (click)="copy(setupSnippet, copyStatus)"
+                    aria-label="Copy setup commands">
+              <i class="fas fa-copy"></i>
+              <span>Copy</span>
+            </button>
+          </div>
+          <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
+          <p class="remote-note">In Windows PowerShell, write <code>$env:MIP_URL = "…"</code> instead of <code>export</code>.</p>
+
+          <p class="remote-text">Then sign in, one of two ways:</p>
+          <div class="remote-options">
+            <div class="remote-option">
+              <h4>No browser on that machine</h4>
+              <button class="create-token-btn" type="button" (click)="createToken()" [disabled]="creatingToken()">
                 <i class="fas fa-key"></i>
-                <span>Create API token</span>
-              </a>
-              <p>
-                In <strong>Permissions</strong>, enter <code>custom:mip-platform-token</code> and choose an expiry.
-                The token is shown once. You can revoke it on the same page.
+                <span>{{ creatingToken() ? 'Creating…' : 'Create access token' }}</span>
+              </button>
+              <p class="remote-note">You confirm with your MIP sign-in. The token is shown only once.</p>
+              @if (tokenError()) {
+                <p class="token-error" role="alert">{{ tokenError() }}</p>
+              }
+              @if (cliToken()) {
+                <div class="snippet">
+                  <pre class="token-value"><code>{{ cliToken() }}</code></pre>
+                  <button class="copy-btn token-copy-btn" type="button" (click)="copy(cliToken(), tokenCopyStatus)"
+                          aria-label="Copy access token">
+                    <i class="fas fa-copy"></i>
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <span class="copy-status" aria-live="polite">{{ tokenCopyStatus() }}</span>
+                <p class="remote-note">
+                  Treat it like a password: it gives your full MIP data access for up to 6 months, until
+                  it goes unused for 30 days, or until you run <code>mip logout</code>.
+                </p>
+              }
+              <p class="remote-text">
+                On that machine, run <code>mip login --token</code> and paste it. Scripts can set
+                <code>MIP_API_TOKEN</code> instead, but every program started from there, AI assistants
+                included, can read it.
               </p>
-            </li>
-            <li>
-              In a terminal on your computer, run:
-              <div class="snippet">
-                <pre><code>{{ setupSnippet }}</code></pre>
-                <button class="copy-btn" type="button" (click)="copySetupSnippet()"
-                        aria-label="Copy setup commands">
-                  <i class="fas fa-copy"></i>
-                  <span>Copy</span>
-                </button>
-              </div>
-              <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
-              <p>
-                <code>mip login</code> asks for your token without showing it.
-                In Windows PowerShell, write <code>$env:MIP_URL = "…"</code> instead of
-                <code>export MIP_URL=…</code>.
+            </div>
+
+            <div class="remote-option">
+              <h4>A browser on any device</h4>
+              <p class="remote-text">
+                Run <code>mip login</code>. It shows a link and a code: open the link, sign in, check
+                that the page shows the same code, and approve.
               </p>
-              <p>Then start Python in the same terminal and run:</p>
-              <pre><code>import mip; client = mip.Client.from_env()</code></pre>
-            </li>
-          </ol>
+              <p class="remote-note">Never approve a code that someone else sent you.</p>
+            </div>
+          </div>
+
+          <p class="remote-text">Then, in Python:</p>
+          <pre><code>import mip
+client = mip.Client.from_env()</code></pre>
+          <p class="remote-note">
+            Each sign-in lasts at most 6 months, and ends after 30 days without use. To end it sooner,
+            run <code>mip logout</code> on that computer. Without that computer, remove
+            "MIP command line" under Applications in your
+            <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
+               rel="noopener">sign-in account</a>: that ends every computer's sign-in.
+          </p>
         </section>
       }
     </section>
