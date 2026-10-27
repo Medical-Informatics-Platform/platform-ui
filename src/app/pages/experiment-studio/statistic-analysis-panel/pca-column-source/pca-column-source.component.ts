@@ -1,8 +1,10 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   OnInit,
   computed,
+  effect,
   inject,
   input,
   signal,
@@ -18,6 +20,7 @@ import { collectVariableCodes } from '../../../../core/variable-availability.uti
 import {
   KMeansSourceContext,
   analysisSourceIsReusable,
+  canonicalFilterKey,
 } from '../../../../core/kmeans-cluster-source.utils';
 import {
   PCA_COLUMN_CREATOR,
@@ -42,8 +45,10 @@ type AppliedPcaCreator = {
 };
 
 /**
- * Reuses a finished PCA run as component score columns, or fits PCA directly on
- * selected numerical variables. Each card edits one `pca_column_creator` step.
+ * Builds component score columns like the K-means card builds cluster columns: run a PCA
+ * report here (no saved PCA experiment needed) and use its recipe, reuse a finished
+ * compatible PCA run, or fit PCA directly on selected numerical variables. Each card edits
+ * one `pca_column_creator` step.
  */
 @Component({
   selector: 'app-pca-column-source',
@@ -55,6 +60,7 @@ type AppliedPcaCreator = {
 export class PcaColumnSourceComponent implements OnInit {
   private readonly studio = inject(ExperimentStudioService);
   private readonly dashboard = inject(ExperimentsDashboardService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   /** Store step this editor writes; the Transformation stage passes one per card. */
   readonly stepId = input.required<string>();
@@ -84,8 +90,18 @@ export class PcaColumnSourceComponent implements OnInit {
   readonly columnNamesById = signal<Record<string, string>>({});
   /** Fit-mode: variables the user opted out of (same pattern as K-means). */
   private readonly excludedCodes = signal<ReadonlySet<string>>(new Set());
-  /** Recipe loaded for the selected experiment (result mode). */
+  /** Recipe loaded for the selected experiment, or from the in-place report (result mode). */
   readonly loadedRecipe = signal<PCAReusablePreprocessing | null>(null);
+
+  /** In-place report run (same flow as the K-means card): pick numerical variables, run
+   *  `pca`, reuse its recipe. Only opt-outs are stored, so the picks follow the variable pool. */
+  private readonly runExcludedCodes = signal<ReadonlySet<string>>(new Set());
+  readonly runLoading = signal(false);
+  readonly runError = signal<string | null>(null);
+  /** Observation count of the in-place report, once it has run. */
+  readonly reportObservations = signal<number | null>(null);
+  /** Context key the in-place report ran on; null when the loaded recipe is not from a report. */
+  private reportContextKey: string | null = null;
 
   readonly numericVariables = computed(() =>
     (this.studio.selectedVariables() as any[]).filter((variable) => isOutlierEligibleVariable(variable))
@@ -134,6 +150,28 @@ export class PcaColumnSourceComponent implements OnInit {
       .map((variable) => String(variable.code));
   });
 
+  /** In-place report picks: data-model numerical variables (a recipe must replay on CDEs). */
+  readonly runSelectedCodes = computed(() => {
+    const excluded = this.runExcludedCodes();
+    return this.numericVariables()
+      .map((variable) => String(variable.code))
+      .filter((code) => !excluded.has(code));
+  });
+
+  /** Inputs a report was run on; a report from other inputs must not become columns. */
+  private readonly runContextKey = computed(() => {
+    const context = this.currentContext();
+    return canonicalFilterKey({
+      dataModel: context.dataModel,
+      datasets: [...context.datasets].map(String).sort(),
+      filters: context.filters ?? null,
+      codes: [...this.runSelectedCodes()].sort(),
+    });
+  });
+
+  /** True when the result-mode recipe came from the in-place report (steps are numbered 1–3). */
+  readonly recipeFromReport = signal(false);
+
   /** Components available in the active mode. */
   readonly availableComponents = computed((): Array<{ component_id: string; explained_variance_ratio?: number }> => {
     if (this.sourceMode() === 'result') {
@@ -179,6 +217,23 @@ export class PcaColumnSourceComponent implements OnInit {
     return null;
   });
 
+  constructor() {
+    // The card stays mounted, so data model, datasets, filters or picks can change under a
+    // finished report; drop its recipe rather than offer components fitted on other data.
+    effect(() => {
+      const key = this.runContextKey();
+      if (this.reportContextKey !== null && key !== this.reportContextKey) {
+        this.reportContextKey = null;
+        this.recipeFromReport.set(false);
+        this.loadedRecipe.set(null);
+        this.reportObservations.set(null);
+        this.selectedComponents.set([]);
+        this.columnNamesById.set({});
+        this.runError.set(null);
+      }
+    });
+  }
+
   ngOnInit(): void {
     this.prefix.set(this.computeDefaultPrefix());
     this.loadExperiments();
@@ -187,7 +242,10 @@ export class PcaColumnSourceComponent implements OnInit {
   setSourceMode(mode: SourceMode): void {
     this.sourceMode.set(mode);
     this.error.set(null);
+    this.runError.set(null);
     this.excludedCodes.set(new Set());
+    this.runExcludedCodes.set(new Set());
+    this.clearReport();
     this.loadedRecipe.set(null);
     this.selectedUuid.set(null);
     this.selectedComponents.set([]);
@@ -220,6 +278,7 @@ export class PcaColumnSourceComponent implements OnInit {
 
   onExperimentChange(uuid: string): void {
     this.selectedUuid.set(uuid || null);
+    this.clearReport();
     this.loadedRecipe.set(null);
     this.selectedComponents.set([]);
     this.columnNamesById.set({});
@@ -250,6 +309,90 @@ export class PcaColumnSourceComponent implements OnInit {
         this.error.set('Could not load the PCA result.');
       },
     });
+  }
+
+  toggleRunVariable(code: string): void {
+    this.runExcludedCodes.update((excluded) => {
+      const next = new Set(excluded);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
+
+  /** Run PCA on the selected variables without saving an experiment, then offer its components. */
+  runReport(): void {
+    const codes = this.runSelectedCodes();
+    if (codes.length < 2) return;
+    const request$ = this.studio.loadPcaReport(codes);
+    if (!request$) {
+      this.runError.set('PCA is not available for this workspace.');
+      return;
+    }
+
+    const requestKey = this.runContextKey();
+    this.runLoading.set(true);
+    this.runError.set(null);
+    this.error.set(null);
+    this.clearReport();
+    this.loadedRecipe.set(null);
+    this.selectedComponents.set([]);
+    this.columnNamesById.set({});
+    request$.subscribe({
+      next: (response) => {
+        this.runLoading.set(false);
+        if (this.runContextKey() !== requestKey) {
+          this.runError.set('The selection changed while PCA was running. Run the report again.');
+          this.cdr.markForCheck();
+          return;
+        }
+        const status = (response as { status?: unknown } | null)?.status;
+        if (status === 'error') {
+          const payload = (response as { result?: any } | null)?.result ?? {};
+          this.runError.set(String(payload?.data ?? payload?.message ?? 'The PCA report failed.'));
+          this.cdr.markForCheck();
+          return;
+        }
+        const recipe = findPcaRecipe(response);
+        if (!recipe) {
+          this.runError.set('The PCA report did not include reusable components.');
+          this.cdr.markForCheck();
+          return;
+        }
+        this.reportContextKey = requestKey;
+        this.recipeFromReport.set(true);
+        this.reportObservations.set(this.findObservationCount(response));
+        this.loadedRecipe.set(recipe);
+        this.preselectComponents(recipe.component_choices.map((choice) => choice.component_id));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.runLoading.set(false);
+        this.runError.set('Could not run the PCA report.');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private clearReport(): void {
+    this.reportContextKey = null;
+    this.recipeFromReport.set(false);
+    this.reportObservations.set(null);
+  }
+
+  private findObservationCount(response: unknown): number | null {
+    const outer = (response as { result?: any } | null)?.result;
+    for (const candidate of [response, outer, outer?.result]) {
+      const n = (candidate as { n_obs?: unknown } | null | undefined)?.n_obs;
+      if (typeof n === 'number' && Number.isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  /** Number shown on the Select components step (Name follows it). */
+  componentsStepNumber(): number {
+    if (this.sourceMode() === 'fit' || this.recipeFromReport()) return 2;
+    return 1;
   }
 
   toggleFitVariable(code: string): void {
@@ -355,6 +498,8 @@ export class PcaColumnSourceComponent implements OnInit {
       return;
     }
     this.error.set(null);
+    this.runError.set(null);
+    this.clearReport();
     this.studio.upsertTransformation(step);
   }
 
@@ -384,6 +529,7 @@ export class PcaColumnSourceComponent implements OnInit {
     this.error.set(null);
     this.selectedUuid.set(null);
     this.loadedRecipe.set(null);
+    this.clearReport();
     this.studio.removeTransformation(this.stepId());
   }
 

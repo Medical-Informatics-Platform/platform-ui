@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { BackendExperiment } from '../../../../models/backend-experiment.model';
 import { PCAReusablePreprocessing } from '../../../../core/pca-column-source.utils';
@@ -62,6 +62,7 @@ describe('PcaColumnSourceComponent', () => {
     upsertTransformation: Mock;
     outputsInUse: Mock;
     removeTransformation: Mock;
+    loadPcaReport: Mock;
   };
   let dashboard: {
     listPcaExperiments: Mock;
@@ -94,6 +95,7 @@ describe('PcaColumnSourceComponent', () => {
           index === -1 ? [...current, step] : current.map((existing, i) => (i === index ? step : existing)),
         );
       }),
+      loadPcaReport: vi.fn().mockReturnValue(of({ status: 'success', result: { n_obs: 289, reusable_preprocessing: recipe() } })),
       removeTransformation: vi.fn((id: string) => {
         studio.appliedTransformations.set(studio.appliedTransformations().filter((step) => step.id !== id));
       }),
@@ -274,5 +276,107 @@ describe('PcaColumnSourceComponent', () => {
 
     expect(component.error()).toBe('Used by a later step: pca_pc2');
     expect(studio.upsertTransformation).not.toHaveBeenCalled();
+  });
+
+  describe('without any prior PCA run (like the K-means report)', () => {
+    it('shows the in-place report instead of a dead end', () => {
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+
+      expect(component.sourceMode()).toBe('result');
+      expect(el.textContent).toContain('Run PCA report');
+      expect(el.textContent).not.toContain('Run PCA first');
+      expect(el.querySelector('#pca-column-source-experiment')).toBeNull();
+      expect(component.runSelectedCodes()).toEqual(['age', 'bmi']);
+    });
+
+    it('runs PCA transiently, then stores the report recipe without a saved experiment', () => {
+      fixture.detectChanges();
+
+      component.runReport();
+      fixture.detectChanges();
+
+      expect(studio.loadPcaReport).toHaveBeenCalledWith(['age', 'bmi']);
+      expect(dashboard.getExperimentResult).not.toHaveBeenCalled();
+      expect(component.recipeFromReport()).toBe(true);
+      expect(component.reportObservations()).toBe(289);
+      expect(component.availableComponents().map((choice) => choice.component_id)).toEqual(['PC1', 'PC2']);
+      expect(component.componentsStepNumber()).toBe(2);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('85.5%');
+
+      component.apply();
+
+      expect(studio.upsertTransformation).toHaveBeenCalledWith({
+        id: 'pca-step-1',
+        name: 'pca_column_creator',
+        parameters: {
+          reusable_preprocessing: recipe(),
+          selected_components: ['PC1', 'PC2'],
+          new_column_names: ['pca_pc1', 'pca_pc2'],
+          n_components: 2,
+        },
+      });
+    });
+
+    it('needs at least two variables before it runs', () => {
+      fixture.detectChanges();
+      component.toggleRunVariable('bmi');
+
+      component.runReport();
+
+      expect(component.runSelectedCodes()).toEqual(['age']);
+      expect(studio.loadPcaReport).not.toHaveBeenCalled();
+    });
+
+    it('shows the backend error of a failed report', () => {
+      studio.loadPcaReport.mockReturnValue(of({ status: 'error', result: { data: 'Not enough data' } }));
+      fixture.detectChanges();
+
+      component.runReport();
+
+      expect(component.runError()).toBe('Not enough data');
+      expect(component.loadedRecipe()).toBeNull();
+    });
+
+    it('drops a report whose variables changed while it ran', () => {
+      const response$ = new Subject<unknown>();
+      studio.loadPcaReport.mockReturnValue(response$);
+      fixture.detectChanges();
+
+      component.runReport();
+      expect(component.runLoading()).toBe(true);
+      component.toggleRunVariable('bmi');
+      response$.next({ status: 'success', result: { reusable_preprocessing: recipe() } });
+
+      expect(component.loadedRecipe()).toBeNull();
+      expect(component.runError()).toContain('selection changed');
+    });
+
+    it('drops a finished report recipe when the picks change afterwards', () => {
+      studio.selectedVariables.mockReturnValue([
+        { code: 'age', label: 'Age', type: 'real' },
+        { code: 'bmi', label: 'BMI', type: 'real' },
+        { code: 'chol', label: 'Chol', type: 'real' },
+      ]);
+      fixture.detectChanges();
+      component.runReport();
+      expect(component.loadedRecipe()).not.toBeNull();
+
+      component.toggleRunVariable('chol');
+      fixture.detectChanges();
+
+      expect(component.loadedRecipe()).toBeNull();
+      expect(component.recipeFromReport()).toBe(false);
+      expect(component.canApply()).toBe(false);
+    });
+
+    it('reports when PCA is not available', () => {
+      studio.loadPcaReport.mockReturnValue(null);
+      fixture.detectChanges();
+
+      component.runReport();
+
+      expect(component.runError()).toBe('PCA is not available for this workspace.');
+    });
   });
 });

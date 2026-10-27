@@ -2129,11 +2129,26 @@ export class ExperimentStudioService {
     variableCodes: string[],
     parameters: Record<string, unknown> = {}
   ): Observable<any> | null {
+    return this.loadTransientReport('kmeans', variableCodes, parameters);
+  }
+
+  /** Run PCA on the current selection without saving an experiment; its
+   *  reusable_preprocessing is the pca_column_creator input, as for K-means. */
+  loadPcaReport(variableCodes: string[]): Observable<any> | null {
+    return this.loadTransientReport('pca', variableCodes, {});
+  }
+
+  /** Transient run of a report algorithm (`y` = the chosen variables) for a creator card. */
+  private loadTransientReport(
+    algorithmName: 'kmeans' | 'pca',
+    variableCodes: string[],
+    parameters: Record<string, unknown>,
+  ): Observable<any> | null {
     try {
-      const requestBody = this.buildRequestBody('kmeans', variableCodes, null);
-      const algoConfig = this.resolveAlgorithmConfig('kmeans');
+      const requestBody = this.buildRequestBody(algorithmName, variableCodes, null);
+      const algoConfig = this.resolveAlgorithmConfig(algorithmName);
       if (!algoConfig) {
-        throw new Error('No algorithm config found for kmeans');
+        throw new Error(`No algorithm config found for ${algorithmName}`);
       }
       const algorithm = requestBody?.analysis?.algorithm ?? {};
       // Add the drops to the run's own ordered steps: regrouping them by name would move a
@@ -2160,7 +2175,7 @@ export class ExperimentStudioService {
         map((resp) => this.normalizeTransientResponse(resp)),
       );
     } catch (error) {
-      console.error('K-means report is not available:', error);
+      console.error(`${algorithmName} report is not available:`, error);
       return null;
     }
   }

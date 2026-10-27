@@ -128,6 +128,20 @@ describe('ExperimentStudioService', () => {
     },
   };
 
+  const mockPcaAlgo = {
+    name: 'pca',
+    label: 'Principal Component Analysis',
+    desc: '',
+    enabled: true,
+    inputdata: {
+      data_model: { label: '', desc: '', types: [] },
+      datasets: { label: '', desc: '', types: [] },
+      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      filter: { label: '', desc: '', types: [] },
+    },
+    parameters: {},
+  };
+
   const mockInputdataSpec = {
     data_model: { label: '', desc: '', types: ['text'], required: true },
     datasets: { label: '', desc: '', types: ['text'], required: true },
@@ -197,6 +211,7 @@ describe('ExperimentStudioService', () => {
         toAlgorithmSpec(mockOutlierReportAlgo),
         toAlgorithmSpec(mockLinearSvmAlgo),
         toAlgorithmSpec(mockKmeansAlgo),
+        toAlgorithmSpec(mockPcaAlgo),
       ],
       [
         {
@@ -2175,6 +2190,28 @@ describe('ExperimentStudioService', () => {
         tol: 0.01,
         k: 4,
       }));
+      req.flush({ status: 'success', result: {} });
+    });
+  });
+
+  describe('loadPcaReport', () => {
+    beforeEach(() => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'age', label: 'Age' }]);
+    });
+
+    it('previews pca on the chosen variables without saving an experiment', () => {
+      const request$ = service.loadPcaReport(['age', 'bmi']);
+      expect(request$).toBeTruthy();
+      request$!.subscribe();
+
+      const req = httpMock.expectOne('/services/experiments/preview');
+      expect(req.request.body.analysis.algorithm.name).toBe('pca');
+      expect(req.request.body.analysis.algorithm.y).toEqual(['age', 'bmi']);
+      expect(req.request.body.analysis.preprocessing).toEqual([
+        { name: 'missing_values_handler', parameters: { strategies: { age: 'drop', bmi: 'drop' } } },
+      ]);
       req.flush({ status: 'success', result: {} });
     });
   });
