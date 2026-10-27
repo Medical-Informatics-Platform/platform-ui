@@ -10,6 +10,7 @@ import {
   findReusablePreprocessing,
   kmeansCreatorClusterChoices,
   kmeansCreatorVariables,
+  analysisSourceIsReusable,
   kmeansSourceIsReusable,
 } from './kmeans-cluster-source.utils';
 
@@ -82,47 +83,62 @@ describe('kmeans-cluster-source.utils', () => {
     });
   });
 
-  describe('kmeansSourceIsReusable', () => {
+  describe('analysisSourceIsReusable', () => {
     it('accepts a matching experiment regardless of dataset and filter key order', () => {
       const source = experiment({
         datasets: ['diabetes', 'hypertension'],
         filters: { rules: [rule('age', 'greater_or_equal', 18)], condition: 'AND' } as BackendFilter,
       });
 
+      expect(analysisSourceIsReusable(source, 'kmeans', current)).toBe(true);
       expect(kmeansSourceIsReusable(source, current)).toBe(true);
     });
 
-    it('rejects a non K-means experiment', () => {
+    it('accepts a matching PCA experiment when algorithmName is pca', () => {
+      expect(analysisSourceIsReusable(
+        experiment({ algorithm: 'pca' }),
+        'pca',
+        { ...current, filters: null },
+      )).toBe(true);
       expect(kmeansSourceIsReusable(experiment({ algorithm: 'pca' }), { ...current, filters: null }))
         .toBe(false);
     });
 
+    it('rejects a non-matching algorithm', () => {
+      expect(analysisSourceIsReusable(experiment({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
+        .toBe(false);
+    });
+
     it('rejects a run that did not finish successfully', () => {
-      expect(kmeansSourceIsReusable(experiment({ status: 'error' }), { ...current, filters: null }))
+      expect(analysisSourceIsReusable(experiment({ status: 'error' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects a different data model', () => {
-      expect(kmeansSourceIsReusable(experiment({ dataModel: 'MIP:1.0' }), { ...current, filters: null }))
+      expect(analysisSourceIsReusable(experiment({ dataModel: 'MIP:1.0' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects different datasets', () => {
-      expect(kmeansSourceIsReusable(experiment({ datasets: ['diabetes'] }), { ...current, filters: null }))
+      expect(analysisSourceIsReusable(experiment({ datasets: ['diabetes'] }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects different filters, including no source filters at all', () => {
-      expect(kmeansSourceIsReusable(experiment({ filters: null }), current)).toBe(false);
-      expect(kmeansSourceIsReusable(experiment({ filters: group('OR', [rule('sex', 'equal', '1')]) }), current))
-        .toBe(false);
+      expect(analysisSourceIsReusable(experiment({ filters: null }), 'kmeans', current)).toBe(false);
+      expect(analysisSourceIsReusable(
+        experiment({ filters: group('OR', [rule('sex', 'equal', '1')]) }),
+        'kmeans',
+        current,
+      )).toBe(false);
     });
 
     it('does not throw when the analysis is incomplete', () => {
-      expect(kmeansSourceIsReusable({ status: 'success' } as BackendExperiment, current)).toBe(false);
-      expect(kmeansSourceIsReusable(
+      expect(analysisSourceIsReusable({ status: 'success' } as BackendExperiment, 'kmeans', current)).toBe(false);
+      expect(analysisSourceIsReusable(
         { status: 'success', analysis: { algorithm: { name: 'kmeans' } } } as BackendExperiment,
-        current
+        'kmeans',
+        current,
       )).toBe(false);
     });
   });

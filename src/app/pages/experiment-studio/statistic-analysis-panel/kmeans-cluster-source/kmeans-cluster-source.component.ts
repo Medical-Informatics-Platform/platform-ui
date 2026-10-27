@@ -30,7 +30,7 @@ import {
   findKMeansReport,
   findReusablePreprocessing,
   isPlainObject,
-  kmeansSourceIsReusable,
+  analysisSourceIsReusable,
 } from '../../../../core/kmeans-cluster-source.utils';
 
 /** Exaflow column codes: an identifier, not free text. */
@@ -97,6 +97,12 @@ export class KMeansClusterSourceComponent implements OnInit {
    * apply/reuse must not call upsertTransformation.
    */
   readonly columnNameError = input<(stepId: string, name: string) => string | null>();
+
+  /** False when a later step reads this card's outputs (station Remove uses the same gate). */
+  readonly canRemove = input(true);
+
+  /** Tooltip when Remove is disabled because of dependents. */
+  readonly removeTooltip = input('Remove');
 
   /** 'result' = recipe / in-place report; 'fit' = direct fit on selected variables. */
   readonly sourceMode = signal<SourceMode>('result');
@@ -238,7 +244,8 @@ export class KMeansClusterSourceComponent implements OnInit {
 
   readonly compatible = computed(() => {
     const context = this.currentContext();
-    return this.experiments().filter((experiment) => kmeansSourceIsReusable(experiment, context));
+    return this.experiments().filter((experiment) =>
+      analysisSourceIsReusable(experiment, 'kmeans', context));
   });
 
   readonly hiddenCount = computed(() => this.experiments().length - this.compatible().length);
@@ -364,7 +371,7 @@ export class KMeansClusterSourceComponent implements OnInit {
       this.error.set('Use letters, digits and underscores, starting with a letter or underscore.');
       return;
     }
-    const nameError = this.columnNameError()?.(this.stepId(), code) ?? null;
+    const nameError = this.nameProblem(code);
     if (nameError) {
       this.error.set(nameError);
       return;
@@ -388,6 +395,7 @@ export class KMeansClusterSourceComponent implements OnInit {
   }
 
   remove(): void {
+    if (!this.canRemove()) return;
     this.error.set(null);
     this.selectedUuid.set(null);
     this.studio.removeTransformation(this.stepId());
@@ -513,8 +521,15 @@ export class KMeansClusterSourceComponent implements OnInit {
     return overrides;
   }
 
+  /** Why `code` cannot be written: a name collision, or a later step still reads the old column. */
+  private nameProblem(code: string): string | null {
+    const inUse = this.studio.outputsInUse(this.stepId(), [code]);
+    return this.columnNameError()?.(this.stepId(), code)
+      ?? (inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null);
+  }
+
   private store(code: string, reusablePreprocessing: KMeansReusablePreprocessing): void {
-    const nameError = this.columnNameError()?.(this.stepId(), code) ?? null;
+    const nameError = this.nameProblem(code);
     if (nameError) {
       this.error.set(nameError);
       this.runError.set(nameError);

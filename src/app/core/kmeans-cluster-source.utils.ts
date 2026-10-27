@@ -103,18 +103,19 @@ function sortKeys(value: unknown): unknown {
 }
 
 /**
- * Whether a finished K-means run can still provide clusters for the current draft:
- * same data model, same datasets, same cohort filters.
+ * Whether a finished analysis run can still provide a recipe for the current draft:
+ * matching algorithm, same data model, same datasets, same cohort filters.
  */
-export function kmeansSourceIsReusable(
+export function analysisSourceIsReusable(
   experiment: BackendExperiment,
-  current: KMeansSourceContext
+  algorithmName: string,
+  current: KMeansSourceContext,
 ): boolean {
   const analysis = experiment?.analysis as unknown as
     | { algorithm?: { name?: unknown }; inputdata?: Record<string, unknown> }
     | undefined;
   const inputdata = analysis?.inputdata;
-  if (analysis?.algorithm?.name !== 'kmeans' || experiment?.status !== 'success') return false;
+  if (analysis?.algorithm?.name !== algorithmName || experiment?.status !== 'success') return false;
   if (!inputdata || inputdata['data_model'] !== current.dataModel) return false;
 
   const sourceDatasets = (Array.isArray(inputdata['datasets']) ? inputdata['datasets'] : [])
@@ -122,6 +123,14 @@ export function kmeansSourceIsReusable(
     .sort();
   return sourceDatasets.join('\u0000') === [...current.datasets].map(String).sort().join('\u0000')
     && canonicalFilterKey(inputdata['filters']) === canonicalFilterKey(current.filters);
+}
+
+/** Whether a finished K-means run can still provide clusters for the current draft. */
+export function kmeansSourceIsReusable(
+  experiment: BackendExperiment,
+  current: KMeansSourceContext,
+): boolean {
+  return analysisSourceIsReusable(experiment, 'kmeans', current);
 }
 
 /**

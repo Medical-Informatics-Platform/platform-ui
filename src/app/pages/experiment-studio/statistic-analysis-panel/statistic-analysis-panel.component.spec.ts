@@ -38,12 +38,15 @@ describe('StatisticAnalysisPanelComponent', () => {
             'appliedKMeansClusterCreator',
             'setKMeansClusterPreprocessing',
             'withKMeansClusterRequirements',
+            'buildTransformationDescribePreprocessing',
+            'transformationSourceCodesForInput',
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
             'upsertTransformation',
             'removeTransformation',
             'transformationDependents',
+            'outputsInUse',
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
@@ -75,6 +78,23 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
         // Pass-through by default; the creator-appending behaviour is the service's, not the panel's.
         mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => config ?? null);
+        mockExpService.buildTransformationDescribePreprocessing.mockImplementation((singletons: any) => {
+            const steps: { name: string; parameters: Record<string, unknown> }[] = [];
+            if (singletons && typeof singletons === 'object') {
+                for (const [name, parameters] of Object.entries(singletons)) {
+                    if (parameters && typeof parameters === 'object') {
+                        steps.push({ name, parameters: parameters as Record<string, unknown> });
+                    }
+                }
+            }
+            for (const step of mockExpService.appliedTransformations() as any[]) {
+                if (Array.isArray(step.parameters?.new_column_names) && step.parameters.new_column_names.some((n: unknown) => String(n ?? '').trim())) {
+                    steps.push({ name: step.name, parameters: step.parameters });
+                }
+            }
+            return steps.length ? steps : null;
+        });
+        mockExpService.transformationSourceCodesForInput.mockReturnValue([]);
         mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
         mockExpService.requestFilters.mockReturnValue(null);
         mockExpService.getActiveDataModelCode.mockReturnValue('Stroke:3.7');
@@ -87,6 +107,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
         mockExpService.transformationDependents.mockReturnValue([]);
+        mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
             const current = [...(mockExpService.appliedTransformations() as any[])];
             const index = current.findIndex((existing) => existing.id === step.id);
@@ -94,6 +115,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 ? [...current, step]
                 : current.map((existing, i) => (i === index ? step : existing));
             (mockExpService.appliedTransformations as any).set(next);
+            return true;
         });
         mockExpService.removeTransformation.mockImplementation((id: string) => {
             const next = (mockExpService.appliedTransformations() as any[]).filter((step) => step.id !== id);
@@ -131,7 +153,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                     echarts: () => import('echarts'),
                 }),
                 { provide: ExperimentStudioService, useValue: mockExpService },
-                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]) } },
+                { provide: ExperimentsDashboardService, useValue: { listKMeansExperiments: () => of([]), listPcaExperiments: () => of([]) } },
                 { provide: ChartBuilderService, useValue: mockChartBuilder },
                 { provide: PdfExportService, useValue: mockPdfService }
             ]
@@ -3282,10 +3304,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                     ],
                 },
             };
-            mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => ({
-                ...(config ?? {}),
-                kmeans_cluster_creator: creator,
-            }));
+            mockExpService.transformationSourceCodesForInput.mockReturnValue(['age', 'sex']);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [{
@@ -3307,12 +3326,13 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.previewTransformationCard('kmeans-preview');
             fixture.detectChanges();
 
-            // The creator goes into the describe as a preprocessing step, read over its own
-            // clustering variables, and the cluster column comes back as a variable with counts.
+            // Ordered-step describe: K-means is a preprocessing step over its CDE sources.
             const [columns, preprocessing, sourceCodes] =
                 mockExpService.loadDescriptiveOverview.mock.lastCall!;
             expect(columns).toEqual(['kmeans_cluster']);
-            expect((preprocessing as any)?.['kmeans_cluster_creator']).toBe(creator);
+            expect(Array.isArray(preprocessing)).toBe(true);
+            expect((preprocessing as any[]).some((step) => step.name === 'kmeans_cluster_creator')).toBe(true);
+            expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
             expect(sourceCodes).toContain('age');
             expect(sourceCodes).toContain('sex');
             expect(component.transformationStatistics).toEqual([{
@@ -3339,10 +3359,7 @@ describe('StatisticAnalysisPanelComponent', () => {
                 k: 2,
                 enumeration_prefix: 'cluster_',
             };
-            mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => ({
-                ...(config ?? {}),
-                kmeans_cluster_creator: creator,
-            }));
+            mockExpService.transformationSourceCodesForInput.mockReturnValue(['age', 'bmi']);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [{
@@ -3367,7 +3384,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             const [columns, preprocessing, sourceCodes] =
                 mockExpService.loadDescriptiveOverview.mock.lastCall!;
             expect(columns).toEqual(['km_fit']);
-            expect((preprocessing as any)?.['kmeans_cluster_creator']).toBe(creator);
+            expect(Array.isArray(preprocessing)).toBe(true);
+            expect((preprocessing as any[]).some((step) => step.name === 'kmeans_cluster_creator')).toBe(true);
             expect(sourceCodes).toContain('age');
             expect(sourceCodes).toContain('bmi');
             expect(component.transformationStatistics).toEqual([{
@@ -3605,11 +3623,15 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(component.countsDraftId).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
-                expect.objectContaining({
-                    categorical_column_creator: [expect.objectContaining({ new_column_names: ['group_a'] })],
-                }),
+                [
+                    expect.objectContaining({
+                        name: 'categorical_column_creator',
+                        parameters: expect.objectContaining({ new_column_names: ['group_a'] }),
+                    }),
+                ],
                 ['age']
             );
+            expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
             expect(component.transformationStatistics).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 7 }] },
             ]);
@@ -3643,6 +3665,23 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             expect(component.columnNameError('pca-2', 'pca_pc1')).toBe('Name already used');
             expect(mockExpService.appliedTransformations()).toEqual(before);
+        });
+
+        it('keeps a nominal column a later step reads from being renamed', () => {
+            openStation('transformation');
+            component.chooseTransformation('categorical_column_creator');
+            const id = component.cards()[0].id;
+            mockExpService.outputsInUse.mockImplementation((stepId: string, next: string[]) =>
+                stepId === id && !next.includes('grp') ? ['grp'] : [],
+            );
+            const draft = component.draftForStep(id)!;
+            draft.code = 'grp_renamed';
+            mockExpService.upsertTransformation.mockClear();
+
+            expect(component.columnNameError(id, 'grp_renamed')).toBe('Used by a later step: grp');
+            component.onTransformationChange();
+            expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+            expect(component.transformationDraftStatus(draft).label).not.toBe('Duplicate name');
         });
 
         it('disables remove when a step has dependents', () => {

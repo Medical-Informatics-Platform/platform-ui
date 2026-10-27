@@ -45,6 +45,7 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
+import { PcaColumnSourceComponent } from './pca-column-source/pca-column-source.component';
 import {
   kmeansCreatorClusterChoices,
   kmeansCreatorVariables,
@@ -272,7 +273,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -835,10 +836,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       if (draft.id === stepId) break;
       if (draft.code.trim() === trimmed) return 'Name already used';
     }
+    // A nominal card writes one column: renaming it must not orphan a later step that reads it.
+    if (this.draftForStep(stepId)) {
+      const inUse = this.expStudioService.outputsInUse(stepId, [trimmed]);
+      if (inUse.length) return `Used by a later step: ${inUse.join(', ')}`;
+    }
     return null;
   }
 
-  /** Stable callback for K-means cards (`[columnNameError]` input). */
+  /** Stable callback for K-means / PCA cards (`[columnNameError]` input). */
   readonly kmeansColumnNameError = (stepId: string, name: string): string | null =>
     this.columnNameError(stepId, name);
 
@@ -2107,7 +2113,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const code = draft.code.trim();
     const nameError = code ? this.columnNameError(draft.id, code) : null;
     if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
-      return nameError ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
+      if (!nameError) return { label: 'Applied', tone: 'applied' };
+      return { label: nameError === 'Name already used' ? 'Duplicate name' : 'Column in use', tone: 'pending' };
     }
     if (this.draftHasWork(draft) || nameError) return { label: 'Not applied', tone: 'pending' };
     return { label: 'Not set', tone: 'default' };
@@ -3898,26 +3905,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return config;
   }
 
-  /**
-   * Payload for the shared store: an ordered array of cards. Incomplete cards drop
-   * out, and a duplicate-name card never reaches the store (only the first
-   * occurrence of a code is kept).
-   */
-  private transformationConfigPayload(): Record<string, unknown>[] | null {
-    const seen = new Set<string>();
-    const configs: Record<string, unknown>[] = [];
-    for (const config of this.transformationConfigs()) {
-      // The emitted creator names its column with `new_column_names`; dedup keys on that.
-      const code = String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
-      if (code) {
-        if (seen.has(code)) continue;
-        seen.add(code);
-      }
-      configs.push(config);
-    }
-    return configs.length ? configs : null;
-  }
-
   onTransformationChange(): void {
     // Each categorical draft upserts by id. Name collisions and incomplete drafts never
     // overwrite a good store entry with bad parameters (incomplete clears outputs so the
@@ -4072,7 +4059,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       ...kmeansEntries.map((entry) => entry.code),
     ];
     const columnSet = new Set(columnCodes);
-    const kmeansSourceCodes = kmeansEntries.flatMap((entry) => kmeansCreatorVariables(entry.creator));
+    // Same CDE set a run would send: filter fields + selected variables + K-means/PCA sources
+    // that are not earlier outputs. Created columns (pca_pc*, cluster codes) stay out.
     const sourceCodes = Array.from(
       new Set(
         [
@@ -4081,7 +4069,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
               this.expStudioService.filterVariableCodes(filter)
             )
           ),
-          ...kmeansSourceCodes,
+          ...this.expStudioService.transformationSourceCodesForInput(),
           ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
         ]
           .map((code) => String(code).trim())
@@ -4105,10 +4093,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationStatistics = placeholderBlocks;
     this.cdr.markForCheck();
 
-    // Pipeline consistency: the preview runs the cohort filter, the preprocessing
-    // configured so far (applied rules plus pending edits), then the
-    // transformation under test. The service appends the applied K-means replay step
-    // last, with the missing-value handling it needs, exactly as a run would.
+    // Pipeline consistency: the preview uses the same ordered-step builder as a run
+    // (singletons, then PCA/categorical/K-means in store order with CDE-only drops).
     if (Object.keys(this.validatePendingRules()).length > 0) {
       this.transformationStatistics = placeholderBlocks;
       this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
@@ -4116,11 +4102,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-    const preprocessing: PreprocessingConfig =
-      this.expStudioService.withKMeansClusterRequirements({
-        ...(this.buildPreprocessingConfig(this.pendingPreprocessingRules) ?? {}),
-        ...(configs.length ? { categorical_column_creator: this.transformationConfigPayload() } : {}),
-      }) ?? {};
+    const preprocessing = this.expStudioService.buildTransformationDescribePreprocessing(
+      this.buildPreprocessingConfig(this.pendingPreprocessingRules),
+    );
     this.expStudioService
       .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
       .subscribe({

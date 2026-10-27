@@ -61,6 +61,7 @@ describe('KMeansClusterSourceComponent', () => {
     setKMeansClusterPreprocessing: Mock;
     appliedTransformations: ReturnType<typeof signal<any[]>>;
     upsertTransformation: Mock;
+    outputsInUse: Mock;
     removeTransformation: Mock;
     loadKMeansReport: Mock;
     backendAlgorithms: ReturnType<typeof signal<Record<string, { configSchema?: unknown[] }>>>;
@@ -84,6 +85,7 @@ describe('KMeansClusterSourceComponent', () => {
       appliedKMeansClusterCreator: vi.fn().mockReturnValue(null),
       setKMeansClusterPreprocessing: vi.fn(),
       appliedTransformations: signal([] as any[]),
+      outputsInUse: vi.fn().mockReturnValue([]),
       upsertTransformation: vi.fn((step: any) => {
         const current = studio.appliedTransformations();
         const index = current.findIndex((existing) => existing.id === step.id);
@@ -220,6 +222,26 @@ describe('KMeansClusterSourceComponent', () => {
     component.remove();
 
     expect(studio.removeTransformation).toHaveBeenCalledWith('kmeans-step-1');
+  });
+
+  it('inner Remove is a no-op when canRemove is false', () => {
+    studio.appliedTransformations.set([{
+      id: 'kmeans-step-1',
+      name: 'kmeans_cluster_creator',
+      parameters: {
+        new_column_names: ['kmeans_cluster'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+        reusable_preprocessing: reusable(),
+      },
+    }]);
+    fixture.componentRef.setInput('canRemove', false);
+    fixture.componentRef.setInput('removeTooltip', 'Used by later');
+    fixture.detectChanges();
+
+    component.remove();
+
+    expect(studio.removeTransformation).not.toHaveBeenCalled();
   });
 
   it('asks the stage to run the creator once the column is applied', () => {
@@ -454,5 +476,20 @@ describe('KMeansClusterSourceComponent', () => {
       expect(step.parameters['variables']).toEqual(['age']);
       expect(step.parameters['enumeration_prefix']).toBe('cluster_');
     }
+  });
+
+  it('renaming a cluster column a later step reads is refused', () => {
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.outputsInUse.mockImplementation((id: string, next: string[]) =>
+      id === 'kmeans-step-1' && !next.includes('km') ? ['km'] : [],
+    );
+    fixture.detectChanges();
+    component.sourceMode.set('fit');
+    component.code.set('km_renamed');
+
+    component.applyFit();
+
+    expect(component.error()).toBe('Used by a later step: km');
+    expect(studio.upsertTransformation).not.toHaveBeenCalled();
   });
 });
