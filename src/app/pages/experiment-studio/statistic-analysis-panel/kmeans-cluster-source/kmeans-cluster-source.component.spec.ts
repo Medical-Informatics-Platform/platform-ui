@@ -35,7 +35,7 @@ function kmeansExperiment(uuid: string, overrides: Record<string, unknown> = {})
 
 function reusable(): KMeansReusablePreprocessing {
   return {
-    schema_version: '1',
+    enumeration_prefix: 'cluster_',
     preprocessing_name: 'kmeans_cluster_creator',
     cluster_variables: ['age', 'bmi'],
     centers: { c1: { age: 40 } },
@@ -127,7 +127,9 @@ describe('KMeansClusterSourceComponent', () => {
     component.apply();
 
     expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith({
-      code: 'kmeans_cluster',
+      new_column_names: ['kmeans_cluster'],
+      k: 2,
+      enumeration_prefix: 'cluster_',
       reusable_preprocessing: reusable(),
     });
     expect(component.error()).toBeNull();
@@ -225,7 +227,9 @@ describe('KMeansClusterSourceComponent', () => {
 
     component.useReport();
     expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith({
-      code: 'kmeans_cluster',
+      new_column_names: ['kmeans_cluster'],
+      k: 2,
+      enumeration_prefix: 'cluster_',
       reusable_preprocessing: reusablePreprocessing,
     });
   });

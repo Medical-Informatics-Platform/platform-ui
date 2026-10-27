@@ -1,7 +1,7 @@
 <section class="kmeans-cluster-source">
   @if (applied(); as creator) {
   <div class="kmeans-cluster-source-applied">
-    <span class="kmeans-cluster-source-applied-code">Column {{ creator.code }}</span>
+    <span class="kmeans-cluster-source-applied-code">Column {{ appliedColumnName() }}</span>
     <span class="kmeans-cluster-source-applied-detail">
       {{ clusterCount() }} clusters from {{ clusterVariables().join(', ') }}
     </span>

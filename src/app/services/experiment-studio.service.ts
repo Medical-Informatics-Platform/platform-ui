@@ -10,6 +10,7 @@ import {
   AnalysisPreprocessingStep,
   AnalysisRequest,
   ExperimentCreateRequest,
+  RawPreprocessingStep,
 } from '../models/backend-algorithms.model';
 import { BackendFilter, BackendRule } from '../models/filters.model';
 import { ExperimentRunSetup, RunSetupSummaryRow } from '../models/experiment-run-setup.model';
@@ -36,6 +37,18 @@ import {
   KMeansClusterCreatorConfig,
   isPlainObject,
 } from '../core/kmeans-cluster-source.utils';
+import { resolvePreprocessingOutputs } from '../core/preprocessing-outputs.utils';
+import {
+  CREATOR_NAMES,
+  CreatorName,
+  PreprocessingConfig,
+  stepOutputNames,
+  stepSourceVariables,
+  splitPreprocessingSteps,
+  TransformationStep,
+} from '../core/transformation-steps.utils';
+
+export type { PreprocessingConfig };
 
 type PathologyAccessWarningKind = 'no-pathologies' | 'no-access';
 
@@ -45,11 +58,11 @@ interface PathologyAccessWarning {
   message: string;
 }
 
-export type PreprocessingConfig = Record<string, unknown>;
-
 const MISSING_VALUES_HANDLER = 'missing_values_handler';
 const OUTLIER_WINSORIZER = 'outlier_winsorizer';
 const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__';
+/** Session-storage key for the ordered column-creating transformation steps. */
+const APPLIED_TRANSFORMATIONS = '__applied_transformations__';
 
 /** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
 const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
@@ -147,6 +160,8 @@ export class ExperimentStudioService {
   lastUsedAlgorithm = signal<string | null>(this.sessionStorage.getItem('lastUsedAlgorithm') || null);
   selectedDatasets = computed(() => this.selectedDatasetsSignal());
   backendAlgorithms = signal<Record<string, AlgorithmConfig>>({});
+  /** Preprocessing step name → its specification (parameters schema + outputs), from the catalog. */
+  private preprocessingSpecs = signal<Record<string, RawPreprocessingStep>>({});
   selectedDataModel = signal<DataModel | null>(this.sessionStorage.getItem('selectedDataModel'));
   readonly crossSectionalModels = signal<DataModel[]>([]);
   readonly longitudinalModels = signal<DataModel[]>([]);
@@ -394,55 +409,58 @@ export class ExperimentStudioService {
   }
 
   /**
-   * Synthetic node for one categorical_column_creator config (derived column),
-   * exposed in the assignable pool. Returns null when the config has no usable code.
+   * Collapse created-column enumerations to their backend-stored shape: Exaflow keeps them as a
+   * `{code: code}` map, so a rule key equal to the default enumeration appears once.
    */
-  private derivedColumnNode(creator: { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown }): any | null {
-    const code = String(creator?.code ?? '').trim();
-    if (!code) return null;
-    const enumerations: Array<{ code: string; label: string }> = [];
-    Object.keys(creator?.rules ?? {}).forEach((value) => {
-      if (value) enumerations.push({ code: value, label: value });
-    });
-    const def = String(creator?.default_enumeration ?? '').trim();
-    if (def && !enumerations.some((e) => e.code === def)) {
-      enumerations.push({ code: def, label: def });
+  private static dedupeEnumerations(enumerations: { code: string; label: string }[]): { code: string; label: string }[] {
+    const seen = new Set<string>();
+    const out: { code: string; label: string }[] = [];
+    for (const entry of enumerations) {
+      const code = String(entry?.code ?? '');
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      out.push(entry);
     }
-    return { ...this.syntheticDerivedNode(code), enumerations };
+    return out;
   }
 
   /**
-   * Synthetic node for every applied transformation column (and the applied
-   * K-means cluster column), exposed in the assignable pool.
+   * Synthetic node for every applied transformation column, exposed in the assignable pool.
+   * The created column codes always come from `new_column_names` (so they are detected as
+   * derived even before the catalog specs load); the category enumerations come from the generic
+   * `resolvePreprocessingOutputs` (Task 1) when its spec outputs are available.
    */
   private transformationColumnNodes(): any[] {
-    const nodes = this.appliedCategoricalCreators()
-      .map((creator) =>
-        this.derivedColumnNode(
-          creator as { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown }
-        )
-      )
-      .filter((node): node is any => !!node);
-
-    const clusterCreator = this.appliedKMeansClusterCreator();
-    if (clusterCreator) {
-      nodes.push({
-        ...this.syntheticDerivedNode(clusterCreator.code),
-        enumerations: clusterCreator.reusable_preprocessing.cluster_choices.map((choice) => ({
-          code: choice.cluster_id,
-          label: choice.label,
-        })),
-      });
+    const nodes: any[] = [];
+    for (const step of this.appliedTransformationsSignal()) {
+      const spec = this.preprocessingSpecs()[step.name];
+      const resolved = spec?.outputs
+        ? resolvePreprocessingOutputs(spec.outputs, step.parameters)
+        : null;
+      const names = stepOutputNames(step);
+      for (let i = 0; i < names.length; i++) {
+        const column = resolved?.[i];
+        // Exaflow stores a created column's enumerations as a `{code: code}` map, so a
+        // rule key equal to the default enumeration collapses to one category. Dedupe here
+        // to match the backend's stored shape.
+        nodes.push({
+          code: names[i],
+          label: names[i],
+          name: names[i],
+          type: column?.stattype === 'numerical' ? 'real' : 'nominal',
+          enumerations: ExperimentStudioService.dedupeEnumerations(column?.enumerations ?? []),
+          isCreatedColumn: true,
+        });
+      }
     }
-
     return nodes;
   }
 
-  /** Every applied categorical_column_creator config, in store order. */
+  /** Every applied categorical column creator config, in store order. */
   appliedCategoricalCreators(): Record<string, unknown>[] {
-    return (this.appliedPreprocessingConfig()?.['categorical_column_creator'] as
-      | Record<string, unknown>[]
-      | undefined) ?? [];
+    return this.appliedTransformationsSignal()
+      .filter((step) => step.name === 'categorical_column_creator')
+      .map((step) => step.parameters);
   }
 
   /** Datasets the next analysis request sends: the selection minus excluded datasets. */
@@ -459,17 +477,22 @@ export class ExperimentStudioService {
   }
 
   /**
-   * The applied kmeans_cluster_creator config (a single object under its own key),
-   * or null when absent / malformed.
+   * The applied kmeans_cluster_creator step from the ordered transformation list, or null when
+   * absent / malformed. Exaflow names the created column with `new_column_names`.
    */
   appliedKMeansClusterCreator(): KMeansClusterCreatorConfig | null {
-    const creator = this.appliedPreprocessingConfig()?.[KMEANS_CLUSTER_CREATOR] as
-      | KMeansClusterCreatorConfig
-      | undefined;
+    const step = this.appliedTransformationsSignal().find(
+      (candidate) => candidate.name === KMEANS_CLUSTER_CREATOR,
+    );
+    if (!step) return null;
+    const creator = step.parameters as unknown as KMeansClusterCreatorConfig | undefined;
     if (!isPlainObject(creator)) return null;
-    const code = typeof creator.code === 'string' ? creator.code.trim() : '';
+    const names = creator.new_column_names;
+    const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
     if (!code) return null;
     if (!isPlainObject(creator.reusable_preprocessing)) return null;
+    if (typeof creator.k !== 'number') return null;
+    if (typeof creator.enumeration_prefix !== 'string') return null;
     return creator;
   }
 
@@ -638,8 +661,90 @@ export class ExperimentStudioService {
     this.sessionStorage.getItem('algorithmPreprocessingConfigurations') || {}
   );
   readonly appliedPreprocessingConfig = computed(
-    () => this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? null
+    () => this.mergedAppliedPreprocessingConfig()
   );
+
+  /**
+   * Singletons from the applied config plus the ordered transformation steps, grouped by name.
+   * The ordered list is the source of truth for column creators; the singletons stay put.
+   * Categorical creators group into an array (the panel reads that shape); K-means stays a single
+   * object. The request itself emits the ordered list separately via
+   * `preprocessingStepsWithTransformations`, so this view is only for the panel's read paths.
+   */
+  private mergedAppliedPreprocessingConfig(): PreprocessingConfig | null {
+    const singletons = this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? {};
+    const transformations = this.appliedTransformationsSignal();
+    const merged: PreprocessingConfig = { ...singletons };
+    for (const step of transformations) {
+      const existing = merged[step.name];
+      if (step.name === 'categorical_column_creator') {
+        merged[step.name] = Array.isArray(existing) ? [...existing, step.parameters] : [step.parameters];
+      } else {
+        merged[step.name] = step.parameters;
+      }
+    }
+    return Object.keys(merged).length ? merged : null;
+  }
+
+  /**
+   * Ordered column-creating steps (categorical, K-means, and the future PCA), stored under
+   * their own session key. The singletons (missing values, outlier, longitudinal) stay in
+   * `appliedPreprocessingConfig`. The request emits singletons first, then these in order.
+   */
+  private appliedTransformationsSignal = signal<TransformationStep[]>(
+    this.loadTransformationsFromSession()
+  );
+  readonly appliedTransformations = this.appliedTransformationsSignal.asReadonly();
+
+  private loadTransformationsFromSession(): TransformationStep[] {
+    const stored = this.sessionStorage.getItem<unknown>(APPLIED_TRANSFORMATIONS);
+    return Array.isArray(stored)
+      ? stored.filter((step): step is TransformationStep =>
+          !!step && typeof step === 'object' && typeof (step as TransformationStep).name === 'string'
+            && CREATOR_NAMES.has((step as TransformationStep).name as any)
+        )
+      : [];
+  }
+
+  /**
+   * Latest applied transformation steps, with a stable id when the caller passes one. Used by
+   * upsert/remove so the same step keeps its identity across edits.
+   */
+  private applyTransformations(steps: TransformationStep[]): void {
+    this.appliedTransformationsSignal.set(steps);
+    this.sessionStorage.setItem(APPLIED_TRANSFORMATIONS, steps);
+    this.pruneRolesToAssignable();
+  }
+
+  /** Insert or replace a transformation step by name (the store keys on the creator name). */
+  upsertTransformation(step: TransformationStep): void {
+    const current = this.appliedTransformationsSignal();
+    const index = current.findIndex((existing) => existing.name === step.name);
+    // Replace in place to keep request-order/dependency guarantees; append only when new.
+    const next = index === -1
+      ? [...current, step]
+      : current.map((existing, i) => (i === index ? step : existing));
+    this.applyTransformations(next);
+  }
+
+  /** Remove a transformation step by id, or by name when the id is unknown. */
+  removeTransformation(id: string): void {
+    const remaining = this.appliedTransformationsSignal().filter((step) => step.id !== id);
+    if (remaining.length === this.appliedTransformationsSignal().length) return;
+    this.applyTransformations(remaining);
+  }
+
+  /** Later steps whose sources include this step's output codes. */
+  transformationDependents(id: string): TransformationStep[] {
+    const step = this.appliedTransformationsSignal().find((candidate) => candidate.id === id);
+    if (!step) return [];
+    const outputs = new Set(stepOutputNames(step));
+    if (!outputs.size) return [];
+    const index = this.appliedTransformationsSignal().indexOf(step);
+    return this.appliedTransformationsSignal()
+      .slice(index + 1)
+      .filter((candidate) => stepSourceVariables(candidate).some((code) => outputs.has(code)));
+  }
 
   setAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
     this.algorithmPreprocessingConfigurations.set({
@@ -669,39 +774,76 @@ export class ExperimentStudioService {
   }
 
   /**
-   * Merge the Transformation step (exaflow `categorical_column_creator`) into the shared
-   * APPLIED_DESCRIPTIVE_PREPROCESSING config so it reaches every experiment run via
-   * resolveRequestPreprocessing -> preprocessingConfigToSteps.
-   * Statistics for the derived column can also call describe with this config present,
-   * using source CDEs in inputdata.variables and the new column code in algorithm.y.
+   * Merge the categorical column creator steps (exaflow `categorical_column_creator`) into the
+   * ordered transformation list so they reach every experiment run and their derived column is
+   * assignable to y/x. Null/empty clears the categorical step.
    */
   setTransformationPreprocessing(config: Record<string, unknown>[] | null): void {
-    this.setAppliedPreprocessingStep('categorical_column_creator', config);
+    const steps = this.stepsFromCreators('categorical_column_creator', config);
+    this.upsertOrClear('categorical_column_creator', steps);
   }
 
   /**
-   * Merge the K-means cluster column step (exaflow `kmeans_cluster_creator`) into the
-   * same shared APPLIED_DESCRIPTIVE_PREPROCESSING config the transformation step uses,
-   * so it reaches every experiment run and the created column is assignable to y/x.
+   * Merge the K-means cluster column step (exaflow `kmeans_cluster_creator`) into the ordered
+   * transformation list so it reaches every experiment run and the created column is assignable
+   * to y/x. Null clears the K-means step.
    */
   setKMeansClusterPreprocessing(config: KMeansClusterCreatorConfig | null): void {
-    this.setAppliedPreprocessingStep(KMEANS_CLUSTER_CREATOR, config);
+    const steps = this.stepsFromCreators(KMEANS_CLUSTER_CREATOR, config);
+    this.upsertOrClear(KMEANS_CLUSTER_CREATOR, steps);
   }
 
-  /** Merge one preprocessing step into the shared applied config; null/empty clears it. */
-  private setAppliedPreprocessingStep(key: string, value: unknown): void {
-    const current = this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? {};
-    const next: PreprocessingConfig = { ...current };
-    if (value === null || value === undefined || (Array.isArray(value) && !value.length)) {
-      delete next[key];
-    } else {
-      next[key] = value;
+  /**
+   * Replace the stored steps of one creator name with the given steps, preserving the ids of
+   * the steps that survive so dependents keep referencing them. Clears the name when empty.
+   * Surviving steps keep their original index so request-order/dependency guarantees hold.
+   */
+  private upsertOrClear(name: CreatorName, steps: TransformationStep[]): void {
+    const current = this.appliedTransformationsSignal();
+    if (!steps.length) {
+      // Clear: drop every step of this name.
+      this.applyTransformations(current.filter((step) => step.name !== name));
+      return;
     }
-    this.algorithmPreprocessingConfigurations.set({
-      ...this.algorithmPreprocessingConfigurations(),
-      [APPLIED_DESCRIPTIVE_PREPROCESSING]: Object.keys(next).length ? next : null,
-    });
-    this.pruneRolesToAssignable();
+    // The new steps take the place of the first old step of this name (any count); the
+    // other names keep their order. With no old step of this name, they are appended.
+    const others = current.filter((step) => step.name !== name);
+    const first = current.findIndex((step) => step.name === name);
+    const at = first === -1 ? others.length : first;
+    this.applyTransformations([...others.slice(0, at), ...steps, ...others.slice(at)]);
+  }
+
+  /**
+   * Build ordered transformation steps for one creator name from its stored parameters.
+   * Reuses the surviving step id when the parameters match, keeping dependents stable.
+   */
+  private stepsFromCreators(
+    name: CreatorName,
+    value: unknown,
+  ): TransformationStep[] {
+    if (value === null || value === undefined) return [];
+    const items = Array.isArray(value) ? value : [value];
+    const surviving = this.appliedTransformationsSignal().filter((step) => step.name === name);
+    return items
+      .map((item, index) => this.toTransformationStep(name, item, surviving[index]))
+      .filter((step): step is TransformationStep => !!step);
+  }
+
+  /**
+   * One transformation step from a stored creator config. Preserves the prior step's id when the
+   * parameters are unchanged so dependents keep referencing it; otherwise a fresh id.
+   */
+  private toTransformationStep(
+    name: CreatorName,
+    value: unknown,
+    prior: TransformationStep | undefined,
+  ): TransformationStep | null {
+    if (!isPlainObject(value)) return null;
+    const parameters = { ...(value as Record<string, unknown>) };
+    if (prior && JSON.stringify(prior.parameters) === JSON.stringify(parameters)) {
+      return { ...prior, parameters };
+    }
+    return { id: crypto.randomUUID(), name, parameters };
   }
 
   async setAlgorithm(algorithm: AlgorithmConfig) {
@@ -749,6 +891,14 @@ export class ExperimentStudioService {
 
         this.backendAlgorithms.set(mapped);
         this.refreshSelectedAlgorithmFromCatalog(mapped);
+        const specs = (preprocessing as RawPreprocessingStep[] ?? []).reduce(
+          (acc, step) => {
+            if (step?.name) acc[step.name] = step;
+            return acc;
+          },
+          {} as Record<string, RawPreprocessingStep>,
+        );
+        this.preprocessingSpecs.set(specs);
         return mapped;
       }),
       catchError((error) => {
@@ -895,10 +1045,9 @@ export class ExperimentStudioService {
           ...this.selectedVariables().map((v) => v.code),
           // Experiment filter fields.
           ...this.collectFilterVariableCodes(filtersPayload),
-          // Transformation-rule filter fields (source CDEs referenced by the rules).
-          ...this.collectTransformationFilterCodes(),
-          // Cluster CDEs the applied K-means cluster creator is built from.
-          ...this.kmeansClusterVariables(this.appliedKMeansClusterCreator()),
+          // Source CDEs referenced by every transformation step (categorical rules, K-means and
+          // PCA clustering variables).
+          ...this.appliedTransformationsSignal().flatMap((step) => stepSourceVariables(step)),
           // Previewed CDEs (histogram inspect happens before add-to-pool).
           ...this.toArray(extraCodes),
         ]
@@ -973,46 +1122,6 @@ export class ExperimentStudioService {
     }
     next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
     return next;
-  }
-
-  /**
-   * The user's own missing-value step may not cover every given code; add the
-   * drop default for the codes it leaves out.
-   */
-  private ensureMissingValuesHandler(
-    config: PreprocessingConfig | null,
-    variableCodes: string[],
-  ): PreprocessingConfig {
-    const codes = [...new Set(
-      variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
-    )];
-    return this.withDropStrategies(config, codes);
-  }
-
-  private preprocessingStepsToConfig(
-    steps: AnalysisPreprocessingStep[] | null | undefined,
-  ): PreprocessingConfig | null {
-    if (!steps?.length) return null;
-    // Preserve every step: repeated names (e.g. several categorical_column_creator
-    // entries) hydrate into an array so edit-hydration does not last-win them.
-    const config: PreprocessingConfig = {};
-    for (const step of steps) {
-      const existing = config[step.name];
-      if (existing === undefined) {
-        config[step.name] = step.parameters;
-      } else if (Array.isArray(existing)) {
-        existing.push(step.parameters);
-      } else {
-        config[step.name] = [existing, step.parameters];
-      }
-    }
-    // The store keeps the repeatable transformation config as a list, whatever the
-    // engine's step shape was; one read shape for every consumer.
-    const creators = config['categorical_column_creator'];
-    if (creators !== undefined && !Array.isArray(creators)) {
-      config['categorical_column_creator'] = [creators];
-    }
-    return config;
   }
 
   private buildExperimentRequest(
@@ -1144,19 +1253,25 @@ export class ExperimentStudioService {
         },
       );
     }
-    const preprocessing = this.withKMeansClusterRequirements(
-      this.resolveRequestPreprocessing(
-        requestAlgorithmName,
-        yPayload,
-        xPayload,
-        this.appliedPreprocessingConfig()
-      )
+    // Singletons first (missing values, outlier, longitudinal), then the ordered column-creating
+    // transformations. Every K-means/PCA source that is not an earlier output gets a drop strategy
+    // and goes into inputdata.variables; created columns never do.
+    const singletons = this.resolveSingletonsPreprocessing(
+      requestAlgorithmName,
+      yPayload,
+      xPayload,
+      this.appliedPreprocessingConfig()
     );
     return this.buildExperimentRequest(
       expName,
       {
-        inputdata: this.buildSharedInputDataPayload(algoConfig, filtersPayload),
-        preprocessing: this.preprocessingConfigToSteps(preprocessing),
+        inputdata: this.buildSharedInputDataPayload(
+          algoConfig,
+          filtersPayload,
+          undefined,
+          this.transformationSourceCodesForInput(),
+        ),
+        preprocessing: this.preprocessingStepsWithTransformations(singletons),
         algorithm: {
           name: requestAlgorithmName,
           x: xPayload,
@@ -1165,6 +1280,87 @@ export class ExperimentStudioService {
         },
       },
     );
+  }
+
+  /**
+   * Request-time singletons for the run: the applied singletons plus the per-variable drop
+   * default, with the column-creating transformations stripped out (they are appended in order
+   * by `preprocessingStepsWithTransformations`).
+   */
+  private resolveSingletonsPreprocessing(
+    algorithmName: string,
+    yPayload: string[] | string | null,
+    xPayload: string[] | string | null,
+    explicitPreprocessing: unknown = null,
+  ): PreprocessingConfig | null {
+    return this.singletonsFromConfig(
+      this.resolveRequestPreprocessing(algorithmName, yPayload, xPayload, explicitPreprocessing),
+    );
+  }
+
+  private singletonsFromConfig(config: PreprocessingConfig | null): PreprocessingConfig | null {
+    if (!config) return null;
+    const singletons: PreprocessingConfig = {};
+    for (const [key, value] of Object.entries(config)) {
+      if (!CREATOR_NAMES.has(key as CreatorName)) singletons[key] = value;
+    }
+    return Object.keys(singletons).length ? singletons : null;
+  }
+
+  /**
+   * Build the request preprocessing steps: the singletons in their stored order, then the ordered
+   * column-creating transformations. K-means and PCA sources that are not an earlier output gain a
+   * `drop` strategy in the missing-values step.
+   */
+  private preprocessingStepsWithTransformations(
+    singletons: PreprocessingConfig | null,
+  ): AnalysisPreprocessingStep[] | null {
+    const steps = this.preprocessingConfigToSteps(singletons) ?? [];
+    const outputs = new Set<string>();
+    for (const step of this.appliedTransformationsSignal()) {
+      if (step.name === 'kmeans_cluster_creator' || step.name === 'pca_column_creator') {
+        const newSources = stepSourceVariables(step).filter((code) => !outputs.has(code));
+        if (newSources.length) this.addTransformationDrops(steps, newSources);
+      }
+      steps.push({ name: step.name, parameters: step.parameters });
+      for (const name of stepOutputNames(step)) outputs.add(name);
+    }
+    return steps.length ? steps : null;
+  }
+
+  /** Add a `drop` strategy for the given codes to the request's missing-values step. */
+  private addTransformationDrops(steps: AnalysisPreprocessingStep[], codes: string[]): void {
+    const missing = steps.find((step) => step.name === MISSING_VALUES_HANDLER);
+    if (!missing) {
+      steps.unshift({
+        name: MISSING_VALUES_HANDLER,
+        parameters: { strategies: Object.fromEntries(codes.map((code) => [code, 'drop'])) },
+      });
+      return;
+    }
+    const strategies = { ...((missing.parameters['strategies'] as Record<string, unknown>) ?? {}) };
+    for (const code of codes) {
+      if (strategies[code] === undefined) strategies[code] = 'drop';
+    }
+    missing.parameters = { ...missing.parameters, strategies };
+  }
+
+  /**
+   * Source CDEs K-means/PCA steps read from that are not an earlier output, for inputdata.variables.
+   * Categorical sources are filter fields handled elsewhere and are intentionally excluded.
+   */
+  private transformationSourceCodesForInput(): string[] {
+    const outputs = new Set<string>();
+    const sources: string[] = [];
+    for (const step of this.appliedTransformationsSignal()) {
+      if (step.name === 'kmeans_cluster_creator' || step.name === 'pca_column_creator') {
+        for (const code of stepSourceVariables(step)) {
+          if (!outputs.has(code) && !sources.includes(code)) sources.push(code);
+        }
+      }
+      for (const name of stepOutputNames(step)) outputs.add(name);
+    }
+    return sources;
   }
 
   private normalizeParameterConfig(
@@ -1280,8 +1476,7 @@ export class ExperimentStudioService {
 
   private normalizePreprocessingConfig(value: unknown): PreprocessingConfig | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const preprocessing = value as PreprocessingConfig;
-    return Object.keys(preprocessing).length > 0 ? { ...preprocessing } : null;
+    return Object.keys(value as PreprocessingConfig).length > 0 ? { ...(value as PreprocessingConfig) } : null;
   }
 
   /** Keep only preprocessing entries for variables present in the algorithm input (y/x). */
@@ -1469,10 +1664,12 @@ export class ExperimentStudioService {
       .forEach((key) => {
         if (key === KMEANS_CLUSTER_CREATOR) {
           const creator = preprocessing[key] as {
-            code?: unknown;
+            new_column_names?: unknown;
             reusable_preprocessing?: { cluster_variables?: unknown };
           } | undefined;
-          const code = typeof creator?.code === 'string' ? creator.code.trim() : '';
+          const code = Array.isArray(creator?.new_column_names)
+            ? String(creator.new_column_names[0] ?? '').trim()
+            : '';
           const sources = creator?.reusable_preprocessing?.cluster_variables;
           const variables = (Array.isArray(sources) ? sources : [])
             .map((variable) => this.preprocessingVariableLabel(String(variable), labelMap));
@@ -1498,11 +1695,12 @@ export class ExperimentStudioService {
       if (!creator || typeof creator !== 'object') return [];
       const config = creator as {
         code?: unknown;
+        new_column_names?: unknown;
         rules?: Record<string, BackendFilter>;
         default_enumeration?: unknown;
       };
       const lines: string[] = [];
-      const code = String(config.code ?? '').trim();
+      const code = Array.isArray(config.new_column_names) ? String(config.new_column_names[0] ?? '').trim() : '';
       if (code) lines.push(this.preprocessingVariableLabel(code, labelMap));
       for (const [category, filter] of Object.entries(config.rules ?? {})) {
         const expression = formatFilterExpression(filter, { labelMap, enumMaps });
@@ -1875,14 +2073,16 @@ export class ExperimentStudioService {
         throw new Error('No algorithm config found for kmeans');
       }
       const algorithm = requestBody?.analysis?.algorithm ?? {};
+      // Add the drops to the run's own ordered steps: regrouping them by name would move a
+      // creator ahead of the creator whose column it reads.
+      const preprocessing = [...(requestBody?.analysis?.preprocessing ?? [])];
+      const codes = [...new Set(
+        variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
+      )];
+      this.addTransformationDrops(preprocessing, codes);
       requestBody.analysis = {
         ...requestBody.analysis,
-        preprocessing: this.preprocessingConfigToSteps(
-          this.ensureMissingValuesHandler(
-            this.preprocessingStepsToConfig(requestBody?.analysis?.preprocessing),
-            variableCodes,
-          ),
-        ),
+        preprocessing,
         algorithm: {
           ...algorithm,
           y: variableCodes,
@@ -2094,7 +2294,7 @@ export class ExperimentStudioService {
     const algoName = analysis.algorithm.name;
     const input = analysis.inputdata || {};
     const params = analysis.algorithm.parameters || {};
-    const preprocessing = this.preprocessingStepsToConfig(analysis.preprocessing);
+    const { singletons, transformations } = splitPreprocessingSteps(analysis.preprocessing ?? []);
     const filters = input.filters ?? null;
 
     // Selected datasets
@@ -2179,8 +2379,9 @@ export class ExperimentStudioService {
         });
         this.algorithmPreprocessingConfigurations.set({
           ...this.algorithmPreprocessingConfigurations(),
-          [APPLIED_DESCRIPTIVE_PREPROCESSING]: preprocessing,
+          [APPLIED_DESCRIPTIVE_PREPROCESSING]: Object.keys(singletons).length ? singletons : null,
         });
+        this.applyTransformations(transformations);
 
         this.setAlgorithm(algoConfig);
       });
@@ -2244,18 +2445,6 @@ export class ExperimentStudioService {
     };
 
     walk(logic);
-    return [...codes];
-  }
-
-  /** Codes of source CDEs referenced by the transformation rule filters. */
-  private collectTransformationFilterCodes(): string[] {
-    const codes = new Set<string>();
-    for (const creator of this.appliedCategoricalCreators()) {
-      const rules = (creator['rules'] ?? {}) as Record<string, BackendFilter>;
-      Object.values(rules).forEach((filter) => {
-        this.collectFilterVariableCodes(filter).forEach((code) => codes.add(code));
-      });
-    }
     return [...codes];
   }
 
@@ -2339,6 +2528,7 @@ export class ExperimentStudioService {
     this.selectedAlgorithm.set(null);
     this.algorithmConfigurations.set({});
     this.algorithmPreprocessingConfigurations.set({});
+    this.appliedTransformationsSignal.set([]);
     this.lastUsedAlgorithm.set(null);
 
     // execution step state (results are session-scoped, see hasRunStarted)
@@ -2366,6 +2556,7 @@ export class ExperimentStudioService {
     this.sessionStorage.removeItem('selectedAlgorithm');
     this.sessionStorage.removeItem('algorithmConfigurations');
     this.sessionStorage.removeItem('algorithmPreprocessingConfigurations');
+    this.sessionStorage.removeItem(APPLIED_TRANSFORMATIONS);
     this.sessionStorage.removeItem('filterLogic');
     this.sessionStorage.removeItem('lastUsedAlgorithm');
 

@@ -281,7 +281,7 @@ export function mapSpecificationsToAlgorithmConfigs(
       buildDocumentationLabelMap(step.parameters ?? {}),
     ),
     parameters: step.parameters ?? {},
-    output: step.output ?? null,
+    outputs: step.outputs ?? null,
   }));
 
   const sharedInputdata = normalizeInputData({

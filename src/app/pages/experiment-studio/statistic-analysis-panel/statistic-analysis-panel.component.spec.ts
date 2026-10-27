@@ -2293,7 +2293,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             }],
         };
         const transformation = {
-            code: 'mrs_good_outcome',
+            new_column_names: ['mrs_good_outcome'],
             strategy: 'filter_rules',
             rules: { good: filter },
             default_enumeration: 'unknown',
@@ -2328,7 +2328,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         const acs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'in', value: ['1', '2'], type: 'string' };
         const pcs: any = { id: 'clinical_sdr', field: 'clinical_sdr', operator: 'equal', value: '4', type: 'string' };
         const transformation = {
-            code: 'stroke_territory_cohort',
+            new_column_names: ['stroke_territory_cohort'],
             strategy: 'filter_rules',
             rules: { ACS: acs, PCS: pcs },
             default_enumeration: 'other_or_unknown',
@@ -2411,8 +2411,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             }],
         };
         const creators = [
-            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
-            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+            { new_column_names: ['group_a'], strategy: 'filter_rules', rules: { a: filter } },
+            { new_column_names: ['group_b'], strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
         ];
         const preprocessing = { categorical_column_creator: creators };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
@@ -2430,8 +2430,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.setTransformationPreprocessing.mockClear();
         component.onTransformationChange();
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
-            { code: 'group_a', strategy: 'filter_rules', rules: { a: filter } },
-            { code: 'group_b', strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
+            { new_column_names: ['group_a'], strategy: 'filter_rules', rules: { a: filter } },
+            { new_column_names: ['group_b'], strategy: 'filter_rules', rules: { b: filter }, default_enumeration: 'other' },
         ]);
     });
 
@@ -2570,7 +2570,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDrafts[1].open).toBe(true);
         expect(component.sectionOpen().transformation).toBe(true);
         const persisted = mockExpService.setTransformationPreprocessing.mock.lastCall![0];
-        expect(persisted).toEqual([expect.objectContaining({ code: 'group' })]);
+        expect(persisted).toEqual([expect.objectContaining({ new_column_names: ['group'] })]);
     });
 
     it('copies live category filters onto rules before preview and apply', () => {
@@ -2593,8 +2593,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.transformationDrafts[0].rules[0].filter).toBe(filter as any);
         expect(component.transformationDrafts[1].rules[0].filter).toBe(secondFilter as any);
         expect(mockExpService.setTransformationPreprocessing).toHaveBeenCalledWith([
-            expect.objectContaining({ code: 'mrs_good_outcome' }),
-            expect.objectContaining({ code: 'mrs_bad_outcome' }),
+            expect.objectContaining({ new_column_names: ['mrs_good_outcome'] }),
+            expect.objectContaining({ new_column_names: ['mrs_bad_outcome'] }),
         ]);
     });
 
@@ -3221,8 +3221,11 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         it('runs the applied K-means creator and shows the cluster column counts', () => {
             const creator = {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 2,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_variables: ['age', 'sex'],
                     cluster_choices: [
                         { cluster_id: 'cluster_0', label: 'Cluster 0' },
@@ -3462,7 +3465,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             const body = workflowSection('Transformation').querySelector('.workflow-section-body');
             expect(body?.classList.contains('open')).toBe(true);
             expect(mockExpService.setTransformationPreprocessing.mock.lastCall![0])
-                .toEqual([expect.objectContaining({ code: 'group_a' })]);
+                .toEqual([expect.objectContaining({ new_column_names: ['group_a'] })]);
         });
 
         it('loads category counts once every started card is complete', () => {
@@ -3489,7 +3492,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
                 expect.objectContaining({
-                    categorical_column_creator: [expect.objectContaining({ code: 'group_a' })],
+                    categorical_column_creator: [expect.objectContaining({ new_column_names: ['group_a'] })],
                 }),
                 ['age']
             );

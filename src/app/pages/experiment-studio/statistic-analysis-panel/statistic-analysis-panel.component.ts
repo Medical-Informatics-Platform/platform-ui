@@ -649,8 +649,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.transformationStatusLabel === 'Applied' ? 'applied' : 'pending';
     const nodes: PipelineSubNode[] = [];
     creators.forEach((raw, index) => {
-      const creator = raw as { code?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown };
-      const code = String(creator?.code ?? '').trim();
+      const creator = raw as { new_column_names?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown };
+      const code = String((creator?.new_column_names as unknown[] | undefined)?.[0] ?? '').trim();
       if (!code) return;
       const ruleCount = Object.keys(creator?.rules ?? {}).length;
       const fallback = String(creator?.default_enumeration ?? '').trim();
@@ -666,11 +666,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
     if (clusterCreator) {
+      const columnCode = clusterCreator.new_column_names[0];
       const variables = clusterCreator.reusable_preprocessing.cluster_variables ?? [];
       nodes.push({
-        id: `transformation:kmeans:${clusterCreator.code}`,
+        id: `transformation:kmeans:${columnCode}`,
         icon: 'fas fa-diagram-project',
-        title: `K-means clusters: ${clusterCreator.code}`,
+        title: `K-means clusters: ${columnCode}`,
         subtitle: `${clusterCreator.reusable_preprocessing.cluster_choices.length} clusters from ${variables.join(', ')}`,
         statusLabel: 'Applied',
         statusTone: 'applied',
@@ -3726,8 +3727,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       if (value && r.filter) rules[value] = r.filter;
     }
     if (!Object.keys(rules).length) return null;
+    // Exaflow names the created column with `new_column_names`; the draft keeps `code` as the
+    // editable UI name only. The emitted creator parameters never carry a `code` key.
     const config: Record<string, unknown> = {
-      code,
+      new_column_names: [code],
       strategy: 'filter_rules',
       rules,
     };
@@ -3745,7 +3748,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const seen = new Set<string>();
     const configs: Record<string, unknown>[] = [];
     for (const config of this.transformationConfigs()) {
-      const code = String(config['code'] ?? '').trim();
+      // The emitted creator names its column with `new_column_names`; dedup keys on that.
+      const code = String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
       if (code) {
         if (seen.has(code)) continue;
         seen.add(code);
@@ -3773,7 +3777,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationStatsRequestId++;
     this.isTransformationStatsLoading = false;
     this.transformationStatisticsError = '';
-    const clusterCode = String(this.expStudioService.appliedKMeansClusterCreator()?.code ?? '').trim();
+    const clusterCode = String(this.expStudioService.appliedKMeansClusterCreator()?.new_column_names[0] ?? '').trim();
     this.transformationStatistics = this.transformationStatistics.filter((block) => block.code === clusterCode);
   }
 
@@ -3813,7 +3817,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * sentence, in the same shape as the categorical column card.
    */
   showsRuleColumnCounts(): boolean {
-    const clusterCode = this.expStudioService.appliedKMeansClusterCreator()?.code?.trim();
+    const clusterCode = this.expStudioService.appliedKMeansClusterCreator()?.new_column_names[0]?.trim();
     return this.transformationStatistics.some((block) => block.code !== clusterCode);
   }
 
@@ -3828,7 +3832,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     rules: Record<string, string>;
   } | null {
     const creator = this.expStudioService.appliedKMeansClusterCreator();
-    const columnCode = creator?.code?.trim() ?? '';
+    const columnCode = creator?.new_column_names[0]?.trim() ?? '';
     if (!creator || columnCode !== code.trim()) return null;
 
     const sources = creator.reusable_preprocessing.cluster_variables ?? [];
@@ -3861,7 +3865,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     // One stats table per derived column (categorical cards and the applied K-means
     // cluster column); counts come from a single describe over all of them.
     const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
-    const clusterCode = String(clusterCreator?.code ?? '').trim();
+    const clusterCode = String(clusterCreator?.new_column_names[0] ?? '').trim();
     const clusterValues = (clusterCreator?.reusable_preprocessing.cluster_choices ?? []).map(
       (choice) => choice.cluster_id
     );
@@ -3887,7 +3891,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
 
     const columnCodes = [
-      ...configs.map((config) => String(config['code'] ?? '').trim()).filter(Boolean),
+      ...configs.map((config) => String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim()).filter(Boolean),
       ...(clusterCode ? [clusterCode] : []),
     ];
     const columnSet = new Set(columnCodes);
@@ -3952,7 +3956,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           }
           this.transformationStatistics = [
             ...configs.map((config) => {
-              const code = String(config['code'] ?? '').trim();
+              const code = String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
               const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
               const def = String(config['default_enumeration'] ?? '').trim();
               return {
@@ -4309,14 +4313,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
   private draftFromCreatorConfig(creator: {
-    code?: unknown;
+    new_column_names?: unknown;
     rules?: Record<string, CategoryFilter>;
     default_enumeration?: unknown;
   }): TransformationColumnDraft {
     const rules = creator.rules ?? {};
+    const code = Array.isArray(creator.new_column_names) ? String(creator.new_column_names[0] ?? '').trim() : '';
     return {
       id: ++transformationDraftSeq,
-      code: creator.code == null ? '' : String(creator.code),
+      code,
       defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
       rules: Object.entries(rules).map(([value, filter]) => ({
         value,

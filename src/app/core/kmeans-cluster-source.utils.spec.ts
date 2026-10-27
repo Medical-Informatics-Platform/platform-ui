@@ -128,7 +128,7 @@ describe('kmeans-cluster-source.utils', () => {
   describe('extractReusablePreprocessing', () => {
     it('returns the preprocessing of a privacy_safe_cluster_report result', () => {
       const reusable = {
-        schema_version: '1',
+        enumeration_prefix: 'cluster_',
         preprocessing_name: KMEANS_CLUSTER_CREATOR,
         cluster_variables: ['age', 'sex'],
         centers: { '0': { age: 61.5, sex: 1 } },
@@ -151,7 +151,7 @@ describe('kmeans-cluster-source.utils', () => {
 
     it('rejects a different report type even when the preprocessing block looks reusable', () => {
       const reusable = {
-        schema_version: '1',
+        enumeration_prefix: 'cluster_',
         preprocessing_name: KMEANS_CLUSTER_CREATOR,
         cluster_variables: ['age'],
         centers: { '0': { age: 61.5 } },
@@ -174,7 +174,7 @@ describe('kmeans-cluster-source.utils', () => {
 
     it('finds the reusable block in nested transient envelopes', () => {
       const reusable = {
-        schema_version: '1',
+        enumeration_prefix: 'cluster_',
         preprocessing_name: KMEANS_CLUSTER_CREATOR,
         cluster_variables: ['age'],
         centers: { c1: { age: 40 } },
