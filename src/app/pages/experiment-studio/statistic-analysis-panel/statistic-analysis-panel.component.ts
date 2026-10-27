@@ -1006,7 +1006,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   /** "How to use" strip copy per expanded stage; K-means is projected into its card. */
-  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans', { steps: string[]; note: string }> = {
+  readonly howTo: Record<'source' | 'filters' | 'setup' | 'transformation' | 'kmeans' | 'pca', { steps: string[]; note: string }> = {
     source: {
       steps: ['Pick a variable on the left', 'Switch between Table, Charts and Histogram', 'Note gaps or odd ranges — fix them in the steps below'],
       note: 'Read only — this preview never changes the data or the run.',
@@ -1020,12 +1020,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       note: "Variables you don't touch keep the default: rows with a missing value are removed.",
     },
     transformation: {
-      steps: ['Choose the kind of column to add', 'Define it — category rules or a K-means run', 'Done on a rule loads its counts, then Apply'],
+      steps: ['Choose the kind of column to add', 'Define it — category rules, or a K-means or PCA run', 'Done on a rule loads its counts, then Apply'],
       note: 'The new column joins your variable list, so you can pick it as an outcome or predictor in Algorithm Selection.',
     },
     kmeans: {
       steps: ['Choose the variables to group by', 'Run the K-means report and check the clusters', 'Name the column and use it'],
       note: 'Rows missing any chosen variable are left out. A finished K-means run can be reused if it used the same data model, datasets and filters.',
+    },
+    pca: {
+      steps: ['Choose the variables to combine', 'Run the PCA report and pick the components', 'Name the columns and add them'],
+      note: 'No saved PCA experiment is needed. Rows missing any chosen variable are left out. A finished PCA run can be reused if it used the same data model, datasets and filters.',
     },
   };
 

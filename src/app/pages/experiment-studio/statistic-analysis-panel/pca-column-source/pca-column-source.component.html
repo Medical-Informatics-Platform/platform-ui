@@ -57,7 +57,52 @@
   @if (loading()) {
   <p class="pca-column-source-note">Loading PCA experiments…</p>
   }
-  @if (!loading()) {
+  @if (!loading() && compatible().length === 0) {
+  <!-- No reusable run: same as the K-means card, run a PCA report here and use its components. -->
+  <div class="pca-step">
+    <div class="pca-step-head">
+      <span class="pca-step-number">1</span>Choose at least two numerical variables
+      @if (recipeFromReport()) {
+      <span class="pca-step-meta">
+        {{ availableComponents().length }} components@if (reportObservations() !== null) { · {{ reportObservations() }} records}
+      </span>
+      }
+    </div>
+
+    @if (numericVariables().length === 0) {
+    <p class="pca-column-source-note">No numerical variables in this experiment yet.</p>
+    } @else {
+    <div class="pca-column-source-vars">
+      @for (variable of numericVariables(); track variable.code) {
+      <button type="button" class="pca-column-source-var"
+              [class.is-selected]="runSelectedCodes().includes(variable.code)"
+              [attr.aria-pressed]="runSelectedCodes().includes(variable.code)"
+              (click)="toggleRunVariable(variable.code)">
+        <i class="fas" [class.fa-check]="runSelectedCodes().includes(variable.code)" [class.fa-plus]="!runSelectedCodes().includes(variable.code)" aria-hidden="true"></i>
+        {{ variable.label || variable.code }}
+      </button>
+      }
+    </div>
+    }
+
+    <div class="pca-step-run">
+      <button type="button" class="pca-column-source-apply"
+              [disabled]="runLoading() || runSelectedCodes().length < 2"
+              (click)="runReport()">
+        <i class="fas fa-play" aria-hidden="true"></i>
+        {{ runLoading() ? 'Running PCA…' : 'Run PCA report' }}
+      </button>
+      <span class="pca-column-source-note">
+        {{ runLoading() ? 'Waiting for every node to answer…' : 'Uses your current datasets and filters.' }}
+      </span>
+    </div>
+
+    @if (runError()) {
+    <p class="pca-column-source-error">{{ runError() }}</p>
+    }
+  </div>
+  }
+  @if (!loading() && compatible().length > 0) {
   <div class="pca-column-source-field">
     <label for="pca-column-source-experiment">PCA experiment</label>
     <select
@@ -71,19 +116,19 @@
       </option>
       }
     </select>
-    @if (hiddenCount() > 0) {
-    <p class="pca-column-source-note">
-      {{ hiddenCount() }} PCA experiment{{ hiddenCount() === 1 ? '' : 's' }} hidden — different data model, datasets or filters.
-    </p>
-    }
   </div>
+  }
+  @if (!loading() && hiddenCount() > 0) {
+  <p class="pca-column-source-note">
+    {{ hiddenCount() }} PCA experiment{{ hiddenCount() === 1 ? '' : 's' }} hidden — different data model, datasets or filters.
+  </p>
   }
   }
 
   @if (availableComponents().length) {
   <div class="pca-step">
     <div class="pca-step-head">
-      <span class="pca-step-number">{{ sourceMode() === 'fit' ? '2' : '1' }}</span>Select components
+      <span class="pca-step-number">{{ componentsStepNumber() }}</span>Select components
     </div>
     <div class="pca-column-source-vars">
       @for (choice of availableComponents(); track choice.component_id) {
@@ -103,7 +148,7 @@
 
   <div class="pca-step">
     <div class="pca-step-head">
-      <span class="pca-step-number">{{ sourceMode() === 'fit' ? '3' : '2' }}</span>Name the new columns
+      <span class="pca-step-number">{{ componentsStepNumber() + 1 }}</span>Name the new columns
     </div>
     <div class="pca-column-source-field">
       <label for="pca-column-source-prefix">Name prefix</label>
@@ -134,10 +179,6 @@
   </button>
   } @else if (error()) {
   <p class="pca-column-source-error">{{ error() }}</p>
-  } @else if (sourceMode() === 'result' && !loading() && compatible().length === 0) {
-  <p class="pca-column-source-note">
-    No finished PCA run matches this data model, datasets and filters. Run PCA first, or fit on selected variables.
-  </p>
   }
   }
 </section>
