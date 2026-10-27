@@ -115,7 +115,7 @@ This document describes what the frontend currently renders for each algorithm a
   - Cluster profiles table (compactness, profile, interpretation).
   - Notes table (privacy, center definition, warnings, limitations, intended use).
 
-### PCA (`pca`, `pca_with_transformation`)
+### PCA (`pca`)
 
 - Charts:
   - Eigenvector heatmap.

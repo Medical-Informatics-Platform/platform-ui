@@ -73,7 +73,6 @@ export const AlgorithmChartRegistry: Record<string, AlgorithmChartConfig> = {
   // The pairs table keeps r: it is sorted by strength, and the value it is sorted by belongs in it.
   pearson_correlation: { build: buildMatrixChart, title: 'Correlation matrix' },
   pca: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: PCA_REPLACES },
-  pca_with_transformation: { build: buildPCAHeatmapChart, title: 'Principal components', replaces: PCA_REPLACES },
   anova_oneway: { build: buildMeanPlotChart, title: 'Group means' },
   linear_svm: { build: buildSVMChart, title: 'Model weights' },
   describe: { build: buildBoxPlotChart, title: 'Distributions' },

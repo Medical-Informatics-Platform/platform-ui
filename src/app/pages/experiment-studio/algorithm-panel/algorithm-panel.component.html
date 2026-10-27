@@ -281,54 +281,6 @@
             }
             }
 
-            @if (canToggleTransformation()) {
-            <div class="config-option-row">
-              <div class="config-option-copy">
-                <span class="config-option-label">Data transformations</span>
-                <span class="config-option-hint">Optional. Pick a single transformation per variable.</span>
-              </div>
-              <label class="toggle-switch">
-                <input type="checkbox" [checked]="transformationEnabled()" (change)="toggleTransformation($event)" />
-                <span class="toggle-slider" aria-hidden="true"></span>
-                <span class="sr-only">Data transformations</span>
-              </label>
-            </div>
-
-            @if (transformationEnabled()) {
-            @if (!selectedVariables.length) {
-            <p class="transformation-empty">Select variables to configure transformations.</p>
-            } @else {
-            <div class="transformation-options">
-              @if (selectedVariables.length > 6) {
-              <div class="transformation-set-all">
-                <span class="transformation-row-label">Set all</span>
-                <div class="modal-tabs transformation-tray" role="group" aria-label="Set all transformations">
-                  @for (choice of transformationOptions; track choice.value) {
-                  <button type="button" [class.active]="isAllTransformation(choice.value)"
-                    (click)="setAllTransformationAssignments(choice.value)">{{ choice.label }}</button>
-                  }
-                </div>
-              </div>
-              }
-              @for (v of selectedVariables; track v.code) {
-              <div class="transformation-row">
-                <span class="transformation-row-label">{{ v.label || v.name || v.code }}</span>
-                <div class="modal-tabs transformation-tray" role="group"
-                  [attr.aria-label]="'Transformation for ' + (v.label || v.name || v.code)">
-                  @for (choice of transformationOptions; track choice.value) {
-                  <button type="button"
-                    [class.active]="getTransformationAssignment(v.code) === choice.value"
-                    [attr.aria-pressed]="getTransformationAssignment(v.code) === choice.value"
-                    (click)="setTransformationAssignment(v.code, choice.value)">{{ choice.label }}</button>
-                  }
-                </div>
-              </div>
-              }
-            </div>
-            }
-            }
-            }
-
             @if (!hasAlgorithmParameterControls()) {
             <div class="config-placeholder config-placeholder--minimal">
               <div class="config-placeholder-content">
