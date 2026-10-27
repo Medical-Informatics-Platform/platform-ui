@@ -99,7 +99,6 @@ export class ExperimentSetupSummaryComponent {
   /**
    * Parameters as they were configured for this run, labelled from the algorithm schema.
    * A parameter left unset runs with its schema default, so that value is listed.
-   * `data_transformation` is reported under Data handling instead, where the rule belongs.
    */
   readonly parameters = computed<SetupDetailRow[]>(() => {
     const setup = this.setup();
@@ -109,7 +108,6 @@ export class ExperimentSetupSummaryComponent {
     const configured = Object.entries(setup.parameters)
       .filter(([, value]) => formatAlgorithmParameterValue(value) !== '');
     return Object.entries({ ...parameterDefaultsFromSchema(schema), ...Object.fromEntries(configured) })
-      .filter(([key]) => key !== 'data_transformation')
       .map(([key, value]) => {
         const field = schema.find((entry: any) => String(entry?.key) === key);
         return {

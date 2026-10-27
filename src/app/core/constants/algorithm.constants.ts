@@ -4,7 +4,6 @@ export const AlgorithmNames = {
     ANOVA_TWOWAY: 'anova_twoway',
     TTEST_ONESAMPLE: 'ttest_onesample',
     PCA: 'pca',
-    PCA_WITH_TRANSFORMATION: 'pca_with_transformation',
     HISTOGRAM: 'histogram',
     DESCRIBE: 'describe',
     QUARTILES: 'quartiles',

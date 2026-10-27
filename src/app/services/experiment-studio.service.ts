@@ -286,17 +286,6 @@ export class ExperimentStudioService {
     return acc;
   }, {} as Record<string, string>);
 
-  private readonly transformationVariants: Record<string, string> = {
-    pca: 'pca_with_transformation',
-  };
-
-  private readonly transformationBases: Record<string, string> = Object.entries(
-    this.transformationVariants
-  ).reduce((acc, [base, variant]) => {
-    acc[variant] = base;
-    return acc;
-  }, {} as Record<string, string>);
-
   /** The specifications request, made once. Edit hydration waits on it before it resolves the saved algorithm. */
   private readonly catalogLoaded$ = this.loadBackendAlgorithms().pipe(shareReplay(1));
 
@@ -1005,25 +994,6 @@ export class ExperimentStudioService {
     return !!base && !this.backendAlgorithms()[base];
   }
 
-  getTransformationVariant(baseName: string): string | null {
-    return this.transformationVariants[baseName] ?? null;
-  }
-
-  getTransformationBase(name: string): string | null {
-    if (this.transformationBases[name]) return this.transformationBases[name];
-    if (name.endsWith('_with_transformation')) {
-      return name.replace('_with_transformation', '');
-    }
-    return null;
-  }
-
-  isTransformationAlgorithm(name: string): boolean {
-    return (
-      name in this.transformationBases ||
-      name.endsWith('_with_transformation')
-    );
-  }
-
   availableGroupedAlgorithms = computed(() => {
     // Explicitly read role signals to establish reactive dependencies.
     this.algorithmY();
@@ -1036,7 +1006,6 @@ export class ExperimentStudioService {
         const base = this.getCrossValidationBase(algo.name);
         return !base || !this.backendAlgorithms()[base];
       })
-      .filter(algo => !this.isTransformationAlgorithm(algo.name))
       .reduce((acc, algo) => {
         const cat = algo.category || 'Other';
         if (!acc[cat]) acc[cat] = [];
