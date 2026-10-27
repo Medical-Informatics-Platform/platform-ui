@@ -1520,19 +1520,48 @@
                  pipeline connector, ending in the type chooser. Unchosen blank drafts stay
                  off screen; they hold no rules, so the #ruleModal order is unaffected. -->
             <div class="transformation-graph">
-              @for (draft of transformationDrafts; track draft.id) {
-              @if (isDraftShown(draft)) {
+              @for (step of cards(); track step.id) {
+              <div class="transformation-card-wrap" [attr.data-step-id]="step.id">
+              @if (!isCreatorAvailable(step.name) || step.name === 'pca_column_creator') {
+              <app-station-card
+                collapsible
+                [icon]="creatorChooserCopy(step.name).icon"
+                [title]="stepTitle(step)"
+                description="This column creator is not available on this deployment."
+                [statusLabel]="stepStatus(step).label"
+                [status]="stepStatus(step).tone"
+                [open]="isCardOpen(step.id)"
+                (openChange)="toggleCardOpen(step.id, $event)">
+                <button
+                  type="button"
+                  class="btn-remove-step-node"
+                  stationAction
+                  [disabled]="!canRemoveTransformation(step.id)"
+                  [title]="removeTransformationTooltip(step.id)"
+                  (click)="removeTransformationDraft(step.id)">
+                  <i class="fas fa-trash-can" aria-hidden="true"></i>
+                  <span>Remove column</span>
+                </button>
+                <p class="glass-feedback glass-feedback-warning">Not available on this deployment</p>
+              </app-station-card>
+              } @else if (step.name === 'categorical_column_creator') {
+              @if (draftForStep(step.id); as draft) {
               <app-station-card
                 collapsible
                 icon="fas fa-square-plus"
-                [title]="draft.code.trim() ? ('Nominal column · ' + draft.code.trim()) : 'Nominal column'"
+                [title]="stepTitle(step)"
                 description="Each record gets the first category whose rule it matches."
                 [statusLabel]="transformationDraftStatus(draft).label"
                 [status]="transformationDraftStatus(draft).tone"
                 [open]="draft.open"
                 (openChange)="toggleTransformationDraft(draft)">
-                <!-- Projected next to the status chip, matching the optional Outlier Handling card. -->
-                <button type="button" class="btn-remove-step-node" stationAction (click)="removeTransformationDraft(draft.id)">
+                <button
+                  type="button"
+                  class="btn-remove-step-node"
+                  stationAction
+                  [disabled]="!canRemoveTransformation(step.id)"
+                  [title]="removeTransformationTooltip(step.id)"
+                  (click)="removeTransformationDraft(draft.id)">
                   <i class="fas fa-trash-can" aria-hidden="true"></i>
                   <span>Remove column</span>
                 </button>
@@ -1553,8 +1582,6 @@
                 </div>
                 }
                 }
-                <!-- Numbered like the stage's "How to use" strip: name, categories, preview + apply.
-                     Hidden, never destroyed, while previewing: its rule builders keep their state. -->
                 <div class="transformation-create">
                   <section class="column-step">
                     <label class="column-step-head" [attr.for]="'transformation-code-' + draft.id">
@@ -1562,7 +1589,11 @@
                     </label>
                     <div class="transformation-name-row">
                       <input [id]="'transformation-code-' + draft.id" class="transformation-code-input" type="text" [ngModel]="draft.code" (ngModelChange)="draft.code = $event; onTransformationInput()" placeholder="e.g. mrs_good_outcome" />
+                      @if (columnNameError(draft.id, draft.code); as nameError) {
+                      <span class="transformation-hint transformation-hint-error">{{ nameError }}</span>
+                      } @else {
                       <span class="transformation-hint">Lowercase letters, digits and _ only</span>
+                      }
                     </div>
                   </section>
 
@@ -1577,9 +1608,6 @@
                         }
                       </span>
                     </div>
-                  <!-- Collapsed rows by default. Editing one rule focuses the table on it: the other
-                       rows fold away (hidden, never destroyed — #ruleModal order is positional) and
-                       Done brings the whole list back. -->
                   <div class="transformation-rules" [class.is-focused]="draft.openRuleIndex != null">
                     <div class="transformation-rule-head">
                       <span></span>
@@ -1635,7 +1663,6 @@
                         </div>
                       </div>
                       }
-                      <!-- Ghost row: the next category slots in above the fallback. -->
                       <button type="button" class="transformation-add-category" (click)="addTransformationRule(draft)">
                         <i class="fas fa-plus" aria-hidden="true"></i>
                         <span>{{ draft.rules.length ? 'Add category' : 'Add the first category, then define the rule that selects its records' }}</span>
@@ -1672,36 +1699,72 @@
                   (apply)="commitTransformationDraft(draft)"
                 ></app-station-action-bar>
               </app-station-card>
+              }
+              } @else if (step.name === 'kmeans_cluster_creator') {
+              <app-station-card
+                collapsible
+                icon="fas fa-diagram-project"
+                [title]="stepTitle(step)"
+                description="Group records by similarity, then use the cluster as a nominal variable."
+                [statusLabel]="stepStatus(step).label"
+                [status]="stepStatus(step).tone"
+                [open]="isCardOpen(step.id)"
+                (openChange)="toggleCardOpen(step.id, $event)">
+                <button
+                  type="button"
+                  class="btn-remove-step-node"
+                  stationAction
+                  [disabled]="!canRemoveTransformation(step.id)"
+                  [title]="removeTransformationTooltip(step.id)"
+                  (click)="removeTransformationDraft(step.id)">
+                  <i class="fas fa-trash-can" aria-hidden="true"></i>
+                  <span>Remove column</span>
+                </button>
+                @if (!stepOutputNames(step).length) {
+                <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.kmeans }"></ng-container>
+                }
+                @if (previewDraftId === step.id) {
+                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: stepOutputNames(step)[0] ?? '' }"></ng-container>
+                }
+                <app-kmeans-cluster-source
+                  [stepId]="step.id"
+                  [columnNameError]="kmeansColumnNameError"
+                  [class.is-previewing]="previewDraftId === step.id"
+                  (runRequested)="previewTransformationCard(step.id)"
+                />
+                @if (stepOutputNames(step).length) {
+                <app-station-action-bar
+                  stationFooter
+                  flush
+                  tone="applied"
+                  [previewLabel]="previewDraftId === step.id ? 'Back to column' : 'Preview cluster counts'"
+                  applyLabel="Close"
+                  applyIcon="fas fa-times"
+                  applyVariant="quiet"
+                  (preview)="toggleTransformationPreview()"
+                  (apply)="closeTransformationPreview(); toggleCardOpen(step.id, false)"
+                ></app-station-action-bar>
+                }
+              </app-station-card>
+              }
+              </div>
               <div class="pipeline-connector" aria-hidden="true">
                 <div class="pipeline-connector-line"></div>
                 <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
               </div>
               }
-              }
-              <!-- Above the K-means station: a new nominal draft renders right here, in view,
-                   instead of appearing above a tall K-means card the user is looking past. -->
               <div class="transformation-chooser">
                 @if (transformationChooserOnly) {
                 <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
                 }
                 <div role="list" aria-label="Kinds of derived column">
+                  @for (kind of chooserCreators(); track kind) {
                   <div class="pipeline-subnode-item is-ghost" role="listitem">
-                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('categorical')">
-                      <i class="fas fa-tags" aria-hidden="true"></i>
+                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation(kind)">
+                      <i [class]="creatorChooserCopy(kind).icon" aria-hidden="true"></i>
                       <span class="pipeline-subnode-text">
-                        <span class="pipeline-subnode-title">Nominal column from rules</span>
-                        <span class="pipeline-subnode-subtitle">Name categories and pick each one's records with a filter — e.g. MMSE below 24 → ‘impaired’</span>
-                      </span>
-                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  @if (!kmeansCardShown) {
-                  <div class="pipeline-subnode-item is-ghost" role="listitem">
-                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation('kmeans')">
-                      <i class="fas fa-diagram-project" aria-hidden="true"></i>
-                      <span class="pipeline-subnode-text">
-                        <span class="pipeline-subnode-title">K-means cluster column</span>
-                        <span class="pipeline-subnode-subtitle">Group records by similarity and use the cluster as a nominal variable</span>
+                        <span class="pipeline-subnode-title">{{ creatorChooserCopy(kind).title }}</span>
+                        <span class="pipeline-subnode-subtitle">{{ creatorChooserCopy(kind).subtitle }}</span>
                       </span>
                       <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
                     </button>
@@ -1709,44 +1772,6 @@
                   }
                 </div>
               </div>
-              <!-- Own station, not a categorical draft: it derives a column from a fitted
-                   K-means run instead of building categories. -->
-              @if (kmeansCardShown) {
-              <div class="pipeline-connector" aria-hidden="true">
-                <div class="pipeline-connector-line"></div>
-                <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
-              </div>
-              <app-station-card
-                collapsible
-                icon="fas fa-diagram-project"
-                title="K-means cluster column"
-                description="Group records by similarity, then use the cluster as a nominal variable."
-                [statusLabel]="kmeansClusterStatusLabel"
-                [status]="kmeansClusterStatusLabel === 'Applied' ? 'applied' : 'default'"
-                [open]="kmeansClusterCardOpen()"
-                (openChange)="kmeansClusterCardOpen.set($event)">
-                @if (!expStudioService.appliedKMeansClusterCreator()) {
-                <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.kmeans }"></ng-container>
-                }
-                @if (previewDraftId === 'kmeans') {
-                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.new_column_names[0] ?? '' }"></ng-container>
-                }
-                <app-kmeans-cluster-source [class.is-previewing]="previewDraftId === 'kmeans'" (runRequested)="previewTransformationCard()" />
-                @if (expStudioService.appliedKMeansClusterCreator()) {
-                <app-station-action-bar
-                  stationFooter
-                  flush
-                  tone="applied"
-                  [previewLabel]="previewDraftId === 'kmeans' ? 'Back to column' : 'Preview cluster counts'"
-                  applyLabel="Close"
-                  applyIcon="fas fa-times"
-                  applyVariant="quiet"
-                  (preview)="toggleTransformationPreview()"
-                  (apply)="closeTransformationPreview(); kmeansClusterCardOpen.set(false)"
-                ></app-station-action-bar>
-                }
-              </app-station-card>
-              }
             </div>
             </div>
           </div>

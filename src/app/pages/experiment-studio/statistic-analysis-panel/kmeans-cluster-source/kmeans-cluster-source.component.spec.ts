@@ -53,11 +53,15 @@ describe('KMeansClusterSourceComponent', () => {
   let component: KMeansClusterSourceComponent;
   let studio: {
     selectedVariables: Mock;
+    algorithmAssignableVariables: Mock;
     getActiveDataModelCode: Mock;
     requestDatasets: Mock;
     requestFilters: Mock;
     appliedKMeansClusterCreator: Mock;
     setKMeansClusterPreprocessing: Mock;
+    appliedTransformations: ReturnType<typeof signal<any[]>>;
+    upsertTransformation: Mock;
+    removeTransformation: Mock;
     loadKMeansReport: Mock;
     backendAlgorithms: ReturnType<typeof signal<Record<string, { configSchema?: unknown[] }>>>;
   };
@@ -73,11 +77,23 @@ describe('KMeansClusterSourceComponent', () => {
   beforeEach(async () => {
     studio = {
       selectedVariables: vi.fn().mockReturnValue([]),
+      algorithmAssignableVariables: vi.fn().mockReturnValue([]),
       getActiveDataModelCode: vi.fn().mockReturnValue(CONTEXT.dataModel),
       requestDatasets: vi.fn().mockReturnValue(CONTEXT.datasets),
       requestFilters: vi.fn().mockReturnValue(CONTEXT.filters),
       appliedKMeansClusterCreator: vi.fn().mockReturnValue(null),
       setKMeansClusterPreprocessing: vi.fn(),
+      appliedTransformations: signal([] as any[]),
+      upsertTransformation: vi.fn((step: any) => {
+        const current = studio.appliedTransformations();
+        const index = current.findIndex((existing) => existing.id === step.id);
+        studio.appliedTransformations.set(
+          index === -1 ? [...current, step] : current.map((existing, i) => (i === index ? step : existing)),
+        );
+      }),
+      removeTransformation: vi.fn((id: string) => {
+        studio.appliedTransformations.set(studio.appliedTransformations().filter((step) => step.id !== id));
+      }),
       loadKMeansReport: vi.fn().mockReturnValue(of({})),
       backendAlgorithms: signal({}),
     };
@@ -96,6 +112,7 @@ describe('KMeansClusterSourceComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(KMeansClusterSourceComponent);
+    fixture.componentRef.setInput('stepId', 'kmeans-step-1');
     component = fixture.componentInstance;
   });
 
@@ -126,11 +143,15 @@ describe('KMeansClusterSourceComponent', () => {
 
     component.apply();
 
-    expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith({
-      new_column_names: ['kmeans_cluster'],
-      k: 2,
-      enumeration_prefix: 'cluster_',
-      reusable_preprocessing: reusable(),
+    expect(studio.upsertTransformation).toHaveBeenCalledWith({
+      id: 'kmeans-step-1',
+      name: 'kmeans_cluster_creator',
+      parameters: {
+        new_column_names: ['kmeans_cluster'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+        reusable_preprocessing: reusable(),
+      },
     });
     expect(component.error()).toBeNull();
   });
@@ -146,7 +167,7 @@ describe('KMeansClusterSourceComponent', () => {
     expect(component.error()).toBe(
       'This K-means result cannot be reused. Re-run the K-means experiment and try again.',
     );
-    expect(studio.setKMeansClusterPreprocessing).not.toHaveBeenCalled();
+    expect(studio.upsertTransformation).not.toHaveBeenCalled();
   });
 
   it('apply() rejects a column name that is not an identifier', () => {
@@ -161,15 +182,44 @@ describe('KMeansClusterSourceComponent', () => {
       'Use letters, digits and underscores, starting with a letter or underscore.',
     );
     expect(dashboard.getExperimentResult).not.toHaveBeenCalled();
-    expect(studio.setKMeansClusterPreprocessing).not.toHaveBeenCalled();
+    expect(studio.upsertTransformation).not.toHaveBeenCalled();
+  });
+
+  it('apply() and useReport() refuse a colliding column name without upserting', () => {
+    dashboard.listKMeansExperiments.mockReturnValue(of([kmeansExperiment('a')]));
+    fixture.componentRef.setInput('columnNameError', () => 'Name already used');
+    fixture.detectChanges();
+    component.selectedUuid.set('a');
+    dashboard.getExperimentResult.mockReturnValue(of({ result: { reusable_preprocessing: reusable() } }));
+
+    component.apply();
+
+    expect(component.error()).toBe('Name already used');
+    expect(studio.upsertTransformation).not.toHaveBeenCalled();
+
+    studio.upsertTransformation.mockClear();
+    component.reportReusable.set(reusable());
+    component.useReport();
+
+    expect(component.runError()).toBe('Name already used');
+    expect(studio.upsertTransformation).not.toHaveBeenCalled();
   });
 
   it('remove() drops the applied cluster column', () => {
-    studio.appliedKMeansClusterCreator.mockReturnValue({ code: 'kmeans_cluster', reusable_preprocessing: reusable() });
+    studio.appliedTransformations.set([{
+      id: 'kmeans-step-1',
+      name: 'kmeans_cluster_creator',
+      parameters: {
+        new_column_names: ['kmeans_cluster'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+        reusable_preprocessing: reusable(),
+      },
+    }]);
 
     component.remove();
 
-    expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith(null);
+    expect(studio.removeTransformation).toHaveBeenCalledWith('kmeans-step-1');
   });
 
   it('asks the stage to run the creator once the column is applied', () => {
@@ -226,11 +276,15 @@ describe('KMeansClusterSourceComponent', () => {
     expect(component.reportReusable()).toBe(reusablePreprocessing);
 
     component.useReport();
-    expect(studio.setKMeansClusterPreprocessing).toHaveBeenCalledWith({
-      new_column_names: ['kmeans_cluster'],
-      k: 2,
-      enumeration_prefix: 'cluster_',
-      reusable_preprocessing: reusablePreprocessing,
+    expect(studio.upsertTransformation).toHaveBeenCalledWith({
+      id: 'kmeans-step-1',
+      name: 'kmeans_cluster_creator',
+      parameters: {
+        new_column_names: ['kmeans_cluster'],
+        k: 2,
+        enumeration_prefix: 'cluster_',
+        reusable_preprocessing: reusablePreprocessing,
+      },
     });
   });
 
@@ -301,5 +355,104 @@ describe('KMeansClusterSourceComponent', () => {
 
     fixture.detectChanges();
     expect(html().querySelectorAll('.kmeans-cluster-report-bar > span').length).toBe(2);
+  });
+
+  it('setSourceMode clears parameterDraft and runExcludedCodes', () => {
+    (component as any).parameterDraft.set({ k: '5', maxiter: '50' });
+    (component as any).runExcludedCodes.set(new Set(['age']));
+
+    component.setSourceMode('fit');
+
+    expect((component as any).parameterDraft()).toEqual({});
+    expect((component as any).runExcludedCodes().size).toBe(0);
+    expect(component.sourceMode()).toBe('fit');
+  });
+
+  it('fit mode stores variables without reusable_preprocessing', () => {
+    studio.selectedVariables.mockReturnValue([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'bmi', label: 'BMI', type: 'real' },
+    ]);
+    studio.algorithmAssignableVariables.mockReturnValue([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'bmi', label: 'BMI', type: 'real' },
+    ]);
+
+    fixture.detectChanges();
+    component.sourceMode.set('fit');
+    component.code.set('km_fit');
+    component.fitK.set(3);
+    // Deselect nothing — both numerical CDEs start selected.
+    component.applyFit();
+
+    expect(studio.upsertTransformation).toHaveBeenCalledWith({
+      id: 'kmeans-step-1',
+      name: 'kmeans_cluster_creator',
+      parameters: {
+        new_column_names: ['km_fit'],
+        variables: ['age', 'bmi'],
+        k: 3,
+        enumeration_prefix: 'cluster_',
+      },
+    });
+    const params = studio.upsertTransformation.mock.calls[0][0].parameters;
+    expect(params).not.toHaveProperty('reusable_preprocessing');
+  });
+
+  it('fit mode offers earlier created columns unselected until the user picks them', () => {
+    studio.appliedTransformations.set([
+      { id: 'pca-step', name: 'pca_column_creator', parameters: { new_column_names: ['pca_pc1'] } },
+      { id: 'kmeans-step-1', name: 'kmeans_cluster_creator', parameters: {} },
+    ]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.algorithmAssignableVariables.mockReturnValue([
+      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'pca_pc1', label: 'pca_pc1', type: 'real', isCreatedColumn: true },
+    ]);
+
+    fixture.detectChanges();
+    component.setSourceMode('fit');
+
+    expect(component.fitNumericVariables().map((variable) => variable.code)).toEqual(['age', 'pca_pc1']);
+    expect(component.fitSelectedCodes()).toEqual(['age']);
+
+    component.toggleRunVariable('pca_pc1');
+    expect(component.fitSelectedCodes()).toEqual(['age', 'pca_pc1']);
+  });
+
+  it('two fit-mode components with different stepId values write two steps', () => {
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.algorithmAssignableVariables.mockReturnValue([
+      { code: 'age', label: 'Age', type: 'real' },
+    ]);
+
+    fixture.detectChanges();
+    component.sourceMode.set('fit');
+    component.code.set('km_a');
+    component.fitK.set(2);
+    component.applyFit();
+
+    const second = TestBed.createComponent(KMeansClusterSourceComponent);
+    second.componentRef.setInput('stepId', 'kmeans-step-2');
+    const other = second.componentInstance;
+    second.detectChanges();
+    other.sourceMode.set('fit');
+    other.code.set('km_b');
+    other.fitK.set(4);
+    other.applyFit();
+
+    expect(studio.appliedTransformations().map((step) => step.id)).toEqual([
+      'kmeans-step-1',
+      'kmeans-step-2',
+    ]);
+    expect(studio.appliedTransformations().map((step) => step.parameters['new_column_names'])).toEqual([
+      ['km_a'],
+      ['km_b'],
+    ]);
+    for (const step of studio.appliedTransformations()) {
+      expect(step.parameters).not.toHaveProperty('reusable_preprocessing');
+      expect(step.parameters['variables']).toEqual(['age']);
+      expect(step.parameters['enumeration_prefix']).toBe('cluster_');
+    }
   });
 });

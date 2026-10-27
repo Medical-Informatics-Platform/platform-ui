@@ -36,6 +36,7 @@ import {
   KMEANS_CLUSTER_CREATOR,
   KMeansClusterCreatorConfig,
   isPlainObject,
+  kmeansCreatorVariables,
 } from '../core/kmeans-cluster-source.utils';
 import { resolvePreprocessingOutputs } from '../core/preprocessing-outputs.utils';
 import {
@@ -162,6 +163,8 @@ export class ExperimentStudioService {
   backendAlgorithms = signal<Record<string, AlgorithmConfig>>({});
   /** Preprocessing step name → its specification (parameters schema + outputs), from the catalog. */
   private preprocessingSpecs = signal<Record<string, RawPreprocessingStep>>({});
+  /** True once `/services/specifications/preprocessing` has been fetched successfully. */
+  private preprocessingCatalogLoaded = signal(false);
   selectedDataModel = signal<DataModel | null>(this.sessionStorage.getItem('selectedDataModel'));
   readonly crossSectionalModels = signal<DataModel[]>([]);
   readonly longitudinalModels = signal<DataModel[]>([]);
@@ -432,7 +435,7 @@ export class ExperimentStudioService {
    */
   private transformationColumnNodes(): any[] {
     const nodes: any[] = [];
-    for (const step of this.appliedTransformationsSignal()) {
+    for (const step of this.requestableTransformations()) {
       const spec = this.preprocessingSpecs()[step.name];
       const resolved = spec?.outputs
         ? resolvePreprocessingOutputs(spec.outputs, step.parameters)
@@ -454,6 +457,26 @@ export class ExperimentStudioService {
       }
     }
     return nodes;
+  }
+
+  /**
+   * Transformation steps that reach the next request: carrying at least one output name, and
+   * (once the catalog has loaded) present in `/services/specifications/preprocessing`.
+   * Incomplete drafts and unavailable creators stay in the store for the stage UI. A step left
+   * out takes its columns with it, so later steps that read them are left out too.
+   */
+  private requestableTransformations(): TransformationStep[] {
+    const specs = this.preprocessingSpecs();
+    const catalogLoaded = this.preprocessingCatalogLoaded();
+    const leftOut = new Set<string>();
+    return this.appliedTransformationsSignal().filter((step) => {
+      const outputs = stepOutputNames(step);
+      const sent = outputs.length > 0
+        && (!catalogLoaded || !!specs[step.name])
+        && !stepSourceVariables(step).some((code) => leftOut.has(code));
+      if (!sent) outputs.forEach((name) => leftOut.add(name));
+      return sent;
+    });
   }
 
   /** Every applied categorical column creator config, in store order. */
@@ -485,15 +508,7 @@ export class ExperimentStudioService {
       (candidate) => candidate.name === KMEANS_CLUSTER_CREATOR,
     );
     if (!step) return null;
-    const creator = step.parameters as unknown as KMeansClusterCreatorConfig | undefined;
-    if (!isPlainObject(creator)) return null;
-    const names = creator.new_column_names;
-    const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
-    if (!code) return null;
-    if (!isPlainObject(creator.reusable_preprocessing)) return null;
-    if (typeof creator.k !== 'number') return null;
-    if (typeof creator.enumeration_prefix !== 'string') return null;
-    return creator;
+    return this.asKMeansCreatorConfig(step.parameters as unknown as KMeansClusterCreatorConfig | undefined);
   }
 
 
@@ -716,15 +731,33 @@ export class ExperimentStudioService {
     this.pruneRolesToAssignable();
   }
 
-  /** Insert or replace a transformation step by name (the store keys on the creator name). */
+  /** Insert or replace a transformation step by id (same id replaces in place; a fresh id appends). */
   upsertTransformation(step: TransformationStep): void {
     const current = this.appliedTransformationsSignal();
-    const index = current.findIndex((existing) => existing.name === step.name);
+    const index = current.findIndex((existing) => existing.id === step.id);
     // Replace in place to keep request-order/dependency guarantees; append only when new.
     const next = index === -1
       ? [...current, step]
       : current.map((existing, i) => (i === index ? step : existing));
     this.applyTransformations(next);
+  }
+
+  /** Whether `/services/specifications/preprocessing` includes this creator (chooser + request gate). */
+  hasPreprocessingSpec(name: string): boolean {
+    return !!this.preprocessingSpecs()[name];
+  }
+
+  /**
+   * Whether the preprocessing catalog fetch has completed successfully. Empty specs before
+   * that mean "not loaded yet", not "every creator is missing".
+   */
+  catalogLoaded(): boolean {
+    return this.preprocessingCatalogLoaded();
+  }
+
+  /** Creator names present in the preprocessing catalog, in CREATOR_NAMES order. */
+  availableCreatorNames(): CreatorName[] {
+    return [...CREATOR_NAMES].filter((name) => this.hasPreprocessingSpec(name));
   }
 
   /** Remove a transformation step by id, or by name when the id is unknown. */
@@ -899,10 +932,13 @@ export class ExperimentStudioService {
           {} as Record<string, RawPreprocessingStep>,
         );
         this.preprocessingSpecs.set(specs);
+        this.preprocessingCatalogLoaded.set(true);
         return mapped;
       }),
       catchError((error) => {
         console.error('Failed to fetch backend specifications:', error);
+        // Leave catalogLoaded false so UI does not treat empty specs as "unavailable"
+        // and requestableTransformations still includes incomplete-catalog steps.
         return of({});
       })
     );
@@ -1089,21 +1125,26 @@ export class ExperimentStudioService {
   withKMeansClusterRequirements(
     config: PreprocessingConfig | null,
   ): PreprocessingConfig | null {
-    const creator = this.appliedKMeansClusterCreator();
-    if (!creator) return config;
+    const creators = this.appliedTransformationsSignal()
+      .filter((step) => step.name === KMEANS_CLUSTER_CREATOR)
+      .map((step) => this.asKMeansCreatorConfig(step.parameters as unknown as KMeansClusterCreatorConfig | undefined))
+      .filter((creator): creator is KMeansClusterCreatorConfig => !!creator);
+    if (!creators.length) return config;
 
-    // Rebuild the key order so the cluster step is emitted last, after
+    // Rebuild the key order so cluster steps are emitted last, after
     // missing_values_handler and every other step.
     const next: PreprocessingConfig = {};
     for (const [key, value] of Object.entries(config ?? {})) {
       if (key !== KMEANS_CLUSTER_CREATOR) next[key] = value;
     }
 
-    const clusterVariables = this.kmeansClusterVariables(creator);
+    const clusterVariables = [...new Set(creators.flatMap((creator) => this.kmeansClusterVariables(creator)))];
     const withDrops = clusterVariables.length
       ? this.withDropStrategies(next, clusterVariables)
       : next;
-    withDrops[KMEANS_CLUSTER_CREATOR] = creator;
+    // One creator stays a bare object for older readers; N expand to an array that
+    // preprocessingConfigToSteps emits as repeated steps.
+    withDrops[KMEANS_CLUSTER_CREATOR] = creators.length === 1 ? creators[0] : creators;
     return withDrops;
   }
 
@@ -1317,7 +1358,7 @@ export class ExperimentStudioService {
   ): AnalysisPreprocessingStep[] | null {
     const steps = this.preprocessingConfigToSteps(singletons) ?? [];
     const outputs = new Set<string>();
-    for (const step of this.appliedTransformationsSignal()) {
+    for (const step of this.requestableTransformations()) {
       if (step.name === 'kmeans_cluster_creator' || step.name === 'pca_column_creator') {
         const newSources = stepSourceVariables(step).filter((code) => !outputs.has(code));
         if (newSources.length) this.addTransformationDrops(steps, newSources);
@@ -1352,7 +1393,7 @@ export class ExperimentStudioService {
   private transformationSourceCodesForInput(): string[] {
     const outputs = new Set<string>();
     const sources: string[] = [];
-    for (const step of this.appliedTransformationsSignal()) {
+    for (const step of this.requestableTransformations()) {
       if (step.name === 'kmeans_cluster_creator' || step.name === 'pca_column_creator') {
         for (const code of stepSourceVariables(step)) {
           if (!outputs.has(code) && !sources.includes(code)) sources.push(code);
@@ -1663,16 +1704,11 @@ export class ExperimentStudioService {
       .filter((key) => !knownKeys.has(key))
       .forEach((key) => {
         if (key === KMEANS_CLUSTER_CREATOR) {
-          const creator = preprocessing[key] as {
-            new_column_names?: unknown;
-            reusable_preprocessing?: { cluster_variables?: unknown };
-          } | undefined;
-          const code = Array.isArray(creator?.new_column_names)
-            ? String(creator.new_column_names[0] ?? '').trim()
-            : '';
-          const sources = creator?.reusable_preprocessing?.cluster_variables;
-          const variables = (Array.isArray(sources) ? sources : [])
-            .map((variable) => this.preprocessingVariableLabel(String(variable), labelMap));
+          const creator = preprocessing[key] as Record<string, unknown> | undefined;
+          const names = creator?.['new_column_names'];
+          const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
+          const variables = kmeansCreatorVariables(creator)
+            .map((variable) => this.preprocessingVariableLabel(variable, labelMap));
           const lines = [code || 'configured'];
           if (variables.length) lines.push(`Clustered on ${variables.join(', ')}`);
           entries.push({ label: 'K-means cluster column', value: lines.join('; '), lines });
@@ -2450,9 +2486,25 @@ export class ExperimentStudioService {
 
   /** Codes of the CDEs the given K-means cluster creator clusters on. */
   private kmeansClusterVariables(creator: KMeansClusterCreatorConfig | null): string[] {
-    return this.toArray(creator?.reusable_preprocessing?.cluster_variables)
-      .map((code) => String(code).trim())
-      .filter((code) => code.length > 0);
+    return kmeansCreatorVariables(creator as Record<string, unknown> | null);
+  }
+
+  /**
+   * Recipe mode needs reusable_preprocessing; fit mode needs non-empty variables.
+   * Both require a column name, k, and enumeration_prefix.
+   */
+  private asKMeansCreatorConfig(
+    creator: KMeansClusterCreatorConfig | null | undefined,
+  ): KMeansClusterCreatorConfig | null {
+    if (!isPlainObject(creator)) return null;
+    const names = creator.new_column_names;
+    const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
+    if (!code || typeof creator.k !== 'number' || typeof creator.enumeration_prefix !== 'string') {
+      return null;
+    }
+    if (isPlainObject(creator.reusable_preprocessing)) return creator;
+    if (Array.isArray(creator.variables) && creator.variables.length > 0) return creator;
+    return null;
   }
 
   setEditingExistingExperiment(isEditing: boolean) {

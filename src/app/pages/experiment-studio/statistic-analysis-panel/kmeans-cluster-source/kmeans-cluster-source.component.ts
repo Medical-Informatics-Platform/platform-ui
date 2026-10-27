@@ -6,6 +6,7 @@ import {
   computed,
   effect,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -20,17 +21,36 @@ import {
   optionBindingValue,
 } from '../../../../core/algorithm-parameter.utils';
 import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
+import { stepOutputNames } from '../../../../core/transformation-steps.utils';
 import {
+  KMEANS_CLUSTER_CREATOR,
   KMeansReusablePreprocessing,
   KMeansSourceContext,
   canonicalFilterKey,
   findKMeansReport,
   findReusablePreprocessing,
+  isPlainObject,
   kmeansSourceIsReusable,
 } from '../../../../core/kmeans-cluster-source.utils';
 
 /** Exaflow column codes: an identifier, not free text. */
 const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Optional fit-mode creator params and their Exaflow defaults. Always-sent keys (k,
+ *  enumeration_prefix, variables, new_column_names) are not listed here. */
+const FIT_PARAMETER_FIELDS: KMeansParameterField[] = [
+  {
+    key: 'init_method',
+    label: 'Initialization method',
+    type: 'select',
+    default: 'random_range',
+    options: ['random_range', 'multi_start_random_range'],
+  },
+  { key: 'n_init', label: 'Number of initializations', type: 'number', types: ['int'], default: 1 },
+  { key: 'tol', label: 'Convergence tolerance', type: 'number', types: ['real'], default: 0.0001 },
+  { key: 'maxiter', label: 'Maximum iterations', type: 'number', types: ['int'], default: 100 },
+  { key: 'random_state', label: 'Random seed', type: 'number', types: ['int'], default: 123 },
+];
 
 interface KMeansParameterField {
   key: string;
@@ -42,10 +62,20 @@ interface KMeansParameterField {
   options?: unknown[];
 }
 
+/** Stored creator config: recipe mode has reusable_preprocessing; fit mode has variables. */
+type AppliedKMeansCreator = {
+  new_column_names: string[];
+  k: number;
+  enumeration_prefix: string;
+  reusable_preprocessing?: KMeansReusablePreprocessing;
+  variables?: string[];
+};
+
+type SourceMode = 'result' | 'fit';
+
 /**
- * Reuses a finished K-means run as a categorical cluster column: the picker lists the
- * experiments whose source context (data model, datasets, filters) still matches the
- * draft, and applying one stores its replayable preprocessing on the studio.
+ * Reuses a finished K-means run as a categorical cluster column, or fits K-means
+ * directly on selected numerical variables. Each card edits one transformation step.
  */
 @Component({
   selector: 'app-kmeans-cluster-source',
@@ -58,6 +88,18 @@ export class KMeansClusterSourceComponent implements OnInit {
   private readonly studio = inject(ExperimentStudioService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dashboard = inject(ExperimentsDashboardService);
+
+  /** Store step this editor writes; the Transformation stage passes one per card. */
+  readonly stepId = input.required<string>();
+
+  /**
+   * Optional uniqueness check from the Transformation stage. When the name collides,
+   * apply/reuse must not call upsertTransformation.
+   */
+  readonly columnNameError = input<(stepId: string, name: string) => string | null>();
+
+  /** 'result' = recipe / in-place report; 'fit' = direct fit on selected variables. */
+  readonly sourceMode = signal<SourceMode>('result');
 
   readonly experiments = signal<BackendExperiment[]>([]);
   readonly loading = signal(false);
@@ -78,15 +120,62 @@ export class KMeansClusterSourceComponent implements OnInit {
   readonly report = signal<KMeansResult | null>(null);
   readonly reportReusable = signal<KMeansReusablePreprocessing | null>(null);
 
+  /** Fit mode: cluster count (always sent; Exaflow has no default). */
+  readonly fitK = signal(4);
+
   readonly numericVariables = computed(() =>
     (this.studio.selectedVariables() as any[]).filter((variable) => isOutlierEligibleVariable(variable))
   );
+
+  /**
+   * Fit-mode pool: numerical CDEs plus numerical outputs of earlier transformation
+   * steps (e.g. PCA columns). The current step's own outputs are excluded.
+   */
+  readonly fitNumericVariables = computed(() => {
+    const steps = this.studio.appliedTransformations();
+    const myIndex = steps.findIndex((candidate) => candidate.id === this.stepId());
+    const earlier = myIndex === -1 ? steps : steps.slice(0, myIndex);
+    const earlierCodes = new Set(earlier.flatMap((step) => stepOutputNames(step)));
+    const ownCodes = new Set(myIndex >= 0 ? stepOutputNames(steps[myIndex]) : []);
+
+    const assignable = (this.studio.algorithmAssignableVariables() as any[]) ?? [];
+    const seen = new Set<string>();
+    const pool: any[] = [];
+    for (const variable of assignable) {
+      const code = String(variable?.code ?? '');
+      if (!code || seen.has(code) || ownCodes.has(code)) continue;
+      if (!isOutlierEligibleVariable(variable)) continue;
+      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
+      seen.add(code);
+      pool.push(variable);
+    }
+    // CDEs live in selectedVariables; ensure they appear even if assignable is empty in tests.
+    for (const variable of this.numericVariables()) {
+      const code = String(variable.code);
+      if (seen.has(code) || ownCodes.has(code)) continue;
+      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
+      seen.add(code);
+      pool.push(variable);
+    }
+    return pool;
+  });
 
   readonly runSelectedCodes = computed(() => {
     const excluded = this.runExcludedCodes();
     return this.numericVariables()
       .map((variable) => String(variable.code))
       .filter((code) => !excluded.has(code));
+  });
+
+  /**
+   * CDEs start selected and created columns start unselected: clustering raw variables
+   * together with components built from them is opt-in. A toggle flips the default.
+   */
+  readonly fitSelectedCodes = computed(() => {
+    const toggled = this.runExcludedCodes();
+    return this.fitNumericVariables()
+      .filter((variable) => !!variable?.isCreatedColumn === toggled.has(String(variable.code)))
+      .map((variable) => String(variable.code));
   });
 
   /** K-means parameters from the algorithm catalog. Closed until Parameters is opened. */
@@ -97,10 +186,14 @@ export class KMeansClusterSourceComponent implements OnInit {
     );
   });
 
+  /** Fit-mode optional creator parameters (Exaflow kmeans_cluster_creator defaults). */
+  readonly fitParameterFields = FIT_PARAMETER_FIELDS;
+
   /** Closed Parameters row. Same values `parameterOverrides()` will send, so a trimmed or invalid draft is not listed. */
   readonly parameterSummary = computed(() => {
-    const overrides = this.parameterOverrides();
-    const changed = this.parameterFields()
+    const fields = this.sourceMode() === 'fit' ? this.fitParameterFields : this.parameterFields();
+    const overrides = this.parameterOverrides(fields);
+    const changed = fields
       .filter((field) => field.key in overrides)
       .map((field) => {
         const label = formatAlgorithmParameterValue(overrides[field.key], field) || '—';
@@ -129,7 +222,7 @@ export class KMeansClusterSourceComponent implements OnInit {
       datasets: [...context.datasets].map(String).sort(),
       filters: context.filters ?? null,
       codes: [...this.runSelectedCodes()].sort(),
-      parameters: this.parameterOverrides(),
+      parameters: this.parameterOverrides(this.parameterFields()),
     });
   });
   private reportContextKey: string | null = null;
@@ -150,7 +243,22 @@ export class KMeansClusterSourceComponent implements OnInit {
 
   readonly hiddenCount = computed(() => this.experiments().length - this.compatible().length);
 
-  readonly applied = computed(() => this.studio.appliedKMeansClusterCreator());
+  readonly applied = computed((): AppliedKMeansCreator | null => {
+    const step = this.studio.appliedTransformations().find((candidate) => candidate.id === this.stepId());
+    if (!step || step.name !== KMEANS_CLUSTER_CREATOR) return null;
+    const creator = step.parameters as unknown as AppliedKMeansCreator | undefined;
+    if (!isPlainObject(creator)) return null;
+    const names = creator.new_column_names;
+    const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
+    if (!code) return null;
+    if (typeof creator.k !== 'number') return null;
+    if (typeof creator.enumeration_prefix !== 'string') return null;
+    // Recipe mode.
+    if (isPlainObject(creator.reusable_preprocessing)) return creator;
+    // Fit mode: variables required, no reusable_preprocessing.
+    if (Array.isArray(creator.variables) && creator.variables.length > 0) return creator;
+    return null;
+  });
 
   /** Emitted after a creator is applied, so the stage runs it and shows the cluster column. */
   readonly runRequested = output<void>();
@@ -171,6 +279,15 @@ export class KMeansClusterSourceComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadExperiments();
+  }
+
+  setSourceMode(mode: SourceMode): void {
+    this.sourceMode.set(mode);
+    this.error.set(null);
+    this.runError.set(null);
+    // Result vs fit must not share parameter drafts or variable opt-outs.
+    this.parameterDraft.set({});
+    this.runExcludedCodes.set(new Set());
   }
 
   /** A failed list read must not leave the picker looking empty by design. */
@@ -195,13 +312,20 @@ export class KMeansClusterSourceComponent implements OnInit {
 
   /** Cluster count the applied column carries, or null when the record is malformed. */
   clusterCount(): number | null {
-    return this.applied()?.reusable_preprocessing.cluster_choices?.length || null;
+    const creator = this.applied();
+    if (!creator) return null;
+    const choices = creator.reusable_preprocessing?.cluster_choices;
+    if (Array.isArray(choices) && choices.length) return choices.length;
+    return typeof creator.k === 'number' ? creator.k : null;
   }
 
   /** The clustering variables of the applied column, for the summary line. */
   clusterVariables(): string[] {
-    const variables = this.applied()?.reusable_preprocessing?.cluster_variables;
-    return Array.isArray(variables) ? variables : [];
+    const creator = this.applied();
+    if (!creator) return [];
+    const fromRecipe = creator.reusable_preprocessing?.cluster_variables;
+    if (Array.isArray(fromRecipe)) return fromRecipe;
+    return Array.isArray(creator.variables) ? creator.variables.map(String) : [];
   }
 
   apply(): void {
@@ -230,10 +354,43 @@ export class KMeansClusterSourceComponent implements OnInit {
     });
   }
 
+  /** Direct fit: write variables + k without a reusable_preprocessing recipe. */
+  applyFit(): void {
+    const code = this.code().trim();
+    const variables = this.fitSelectedCodes();
+    const k = this.fitK();
+    if (!code || !variables.length || !Number.isFinite(k) || k < 1) return;
+    if (!CODE_PATTERN.test(code)) {
+      this.error.set('Use letters, digits and underscores, starting with a letter or underscore.');
+      return;
+    }
+    const nameError = this.columnNameError()?.(this.stepId(), code) ?? null;
+    if (nameError) {
+      this.error.set(nameError);
+      return;
+    }
+
+    this.error.set(null);
+    this.runError.set(null);
+    this.selectedUuid.set(null);
+    this.studio.upsertTransformation({
+      id: this.stepId(),
+      name: KMEANS_CLUSTER_CREATOR,
+      parameters: {
+        new_column_names: [code],
+        variables,
+        k: Math.trunc(k),
+        enumeration_prefix: 'cluster_',
+        ...this.parameterOverrides(this.fitParameterFields),
+      },
+    });
+    this.runRequested.emit();
+  }
+
   remove(): void {
     this.error.set(null);
     this.selectedUuid.set(null);
-    this.studio.setKMeansClusterPreprocessing(null);
+    this.studio.removeTransformation(this.stepId());
   }
 
   toggleRunVariable(code: string): void {
@@ -250,7 +407,7 @@ export class KMeansClusterSourceComponent implements OnInit {
   runReport(): void {
     const codes = this.runSelectedCodes();
     if (!codes.length) return;
-    const overrides = this.parameterOverrides();
+    const overrides = this.parameterOverrides(this.parameterFields());
     const request$ = this.studio.loadKMeansReport(codes, overrides);
     if (!request$) {
       this.runError.set('K-means is not available for this workspace.');
@@ -323,6 +480,11 @@ export class KMeansClusterSourceComponent implements OnInit {
     }));
   }
 
+  setFitK(value: string | number | null): void {
+    const numeric = Number(value);
+    this.fitK.set(Number.isFinite(numeric) && numeric >= 1 ? Math.trunc(numeric) : 1);
+  }
+
   protected readonly optionBindingValue = optionBindingValue;
 
   optionLabel(option: unknown): string {
@@ -333,10 +495,10 @@ export class KMeansClusterSourceComponent implements OnInit {
     return String(option);
   }
 
-  /** Values the user changed. Unchanged fields stay on the catalog default. */
-  private parameterOverrides(): Record<string, unknown> {
+  /** Values the user changed. Unchanged fields stay on the catalog / creator default. */
+  private parameterOverrides(fields: KMeansParameterField[]): Record<string, unknown> {
     const overrides: Record<string, unknown> = {};
-    for (const field of this.parameterFields()) {
+    for (const field of fields) {
       const raw = this.parameterValue(field).trim();
       const fallback = field.default === undefined || field.default === null ? '' : String(field.default);
       if (raw === fallback || (raw === '' && !field.required)) continue;
@@ -352,15 +514,26 @@ export class KMeansClusterSourceComponent implements OnInit {
   }
 
   private store(code: string, reusablePreprocessing: KMeansReusablePreprocessing): void {
+    const nameError = this.columnNameError()?.(this.stepId(), code) ?? null;
+    if (nameError) {
+      this.error.set(nameError);
+      this.runError.set(nameError);
+      return;
+    }
     this.error.set(null);
+    this.runError.set(null);
     this.selectedUuid.set(null);
     // Exaflow names the created column with `new_column_names`; `k` and `enumeration_prefix`
     // are derived from the replayable preprocessing, not re-entered here.
-    this.studio.setKMeansClusterPreprocessing({
-      new_column_names: [code],
-      k: reusablePreprocessing.cluster_choices.length,
-      enumeration_prefix: reusablePreprocessing.enumeration_prefix,
-      reusable_preprocessing: reusablePreprocessing,
+    this.studio.upsertTransformation({
+      id: this.stepId(),
+      name: KMEANS_CLUSTER_CREATOR,
+      parameters: {
+        new_column_names: [code],
+        k: reusablePreprocessing.cluster_choices.length,
+        enumeration_prefix: reusablePreprocessing.enumeration_prefix,
+        reusable_preprocessing: reusablePreprocessing,
+      },
     });
     this.runRequested.emit();
   }

@@ -482,6 +482,11 @@ button:disabled {
   font-size: 0.72rem;
 }
 
+.transformation-hint-error {
+  color: var(--danger-color, #c0392b);
+  font-size: 0.72rem;
+}
+
 .transformation-rules {
   display: grid;
   gap: 8px;

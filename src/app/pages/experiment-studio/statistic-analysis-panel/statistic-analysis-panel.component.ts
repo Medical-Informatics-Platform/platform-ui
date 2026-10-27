@@ -45,6 +45,10 @@ import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter
 import { StationActionBarComponent } from '../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent, StationStatus } from '../shared/station-card/station-card.component';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
+import {
+  kmeansCreatorClusterChoices,
+  kmeansCreatorVariables,
+} from '../../../core/kmeans-cluster-source.utils';
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
@@ -71,6 +75,12 @@ import {
   serializeOutlierRules,
   validateOutlierRule,
 } from '../../../core/outlier-rules';
+import { collectVariableCodes } from '../../../core/variable-availability.utils';
+import {
+  CreatorName,
+  TransformationStep,
+  stepOutputNames as stepOutputNamesOf,
+} from '../../../core/transformation-steps.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -117,17 +127,35 @@ interface TransformationRule {
 
 /** One "Create new categorical column" card. The stage holds an ordered list. */
 interface TransformationColumnDraft {
-  id: number;
+  /** Matches the store step id so cards() and drafts stay aligned. */
+  id: string;
   code: string;
   defaultEnumeration: string;
   rules: TransformationRule[];
   open: boolean;
   /** Rule index whose filter editor is expanded; at most one open per card. */
   openRuleIndex?: number | null;
-  /** Picked from the type chooser (or restored from the store). The stage keeps one blank
-   *  draft as its model; until it is chosen it stays off screen and the chooser shows. */
+  /** Picked from the type chooser (or restored from the store). */
   chosen?: boolean;
 }
+
+const CREATOR_CHOOSER_COPY: Record<CreatorName, { icon: string; title: string; subtitle: string }> = {
+  categorical_column_creator: {
+    icon: 'fas fa-tags',
+    title: 'Nominal column from rules',
+    subtitle: 'Name categories and pick each one\'s records with a filter — e.g. MMSE below 24 → ‘impaired’',
+  },
+  kmeans_cluster_creator: {
+    icon: 'fas fa-diagram-project',
+    title: 'K-means cluster column',
+    subtitle: 'Group records by similarity and use the cluster as a nominal variable',
+  },
+  pca_column_creator: {
+    icon: 'fas fa-chart-line',
+    title: 'PCA component columns',
+    subtitle: 'Project numerical variables onto principal components',
+  },
+};
 
 /** A summary cell as a number: tolerates grouping commas and a trailing %; null when not numeric. */
 function parseNumber(value: unknown): number | null {
@@ -136,9 +164,8 @@ function parseNumber(value: unknown): number | null {
   return text !== '' && Number.isFinite(number) ? number : null;
 }
 
-let transformationDraftSeq = 0;
-function emptyTransformationDraft(): TransformationColumnDraft {
-  return { id: ++transformationDraftSeq, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
+function emptyTransformationDraft(id = crypto.randomUUID()): TransformationColumnDraft {
+  return { id, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
 }
 
 /** One sub-step of a pipeline stage, rendered on the pipeline-overview rail. */
@@ -362,6 +389,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
     if (this.addedSteps()[step]) return true;
     if (step === 'filters') return this.filterRuleCount() > 0;
+    if (step === 'transformation') {
+      // Prefer the ordered store: singleton-map writes after Apply must not hide derived columns.
+      if (this.cards().some((candidate) => stepOutputNamesOf(candidate).length > 0)) return true;
+    }
     const applied = this.expStudioService.appliedPreprocessingConfig();
     if (!applied) return false;
     if (step === 'transformation') {
@@ -644,40 +675,48 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** A derived column only exists once its config is persisted; otherwise the stage stays empty. */
   get appliedTransformationSubNodes(): PipelineSubNode[] {
-    const creators = this.expStudioService.appliedCategoricalCreators();
     const statusTone: PipelineSubNode['statusTone'] =
       this.transformationStatusLabel === 'Applied' ? 'applied' : 'pending';
     const nodes: PipelineSubNode[] = [];
-    creators.forEach((raw, index) => {
-      const creator = raw as { new_column_names?: unknown; rules?: Record<string, unknown>; default_enumeration?: unknown };
-      const code = String((creator?.new_column_names as unknown[] | undefined)?.[0] ?? '').trim();
-      if (!code) return;
-      const ruleCount = Object.keys(creator?.rules ?? {}).length;
-      const fallback = String(creator?.default_enumeration ?? '').trim();
+    for (const step of this.cards()) {
+      const outputs = stepOutputNamesOf(step);
+      if (!outputs.length) continue;
+      if (step.name === 'categorical_column_creator') {
+        const rules = (step.parameters['rules'] as Record<string, unknown> | undefined) ?? {};
+        const ruleCount = Object.keys(rules).length;
+        const fallback = String(step.parameters['default_enumeration'] ?? '').trim();
+        nodes.push({
+          id: `transformation:${step.id}`,
+          icon: 'fas fa-tag',
+          title: `Derived column: ${outputs[0]}`,
+          subtitle: `${ruleCount} ${ruleCount === 1 ? 'category rule' : 'category rules'} configured${fallback ? ` · default: ${fallback}` : ''}`,
+          statusLabel: 'Applied',
+          statusTone,
+        });
+        continue;
+      }
+      if (step.name === 'kmeans_cluster_creator') {
+        const variables = kmeansCreatorVariables(step.parameters);
+        const clusterCount = kmeansCreatorClusterChoices(step.parameters).length;
+        nodes.push({
+          id: `transformation:${step.id}`,
+          icon: 'fas fa-diagram-project',
+          title: `K-means clusters: ${outputs[0]}`,
+          subtitle: `${clusterCount} clusters from ${variables.join(', ')}`,
+          statusLabel: 'Applied',
+          statusTone: 'applied',
+        });
+        continue;
+      }
       nodes.push({
-        id: `transformation:${code || index}`,
-        icon: 'fas fa-tag',
-        title: `Derived column: ${code}`,
-        subtitle: `${ruleCount} ${ruleCount === 1 ? 'category rule' : 'category rules'} configured${fallback ? ` · default: ${fallback}` : ''}`,
-        statusLabel: 'Applied',
-        statusTone,
-      });
-    });
-
-    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
-    if (clusterCreator) {
-      const columnCode = clusterCreator.new_column_names[0];
-      const variables = clusterCreator.reusable_preprocessing.cluster_variables ?? [];
-      nodes.push({
-        id: `transformation:kmeans:${columnCode}`,
-        icon: 'fas fa-diagram-project',
-        title: `K-means clusters: ${columnCode}`,
-        subtitle: `${clusterCreator.reusable_preprocessing.cluster_choices.length} clusters from ${variables.join(', ')}`,
-        statusLabel: 'Applied',
-        statusTone: 'applied',
+        id: `transformation:${step.id}`,
+        icon: CREATOR_CHOOSER_COPY[step.name]?.icon ?? 'fas fa-square-plus',
+        title: `${CREATOR_CHOOSER_COPY[step.name]?.title ?? step.name}: ${outputs.join(', ')}`,
+        subtitle: this.isCreatorAvailable(step.name) ? 'Configured' : 'Not available on this deployment',
+        statusLabel: this.isCreatorAvailable(step.name) ? 'Applied' : 'Unavailable',
+        statusTone: this.isCreatorAvailable(step.name) ? 'applied' : 'pending',
       });
     }
-
     return nodes;
   }
 
@@ -714,30 +753,140 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return !!draft.chosen || this.draftHasWork(draft);
   }
 
+  /** Ordered cards from the store — one station per transformation step. */
+  cards(): TransformationStep[] {
+    return this.expStudioService.appliedTransformations();
+  }
+
+  /** Template helper: output codes a step writes (`new_column_names`). */
+  stepOutputNames(step: TransformationStep): string[] {
+    return stepOutputNamesOf(step);
+  }
+
+  /** Creator types the deployment exposes in `/services/specifications/preprocessing`. */
+  chooserCreators(): CreatorName[] {
+    return this.expStudioService.availableCreatorNames();
+  }
+
+  creatorChooserCopy(kind: CreatorName): { icon: string; title: string; subtitle: string } {
+    return CREATOR_CHOOSER_COPY[kind];
+  }
+
+  /**
+   * True when the editor should render for this creator. Empty specs before the catalog
+   * loads are not "unavailable" — only loaded && missing means the deployment placeholder.
+   */
+  isCreatorAvailable(name: CreatorName): boolean {
+    if (!this.expStudioService.catalogLoaded()) return true;
+    return this.expStudioService.hasPreprocessingSpec(name);
+  }
+
   get kmeansCardShown(): boolean {
-    return this.kmeansClusterCardChosen() || !!this.expStudioService.appliedKMeansClusterCreator();
+    return this.cards().some((step) => step.name === 'kmeans_cluster_creator');
   }
 
   /** Nothing picked yet: the chooser is the whole stage, so it asks instead of offering. */
   get transformationChooserOnly(): boolean {
-    return !this.kmeansCardShown && !this.transformationDrafts.some((draft) => this.isDraftShown(draft));
+    return this.cards().length === 0;
   }
 
-  /** Type chooser row: the blank model draft is reused before a second one is stacked. */
-  chooseTransformation(kind: 'categorical' | 'kmeans'): void {
-    if (kind === 'kmeans') {
-      this.kmeansClusterCardChosen.set(true);
-      this.kmeansClusterCardOpen.set(true);
-    } else {
-      const blank = this.transformationDrafts.find((draft) => !this.isDraftShown(draft));
-      if (blank) {
-        blank.chosen = true;
-        blank.open = true;
-      } else {
-        this.addTransformationDraft();
-      }
+  /**
+   * Type chooser row: always appends a new store step (fresh id). Categorical cards also get a
+   * matching local draft for the rule editor.
+   */
+  chooseTransformation(kind: CreatorName | 'categorical' | 'kmeans' | 'pca'): void {
+    const name = this.resolveCreatorName(kind);
+    const id = crypto.randomUUID();
+    this.expStudioService.upsertTransformation({ id, name, parameters: {} });
+    if (name === 'categorical_column_creator') {
+      this.transformationDrafts = [
+        ...this.transformationDrafts.filter((draft) => this.isDraftShown(draft)),
+        { ...emptyTransformationDraft(id), chosen: true, open: true },
+      ];
     }
+    this.cardOpenState.update((state) => ({ ...state, [id]: true }));
     this.cdr.markForCheck();
+  }
+
+  private resolveCreatorName(kind: CreatorName | 'categorical' | 'kmeans' | 'pca'): CreatorName {
+    if (kind === 'categorical') return 'categorical_column_creator';
+    if (kind === 'kmeans') return 'kmeans_cluster_creator';
+    if (kind === 'pca') return 'pca_column_creator';
+    return kind;
+  }
+
+  draftForStep(stepId: string): TransformationColumnDraft | undefined {
+    return this.transformationDrafts.find((draft) => draft.id === stepId);
+  }
+
+  columnNameError(stepId: string, name: string): string | null {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const cdeCodes = new Set(collectVariableCodes(this.expStudioService.selectedDataModel()));
+    if (cdeCodes.has(trimmed)) return 'Name already used';
+    for (const step of this.cards()) {
+      if (step.id === stepId) continue;
+      // Ignore empty/incomplete placeholders — only real outputs collide.
+      if (stepOutputNamesOf(step).includes(trimmed)) return 'Name already used';
+    }
+    // Among local categorical drafts, the first occurrence of a code wins (same as the
+    // old payload dedupe); later cards show the error and never overwrite the store.
+    for (const draft of this.transformationDrafts) {
+      if (draft.id === stepId) break;
+      if (draft.code.trim() === trimmed) return 'Name already used';
+    }
+    return null;
+  }
+
+  /** Stable callback for K-means cards (`[columnNameError]` input). */
+  readonly kmeansColumnNameError = (stepId: string, name: string): string | null =>
+    this.columnNameError(stepId, name);
+
+  canRemoveTransformation(stepId: string): boolean {
+    return this.expStudioService.transformationDependents(stepId).length === 0;
+  }
+
+  removeTransformationTooltip(stepId: string): string {
+    const dependents = this.expStudioService.transformationDependents(stepId);
+    if (!dependents.length) return 'Remove column';
+    const names = dependents.flatMap((step) => stepOutputNamesOf(step));
+    return names.length ? `Used by ${names.join(', ')}` : 'Used by a later step';
+  }
+
+  isCardOpen(stepId: string): boolean {
+    return this.cardOpenState()[stepId] ?? true;
+  }
+
+  toggleCardOpen(stepId: string, open?: boolean): void {
+    this.cardOpenState.update((state) => ({
+      ...state,
+      [stepId]: open ?? !this.isCardOpen(stepId),
+    }));
+    this.cdr.markForCheck();
+  }
+
+  stepStatus(step: TransformationStep): { label: string; tone: StationStatus } {
+    if (!this.isCreatorAvailable(step.name)) {
+      return { label: 'Unavailable', tone: 'pending' };
+    }
+    if (step.name === 'categorical_column_creator') {
+      const draft = this.draftForStep(step.id);
+      return draft ? this.transformationDraftStatus(draft) : { label: 'Not set', tone: 'default' };
+    }
+    if (stepOutputNamesOf(step).length) return { label: 'Applied', tone: 'applied' };
+    return { label: 'Not set', tone: 'default' };
+  }
+
+  stepTitle(step: TransformationStep): string {
+    const copy = CREATOR_CHOOSER_COPY[step.name];
+    const outputs = stepOutputNamesOf(step);
+    if (step.name === 'categorical_column_creator') {
+      const draft = this.draftForStep(step.id);
+      const code = draft?.code.trim() || outputs[0] || '';
+      return code ? `Nominal column · ${code}` : 'Nominal column';
+    }
+    if (outputs.length) return `${copy.title} · ${outputs[0]}`;
+    return copy.title;
   }
 
   private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
@@ -882,11 +1031,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   ];
 
   /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
-  previewDraftId: 'kmeans' | null = null;
+  previewDraftId: string | null = null;
   /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
-  countsDraftId: number | null = null;
+  countsDraftId: string | null = null;
   /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
-  transformationDrafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
+  transformationDrafts: TransformationColumnDraft[] = [];
+  /** Collapsed/expanded state per store step id (categorical drafts also keep `open`). */
+  readonly cardOpenState = signal<Record<string, boolean>>({});
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
   isTransformationStatsLoading = false;
   transformationStatisticsError = '';
@@ -1119,14 +1270,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   get transformationStatusLabel(): string {
     const validCount = this.transformationConfigs().length;
-    // An applied K-means cluster column is a derived column of this stage, so the stage
-    // is not "Not defined" just because no categorical card is configured.
-    const hasAppliedColumn = validCount > 0 || !!this.expStudioService.appliedKMeansClusterCreator();
+    const hasAppliedColumn = validCount > 0
+      || this.cards().some((step) => step.name !== 'categorical_column_creator' && stepOutputNamesOf(step).length > 0);
     if (hasAppliedColumn && !this.transformationHasPendingChange) return 'Applied';
     if (
       hasAppliedColumn
       || this.transformationHasPendingChange
       || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
+      || this.cards().length > 0
     ) {
       return 'Not applied';
     }
@@ -1145,12 +1296,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Status chip for the K-means cluster column card on the Transformation step. */
   get kmeansClusterStatusLabel(): string {
-    return this.expStudioService.appliedKMeansClusterCreator() ? 'Applied' : 'Not set';
+    return this.cards().some(
+      (step) => step.name === 'kmeans_cluster_creator' && stepOutputNamesOf(step).length > 0,
+    )
+      ? 'Applied'
+      : 'Not set';
   }
 
-  /** Collapsible body state of the K-means cluster column card. */
+  /** @deprecated Prefer `isCardOpen(stepId)`; kept for pipeline specs that fold the first K-means card. */
   readonly kmeansClusterCardOpen = signal(false);
-  /** Picked from the type chooser: the card stays in the graph while folded, like a chosen draft. */
+  /** @deprecated Chooser now upserts store steps; kept for older specs. */
   readonly kmeansClusterCardChosen = signal(false);
 
   /** True when a named category on any card is still missing an applied filter. */
@@ -1797,8 +1952,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   /** The K-means card's Preview: cluster counts, shown in place of its editor. */
-  previewTransformationCard(): void {
-    this.previewDraftId = 'kmeans';
+  previewTransformationCard(stepId?: string): void {
+    this.previewDraftId = stepId
+      ?? this.cards().find((step) => step.name === 'kmeans_cluster_creator')?.id
+      ?? null;
     this.refreshTransformationStatistics();
     this.cdr.markForCheck();
   }
@@ -1839,15 +1996,19 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Clear the transformation station: pending edits and the committed config alike. */
   resetTransformation(): void {
-    this.transformationDrafts = [emptyTransformationDraft()];
+    for (const step of [...this.cards()]) {
+      this.expStudioService.removeTransformation(step.id);
+    }
+    this.transformationDrafts = [];
+    this.cardOpenState.set({});
     this.previewDraftId = null;
     this.kmeansClusterCardChosen.set(false);
     this.kmeansClusterCardOpen.set(false);
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
-    // The K-means cluster column is a derived column of this stage too.
-    this.expStudioService.setKMeansClusterPreprocessing(null);
-    this.onTransformationChange();
+    this.invalidateCategoryCounts();
+    this.emitProgressState();
+    this.cdr.markForCheck();
   }
 
   /** A new category opens straight onto its filter, with the first condition ready. */
@@ -1944,11 +2105,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
   transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
     const code = draft.code.trim();
-    const isDuplicate = !!code && this.transformationDrafts.some((other) => other !== draft && other.code.trim() === code);
+    const nameError = code ? this.columnNameError(draft.id, code) : null;
     if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
-      return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
+      return nameError ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
     }
-    if (this.draftHasWork(draft) || isDuplicate) return { label: 'Not applied', tone: 'pending' };
+    if (this.draftHasWork(draft) || nameError) return { label: 'Not applied', tone: 'pending' };
     return { label: 'Not set', tone: 'default' };
   }
 
@@ -1957,29 +2118,27 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
-  /** Append another empty "Create new categorical column" card. */
+  /** Append another empty categorical card through the store-backed chooser path. */
   addTransformationDraft(): void {
-    // Opening another editor is a read: an empty card has no config to persist, so
-    // leave the stored transformation untouched until the user types/commits.
-    this.transformationDrafts.push({ ...emptyTransformationDraft(), chosen: true });
-    this.cdr.markForCheck();
+    this.chooseTransformation('categorical_column_creator');
   }
 
   /**
-   * Remove a card. The last one is reset to the blank, unchosen model draft rather than
-   * removed, so the stage falls back to its type chooser (same as shared Clear).
+   * Remove a store step (and its categorical draft). Disabled while dependents remain —
+   * callers should check `canRemoveTransformation` first.
    */
-  removeTransformationDraft(id: number): void {
-    const index = this.transformationDrafts.findIndex((draft) => draft.id === id);
-    if (index < 0) {
-      return;
-    }
-    if (this.transformationDrafts.length === 1) {
-      this.transformationDrafts[0] = emptyTransformationDraft();
-    } else {
-      this.transformationDrafts.splice(index, 1);
-    }
-    this.onTransformationChange();
+  removeTransformationDraft(id: string): void {
+    if (!this.canRemoveTransformation(id)) return;
+    this.expStudioService.removeTransformation(id);
+    this.transformationDrafts = this.transformationDrafts.filter((draft) => draft.id !== id);
+    this.cardOpenState.update((state) => {
+      const next = { ...state };
+      delete next[id];
+      return next;
+    });
+    this.invalidateCategoryCounts();
+    this.emitProgressState();
+    this.cdr.markForCheck();
   }
 
   onTransformationInput(): void {
@@ -3760,13 +3919,33 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   onTransformationChange(): void {
-    // Transformation is written into APPLIED_DESCRIPTIVE_PREPROCESSING on edit (it
-    // does not wait for the shared Apply preprocessing button). The Pending/Applied
-    // chip derives from the live drafts, so no separate applied snapshot is kept.
-    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
+    // Each categorical draft upserts by id. Name collisions and incomplete drafts never
+    // overwrite a good store entry with bad parameters (incomplete clears outputs so the
+    // request skips them; errors leave the prior parameters untouched).
+    for (const draft of this.transformationDrafts) {
+      const code = draft.code.trim();
+      if (code && this.columnNameError(draft.id, code)) continue;
+      const config = this.buildTransformationConfigForDraft(draft);
+      this.expStudioService.upsertTransformation({
+        id: draft.id,
+        name: 'categorical_column_creator',
+        parameters: config ?? {},
+      });
+    }
     this.invalidateCategoryCounts();
     this.emitProgressState();
     this.cdr.markForCheck();
+  }
+
+  /** Applied K-means creators from store cards (every card with an output name). */
+  private appliedKMeansCreators(): Array<{ code: string; creator: Record<string, unknown> }> {
+    return this.cards()
+      .filter((step) => step.name === 'kmeans_cluster_creator')
+      .map((step) => {
+        const code = String((step.parameters['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
+        return { code, creator: step.parameters };
+      })
+      .filter((entry) => !!entry.code);
   }
 
   /** Category counts describe the config at the last Done; any later edit drops them. */
@@ -3777,8 +3956,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.transformationStatsRequestId++;
     this.isTransformationStatsLoading = false;
     this.transformationStatisticsError = '';
-    const clusterCode = String(this.expStudioService.appliedKMeansClusterCreator()?.new_column_names[0] ?? '').trim();
-    this.transformationStatistics = this.transformationStatistics.filter((block) => block.code === clusterCode);
+    const clusterCodes = new Set(this.appliedKMeansCreators().map((entry) => entry.code));
+    this.transformationStatistics = this.transformationStatistics.filter((block) => clusterCodes.has(block.code));
   }
 
   /** Placeholder (null-count) rows for one card so Preview shows the category shape. */
@@ -3817,8 +3996,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * sentence, in the same shape as the categorical column card.
    */
   showsRuleColumnCounts(): boolean {
-    const clusterCode = this.expStudioService.appliedKMeansClusterCreator()?.new_column_names[0]?.trim();
-    return this.transformationStatistics.some((block) => block.code !== clusterCode);
+    const clusterCodes = new Set(this.appliedKMeansCreators().map((entry) => entry.code));
+    return this.transformationStatistics.some((block) => !clusterCodes.has(block.code));
   }
 
   /**
@@ -3831,18 +4010,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     foot: string;
     rules: Record<string, string>;
   } | null {
-    const creator = this.expStudioService.appliedKMeansClusterCreator();
-    const columnCode = creator?.new_column_names[0]?.trim() ?? '';
-    if (!creator || columnCode !== code.trim()) return null;
+    const target = code.trim();
+    const match = this.appliedKMeansCreators().find((entry) => entry.code === target);
+    if (!match) return null;
 
-    const sources = creator.reusable_preprocessing.cluster_variables ?? [];
+    const sources = kmeansCreatorVariables(match.creator);
     const variables = sources
       .map((variable) => this.variableLabelForCode(variable))
       .filter((label, index, all) => !!label && label !== sources[index] && all.indexOf(label) === index);
-    const choices = creator.reusable_preprocessing.cluster_choices ?? [];
+    const choices = kmeansCreatorClusterChoices(match.creator);
     const rules: Record<string, string> = {};
     for (const choice of choices) {
-      const label = choice.label?.trim() ?? '';
+      const label = choice.label.trim();
       rules[choice.cluster_id] = label && label !== choice.cluster_id
         ? `Nearest cluster — ${label}`
         : 'Nearest cluster';
@@ -3850,7 +4029,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const count = choices.length;
     const clusterWord = count === 1 ? 'cluster' : 'clusters';
     return {
-      code: columnCode,
+      code: target,
       lead: variables.length
         ? `Each record is assigned to the nearest of these clusters, using ${variables.join(', ')}.`
         : 'Each record is assigned to the nearest of these clusters.',
@@ -3862,24 +4041,22 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   refreshTransformationStatistics(): void {
-    // One stats table per derived column (categorical cards and the applied K-means
+    // One stats table per derived column (categorical cards and every applied K-means
     // cluster column); counts come from a single describe over all of them.
-    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
-    const clusterCode = String(clusterCreator?.new_column_names[0] ?? '').trim();
-    const clusterValues = (clusterCreator?.reusable_preprocessing.cluster_choices ?? []).map(
-      (choice) => choice.cluster_id
-    );
+    const kmeansEntries = this.appliedKMeansCreators();
+    const kmeansPlaceholders = kmeansEntries.map((entry) => {
+      const values = kmeansCreatorClusterChoices(entry.creator).map((choice) => choice.cluster_id);
+      return { code: entry.code, rows: values.map((value) => ({ value, count: null as number | null })) };
+    });
     const placeholderBlocks = [
       ...this.transformationDrafts
         .filter((draft) => draft.code.trim().length > 0)
         .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) })),
-      ...(clusterCode
-        ? [{ code: clusterCode, rows: clusterValues.map((value) => ({ value, count: null })) }]
-        : []),
+      ...kmeansPlaceholders,
     ];
     const configs = this.transformationConfigs();
 
-    if (!configs.length && !clusterCode) {
+    if (!configs.length && !kmeansEntries.length) {
       this.transformationStatistics = placeholderBlocks;
       // Every named card gets a heading over this table, so a named card always needs a
       // reason beside it: falling through to the "counts from a describe run" line would
@@ -3892,9 +4069,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const columnCodes = [
       ...configs.map((config) => String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim()).filter(Boolean),
-      ...(clusterCode ? [clusterCode] : []),
+      ...kmeansEntries.map((entry) => entry.code),
     ];
     const columnSet = new Set(columnCodes);
+    const kmeansSourceCodes = kmeansEntries.flatMap((entry) => kmeansCreatorVariables(entry.creator));
     const sourceCodes = Array.from(
       new Set(
         [
@@ -3903,7 +4081,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
               this.expStudioService.filterVariableCodes(filter)
             )
           ),
-          ...(clusterCreator?.reusable_preprocessing.cluster_variables ?? []),
+          ...kmeansSourceCodes,
           ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
         ]
           .map((code) => String(code).trim())
@@ -3964,12 +4142,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
                 rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
               };
             }),
-            ...(clusterCode
-              ? [{
-                  code: clusterCode,
-                  rows: this.buildTransformationStatisticsFromDescribe(response, clusterCode, clusterValues, ''),
-                }]
-              : []),
+            ...kmeansEntries.map((entry) => {
+              const values = kmeansCreatorClusterChoices(entry.creator).map((choice) => choice.cluster_id);
+              return {
+                code: entry.code,
+                rows: this.buildTransformationStatisticsFromDescribe(response, entry.code, values, ''),
+              };
+            }),
           ];
           const hasAnyCount = this.transformationStatistics.some((block) =>
             block.rows.some((row) => typeof row.count === 'number' && Number.isFinite(row.count))
@@ -4297,30 +4476,58 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   private hydrateAppliedTransformation(preprocessing: PreprocessingConfig): void {
+    // Prefer the ordered store when Task 3 hydration already filled it; fall back to the
+    // legacy map shape on older applied-config snapshots.
+    const storeSteps = this.expStudioService.appliedTransformations()
+      .filter((step) => step.name === 'categorical_column_creator');
+    if (storeSteps.length) {
+      this.transformationDrafts = storeSteps.map((step) => ({
+        ...this.draftFromCreatorConfig(step.parameters as {
+          new_column_names?: unknown;
+          rules?: Record<string, CategoryFilter>;
+          default_enumeration?: unknown;
+        }, step.id),
+        chosen: true,
+      }));
+      return;
+    }
     const creators = (preprocessing['categorical_column_creator'] as
       | Record<string, unknown>[]
       | undefined) ?? [];
-    const drafts = creators
-      .map((creator) =>
-        this.draftFromCreatorConfig(
-          creator as { code?: unknown; rules?: Record<string, BackendFilter>; default_enumeration?: unknown }
-        )
+    if (!creators.length) return;
+    const drafts = creators.map((creator) => {
+      const id = crypto.randomUUID();
+      const draft = this.draftFromCreatorConfig(
+        creator as {
+          new_column_names?: unknown;
+          rules?: Record<string, CategoryFilter>;
+          default_enumeration?: unknown;
+        },
+        id,
       );
-    if (drafts.length) {
-      this.transformationDrafts = drafts.map((draft) => ({ ...draft, chosen: true }));
-    }
+      this.expStudioService.upsertTransformation({
+        id,
+        name: 'categorical_column_creator',
+        parameters: (creator as Record<string, unknown>) ?? {},
+      });
+      return { ...draft, chosen: true };
+    });
+    this.transformationDrafts = drafts;
   }
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
-  private draftFromCreatorConfig(creator: {
-    new_column_names?: unknown;
-    rules?: Record<string, CategoryFilter>;
-    default_enumeration?: unknown;
-  }): TransformationColumnDraft {
+  private draftFromCreatorConfig(
+    creator: {
+      new_column_names?: unknown;
+      rules?: Record<string, CategoryFilter>;
+      default_enumeration?: unknown;
+    },
+    id: string = crypto.randomUUID(),
+  ): TransformationColumnDraft {
     const rules = creator.rules ?? {};
     const code = Array.isArray(creator.new_column_names) ? String(creator.new_column_names[0] ?? '').trim() : '';
     return {
-      id: ++transformationDraftSeq,
+      id,
       code,
       defaultEnumeration: creator.default_enumeration == null ? '' : String(creator.default_enumeration),
       rules: Object.entries(rules).map(([value, filter]) => ({
@@ -4378,10 +4585,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   private persistAppliedDescriptivePreprocessing(preprocessing: PreprocessingConfig | null): void {
-    const clusterCreator = this.expStudioService.appliedKMeansClusterCreator();
+    // Singletons only — column creators live in appliedTransformations and must keep order/ids.
     this.expStudioService.setAppliedDescriptivePreprocessing(preprocessing);
-    this.expStudioService.setTransformationPreprocessing(this.transformationConfigPayload());
-    this.expStudioService.setKMeansClusterPreprocessing(clusterCreator);
     this.appliedConfigWrite = JSON.stringify(this.expStudioService.appliedPreprocessingConfig() ?? null);
   }
 
@@ -4546,10 +4751,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   private discardPendingTransformation(): void {
     const persisted = this.expStudioService.appliedPreprocessingConfig();
-    if (persisted?.['categorical_column_creator']) {
-      this.hydrateAppliedTransformation(persisted);
+    if (persisted?.['categorical_column_creator'] || this.cards().some((s) => s.name === 'categorical_column_creator')) {
+      this.hydrateAppliedTransformation(persisted ?? {});
     } else {
-      this.transformationDrafts = [emptyTransformationDraft()];
+      this.transformationDrafts = [];
       this.transformationStatistics = [];
       this.transformationStatisticsError = '';
     }

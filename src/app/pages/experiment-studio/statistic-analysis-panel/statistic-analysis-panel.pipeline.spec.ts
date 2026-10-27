@@ -26,6 +26,28 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     function seedAppliedConfig(config: Record<string, unknown> | null): void {
         (mockExpService.appliedPreprocessingConfig as any).set(config);
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(config as never);
+        // Mirror creators into the ordered store when the seed carries them. Singleton-only
+        // writes (Apply preprocessing) must not wipe transformation steps already in the store.
+        const hasCreators = !!config && (
+            'categorical_column_creator' in config
+            || 'kmeans_cluster_creator' in config
+            || 'pca_column_creator' in config
+        );
+        if (!hasCreators) return;
+        const steps: { id: string; name: string; parameters: Record<string, unknown> }[] = [];
+        const categorical = config?.['categorical_column_creator'];
+        for (const parameters of Array.isArray(categorical) ? categorical : categorical ? [categorical] : []) {
+            steps.push({ id: crypto.randomUUID(), name: 'categorical_column_creator', parameters: parameters as Record<string, unknown> });
+        }
+        const kmeans = config?.['kmeans_cluster_creator'];
+        if (kmeans && typeof kmeans === 'object') {
+            steps.push({ id: 'kmeans-seed', name: 'kmeans_cluster_creator', parameters: kmeans as Record<string, unknown> });
+        }
+        const pca = config?.['pca_column_creator'];
+        if (pca && typeof pca === 'object') {
+            steps.push({ id: crypto.randomUUID(), name: 'pca_column_creator', parameters: pca as Record<string, unknown> });
+        }
+        (mockExpService.appliedTransformations as any).set(steps);
     }
 
     /** A stage card of the pipeline canvas, as rendered. */
@@ -65,15 +87,22 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'requestDatasets',
             'requestFilters',
             'getActiveDataModelCode',
+            'upsertTransformation',
+            'removeTransformation',
+            'transformationDependents',
+            'availableCreatorNames',
+            'hasPreprocessingSpec',
+            'catalogLoaded',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
             selectedDatasets: signal(['dataset-a']),
-            selectedDataModel: signal({ code: 'Stroke', version: '3.7' }),
+            selectedDataModel: signal({ code: 'Stroke', version: '3.7', variables: [] }),
             unavailableVariables: signal(new Map()),
             filterLogic: signal(null),
             editingExistingExperiment: () => false,
             appliedPreprocessingConfig: signal<Record<string, unknown> | null>(null),
+            appliedTransformations: signal([] as { id: string; name: string; parameters: Record<string, unknown> }[]),
             backendAlgorithms: signal({})
         });
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
@@ -81,14 +110,45 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
         mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.mockImplementation(
-            () => (mockExpService.appliedPreprocessingConfig() as any)?.['kmeans_cluster_creator'] ?? null,
+        mockExpService.availableCreatorNames.mockReturnValue([
+            'categorical_column_creator',
+            'kmeans_cluster_creator',
+        ]);
+        mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
+            ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
+        mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.transformationDependents.mockReturnValue([]);
+        mockExpService.upsertTransformation.mockImplementation((step: any) => {
+            const current = [...(mockExpService.appliedTransformations() as any[])];
+            const index = current.findIndex((existing) => existing.id === step.id);
+            const next = index === -1
+                ? [...current, step]
+                : current.map((existing, i) => (i === index ? step : existing));
+            (mockExpService.appliedTransformations as any).set(next);
+        });
+        mockExpService.removeTransformation.mockImplementation((id: string) => {
+            (mockExpService.appliedTransformations as any).set(
+                (mockExpService.appliedTransformations() as any[]).filter((step) => step.id !== id),
+            );
+        });
+        mockExpService.appliedKMeansClusterCreator.mockImplementation(() => {
+            const step = (mockExpService.appliedTransformations() as any[])
+                .find((candidate) => candidate.name === 'kmeans_cluster_creator');
+            return step?.parameters ?? (mockExpService.appliedPreprocessingConfig() as any)?.['kmeans_cluster_creator'] ?? null;
+        });
         mockExpService.setKMeansClusterPreprocessing.mockImplementation((creator: unknown) => {
-            const next: Record<string, unknown> = { ...(mockExpService.appliedPreprocessingConfig() ?? {}) };
-            if (creator) next['kmeans_cluster_creator'] = creator;
-            else delete next['kmeans_cluster_creator'];
-            seedAppliedConfig(Object.keys(next).length ? next : null);
+            if (!creator) {
+                for (const step of [...(mockExpService.appliedTransformations() as any[])]) {
+                    if (step.name === 'kmeans_cluster_creator') mockExpService.removeTransformation(step.id);
+                }
+                return;
+            }
+            mockExpService.upsertTransformation({
+                id: crypto.randomUUID(),
+                name: 'kmeans_cluster_creator',
+                parameters: creator as Record<string, unknown>,
+            });
         });
         mockExpService.requestDatasets.mockReturnValue(['dataset-a']);
         mockExpService.requestFilters.mockReturnValue(null);
@@ -102,6 +162,10 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             return next;
         });
         mockExpService.appliedCategoricalCreators.mockImplementation(() => {
+            const fromStore = (mockExpService.appliedTransformations() as any[])
+                .filter((step) => step.name === 'categorical_column_creator')
+                .map((step) => step.parameters);
+            if (fromStore.length) return fromStore;
             const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
             return Array.isArray(value) ? value : [];
         });
@@ -471,8 +535,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         const nodes = component.appliedTransformationSubNodes;
-        const clusterNode = nodes.find((node) => node.id === 'transformation:kmeans:kmeans_cluster');
-        expect(clusterNode?.title).toBe('K-means clusters: kmeans_cluster');
+        const clusterNode = nodes.find((node) => node.title === 'K-means clusters: kmeans_cluster');
+        expect(clusterNode?.id).toBe('transformation:kmeans-seed');
         expect(clusterNode?.subtitle).toBe('2 clusters from a, b');
         expect(clusterNode?.statusLabel).toBe('Applied');
         expect(clusterNode?.statusTone).toBe('applied');
@@ -811,7 +875,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             fixture.detectChanges();
 
             expect(graphCards().length).toBe(2);
-            expect(chooserRows().length).toBe(1);
+            // Chooser always lists every creator in the specs (repeated cards are allowed).
+            expect(chooserRows().length).toBe(2);
         });
 
         it('counts pending preprocessing changes in the badge and apply label', () => {
@@ -994,13 +1059,22 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         it('Clear drops the K-means card and its preview, back to the chooser', () => {
             component.addStep('transformation');
             component.chooseTransformation('kmeans');
-            mockExpService.setKMeansClusterPreprocessing({
-                new_column_names: ['cluster'],
-                k: 1,
-                enumeration_prefix: 'cluster_',
-                reusable_preprocessing: {},
-            } as any);
-            component.previewTransformationCard();
+            const stepId = component.cards().find((step) => step.name === 'kmeans_cluster_creator')!.id;
+            mockExpService.upsertTransformation({
+                id: stepId,
+                name: 'kmeans_cluster_creator',
+                parameters: {
+                    new_column_names: ['cluster'],
+                    k: 1,
+                    enumeration_prefix: 'cluster_',
+                    reusable_preprocessing: {
+                        enumeration_prefix: 'cluster_',
+                        cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
+                        cluster_variables: ['a'],
+                    },
+                },
+            });
+            component.previewTransformationCard(stepId);
 
             component.resetTransformation();
 
@@ -1011,13 +1085,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         it('previewing the K-means card commits no categorical card', () => {
             component.addStep('transformation');
+            component.chooseTransformation('kmeans');
+            const stepId = component.cards().find((step) => step.name === 'kmeans_cluster_creator')!.id;
             const commit = vi.spyOn(component, 'commitTransformationRuleFilters').mockReturnValue(undefined);
             vi.spyOn(component, 'refreshTransformationStatistics').mockReturnValue(undefined);
 
-            component.previewTransformationCard();
+            component.previewTransformationCard(stepId);
 
             expect(commit).not.toHaveBeenCalled();
-            expect(component.previewDraftId).toBe('kmeans');
+            expect(component.previewDraftId).toBe(stepId);
         });
 
         it('hides Records out while the Raw summary is pinned to an unapplied preview', () => {
