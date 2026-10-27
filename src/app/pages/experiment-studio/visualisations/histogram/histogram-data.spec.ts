@@ -40,6 +40,7 @@ describe('histogram split helpers', () => {
         { code: 'age', label: 'Age', type: 'nominal', enumerations: ['young', 'old'] },
         { code: 'dataset', label: 'Dataset', type: 'nominal', enumerations: ['a', 'b', 'c'] },
         { code: 'weight', label: 'Weight', type: 'continuous' },
+        { code: 'subjectid', label: 'Subject', type: 'nominal' },
       ],
       datasetLevelCount: 2,
     });
