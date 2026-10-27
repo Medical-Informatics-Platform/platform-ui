@@ -8,6 +8,8 @@ import {
   extractReusablePreprocessing,
   findKMeansReport,
   findReusablePreprocessing,
+  kmeansCreatorClusterChoices,
+  kmeansCreatorVariables,
   kmeansSourceIsReusable,
 } from './kmeans-cluster-source.utils';
 
@@ -192,6 +194,46 @@ describe('kmeans-cluster-source.utils', () => {
       const report = { selected_k: 2, clusters: [{ cluster_id: 'c1', label: 'Cluster 1' }] };
       expect(findKMeansReport({ result: { result: report } })).toBe(report);
       expect(findKMeansReport({ result: { message: 'nope' } })).toBeNull();
+    });
+  });
+
+  describe('kmeansCreatorVariables / kmeansCreatorClusterChoices', () => {
+    it('reads recipe cluster_variables and cluster_choices', () => {
+      const creator = {
+        reusable_preprocessing: {
+          cluster_variables: ['age', 'bmi'],
+          cluster_choices: [
+            { cluster_id: 'cluster_0', label: 'Cluster 0' },
+            { cluster_id: 'cluster_1', label: 'Cluster 1' },
+          ],
+        },
+      };
+      expect(kmeansCreatorVariables(creator)).toEqual(['age', 'bmi']);
+      expect(kmeansCreatorClusterChoices(creator)).toEqual([
+        { cluster_id: 'cluster_0', label: 'Cluster 0' },
+        { cluster_id: 'cluster_1', label: 'Cluster 1' },
+      ]);
+    });
+
+    it('falls back to fit-mode variables and synthetic cluster_1..k', () => {
+      const creator = {
+        variables: ['age', 'bmi'],
+        k: 3,
+        enumeration_prefix: 'cluster_',
+      };
+      expect(kmeansCreatorVariables(creator)).toEqual(['age', 'bmi']);
+      expect(kmeansCreatorClusterChoices(creator)).toEqual([
+        { cluster_id: 'cluster_1', label: 'cluster_1' },
+        { cluster_id: 'cluster_2', label: 'cluster_2' },
+        { cluster_id: 'cluster_3', label: 'cluster_3' },
+      ]);
+    });
+
+    it('defaults enumeration_prefix to cluster_ when synthesizing', () => {
+      expect(kmeansCreatorClusterChoices({ variables: ['age'], k: 2 })).toEqual([
+        { cluster_id: 'cluster_1', label: 'cluster_1' },
+        { cluster_id: 'cluster_2', label: 'cluster_2' },
+      ]);
     });
   });
 });

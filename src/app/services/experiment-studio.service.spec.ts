@@ -243,6 +243,23 @@ describe('ExperimentStudioService', () => {
             ],
           },
         },
+        {
+          name: 'pca_column_creator',
+          label: 'PCA Column Creator',
+          desc: '',
+          parameters: {},
+          outputs: {
+            new_column_names_param: 'new_column_names',
+            columns: [
+              {
+                type: 'real',
+                stattype: 'numerical',
+                column_count_param: 'n_components',
+                enumerations: null,
+              },
+            ],
+          },
+        },
       ],
     );
   });
@@ -1847,7 +1864,7 @@ describe('ExperimentStudioService', () => {
       expect(service.algorithmAssignableVariables().map((v) => v.code)).toContain('kmeans_cluster');
     });
 
-    it('ignores an applied creator without a column name or reusable preprocessing', () => {
+    it('ignores an applied creator without a column name or recipe/fit payload', () => {
       service.setAppliedDescriptivePreprocessing({
         kmeans_cluster_creator: { new_column_names: ['  '], k: 1, enumeration_prefix: 'cluster_', reusable_preprocessing: {} },
       });
@@ -1857,6 +1874,33 @@ describe('ExperimentStudioService', () => {
         kmeans_cluster_creator: { new_column_names: ['kmeans_cluster'] },
       });
       expect(service.appliedKMeansClusterCreator()).toBeNull();
+    });
+
+    it('accepts a fit-mode creator (variables + k, no recipe) for applied and request wiring', () => {
+      const fitCreator = {
+        new_column_names: ['km_fit'] as [string],
+        variables: ['a', 'b'],
+        k: 3,
+        enumeration_prefix: 'cluster_',
+      };
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'a', label: 'A' }, { code: 'b', label: 'B' }]);
+      service.setKMeansClusterPreprocessing(fitCreator);
+      service.setAlgorithmY([{ code: 'km_fit', label: 'km_fit', isCreatedColumn: true }]);
+
+      expect(service.appliedKMeansClusterCreator()).toEqual(fitCreator);
+      expect(service.appliedKMeansClusterCreator()).not.toHaveProperty('reusable_preprocessing');
+
+      const withReq = (service as any).withKMeansClusterRequirements({});
+      expect(withReq['kmeans_cluster_creator']).toEqual(fitCreator);
+
+      const body = service.buildRequestBody('mock_algo');
+      expect(body.analysis.inputdata.variables).toEqual(['a', 'b']);
+      const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'kmeans_cluster_creator']);
+      expect(steps[1].parameters['variables']).toEqual(['a', 'b']);
+      expect(steps[1].parameters).not.toHaveProperty('reusable_preprocessing');
     });
 
     it('sends the cluster variables as source CDEs and the cluster step after missing value handling', () => {
@@ -1957,6 +2001,20 @@ describe('ExperimentStudioService', () => {
       }, { age: 'Age', nihss_24h: '24h score' })).toContainEqual(expect.objectContaining({
         label: 'K-means cluster column',
         lines: ['kmeans_cluster', 'Clustered on Age, 24h score'],
+      }));
+    });
+
+    it('lists fit-mode variables when summarizing a cluster column', () => {
+      expect(service.formatPreprocessingEntries({
+        kmeans_cluster_creator: {
+          new_column_names: ['km_fit'],
+          variables: ['age', 'bmi'],
+          k: 2,
+          enumeration_prefix: 'cluster_',
+        },
+      }, { age: 'Age', bmi: 'BMI' })).toContainEqual(expect.objectContaining({
+        label: 'K-means cluster column',
+        lines: ['km_fit', 'Clustered on Age, BMI'],
       }));
     });
 
@@ -2165,17 +2223,62 @@ describe('ExperimentStudioService', () => {
       expect(service.transformationDependents(kmeansOnPcaA.id)).toEqual([]);
     });
 
-    it('upsert replaces by name in place and remove drops by id', () => {
+    it('upsert replaces by id in place and remove drops by id', () => {
       service.upsertTransformation(pcaAStep);
       service.upsertTransformation(kmeansOnPcaA);
       expect(service.appliedTransformations().map((s) => s.id)).toEqual(['pcaA', 'kmeans']);
 
-      // Re-upserting the same name with new parameters replaces it IN PLACE; it keeps its index.
+      // Re-upserting the same id with new parameters replaces it IN PLACE; it keeps its index.
       service.upsertTransformation({ ...pcaAStep, parameters: { ...pcaAStep.parameters, n_components: 3 } });
       expect(service.appliedTransformations().map((s) => s.id)).toEqual(['pcaA', 'kmeans']);
 
       service.removeTransformation('kmeans');
       expect(service.appliedTransformations().map((s) => s.id)).toEqual(['pcaA']);
+    });
+
+    it('upsert keeps two same-name steps when their ids differ', () => {
+      const pcaBStep = {
+        ...pcaAStep,
+        id: 'pcaB',
+        parameters: {
+          ...pcaAStep.parameters,
+          new_column_names: ['pca_b1', 'pca_b2'],
+        },
+      };
+      service.upsertTransformation(pcaAStep);
+      service.upsertTransformation(pcaBStep);
+      expect(service.appliedTransformations().map((s) => s.id)).toEqual(['pcaA', 'pcaB']);
+      expect(service.appliedTransformations().map((s) => s.name)).toEqual([
+        'pca_column_creator',
+        'pca_column_creator',
+      ]);
+    });
+
+    it('leaves out the steps that read a column of a step the deployment cannot run', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.upsertTransformation(pcaAStep);
+      service.upsertTransformation({
+        id: 'cat-on-pca',
+        name: 'categorical_column_creator',
+        parameters: {
+          new_column_names: ['grp_pca'],
+          rules: { high: { condition: 'AND', rules: [{ field: 'pca_a1', operator: 'greater', value: 0 }] } },
+        },
+      });
+      service.upsertTransformation(categoricalStep);
+      // A catalog without pca_column_creator: the aggregation server is not deployed.
+      service.loadBackendAlgorithms().subscribe();
+      flushSpecifications(
+        [toAlgorithmSpec(mockRawAlgo)],
+        [{ name: 'categorical_column_creator', label: '', desc: '', parameters: {} }],
+      );
+
+      const body = service.buildRequestBody('mock_algo');
+      const creators = (body.analysis.preprocessing as AnalysisPreprocessingStep[])
+        .filter((step) => step.name !== 'missing_values_handler')
+        .map((step) => step.parameters['new_column_names']);
+      expect(creators).toEqual([['grp']]);
     });
 
     it('keeps a re-edited categorical step before a dependent K-means step', () => {

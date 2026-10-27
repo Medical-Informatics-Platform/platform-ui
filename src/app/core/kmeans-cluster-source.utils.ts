@@ -20,12 +20,56 @@ export interface KMeansReusablePreprocessing {
 }
 
 /** Parameters of the kmeans_cluster_creator preprocessing step.
- *  Exaflow names the created column with `new_column_names`, not `code`. */
+ *  Exaflow names the created column with `new_column_names`, not `code`.
+ *  Recipe mode carries reusable_preprocessing; fit mode carries variables (no recipe). */
 export interface KMeansClusterCreatorConfig {
   new_column_names: [string];
   k: number;
   enumeration_prefix: string;
-  reusable_preprocessing: KMeansReusablePreprocessing;
+  reusable_preprocessing?: KMeansReusablePreprocessing;
+  variables?: string[];
+}
+
+/** Clustering variable codes from a stored creator: recipe `cluster_variables` or fit `variables`. */
+export function kmeansCreatorVariables(
+  creator: Record<string, unknown> | null | undefined,
+): string[] {
+  const reusable = creator?.['reusable_preprocessing'];
+  if (isPlainObject(reusable) && Array.isArray(reusable['cluster_variables'])) {
+    return reusable['cluster_variables'].map((code) => String(code).trim()).filter((code) => !!code);
+  }
+  const variables = creator?.['variables'];
+  return Array.isArray(variables)
+    ? variables.map((code) => String(code).trim()).filter((code) => !!code)
+    : [];
+}
+
+/**
+ * Cluster category ids/labels: recipe `cluster_choices`, or synthetic
+ * `${enumeration_prefix || 'cluster_'}${1..k}` for fit mode.
+ */
+export function kmeansCreatorClusterChoices(
+  creator: Record<string, unknown> | null | undefined,
+): Array<{ cluster_id: string; label: string }> {
+  const reusable = creator?.['reusable_preprocessing'];
+  if (isPlainObject(reusable) && Array.isArray(reusable['cluster_choices'])) {
+    return reusable['cluster_choices']
+      .filter(isPlainObject)
+      .map((choice) => ({
+        cluster_id: String(choice['cluster_id'] ?? '').trim(),
+        label: String(choice['label'] ?? '').trim(),
+      }))
+      .filter((choice) => !!choice.cluster_id);
+  }
+  const k = typeof creator?.['k'] === 'number' ? creator['k'] : 0;
+  if (!Number.isFinite(k) || k < 1) return [];
+  const prefix = typeof creator?.['enumeration_prefix'] === 'string' && creator['enumeration_prefix']
+    ? creator['enumeration_prefix']
+    : 'cluster_';
+  return Array.from({ length: Math.floor(k) }, (_, index) => {
+    const id = `${prefix}${index + 1}`;
+    return { cluster_id: id, label: id };
+  });
 }
 
 /** Source of the data the current draft experiment runs on. */
