@@ -168,7 +168,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('counts transformation-only work as Transformation, not Preprocessing', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'group',
+                new_column_names: ['group'],
                 strategy: 'filter_rules',
                 rules: { mild: { field: 'age', operator: '<', value: 50 } },
             }],
@@ -347,7 +347,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('opens the transformation stage from the collapsed rail without inventing a column', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'mrs_good_outcome',
+                new_column_names: ['mrs_good_outcome'],
                 strategy: 'filter_rules',
                 rules: { good: { field: 'age', operator: '<', value: 50 } },
             }],
@@ -400,7 +400,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('surfaces the applied derived column as a transformation sub-node', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
-                code: 'mrs_good_outcome',
+                new_column_names: ['mrs_good_outcome'],
                 strategy: 'filter_rules',
                 rules: {
                     good: { field: 'age', operator: '<', value: 50 },
@@ -424,12 +424,12 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         seedAppliedConfig({
             categorical_column_creator: [
                 {
-                    code: 'mrs_good_outcome',
+                    new_column_names: ['mrs_good_outcome'],
                     strategy: 'filter_rules',
                     rules: { good: { field: 'age', operator: '<', value: 50 } },
                 },
                 {
-                    code: 'mrs_bad_outcome',
+                    new_column_names: ['mrs_bad_outcome'],
                     strategy: 'filter_rules',
                     rules: {
                         bad: { field: 'age', operator: '>=', value: 50 },
@@ -455,8 +455,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('surfaces the applied K-means cluster column as a transformation sub-node', () => {
         seedAppliedConfig({
             kmeans_cluster_creator: {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 2,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_choices: [
                         { cluster_id: 'c1', label: 'Cluster 1' },
                         { cluster_id: 'c2', label: 'Cluster 2' },
@@ -478,8 +481,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('counts the cluster column as the stage status on its own', () => {
         seedAppliedConfig({
             kmeans_cluster_creator: {
-                code: 'kmeans_cluster',
+                new_column_names: ['kmeans_cluster'],
+                k: 1,
+                enumeration_prefix: 'cluster_',
                 reusable_preprocessing: {
+                    enumeration_prefix: 'cluster_',
                     cluster_choices: [{ cluster_id: 'c1', label: 'Cluster 1' }],
                     cluster_variables: ['a'],
                 },
@@ -495,8 +501,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     it('folds every derived column card on Apply so the overview can list them', () => {
         seedAppliedConfig({
             categorical_column_creator: [
-                { code: 'mrs_good_outcome', strategy: 'filter_rules', rules: { good: { field: 'age', operator: '<', value: 50 } } },
-                { code: 'mrs_bad_outcome', strategy: 'filter_rules', rules: { bad: { field: 'age', operator: '>=', value: 50 } } },
+                { new_column_names: ['mrs_good_outcome'], strategy: 'filter_rules', rules: { good: { field: 'age', operator: '<', value: 50 } } },
+                { new_column_names: ['mrs_bad_outcome'], strategy: 'filter_rules', rules: { bad: { field: 'age', operator: '>=', value: 50 } } },
             ],
         });
         (mockExpService.selectedVariables as any).set([age]);
@@ -988,7 +994,12 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         it('Clear drops the K-means card and its preview, back to the chooser', () => {
             component.addStep('transformation');
             component.chooseTransformation('kmeans');
-            mockExpService.setKMeansClusterPreprocessing({ code: 'cluster', reusable_preprocessing: {} } as any);
+            mockExpService.setKMeansClusterPreprocessing({
+                new_column_names: ['cluster'],
+                k: 1,
+                enumeration_prefix: 'cluster_',
+                reusable_preprocessing: {},
+            } as any);
             component.previewTransformationCard();
 
             component.resetTransformation();

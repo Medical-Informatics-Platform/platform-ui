@@ -7,9 +7,10 @@ export const KMEANS_CLUSTER_CREATOR = 'kmeans_cluster_creator';
 /** Result type of the K-means cluster report. Its reusable_preprocessing is the creator input. */
 export const KMEANS_RESULT_TYPE = 'privacy_safe_cluster_report';
 
-/** Preprocessing block stored in a K-means result that can be replayed as a cluster column. */
+/** Preprocessing block stored in a K-means result that can be replayed as a cluster column.
+ *  Matches exaflow `KMeansReusablePreprocessing` (no schema_version, has enumeration_prefix). */
 export interface KMeansReusablePreprocessing {
-  schema_version: string;
+  enumeration_prefix: string;
   preprocessing_name: string;
   cluster_variables: string[];
   centers: Record<string, Record<string, number>>;
@@ -18,9 +19,12 @@ export interface KMeansReusablePreprocessing {
   cluster_choices: { cluster_id: string; label: string }[];
 }
 
-/** Parameters of the kmeans_cluster_creator preprocessing step. */
+/** Parameters of the kmeans_cluster_creator preprocessing step.
+ *  Exaflow names the created column with `new_column_names`, not `code`. */
 export interface KMeansClusterCreatorConfig {
-  code: string;
+  new_column_names: [string];
+  k: number;
+  enumeration_prefix: string;
   reusable_preprocessing: KMeansReusablePreprocessing;
 }
 
@@ -99,6 +103,10 @@ export function extractReusablePreprocessing(result: unknown): KMeansReusablePre
   }
   if (!Array.isArray(candidate['cluster_variables']) || !Array.isArray(candidate['cluster_choices'])
     || !isPlainObject(candidate['centers'])) {
+    return null;
+  }
+  // The creator names the cluster categories with this prefix; a block without it cannot replay.
+  if (typeof candidate['enumeration_prefix'] !== 'string' || !candidate['enumeration_prefix']) {
     return null;
   }
 

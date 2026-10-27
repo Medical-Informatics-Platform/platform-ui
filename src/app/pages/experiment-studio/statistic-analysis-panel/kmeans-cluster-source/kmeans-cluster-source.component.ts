@@ -188,6 +188,11 @@ export class KMeansClusterSourceComponent implements OnInit {
     });
   }
 
+  /** The applied column's name (exaflow `new_column_names[0]`), or empty when none. */
+  appliedColumnName(): string {
+    return String(this.applied()?.new_column_names[0] ?? '').trim();
+  }
+
   /** Cluster count the applied column carries, or null when the record is malformed. */
   clusterCount(): number | null {
     return this.applied()?.reusable_preprocessing.cluster_choices?.length || null;
@@ -349,7 +354,14 @@ export class KMeansClusterSourceComponent implements OnInit {
   private store(code: string, reusablePreprocessing: KMeansReusablePreprocessing): void {
     this.error.set(null);
     this.selectedUuid.set(null);
-    this.studio.setKMeansClusterPreprocessing({ code, reusable_preprocessing: reusablePreprocessing });
+    // Exaflow names the created column with `new_column_names`; `k` and `enumeration_prefix`
+    // are derived from the replayable preprocessing, not re-entered here.
+    this.studio.setKMeansClusterPreprocessing({
+      new_column_names: [code],
+      k: reusablePreprocessing.cluster_choices.length,
+      enumeration_prefix: reusablePreprocessing.enumeration_prefix,
+      reusable_preprocessing: reusablePreprocessing,
+    });
     this.runRequested.emit();
   }
 }

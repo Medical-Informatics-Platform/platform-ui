@@ -1729,7 +1729,7 @@
                 <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.kmeans }"></ng-container>
                 }
                 @if (previewDraftId === 'kmeans') {
-                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.code ?? '' }"></ng-container>
+                <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: expStudioService.appliedKMeansClusterCreator()?.new_column_names[0] ?? '' }"></ng-container>
                 }
                 <app-kmeans-cluster-source [class.is-previewing]="previewDraftId === 'kmeans'" (runRequested)="previewTransformationCard()" />
                 @if (expStudioService.appliedKMeansClusterCreator()) {
