@@ -129,7 +129,8 @@ export function buildHistogramSplitOptions(input: {
   for (const variable of input.selectedVariables) {
     const code = String(variable.code ?? '').trim();
     if (!code || code.toLowerCase() === DATASET_VARIABLE_CODE || code === plotted) continue;
-    if (!isNominalHistogramNode(variable)) continue;
+    // Split levels come from enumerations; free-text categoricals have none and Exaflow rejects them.
+    if (!isNominalHistogramNode(variable) || !variable.enumerations?.length) continue;
     const label = String(variable.label ?? variable.name ?? variable.code);
     const levelCount = variable.enumerations?.length ?? 0;
     const unavailableTitle = unavailableTooltipFor(input.unavailableVariables, { code });

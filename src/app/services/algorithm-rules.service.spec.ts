@@ -64,7 +64,7 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'nominal' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
       x: [],
     })).toBe(false);
 
@@ -80,7 +80,22 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'nominal' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
+      x: [],
+    })).toBe(true);
+  });
+
+  it('rejects a free-text CDE (categorical without enumerations) but not a derived column', () => {
+    const algo = buildAlgo({
+      y: { label: 'y', desc: '', types: ['text'], required: true, max_count: 1 },
+    });
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'subjectid', label: 'Subject', type: 'nominal' } as any],
+      x: [],
+    })).toBe(false);
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'derived', label: 'Derived', type: 'nominal', enumerations: [], isCreatedColumn: true } as any],
       x: [],
     })).toBe(true);
   });
@@ -96,7 +111,7 @@ describe('AlgorithmRulesService', () => {
 
     const availableWithOneCovariate = service.isAlgorithmAvailable(algo, {
       y: [{ code: 'age', label: 'Age', type: 'continuous' } as any],
-      x: [{ code: 'sex', label: 'Sex', type: 'nominal' } as any],
+      x: [{ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
     });
 
     expect(availableWithOneCovariate).toBe(true);
@@ -116,7 +131,7 @@ describe('AlgorithmRulesService', () => {
         { code: 'age', label: 'Age', type: 'continuous' } as any,
         { code: 'bmi', label: 'BMI', type: 'continuous' } as any,
       ],
-      x: [{ code: 'sex', label: 'Sex', type: 'nominal' } as any],
+      x: [{ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
     });
 
     expect(result.available).toBe(false);
@@ -172,7 +187,7 @@ describe('AlgorithmRulesService', () => {
     } as AlgorithmConfig;
 
     const unavailable = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'outcome', label: 'Outcome', type: 'binary', stattype: 'nominal' } as any],
+      y: [{ code: 'outcome', label: 'Outcome', type: 'binary', stattype: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
       x: [{ code: 'age', label: 'Age', type: 'continuous', stattype: 'numerical' } as any],
     });
 
@@ -214,7 +229,7 @@ describe('AlgorithmRulesService', () => {
     });
 
     const result = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'nominal', stattype: 'ordinal' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', stattype: 'ordinal', enumerations: [{ code: 'a', label: 'A' }] } as any],
       x: [],
     });
 
