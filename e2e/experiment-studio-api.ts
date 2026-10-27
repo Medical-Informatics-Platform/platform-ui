@@ -133,7 +133,7 @@ function kmeansReport(variables: string[]) {
         { cluster_id: '1', label: 'Cluster 1', size_interval: '40–50', interpretation: 'Lower scores' },
       ],
       reusable_preprocessing: {
-        schema_version: '1',
+        enumeration_prefix: 'cluster_',
         preprocessing_name: 'kmeans_cluster_creator',
         cluster_variables: used,
         centers: { '0': center(80), '1': center(60) },
@@ -329,8 +329,55 @@ export const LINEAR_REGRESSION_RESULT = {
   upper_ci: [73.2309, 4.0123],
 };
 
+/**
+ * PCA result shaped like Exaflow after PR #623 (changes.md §1): additive
+ * `variables`, `components`, and `reusable_preprocessing` for `pca_column_creator`.
+ * Numbers are illustrative; variable codes match the dementia mock model.
+ */
+function pcaResult() {
+  return {
+    title: 'Eigenvalues and Eigenvectors',
+    n_obs: 95,
+    eigenvalues: [1.71, 0.29],
+    eigenvectors: [
+      [0.707, 0.707],
+      [-0.707, 0.707],
+    ],
+    variables: ['age', 'mmse'],
+    components: [
+      {
+        component_id: 'PC1',
+        explained_variance: 1.71,
+        explained_variance_ratio: 0.855,
+        cumulative_explained_variance: 0.855,
+        loadings: { age: 0.707, mmse: 0.707 },
+      },
+      {
+        component_id: 'PC2',
+        explained_variance: 0.29,
+        explained_variance_ratio: 0.145,
+        cumulative_explained_variance: 1.0,
+        loadings: { age: -0.707, mmse: 0.707 },
+      },
+    ],
+    reusable_preprocessing: {
+      schema_version: '1',
+      preprocessing_name: 'pca_column_creator',
+      base_parameters: {
+        variables: ['age', 'mmse'],
+        pca_variant: 'pca',
+      },
+      component_choices: [
+        { component_id: 'PC1', explained_variance_ratio: 0.855 },
+        { component_id: 'PC2', explained_variance_ratio: 0.145 },
+      ],
+    },
+  };
+}
+
 function resultFor(name: string) {
   if (name === 'linear_regression') return LINEAR_REGRESSION_RESULT;
+  if (name === 'pca') return pcaResult();
   return { title: `Result ${name}`, n_obs: 100 };
 }
 
@@ -460,6 +507,70 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
           desc: 'Cap extreme values.',
           order: 2,
           parameters: {},
+        },
+        {
+          name: 'pca_column_creator',
+          label: 'PCA column creator',
+          desc: 'Create principal component columns.',
+          order: 3,
+          parameters: {},
+          outputs: {
+            new_column_names_param: 'new_column_names',
+            columns: [
+              {
+                type: 'real',
+                stattype: 'numerical',
+                column_count_param: 'n_components',
+                enumerations: null,
+              },
+            ],
+          },
+        },
+        {
+          name: 'categorical_column_creator',
+          label: 'Categorical column creator',
+          desc: 'Create categorical columns from rules.',
+          order: 4,
+          parameters: {},
+          outputs: {
+            new_column_names_param: 'new_column_names',
+            columns: [
+              {
+                type: 'text',
+                stattype: 'nominal',
+                column_count_param: null,
+                enumerations: {
+                  source_parameter_name: 'rules',
+                  source_type: 'dict_keys',
+                  additional_value_parameter_name: 'default_enumeration',
+                  prefix_parameter_name: null,
+                },
+              },
+            ],
+          },
+        },
+        {
+          name: 'kmeans_cluster_creator',
+          label: 'K-means cluster creator',
+          desc: 'Create cluster columns.',
+          order: 5,
+          parameters: {},
+          outputs: {
+            new_column_names_param: 'new_column_names',
+            columns: [
+              {
+                type: 'int',
+                stattype: 'nominal',
+                column_count_param: null,
+                enumerations: {
+                  source_parameter_name: 'k',
+                  source_type: 'prefixed_range',
+                  additional_value_parameter_name: null,
+                  prefix_parameter_name: 'enumeration_prefix',
+                },
+              },
+            ],
+          },
         },
       ]);
     }

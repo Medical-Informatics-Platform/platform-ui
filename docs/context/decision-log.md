@@ -188,6 +188,20 @@ Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/pages/
 
 Date: 2026-10-14.
 
+### Decision: Ordered `appliedTransformations` list; PCA via `pca_column_creator`
+
+Status: Accepted
+
+Context: Exaflow dropped `pca_with_transformation`, replaced creator `code` with `new_column_names`, and added `pca_column_creator` (plus K-means fit mode). Downstream UI had stored column creators as keyed preprocessing config entries, which could not express repeated steps or step order when a later creator reads an earlier one's outputs.
+
+Decision: Keep singleton handlers in the preprocessing config map. Store every column-creating step in `ExperimentStudioService.appliedTransformations` as an ordered `TransformationStep[]` (id, name, parameters). Emit singletons first, then creators in list order. Name every created column with `new_column_names`. Offer PCA component scores only through `pca_column_creator` (reuse a PCA result's `reusable_preprocessing`, or fit on selected numerical variables). Do not offer or send `pca_with_transformation`.
+
+Consequences: Cards append in creation order (no drag-reorder yet); a K-means card can cluster on earlier PCA columns. Saved experiments that still use `code` or `pca_with_transformation` fail at Exaflow until the user edits and reruns. Session storage persists the ordered list under `appliedTransformations`.
+
+Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/pages/experiment-studio/statistic-analysis-panel/**`, `src/app/core/pca-column-source.utils.ts`, `src/app/core/preprocessing-outputs.utils.ts`, `e2e/experiment-studio-api.ts`, `e2e/experiment-studio.flows.spec.ts`, `docs/context/*.md`.
+
+Date: 2026-10-27.
+
 ### Decision: Experiment calls follow the consolidated `/services/experiments` API
 
 Status: Accepted
