@@ -37,17 +37,58 @@ const first = (result: any, keys: string[]): number | null => {
   return null;
 };
 
-/** Which groups a two-group test compared, when the caller knows the run's parameters. */
+/** What the caller knows of the run: the groups a two-group test compared, the paired
+ *  measurements, and the alpha and alternative that set the confidence interval. */
 export interface SummaryContext {
   groupA: string | null;
   groupB: string | null;
+  /** Paired t-test: Exaflow reports mean(x − y), measurement 1 (x) minus measurement 2 (y). */
+  measurement1?: string | null;
+  measurement2?: string | null;
+  alpha?: number | null;
+  alternative?: string | null;
+}
+
+/** "Infinity" / "-Infinity" (how Exaflow sends an open CI side) or a numeric infinity, as its sign. */
+function infiniteSign(value: unknown): 1 | -1 | null {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
+  return numeric === Infinity ? 1 : numeric === -Infinity ? -1 : null;
+}
+
+/** The CI level as a percentage: (1 − alpha) when alpha is a usable significance level, else 95. */
+function confidenceLevel(alpha: number | null | undefined): string {
+  if (typeof alpha !== 'number' || !(alpha > 0 && alpha < 1)) return '95';
+  return String(Number(((1 - alpha) * 100).toFixed(2)));
+}
+
+/** The t-test CI as a note: two-sided "95% CI a to b", one-sided "95% one-sided CI ≥ a" (greater)
+ *  or "≤ b" (less). Exaflow (PR #656) reports a one-sided (1 − alpha) bound with the other side
+ *  open, so the open side is read from the result and the run's alternative alike. */
+function ttestCiNote(result: any, context?: SummaryContext): string {
+  const lower = toFiniteNumber(result?.ci_lower);
+  const upper = toFiniteNumber(result?.ci_upper);
+  const level = confidenceLevel(context?.alpha);
+  const alternative = context?.alternative;
+  if (lower !== null && (infiniteSign(result?.ci_upper) === 1 || (upper === null && alternative === 'greater'))) {
+    return `${level}% one-sided CI ≥ ${formatSignedNumber(lower)}`;
+  }
+  if (upper !== null && (infiniteSign(result?.ci_lower) === -1 || (lower === null && alternative === 'less'))) {
+    return `${level}% one-sided CI ≤ ${formatSignedNumber(upper)}`;
+  }
+  return lower !== null && upper !== null ? `${level}% CI ${formatSignedNumber(lower)} to ${formatSignedNumber(upper)}` : '';
+}
+
+/** What the mean difference is the difference of, when the run says. */
+function ttestDifferenceNote(context?: SummaryContext): string {
+  // Exaflow's independent t-test reports mean(group A) − mean(group B).
+  if (context?.groupA && context?.groupB) return `${context.groupA} − ${context.groupB}`;
+  if (context?.measurement1 && context?.measurement2) return `${context.measurement1} − ${context.measurement2}`;
+  return '';
 }
 
 function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
   const figures: KeyFigure[] = [];
   const meanDiff = first(result, ['mean_diff']);
-  const lower = first(result, ['ci_lower']);
-  const upper = first(result, ['ci_upper']);
   const t = first(result, ['t_stat']);
   const df = first(result, ['df', 'dof']);
   const p = first(result, ['p', 'p_value']);
@@ -57,13 +98,11 @@ function ttestFigures(result: any, context?: SummaryContext): KeyFigure[] {
   const sd = first(result, ['std']);
 
   if (meanDiff !== null) {
-    // Exaflow's independent t-test reports mean(group A) − mean(group B).
-    const groups = context?.groupA && context?.groupB ? `${context.groupA} − ${context.groupB}` : '';
-    const ci = lower !== null && upper !== null ? `95% CI ${formatSignedNumber(lower)} to ${formatSignedNumber(upper)}` : '';
     figures.push({
       label: 'Mean difference',
       value: formatSignedNumber(meanDiff),
-      note: [groups, ci, se === null ? '' : `SE ${se.toPrecision(2)}`].filter(Boolean).join(' · ') || undefined,
+      note: [ttestDifferenceNote(context), ttestCiNote(result, context), se === null ? '' : `SE ${se.toPrecision(2)}`]
+        .filter(Boolean).join(' · ') || undefined,
     });
   }
   if (p !== null) {
@@ -318,9 +357,9 @@ const BUILDERS: Record<string, (result: any, context?: SummaryContext) => KeyFig
   naive_bayes_gaussian_cv: classificationCvFigures,
   naive_bayes_categorical_cv: classificationCvFigures,
   logistic_regression_cv: classificationCvFigures,
-  ttest_independent: ttestFigures,
-  ttest_paired: (result) => ttestFigures(result),
-  ttest_onesample: (result) => ttestFigures(result),
+  ttest_independent: (result, context) => ttestFigures(result, context && { ...context, measurement1: null, measurement2: null }),
+  ttest_paired: (result, context) => ttestFigures(result, context && { ...context, groupA: null, groupB: null }),
+  ttest_onesample: (result, context) => ttestFigures(result, context && { ...context, groupA: null, groupB: null, measurement1: null, measurement2: null }),
   chi_squared: chiSquaredFigures,
   fisher_exact: fisherFigures,
   anova_oneway: anovaOneWayFigures,
@@ -348,7 +387,8 @@ function ttestShownRows(result: any): string[] {
   const se = firstKey(['se_diff', 'se_difference', 'std_err_diff']);
   const keys = [
     ...(meanDiff ? ['mean_diff'] : []),
-    ...(meanDiff && has('ci_lower') && has('ci_upper') ? ['ci_lower', 'ci_upper'] : []),
+    // A one-sided CI's figure prints its finite bound, which implies the open side.
+    ...(meanDiff && ttestCiNote(result) ? ['ci_lower', 'ci_upper'] : []),
     ...(meanDiff && se ? [se] : []),
     ...(p ? [p] : []),
     ...(p && t ? ['t_stat'] : []),
