@@ -43,8 +43,9 @@ export function buildMeanPlotChart(result: any): EChartsOption[] {
 }
 
 /**
- * Independent t-test: the mean difference (group A − group B) with its 95% CI as one vertical
- * interval, value on the y axis, with a dashed zero line when the interval reaches it.
+ * Independent t-test: the mean difference (group A − group B) with its CI as one vertical
+ * interval, value on the y axis, with a dashed zero line when the interval reaches it. The CI's
+ * level is (1 − alpha) of the run, which the chart does not know; the key figure states it.
  */
 export function buildTTestIntervalChart(result: any): EChartsOption[] {
   const [mean, low, high] = [result?.mean_diff, result?.ci_lower, result?.ci_upper].map(Number);
@@ -54,8 +55,8 @@ export function buildTTestIntervalChart(result: any): EChartsOption[] {
     y: 'Difference in means',
     point: 'Mean difference',
     value: 'Difference',
-    interval: '95% confidence interval',
-    intervalShort: '95% CI',
+    interval: 'Confidence interval',
+    intervalShort: 'CI',
   }, 320);
   if (low <= 0 && high >= 0) {
     (option.series as any[])[0].markLine = {

@@ -261,6 +261,12 @@ describe('AutoRendererComponent', () => {
     expect(cmp.formatValue('< 0.001')).toBe('< 0.001');
   });
 
+  // Exaflow sends the open side of a one-sided t-test CI as the string "Infinity" / "-Infinity".
+  it('shows the open side of a one-sided CI as an infinity sign on screen', () => {
+    expect(cmp.formatValue('Infinity')).toBe('∞');
+    expect(cmp.formatValue('-Infinity')).toBe('−∞');
+  });
+
   it('prints row labels and name columns as sent, never digit-grouped', () => {
     expect(cmp.formatCell('10001', 'Category', 0)).toBe('10001');
     expect(cmp.formatCell('2020', 'Group 2', 1)).toBe('2020');

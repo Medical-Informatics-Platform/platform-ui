@@ -143,11 +143,22 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     return Array.from(card?.querySelectorAll('tbody tr') ?? []).map((row) => row.querySelector('td')?.textContent?.trim());
   };
 
+  it('summarises a one-sided paired t-test with its bound, level and measurement order from the run', () => {
+    fixture.componentRef.setInput('parameters', { alt_hypothesis: 'greater', alpha: 0.1 });
+    fixture.componentRef.setInput('xVar', 'rightorifg');
+    fixture.componentRef.setInput('yVar', 'rightppplanumpolare');
+    fixture.componentRef.setInput('labelMap', { rightorifg: 'Right orbital IFG', rightppplanumpolare: 'Right planum polare' });
+    const html = render({ t_stat: -39.8, df: 216, p: 1, mean_diff: -0.502, se_diff: 0.0126, ci_lower: -0.5184, ci_upper: 'Infinity', cohens_d: -2.7 }, 'ttest_paired');
+
+    const notes = Array.from(html.querySelectorAll('.key-figure-note')).map((el) => el.textContent?.trim());
+    expect(notes).toContain('Right orbital IFG − Right planum polare · 90% one-sided CI ≥ −0.518 · SE 0.013');
+  });
+
   it('keeps the t-test rows the key figures do not print', () => {
     const html = render({ t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, cohens_d: -0.7, mean_x: 4.2 }, 'ttest_independent');
 
     // One CI bound alone is not in the mean-difference figure, and mean_x has no figure.
-    expect(rowLabels(html, 'Independent T-Test')).toEqual(['95% CI Lower', 'Mean X']);
+    expect(rowLabels(html, 'Independent T-Test')).toEqual(['CI Lower', 'Mean X']);
   });
 
   it('keeps the F diagnostic and undefined metrics under the linear regression CV figures', () => {

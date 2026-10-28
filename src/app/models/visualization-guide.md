@@ -52,6 +52,9 @@ Proposed visualization:
 
 Data includes:
 - `t_stat`, `df`, `p`, `mean_diff`, `se_diff`, `ci_lower`, `ci_upper`, `cohens_d`
+- One-sided runs (`alt_hypothesis` `less` / `greater`) send the open CI side as the string
+  `"-Infinity"` / `"Infinity"` and the other side as the one-sided (1 − alpha) bound.
+- The paired t-test's `mean_diff` is measurement 1 (x) minus measurement 2 (y).
 
 Proposed visualization:
 - Primary: Single-point effect chart (mean difference with 95% CI).
