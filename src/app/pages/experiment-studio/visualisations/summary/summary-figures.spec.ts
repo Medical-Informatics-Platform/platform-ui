@@ -88,18 +88,63 @@ describe('buildSummaryFigures', () => {
     const ttest = byLabel(buildSummaryFigures('ttest_independent', { mean_diff: -3.45, ci_lower: -3.46, ci_upper: -3.44, p: 0 }, context)!);
     expect(ttest['Mean difference'].note).toBe('yes − no · 95% CI −3.46 to −3.44');
   });
+
+  // Exaflow PR #656: one-sided runs report a one-sided (1 − alpha) bound and "Infinity" on the open side.
+  it('shows the one-sided bound of a one-sided t-test instead of dropping the CI', () => {
+    const greater = byLabel(buildSummaryFigures('ttest_onesample', {
+      mean_diff: 4.634, ci_lower: 4.5738, ci_upper: 'Infinity', p: 0.00015, t_stat: 3.68, df: 216,
+    }, { groupA: null, groupB: null, alpha: 0.05, alternative: 'greater' })!);
+    expect(greater['Mean difference'].note).toBe('95% one-sided CI ≥ 4.57');
+
+    const less = byLabel(buildSummaryFigures('ttest_independent', {
+      mean_diff: -0.0398, ci_lower: '-Infinity', ci_upper: 0.0743, p: 0.28,
+    }, { groupA: 'edsd0', groupB: 'ppmi0', alpha: 0.05, alternative: 'less' })!);
+    expect(less['Mean difference'].note).toBe('edsd0 − ppmi0 · 95% one-sided CI ≤ 0.074');
+  });
+
+  it('reads the open side from the result when the run parameters are unknown', () => {
+    const figures = byLabel(buildSummaryFigures('ttest_paired', { mean_diff: -0.502, ci_lower: -0.523, ci_upper: 'Infinity', p: 1 })!);
+    expect(figures['Mean difference'].note).toBe('95% one-sided CI ≥ −0.523');
+  });
+
+  it('labels the CI with the run\'s confidence level', () => {
+    const figures = byLabel(buildSummaryFigures('ttest_onesample', { mean_diff: 1.2, ci_lower: 0.9, ci_upper: 1.5, p: 0.01 },
+      { groupA: null, groupB: null, alpha: 0.1, alternative: 'two-sided' })!);
+    expect(figures['Mean difference'].note).toBe('90% CI 0.900 to 1.50');
+  });
+
+  it('names the paired difference as measurement 1 (x) minus measurement 2 (y)', () => {
+    const figures = byLabel(buildSummaryFigures('ttest_paired', { mean_diff: -0.502, ci_lower: -0.527, ci_upper: -0.477, p: 1e-101 },
+      { groupA: null, groupB: null, measurement1: 'Right orbital IFG', measurement2: 'Right planum polare' })!);
+    expect(figures['Mean difference'].note).toBe('Right orbital IFG − Right planum polare · 95% CI −0.527 to −0.477');
+  });
 });
 
 describe('tablesShownAsFigures', () => {
   it('covers only the t-test rows the figures print', () => {
     expect(tablesShownAsFigures('ttest_paired', { t_stat: 2, df: 9, p: 0.04, mean_diff: 1.2, ci_lower: 0.1, ci_upper: 2.3, se_diff: 0.5 })).toEqual([{
       title: 'Paired T-Test',
-      rows: ['Mean Difference', '95% CI Lower', '95% CI Upper', 'Std. Error of Difference', 'p-value', 'T-statistic', 'Degrees of Freedom'],
+      rows: ['Mean Difference', 'CI Lower', 'CI Upper', 'Std. Error of Difference', 'p-value', 'T-statistic', 'Degrees of Freedom'],
     }]);
     // Without a mean difference there is no figure for its CI or SE, and without p none for t or df.
     expect(tablesShownAsFigures('ttest_onesample', { t_stat: 2, df: 9, ci_lower: 0.1, ci_upper: 2.3, cohens_d: 0.4 })).toEqual([
       { title: 'One-Sample T-Test', rows: ["Cohen's d"] },
     ]);
+  });
+
+  it('covers both CI rows of a one-sided t-test, whose figure prints the finite bound', () => {
+    expect(tablesShownAsFigures('ttest_paired', { mean_diff: 1.2, ci_lower: 0.3, ci_upper: 'Infinity' })).toEqual([{
+      title: 'Paired T-Test', rows: ['Mean Difference', 'CI Lower', 'CI Upper'],
+    }]);
+  });
+
+  it('covers a one-sided CI whose open side arrived as null when the run says which side', () => {
+    const result = { mean_diff: 1.2, ci_lower: 0.3, ci_upper: null };
+    expect(tablesShownAsFigures('ttest_paired', result, { groupA: null, groupB: null, alternative: 'greater' })).toEqual([{
+      title: 'Paired T-Test', rows: ['Mean Difference', 'CI Lower', 'CI Upper'],
+    }]);
+    // Without the run's alternative the figure prints no CI, so both rows stay in the table.
+    expect(tablesShownAsFigures('ttest_paired', result)).toEqual([{ title: 'Paired T-Test', rows: ['Mean Difference'] }]);
   });
 
   it('leaves the F diagnostic and undefined linear regression CV metrics in their table', () => {

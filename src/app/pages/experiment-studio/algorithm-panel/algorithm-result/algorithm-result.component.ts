@@ -10,7 +10,7 @@ import { prettifyLabel } from '../../../../core/algorithm-mappers';
 import { RegressionResultComponent } from '../../visualisations/regression/regression-result.component';
 import { buildRegressionView } from '../../visualisations/regression/regression-view';
 import { KeyFiguresComponent } from '../../visualisations/summary/key-figures.component';
-import { buildSummaryFigures, FIGURE_NOTES, tablesShownAsFigures } from '../../visualisations/summary/summary-figures';
+import { buildSummaryFigures, FIGURE_NOTES, SummaryContext, tablesShownAsFigures } from '../../visualisations/summary/summary-figures';
 
 @Component({
   selector: 'app-algorithm-result',
@@ -50,15 +50,27 @@ export class AlgorithmResultComponent {
   });
 
   readonly summaryFigures = computed(() =>
-    this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult(), this.groupLabels())
+    this.errorMessage() ? null : buildSummaryFigures(this.algorithm(), this.mappedResult(), this.summaryContext())
   );
 
-  /** groupA / groupB parameters as the x variable's enumeration labels. */
-  private readonly groupLabels = computed(() => {
+  /** What the figures need from the run: groupA / groupB as the x variable's enumeration labels,
+   *  x and y by label (a paired t-test's measurements 1 and 2), and the CI's alpha and alternative. */
+  private readonly summaryContext = computed((): SummaryContext => {
     const params = this.parameters();
     const enumMap = this.enumMaps()?.[this.xVar() ?? ''] ?? {};
     const label = (value: unknown) => (value === null || value === undefined || value === '' ? null : enumMap[String(value)] ?? String(value));
-    return { groupA: label(params?.['groupA']), groupB: label(params?.['groupB']) };
+    const variableLabel = (code: string | null) => (code ? this.labelMap()?.[code] ?? code : null);
+    const rawAlpha = params?.['alpha'];
+    const alpha = rawAlpha === null || rawAlpha === undefined || rawAlpha === '' ? NaN : Number(rawAlpha);
+    const alternative = params?.['alt_hypothesis'];
+    return {
+      groupA: label(params?.['groupA']),
+      groupB: label(params?.['groupB']),
+      measurement1: variableLabel(this.xVar()),
+      measurement2: variableLabel(this.yVar()),
+      alpha: Number.isFinite(alpha) ? alpha : null,
+      alternative: typeof alternative === 'string' ? alternative : null,
+    };
   });
 
   constructor() { }
@@ -107,7 +119,7 @@ export class AlgorithmResultComponent {
   /** What the figures or charts above already show of the tables, so it is not repeated below:
    *  only the values those figures print and the tables whose own chart rendered. */
   readonly coveredTables = computed(() => [
-    ...(this.summaryFigures() ? tablesShownAsFigures(this.algorithm(), this.mappedResult()) : []),
+    ...(this.summaryFigures() ? tablesShownAsFigures(this.algorithm(), this.mappedResult(), this.summaryContext()) : []),
     ...tablesReplacedByCharts(this.algorithm(), this.renderedCharts()),
   ]);
 

@@ -137,8 +137,9 @@ export function formatTTestKey(key: string): string {
     se_diff: 'Std. Error of Difference',
     se_difference: 'Std. Error of Difference',
     std_err_diff: 'Std. Error of Difference',
-    ci_upper: '95% CI Upper',
-    ci_lower: '95% CI Lower',
+    // The level is (1 − alpha) of the run, which the table does not know.
+    ci_upper: 'CI Upper',
+    ci_lower: 'CI Lower',
     t_stat: 'T-statistic',
     p: 'p-value',
     p_value: 'p-value',
