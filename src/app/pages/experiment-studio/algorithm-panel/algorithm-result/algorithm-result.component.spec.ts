@@ -158,7 +158,7 @@ describe('AlgorithmResultComponent linear-regression review layout', () => {
     const html = render({ t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, cohens_d: -0.7, mean_x: 4.2 }, 'ttest_independent');
 
     // One CI bound alone is not in the mean-difference figure, and mean_x has no figure.
-    expect(rowLabels(html, 'Independent T-Test')).toEqual(['95% CI Lower', 'Mean X']);
+    expect(rowLabels(html, 'Independent T-Test')).toEqual(['CI Lower', 'Mean X']);
   });
 
   it('keeps the F diagnostic and undefined metrics under the linear regression CV figures', () => {

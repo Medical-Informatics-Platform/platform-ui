@@ -375,7 +375,7 @@ export const FIGURE_NOTES: Record<string, string> = {
 };
 
 /** The t-test rows the figures show: each key only when its figure (or that figure's note) prints it. */
-function ttestShownRows(result: any): string[] {
+function ttestShownRows(result: any, context?: SummaryContext): string[] {
   const has = (key: string) => toFiniteNumber(result?.[key]) !== null;
   const firstKey = (keys: string[]) => keys.find(has) ?? null;
   const meanDiff = has('mean_diff');
@@ -388,7 +388,7 @@ function ttestShownRows(result: any): string[] {
   const keys = [
     ...(meanDiff ? ['mean_diff'] : []),
     // A one-sided CI's figure prints its finite bound, which implies the open side.
-    ...(meanDiff && ttestCiNote(result) ? ['ci_lower', 'ci_upper'] : []),
+    ...(meanDiff && ttestCiNote(result, context) ? ['ci_lower', 'ci_upper'] : []),
     ...(meanDiff && se ? [se] : []),
     ...(p ? [p] : []),
     ...(p && t ? ['t_stat'] : []),
@@ -450,10 +450,10 @@ function columnsTrim(title: string, columns: string[]): TableTrim[] {
  * (exports keep every table). Worked out from the result itself: a row or column is covered only
  * when the figures print its value, so nothing a figure leaves out is hidden with it.
  */
-const SHOWN_AS_FIGURES: Record<string, (result: any) => TableTrim[]> = {
-  ttest_independent: (result) => rowsTrim('Independent T-Test', ttestShownRows(result)),
-  ttest_paired: (result) => rowsTrim('Paired T-Test', ttestShownRows(result)),
-  ttest_onesample: (result) => rowsTrim('One-Sample T-Test', ttestShownRows(result)),
+const SHOWN_AS_FIGURES: Record<string, (result: any, context?: SummaryContext) => TableTrim[]> = {
+  ttest_independent: (result, context) => rowsTrim('Independent T-Test', ttestShownRows(result, context)),
+  ttest_paired: (result, context) => rowsTrim('Paired T-Test', ttestShownRows(result, context)),
+  ttest_onesample: (result, context) => rowsTrim('One-Sample T-Test', ttestShownRows(result, context)),
   chi_squared: (result) => {
     const p = toFiniteNumber(result?.p_value) !== null;
     const chi2 = p && toFiniteNumber(result?.chi2) !== null;
@@ -483,10 +483,10 @@ const SHOWN_AS_FIGURES: Record<string, (result: any) => TableTrim[]> = {
   naive_bayes_categorical_cv: (result) => rowsTrim('Accuracy per fold', foldAccuracy(result)?.sd != null ? ['Mean ± SD'] : []),
 };
 
-/** The parts of a result's tables its figures already show. */
-export function tablesShownAsFigures(algorithm: string | null, result: any): TableTrim[] {
+/** The parts of a result's tables its figures already show; `context` is the one the figures were built with. */
+export function tablesShownAsFigures(algorithm: string | null, result: any, context?: SummaryContext): TableTrim[] {
   const shown = algorithm ? SHOWN_AS_FIGURES[algorithm] : undefined;
-  return shown && result && typeof result === 'object' ? shown(result) : [];
+  return shown && result && typeof result === 'object' ? shown(result, context) : [];
 }
 
 /** Headline figures for a result (hypothesis tests, cross-validated classifiers), or null when the algorithm has none. */

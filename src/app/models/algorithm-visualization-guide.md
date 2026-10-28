@@ -36,7 +36,8 @@ This document describes what the frontend currently renders for each algorithm a
     − measurement 2 (y)) and the CI at the run's level, (1 − alpha). One-sided runs show their
     one-sided bound: `≥ lower` for `greater`, `≤ upper` for `less`.
 - Tables:
-  - Compact test summary table with t, df, p, mean difference, CI, Cohen's d. On screen the open
+  - Compact test summary table with t, df, p, mean difference, CI, Cohen's d. The chart and the table
+    label the CI without a level (they do not know the run's alpha); the key figure states it. On screen the open
     side of a one-sided CI (`"Infinity"` / `"-Infinity"` from Exaflow) shows as `∞` / `−∞`; CSV
     keeps the engine's text.
 

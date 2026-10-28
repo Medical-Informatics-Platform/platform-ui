@@ -124,7 +124,7 @@ describe('tablesShownAsFigures', () => {
   it('covers only the t-test rows the figures print', () => {
     expect(tablesShownAsFigures('ttest_paired', { t_stat: 2, df: 9, p: 0.04, mean_diff: 1.2, ci_lower: 0.1, ci_upper: 2.3, se_diff: 0.5 })).toEqual([{
       title: 'Paired T-Test',
-      rows: ['Mean Difference', '95% CI Lower', '95% CI Upper', 'Std. Error of Difference', 'p-value', 'T-statistic', 'Degrees of Freedom'],
+      rows: ['Mean Difference', 'CI Lower', 'CI Upper', 'Std. Error of Difference', 'p-value', 'T-statistic', 'Degrees of Freedom'],
     }]);
     // Without a mean difference there is no figure for its CI or SE, and without p none for t or df.
     expect(tablesShownAsFigures('ttest_onesample', { t_stat: 2, df: 9, ci_lower: 0.1, ci_upper: 2.3, cohens_d: 0.4 })).toEqual([
@@ -134,8 +134,17 @@ describe('tablesShownAsFigures', () => {
 
   it('covers both CI rows of a one-sided t-test, whose figure prints the finite bound', () => {
     expect(tablesShownAsFigures('ttest_paired', { mean_diff: 1.2, ci_lower: 0.3, ci_upper: 'Infinity' })).toEqual([{
-      title: 'Paired T-Test', rows: ['Mean Difference', '95% CI Lower', '95% CI Upper'],
+      title: 'Paired T-Test', rows: ['Mean Difference', 'CI Lower', 'CI Upper'],
     }]);
+  });
+
+  it('covers a one-sided CI whose open side arrived as null when the run says which side', () => {
+    const result = { mean_diff: 1.2, ci_lower: 0.3, ci_upper: null };
+    expect(tablesShownAsFigures('ttest_paired', result, { groupA: null, groupB: null, alternative: 'greater' })).toEqual([{
+      title: 'Paired T-Test', rows: ['Mean Difference', 'CI Lower', 'CI Upper'],
+    }]);
+    // Without the run's alternative the figure prints no CI, so both rows stay in the table.
+    expect(tablesShownAsFigures('ttest_paired', result)).toEqual([{ title: 'Paired T-Test', rows: ['Mean Difference'] }]);
   });
 
   it('leaves the F diagnostic and undefined linear regression CV metrics in their table', () => {

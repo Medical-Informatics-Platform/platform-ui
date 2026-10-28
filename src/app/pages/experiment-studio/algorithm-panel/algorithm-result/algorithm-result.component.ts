@@ -119,7 +119,7 @@ export class AlgorithmResultComponent {
   /** What the figures or charts above already show of the tables, so it is not repeated below:
    *  only the values those figures print and the tables whose own chart rendered. */
   readonly coveredTables = computed(() => [
-    ...(this.summaryFigures() ? tablesShownAsFigures(this.algorithm(), this.mappedResult()) : []),
+    ...(this.summaryFigures() ? tablesShownAsFigures(this.algorithm(), this.mappedResult(), this.summaryContext()) : []),
     ...tablesReplacedByCharts(this.algorithm(), this.renderedCharts()),
   ]);
 
