@@ -170,9 +170,9 @@ describe('ExperimentStudioService', () => {
     version: '1',
     label: 'Data Model',
     variables: [
-      { code: 'age', label: 'Age', type: 'real' } as any,
-      { code: 'sex', label: 'Sex', type: 'nominal' } as any,
-      { code: 'site', label: 'Site', type: 'nominal' } as any,
+      { code: 'age', label: 'Age', type: 'continuous' } as any,
+      { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'M', label: 'Male' }, { code: 'F', label: 'Female' }] } as any,
+      { code: 'site', label: 'Site', type: 'nominal', enumerations: [{ code: 'A', label: 'A' }] } as any,
     ],
     groups: [],
     datasets: ['ds1'],
@@ -435,8 +435,8 @@ describe('ExperimentStudioService', () => {
     });
 
     service.setVariables([
-      { code: 'y1', label: 'Y1', type: 'real' } as any,
-      { code: 'x1', label: 'X1', type: 'real' } as any,
+      { code: 'y1', label: 'Y1', type: 'continuous' } as any,
+      { code: 'x1', label: 'X1', type: 'continuous' } as any,
     ]);
 
     const body = service.buildRequestBody('validation_algo', ['y1'], ['x1']);
@@ -502,7 +502,7 @@ describe('ExperimentStudioService', () => {
   it('does not add default preprocessing for outlier_report requests', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
-    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
 
     const body = service.buildRequestBody('outlier_report', ['age']);
 
@@ -540,7 +540,7 @@ describe('ExperimentStudioService', () => {
 
 
   it('keeps the selected algorithm when current selections make it unavailable', () => {
-    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
     const selected = service.backendAlgorithms()['mock_algo'];
     service.selectedAlgorithm.set(selected);
 
@@ -838,11 +838,11 @@ describe('ExperimentStudioService', () => {
   it('loads outlier report previews with outlier parameters and upstream missing preprocessing', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
     service.setVariables([
-      { code: 'age', label: 'Age', type: 'real' } as any,
-      { code: 'bmi', label: 'BMI', type: 'real' } as any,
+      { code: 'age', label: 'Age', type: 'continuous' } as any,
+      { code: 'bmi', label: 'BMI', type: 'continuous' } as any,
     ]);
-    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'real' } as any]);
-    service.setAlgorithmX([{ code: 'bmi', label: 'BMI', type: 'real' } as any]);
+    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
+    service.setAlgorithmX([{ code: 'bmi', label: 'BMI', type: 'continuous' } as any]);
 
     service.loadOutlierReportPreview(
       ['age', 'bmi'],
@@ -889,9 +889,9 @@ describe('ExperimentStudioService', () => {
 
   it('keeps nominal variables and numeric covariates in distinct outlier report input roles', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
-    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
     service.setAlgorithmY([{ code: 'sex', label: 'Sex', type: 'nominal' } as any]);
-    service.setAlgorithmX([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setAlgorithmX([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
 
     service.loadOutlierReportPreview(
       ['age'],
@@ -922,8 +922,8 @@ describe('ExperimentStudioService', () => {
 
   it('sends covariate-only outlier report codes through y only', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
-    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
-    service.setAlgorithmX([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
+    service.setAlgorithmX([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
 
     service.loadOutlierReportPreview(
       ['age'],
@@ -1054,7 +1054,7 @@ describe('ExperimentStudioService', () => {
   it('runs describe through the kept-run endpoint so it can be saved too', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);
-    service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setVariables([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
     service.selectedAlgorithm.set(service.backendAlgorithms()['describe']);
 
     service.runSelectedAlgorithm()!.subscribe();
@@ -1105,10 +1105,10 @@ describe('ExperimentStudioService', () => {
   });
 
   it('keeps an algorithm available when multiple filter variables are selected', () => {
-    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'real' } as any]);
+    service.setAlgorithmY([{ code: 'age', label: 'Age', type: 'continuous' } as any]);
     service.setFilters([
-      { code: 'age', label: 'Age', type: 'real' } as any,
-      { code: 'event_type', label: 'Event Type', type: 'text' } as any,
+      { code: 'age', label: 'Age', type: 'continuous' } as any,
+      { code: 'event_type', label: 'Event Type', type: 'nominal' } as any,
     ]);
 
     expect(service.isAlgorithmAvailable('mock_algo')).toBe(true);

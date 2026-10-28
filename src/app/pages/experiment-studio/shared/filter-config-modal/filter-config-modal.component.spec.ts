@@ -15,7 +15,7 @@ describe('FilterConfigModalComponent block builder', () => {
         code: 'dm',
         label: 'Data model',
         variables: [
-          { code: 'age', label: 'Age', type: 'real' },
+          { code: 'age', label: 'Age', type: 'continuous' },
           {
             code: 'sex',
             label: 'Sex',
@@ -37,8 +37,8 @@ describe('FilterConfigModalComponent block builder', () => {
             { code: 'male', label: 'Male' },
           ],
         },
-        { code: 'mrs_score', label: 'mRS score', type: 'integer' },
-        { code: 'notes', label: 'Notes', type: 'text' },
+        { code: 'mrs_score', label: 'mRS score', type: 'discrete' },
+        { code: 'notes', label: 'Notes', type: 'nominal' },
       ]),
       setFilters: vi.fn(),
       setFilterLogic: vi.fn(),
@@ -57,7 +57,7 @@ describe('FilterConfigModalComponent block builder', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
     component.allFilterVariables.set([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
@@ -129,7 +129,7 @@ describe('FilterConfigModalComponent block builder', () => {
     const root = component.rootGroup();
     component.addCondition(root.id, 0);
     let condition = component.rootGroup().rules[0] as any;
-    component.onConditionVariableTextChange(condition.id, 'Age (real)');
+    component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
     component.setConditionOperator(condition.id, '>');
     component.setConditionValue(condition.id, '2');
 
@@ -188,7 +188,7 @@ describe('FilterConfigModalComponent block builder', () => {
     const root = component.rootGroup();
     component.addCondition(root.id, 0);
     let condition = component.rootGroup().rules[0] as any;
-    component.onConditionVariableTextChange(condition.id, 'Age (real)');
+    component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
     condition = component.rootGroup().rules[0] as any;
 
     expect(component.operatorOptions(condition)).toContain('IS NULL');
@@ -210,7 +210,7 @@ describe('FilterConfigModalComponent block builder', () => {
     const root = component.rootGroup();
     component.addCondition(root.id, 0);
     const condition = component.rootGroup().rules[0] as any;
-    component.onConditionVariableTextChange(condition.id, 'Age (real)');
+    component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
     component.setConditionOperator(condition.id, 'IS NULL');
 
     component.saveFilters();
@@ -316,14 +316,14 @@ describe('FilterConfigModalComponent block builder', () => {
     fixture.detectChanges();
     const suggestions = Array.from(fixture.nativeElement.querySelectorAll('.condition-fields datalist option'))
       .map((option) => (option as HTMLOptionElement).value);
-    expect(suggestions).toEqual(['Sex (nominal)', 'mRS score (integer)']);
+    expect(suggestions).toEqual(['Sex (nominal)', 'mRS score (discrete)']);
   });
 
   it('keeps the whole data model in the pool for the cohort filter station', async () => {
     expStudio.selectedDataModel.set({
       code: 'dm',
       label: 'Data model',
-      variables: [{ code: 'mrs_score', label: 'mRS score', type: 'integer' }],
+      variables: [{ code: 'mrs_score', label: 'mRS score', type: 'discrete' }],
     });
     await fixture.whenStable();
     fixture.detectChanges();
@@ -404,7 +404,7 @@ describe('FilterConfigModalComponent block builder', () => {
       const root = component.rootGroup();
       component.addCondition(root.id, 0);
       let condition = component.rootGroup().rules[0] as any;
-      component.onConditionVariableTextChange(condition.id, 'Age (real)');
+      component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
       condition = component.rootGroup().rules[0] as any;
       component.setConditionOperator(condition.id, 'IN');
       component.setMultiValueText(condition.id, '20, 35.5, ');
@@ -478,7 +478,7 @@ describe('FilterConfigModalComponent block builder', () => {
     const root = component.rootGroup();
     component.addCondition(root.id, 0);
     const condition = component.rootGroup().rules[0] as any;
-    component.onConditionVariableTextChange(condition.id, 'Age (real)');
+    component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
     component.setConditionOperator(condition.id, '>');
     component.setConditionValue(condition.id, '2');
 
@@ -507,7 +507,7 @@ describe('FilterConfigModalComponent block builder', () => {
       const options = Array.from<HTMLOptionElement>(fixture.nativeElement.querySelectorAll('datalist option'));
       const sexOption = options.find((option) => option.value === 'Sex (nominal)')!;
       expect(sexOption.getAttribute('label')).toBe('Not available in: Dataset B');
-      const ageOption = options.find((option) => option.value === 'Age (real)')!;
+      const ageOption = options.find((option) => option.value === 'Age (continuous)')!;
       expect(ageOption.getAttribute('label')).toBeNull();
 
       component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
@@ -521,7 +521,7 @@ describe('FilterConfigModalComponent block builder', () => {
       expect(fixture.nativeElement.querySelector('.filter-unavailable-note')?.textContent?.trim())
         .toBe('Not available in: Dataset B');
 
-      component.onConditionVariableTextChange(condition.id, 'Age (real)');
+      component.onConditionVariableTextChange(condition.id, 'Age (continuous)');
       expect((component.rootGroup().rules[0] as any).field).toBe('age');
     });
 

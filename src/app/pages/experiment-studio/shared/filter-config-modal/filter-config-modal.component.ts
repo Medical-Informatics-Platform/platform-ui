@@ -13,6 +13,7 @@ import {
   isUnaryFilterOperator,
 } from '../../../../core/filter-logic.utils';
 import { unavailableDatasetsFor, unavailableTooltipFor, unavailableVariableTooltip } from '../../../../core/variable-availability.utils';
+import { isCategoricalVariableType, isNumericalVariableType } from '../../../../core/data-model.utils';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -507,9 +508,8 @@ export class FilterConfigModalComponent {
   }
 
   private coerceValue(variable: any | null, value: string): unknown {
-    const type = String(variable?.type ?? '').toLowerCase();
     const numeric = Number(value);
-    return (type === 'real' || type === 'integer') && value.trim() !== '' && Number.isFinite(numeric)
+    return isNumericalVariableType(variable?.type) && value.trim() !== '' && Number.isFinite(numeric)
       ? numeric
       : value;
   }
@@ -544,15 +544,15 @@ export class FilterConfigModalComponent {
 
   private detectType(field: string): 'string' | 'integer' | 'real' {
     const variable = this.allFilterVariables().find((entry) => entry.code === field);
-    if (variable?.type === 'integer') return 'integer';
-    if (variable?.type === 'real') return 'real';
+    if (variable?.type === 'discrete') return 'integer';
+    if (variable?.type === 'continuous') return 'real';
     return 'string';
   }
 
   private detectInput(field: string): 'text' | 'number' | 'select' {
     const variable = this.allFilterVariables().find((entry) => entry.code === field);
-    if (variable?.type === 'integer' || variable?.type === 'real') return 'number';
-    if (variable?.type === 'nominal') return 'select';
+    if (isNumericalVariableType(variable?.type)) return 'number';
+    if (variable?.enumerations?.length) return 'select';
     return 'text';
   }
 
@@ -621,8 +621,9 @@ export class FilterConfigModalComponent {
     const seen = new Map<string, any>();
     variables.forEach((variable) => {
       if (!variable?.code || seen.has(variable.code)) return;
-      const type = String(variable.type ?? '').toLowerCase();
-      if (!['real', 'integer', 'nominal'].includes(type)) return;
+      // Categorical CDEs without enumerations are free text and cannot be filtered.
+      const categoricalWithValues = isCategoricalVariableType(variable.type) && !!variable.enumerations?.length;
+      if (!isNumericalVariableType(variable.type) && !categoricalWithValues) return;
       seen.set(variable.code, {
         code: variable.code,
         label: variable.label,

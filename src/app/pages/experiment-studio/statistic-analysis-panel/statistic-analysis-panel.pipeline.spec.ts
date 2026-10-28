@@ -20,7 +20,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     let fixture: ComponentFixture<StatisticAnalysisPanelComponent>;
     let mockExpService: MockedObject<ExperimentStudioService>;
 
-    const age = { code: 'age', label: 'Age', type: 'real' };
+    const age = { code: 'age', label: 'Age', type: 'continuous' };
 
     /** Round-trips the applied config the way the real service does. */
     function seedAppliedConfig(config: Record<string, unknown> | null): void {
@@ -381,7 +381,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     });
 
     it('lists one sub-node per applied preprocessing step with its summary', () => {
-        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age, mmse]);
         seedAppliedConfig({
             missing_values_handler: { strategies: { age: 'mean', mmse: 'median' } },
@@ -670,7 +670,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         // A new selection invalidates it, and an open snapshot refreshes at once.
         mockExpService.loadDescriptiveOverview.mockClear();
-        (mockExpService.selectedVariables as any).set([age, { code: 'mmse', label: 'MMSE', type: 'real' }]);
+        (mockExpService.selectedVariables as any).set([age, { code: 'mmse', label: 'MMSE', type: 'continuous' }]);
         fixture.detectChanges();
         expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(['age', 'mmse'], null, null, null);
     });

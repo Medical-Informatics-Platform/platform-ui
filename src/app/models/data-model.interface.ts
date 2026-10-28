@@ -3,8 +3,6 @@ export interface Variable {
   label: string;
   code?: string;
   description?: string;
-  sql_type?: string;
-  isCategorical?: boolean;
   enumerations?: EnumValue[];
   type?: string;
   methodology?: string;
@@ -48,8 +46,6 @@ export interface D3HierarchyNode {
   value?: number;  // Optional, as this may only be used for leaf nodes
   code?: string;
   description?: string;
-  sql_type?: string;
-  isCategorical?: boolean;
   enumerations?: any[];
   type?: string;
   methodology?: string;

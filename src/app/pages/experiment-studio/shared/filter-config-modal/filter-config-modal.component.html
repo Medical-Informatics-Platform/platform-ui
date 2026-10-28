@@ -190,7 +190,7 @@
                               (ngModelChange)="setMultiValueText(block.id, $event)"
                               placeholder="Value 1, Value 2, …"
                             />
-                          } @else if (selectedFilter(block)?.type === 'nominal' && categoryOptions(block).length > 0) {
+                          } @else if (categoryOptions(block).length > 0) {
                             <select
                               class="filter-field-input"
                               [ngModel]="block.values[0] ?? ''"

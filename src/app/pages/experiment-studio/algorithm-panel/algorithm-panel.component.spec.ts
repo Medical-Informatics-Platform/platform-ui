@@ -92,7 +92,7 @@ describe('AlgorithmPanelComponent', () => {
       selectedVariables: signal<any[]>([{ code: 'y', label: 'Y variable' }]),
       algorithmY: signal<any[]>([]),
       algorithmX: signal<any[]>([]),
-      algorithmAssignableVariables: signal<any[]>([{ code: 'y', label: 'Y variable', type: 'real' }]),
+      algorithmAssignableVariables: signal<any[]>([{ code: 'y', label: 'Y variable', type: 'continuous' }]),
       unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
       selectedFilters: signal<any[]>([]),
       selectedDatasets: signal<string[]>([]),
@@ -260,8 +260,8 @@ describe('AlgorithmPanelComponent', () => {
     experimentStudioService.availableGroupedAlgorithms.set({ Clustering: [kmeansLike] });
     experimentStudioService.backendAlgorithms.set({ kmeans_like: kmeansLike });
     experimentStudioService.selectedAlgorithm.set(kmeansLike);
-    experimentStudioService.algorithmY.set([{ code: 'mmse', label: 'MMSE', type: 'integer' }]);
-    experimentStudioService.algorithmX.set([{ code: 'age', label: 'Age', type: 'real' }, { code: 'bmi', label: 'BMI', type: 'real' }]);
+    experimentStudioService.algorithmY.set([{ code: 'mmse', label: 'MMSE', type: 'discrete' }]);
+    experimentStudioService.algorithmX.set([{ code: 'age', label: 'Age', type: 'continuous' }, { code: 'bmi', label: 'BMI', type: 'continuous' }]);
     fixture.componentInstance.setStudioSubstep('parameters');
     fixture.detectChanges();
     await fixture.whenStable();
@@ -512,7 +512,7 @@ describe('AlgorithmPanelComponent', () => {
     experimentStudioService.availableGroupedAlgorithms.set({ Regression: [coxAlgorithm] });
     experimentStudioService.algorithmX.set([
       { code: 'event_status', label: 'Event status', type: 'nominal' },
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
     ]);
 
     fixture.componentInstance.setStudioSubstep('parameters');
@@ -705,14 +705,14 @@ describe('AlgorithmPanelComponent', () => {
     experimentStudioService.backendAlgorithms.set({ outlier_report: outlierAlgorithm });
     experimentStudioService.availableGroupedAlgorithms.set({ 'Descriptive Statistics': [outlierAlgorithm] });
     experimentStudioService.selectedVariables.set([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       { code: 'sex', label: 'Sex', type: 'nominal' },
     ]);
-    experimentStudioService.algorithmX.set([{ code: 'bmi', label: 'BMI', type: 'real' }]);
+    experimentStudioService.algorithmX.set([{ code: 'bmi', label: 'BMI', type: 'continuous' }]);
     experimentStudioService.algorithmAssignableVariables.set([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       { code: 'sex', label: 'Sex', type: 'nominal' },
-      { code: 'bmi', label: 'BMI', type: 'real' },
+      { code: 'bmi', label: 'BMI', type: 'continuous' },
     ]);
     experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
     experimentStudioService.runId.set('stale-run');
@@ -725,9 +725,9 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const component = fixture.componentInstance;
-    component.onOutlierReportEnabledChange({ code: 'bmi', label: 'BMI', type: 'real' }, false);
-    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
-    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.05);
+    component.onOutlierReportEnabledChange({ code: 'bmi', label: 'BMI', type: 'continuous' }, false);
+    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'continuous' }, 'quantile');
+    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'continuous' }, 0.05);
     component.onClickRunExp();
 
     expect(experimentStudioService.algorithmConfigurations()['outlier_report']).toEqual({
@@ -773,15 +773,15 @@ describe('AlgorithmPanelComponent', () => {
       isDisabled: false,
     };
     experimentStudioService.selectedAlgorithm.set(outlierAlgorithm);
-    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
-    experimentStudioService.algorithmAssignableVariables.set([{ code: 'age', label: 'Age', type: 'real' }]);
+    experimentStudioService.selectedVariables.set([{ code: 'age', label: 'Age', type: 'continuous' }]);
+    experimentStudioService.algorithmAssignableVariables.set([{ code: 'age', label: 'Age', type: 'continuous' }]);
     experimentStudioService.hasAppliedDescriptivePreprocessing.mockReturnValue(false);
     fixture.detectChanges();
     await fixture.whenStable();
 
     const component = fixture.componentInstance;
-    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'real' }, 'quantile');
-    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'real' }, 0.5);
+    component.onOutlierReportStrategyChange({ code: 'age', label: 'Age', type: 'continuous' }, 'quantile');
+    component.onOutlierReportFoldChange({ code: 'age', label: 'Age', type: 'continuous' }, 0.5);
     experimentStudioService.runSelectedAlgorithm.mockClear();
 
     component.onClickRunExp();

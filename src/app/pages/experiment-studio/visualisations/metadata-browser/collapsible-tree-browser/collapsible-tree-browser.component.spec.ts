@@ -24,7 +24,7 @@ describe('CollapsibleTreeBrowserComponent', () => {
         label: 'Age',
         code: 'age',
         description: 'Patient age',
-        type: 'real',
+        type: 'continuous',
         units: 'years',
       },
     ],

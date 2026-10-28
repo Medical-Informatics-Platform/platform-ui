@@ -25,7 +25,13 @@ import {
 } from '../core/algorithm-parameter.utils';
 import { formatFilterExpression } from '../core/filter-display.utils';
 import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
-import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
+import {
+  buildEnumMapForVariables,
+  findDataModelByCodeVersion,
+  isCategoricalVariableType,
+  isFreeTextCde,
+  specificationAcceptsVariableType,
+} from '../core/data-model.utils';
 import {
   UnavailableVariablesMap,
   collectVariableCodes,
@@ -102,7 +108,7 @@ export class ExperimentStudioService {
    * belong in the variables-panel pool (real CDE nodes only).
    */
   readonly algorithmAssignableVariables = computed(() => {
-    const nodes = [...this.selectedVariables()];
+    const nodes = this.selectedVariables().filter((v) => !isFreeTextCde(v));
     const created = this.transformationColumnNodes();
     if (created.length) {
       const knownCodes = new Set(nodes.map((v) => v?.code));
@@ -519,13 +525,13 @@ export class ExperimentStudioService {
           return false;
         }
 
-        const varIsNominal = varTypes.includes(VariableTypes.NOMINAL);
+        const varIsNominal = varTypes.some(isCategoricalVariableType);
 
         if (varIsNominal && yReq.stattypes?.includes(VariableTypes.NOMINAL)) {
           return true;
         }
 
-        const yExists = varTypes.some(t => yReq.types.includes(t));
+        const yExists = varTypes.some(t => specificationAcceptsVariableType(yReq.types, t));
 
         if (!yExists) {
           return false;
@@ -536,7 +542,7 @@ export class ExperimentStudioService {
             return false;
           }
 
-          const xExists = varTypes.some(t => xReq.types.includes(t));
+          const xExists = varTypes.some(t => specificationAcceptsVariableType(xReq.types, t));
           if (!xExists) {
             return false;
           }
@@ -1633,8 +1639,6 @@ export class ExperimentStudioService {
         code: v.code ?? '',
         value: 1,
         type: v.type ?? 'unknown',
-        isCategorical: v.isCategorical ?? !!v.enumerations?.length,
-        sql_type: v.sql_type,
         description: v.description ?? '',
         enumerations: v.enumerations ?? [],
         methodology: v.methodology,
@@ -1764,7 +1768,10 @@ export class ExperimentStudioService {
     // A `null` filterOverride is the step-0 source snapshot: the same describe
     // run with no cohort filter attached, i.e. the data exactly as selected.
     const filtersPayload = this.requestFilters(filterOverride);
-    const yPayload = variableCodes.length ? variableCodes : null;
+    // Exaflow rejects free-text CDEs (categorical without enumerations) as describe inputs.
+    const freeText = new Set(this.selectedVariables().filter(isFreeTextCde).map((v) => v.code));
+    const yCodes = variableCodes.filter((code) => !freeText.has(code));
+    const yPayload = yCodes.length ? yCodes : null;
     // Derived columns (e.g. categorical_column_creator output) belong in algorithm.y
     // only. Source inputdata.variables must be real data-model CDEs.
     const sourceCodes = sourceVariableCodes?.length

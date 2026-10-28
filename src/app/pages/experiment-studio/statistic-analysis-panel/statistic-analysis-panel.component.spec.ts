@@ -106,7 +106,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     function configureRawSummary(chartOptions: any[] = []) {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         mockChartBuilder.getChartsForAlgorithm.mockReturnValue(chartOptions);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
@@ -484,7 +484,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     it('does not fetch descriptive stats until a model and dataset are ready', () => {
         (mockExpService.selectedDataModel as any).set(null);
         (mockExpService.selectedDatasets as any).set([]);
-        (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'real' }]);
+        (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'continuous' }]);
 
         fixture.detectChanges();
 
@@ -540,7 +540,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('should treat variable as numeric if no counts and not nominal type', () => {
-        const variable = { code: 'age', type: 'real' };
+        const variable = { code: 'age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([variable]);
 
         const response = {
@@ -601,7 +601,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             ],
         });
         (mockExpService.selectedVariables as any).set([
-            { code: 'age', label: 'Age', type: 'real' },
+            { code: 'age', label: 'Age', type: 'continuous' },
         ]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
@@ -620,7 +620,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     it('filters preprocessing rows by variable search', () => {
         (mockExpService.selectedVariables as any).set([
-            { code: 'age', label: 'Age', type: 'real' },
+            { code: 'age', label: 'Age', type: 'continuous' },
             { code: 'biol_sex', label: 'Biological Sex', type: 'nominal' },
         ]);
         component.prepSearch.missing = 'age';
@@ -645,7 +645,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             ],
         });
         (mockExpService.selectedVariables as any).set([
-            { code: 'age', label: 'Age', type: 'real' },
+            { code: 'age', label: 'Age', type: 'continuous' },
         ]);
         component.prepSearch.missing = 'no-match';
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
@@ -656,7 +656,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('renders missing values as a selected-variable workspace', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
 
@@ -739,7 +739,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('updates preprocessing detail controls when a variable is selected', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
 
@@ -754,7 +754,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('uses independent selected variables for missing values and longitudinal transformation', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         (mockExpService.selectedDataModel as any).set({
@@ -783,7 +783,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('counts pending preprocessing by step instead of by variable rule', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         (mockExpService.selectedDataModel as any).set({
@@ -831,7 +831,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('splits preprocessing rows by default, applied and pending state', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         component.appliedPreprocessingRules = {
@@ -852,8 +852,8 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('keeps preprocessing rules when variables are removed and re-added', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
-        const sex = { code: 'sex', label: 'Sex', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
+        const sex = { code: 'sex', label: 'Sex', type: 'continuous' };
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         component.pendingPreprocessingRules = {
             age: { variableCode: 'age', action: 'drop', value: '', enabled: true },
@@ -880,7 +880,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('keeps the default NA removal in memory when variables are first selected', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         (mockExpService.selectedVariables as any).set([age, sex]);
@@ -902,7 +902,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('reports applied status only after a real apply', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         // The bare set spy does not round-trip the persisted config; wire it up
         // so the post-apply reconcile hydrates from the applied config (as the
         // real service does) instead of treating it as a fresh session.
@@ -922,7 +922,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('covers variables added after applied preprocessing with the inherited NA removal default', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const preprocessing = {
             missing_values_handler: {
@@ -952,7 +952,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('creates pending state when a missing value action changes', () => {
-        const variable = { code: 'age', label: 'Age', type: 'real' };
+        const variable = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([variable]);
         component.onMissingActionChange(variable, 'mean');
 
@@ -961,7 +961,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('validates constant missing value rules before apply', () => {
-        const variable = { code: 'age', label: 'Age', type: 'real' };
+        const variable = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([variable]);
         component.onMissingActionChange(variable, 'constant');
 
@@ -972,7 +972,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('previews the processed data with pending, unapplied preprocessing changes', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
         mockExpService.loadDescriptiveOverview.mockClear();
@@ -994,7 +994,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('refreshes the open processed preview when pending preprocessing changes', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -1018,7 +1018,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('deduplicates in-flight processed preview requests and keeps the newest response', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
         mockExpService.loadDescriptiveOverview.mockClear();
@@ -1062,7 +1062,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('supersedes an in-flight source preview when its selection changes', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
@@ -1101,7 +1101,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('selects the first processed statistic after preprocessing is applied', () => {
-        const variable = { code: 'age', label: 'Age', type: 'real' };
+        const variable = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([variable]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
@@ -1231,7 +1231,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('renders raw statistics as a grouped analysis workspace', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
 
@@ -1372,7 +1372,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('filters raw statistics browser by variable label or code', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
@@ -1401,7 +1401,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('updates the statistics detail panel when a variable is selected', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
@@ -1498,7 +1498,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('applies longitudinal preprocessing with visit pair and per-variable strategies', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         (mockExpService.selectedDataModel as any).set({
@@ -1555,9 +1555,9 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('applies outlier winsorizer together with missing values for numerical variables only', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
-        const bmi = { code: 'bmi', label: 'BMI', type: 'real' };
+        const bmi = { code: 'bmi', label: 'BMI', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age, sex, bmi]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
         fixture.detectChanges();
@@ -1596,7 +1596,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('previews pending outlier winsorizer rules with an outlier report before applying', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         mockExpService.loadOutlierReportPreview.mockReturnValue(of({
@@ -1664,7 +1664,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('excludes all datasets rows from outlier report preview like descriptive numerical charts', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age]);
         mockExpService.loadOutlierReportPreview.mockReturnValue(of({
             result: {
@@ -1691,7 +1691,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('validates outlier fold boundaries before applying preprocessing', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
         mockExpService.loadDescriptiveOverview.mockClear();
@@ -1712,7 +1712,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('resets missing value and longitudinal pending state together', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         (mockExpService.selectedVariables as any).set([age, sex]);
         (mockExpService.selectedDataModel as any).set({
@@ -1749,7 +1749,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('hydrates saved preprocessing as applied without pending changes', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const preprocessing = {
             missing_values_handler: {
@@ -1775,7 +1775,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('hydrates saved outlier preprocessing as applied without enabling categorical variables', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
         const preprocessing = {
             missing_values_handler: {
@@ -1904,7 +1904,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('requests raw histogram with the default NaN drop only', () => {
-        const dose = { code: 'dose', label: 'Dose', type: 'real' };
+        const dose = { code: 'dose', label: 'Dose', type: 'continuous' };
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
@@ -1999,7 +1999,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('plots the processed histogram from the pending rules, never the stored config', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const stored = {
             missing_values_handler: { strategies: { age: 'drop' } },
             // A derived column is the output of this variable's pipeline, never an
@@ -2058,7 +2058,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('offers Dataset plus selected nominal variables as histogram splits, excluding the plotted variable', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const sex = {
             code: 'sex',
             label: 'Sex',
@@ -2090,7 +2090,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('caps Dataset split by selected datasets, not the enumeration map', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         mockExpService.getDatasetLabelMap.mockReturnValue(
             Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`ds${i}`, `D${i}`]))
         );
@@ -2137,7 +2137,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('re-requests a stacked histogram when split changes and reuses the cache when switching back', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
@@ -2192,7 +2192,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('keeps privacy-null edge bins on Data Handling histograms', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({
             result: {
                 featurewise: [
@@ -2221,7 +2221,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('loads the processed summary when saved preprocessing is hydrated', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const preprocessing = {
             missing_values_handler: {
                 strategies: {
@@ -2280,7 +2280,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     }));
 
     it('hydrates the transformation form from applied categorical_column_creator and keeps it on sync', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const filter = {
             condition: 'AND' as const,
             rules: [{
@@ -2398,7 +2398,7 @@ describe('StatisticAnalysisPanelComponent', () => {
     });
 
     it('hydrates every saved categorical creator into its own card', () => {
-        const age = { code: 'age', label: 'Age', type: 'real' };
+        const age = { code: 'age', label: 'Age', type: 'continuous' };
         const filter = {
             condition: 'AND' as const,
             rules: [{
@@ -2658,7 +2658,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
 
         it('states why the evidence pane is empty instead of rendering blank space', () => {
-            const age = { code: 'age', label: 'Age', type: 'real' };
+            const age = { code: 'age', label: 'Age', type: 'continuous' };
             (mockExpService.selectedVariables as any).set([age]);
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
             openStation('setup');
@@ -2708,7 +2708,7 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     describe('summary number formatting', () => {
         it('keeps pivot values canonical for CSV and groups only at display time', () => {
-            const age = { code: 'age', label: 'Age', type: 'real' };
+            const age = { code: 'age', label: 'Age', type: 'continuous' };
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
@@ -2969,8 +2969,8 @@ describe('StatisticAnalysisPanelComponent', () => {
 
     describe('batch preprocessing actions', () => {
         it('applies a batch mean strategy to every numerical variable only', () => {
-            const age = { code: 'age', label: 'Age', type: 'real' };
-            const glucose = { code: 'glucose', label: 'Glucose', type: 'real' };
+            const age = { code: 'age', label: 'Age', type: 'continuous' };
+            const glucose = { code: 'glucose', label: 'Glucose', type: 'continuous' };
             const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
             (mockExpService.selectedVariables as any).set([age, glucose, sex]);
             fixture.detectChanges();
@@ -2985,7 +2985,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
 
         it('resets every variable to drop via batch action', () => {
-            const age = { code: 'age', label: 'Age', type: 'real' };
+            const age = { code: 'age', label: 'Age', type: 'continuous' };
             const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
             (mockExpService.selectedVariables as any).set([age, sex]);
             fixture.detectChanges();
@@ -3003,7 +3003,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
 
         it('enables the outlier winsorizer for all eligible variables via batch action', () => {
-            const age = { code: 'age', label: 'Age', type: 'real' };
+            const age = { code: 'age', label: 'Age', type: 'continuous' };
             const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
             (mockExpService.selectedVariables as any).set([age, sex]);
             fixture.detectChanges();
@@ -3073,7 +3073,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         }
 
         it('plots the step 0 histogram with the default drop and no cohort filter', () => {
-            const dose = { code: 'dose', label: 'Dose', type: 'real' };
+            const dose = { code: 'dose', label: 'Dose', type: 'continuous' };
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 result: {
                     featurewise: [
@@ -3361,7 +3361,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
 
         it('shows a load error when describe fails, and insufficient data only when it succeeds with no counts', () => {
-            (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'real' }]);
+            (mockExpService.selectedVariables as any).set([{ code: 'age', label: 'Age', type: 'continuous' }]);
             const draft = component.transformationDrafts[0];
             draft.code = 'cohort';
             draft.rules = [{ value: 'ACS', filter: categoryFilter() }];

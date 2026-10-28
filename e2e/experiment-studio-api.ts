@@ -33,9 +33,9 @@ const inputField = (types: string[], extra: Record<string, unknown> = {}) => ({
 /** Catalog entries the algorithm panel groups by CATEGORY_MAPPING. */
 function algorithmSpecs() {
   const yReal = inputField(['real'], { required: true, max_count: 1 });
-  const yNominal = inputField(['nominal'], { required: true, max_count: 1 });
-  const xRealOrNominal = inputField(['real', 'nominal'], { required: true, min_count: 1, max_count: 1 });
-  const xNominal = inputField(['nominal'], { required: true, min_count: 1, max_count: 1 });
+  const yNominal = inputField(['text'], { required: true, max_count: 1 });
+  const xRealOrNominal = inputField(['real', 'text'], { required: true, min_count: 1, max_count: 1 });
+  const xNominal = inputField(['text'], { required: true, min_count: 1, max_count: 1 });
   const yRealMany = inputField(['real'], { required: true, min_count: 1 });
 
   const spec = (
@@ -57,20 +57,20 @@ function algorithmSpecs() {
   });
 
   return [
-    spec('linear_regression', 'Linear regression', yReal, inputField(['real', 'nominal'], { min_count: 0 }), {
+    spec('linear_regression', 'Linear regression', yReal, inputField(['real', 'text'], { min_count: 0 }), {
       alpha: { label: 'Alpha', desc: 'Regularisation strength', types: ['real'], required: false, default: 0.05 },
     }),
-    spec('logistic_regression', 'Logistic regression', yNominal, inputField(['real', 'nominal'], { required: true, min_count: 1 })),
+    spec('logistic_regression', 'Logistic regression', yNominal, inputField(['real', 'text'], { required: true, min_count: 1 })),
     spec('pearson_correlation', 'Pearson correlation', yReal, xRealOrNominal),
     spec('ttest_independent', 'Independent t-test', yReal, xNominal),
     spec('anova_oneway', 'One-way ANOVA', yReal, xNominal),
     spec('chi_squared', 'Chi-squared', yNominal, xNominal),
     spec('naive_bayes_gaussian', 'Naive Bayes gaussian', yNominal, inputField(['real'], { required: true, min_count: 1 })),
-    spec('naive_bayes_categorical', 'Naive Bayes categorical', yNominal, inputField(['nominal'], { required: true, min_count: 1 })),
+    spec('naive_bayes_categorical', 'Naive Bayes categorical', yNominal, inputField(['text'], { required: true, min_count: 1 })),
     spec('kmeans', 'K-means', yRealMany),
     spec('pca', 'PCA', yRealMany),
-    spec('describe', 'Describe', inputField(['real', 'nominal'], { required: true, min_count: 1 })),
-    spec('histogram', 'Histogram', inputField(['real', 'nominal', 'text'], { required: true })),
+    spec('describe', 'Describe', inputField(['real', 'text'], { required: true, min_count: 1 })),
+    spec('histogram', 'Histogram', inputField(['real', 'text'], { required: true })),
   ];
 }
 
@@ -101,7 +101,7 @@ function strokeModel() {
           { code: 'm12', label: 'Month 12' },
         ],
       },
-      { code: 'age', label: 'Age', type: 'real', sql_type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
@@ -170,7 +170,7 @@ function dataModel() {
           { code: 'adni', label: 'ADNI' },
         ],
       },
-      { code: 'age', label: 'Age', type: 'real', sql_type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
@@ -189,7 +189,7 @@ function dataModel() {
           { code: 'e4', label: 'e4' },
         ],
       },
-      { code: 'mmse', label: 'MMSE', type: 'real', sql_type: 'real' },
+      { code: 'mmse', label: 'MMSE', type: 'continuous' },
     ],
     groups: [],
   };
@@ -441,7 +441,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
         data_model: inputField(['text'], { required: true }),
         datasets: inputField(['text'], { required: true }),
         filters: inputField(['jsonObject']),
-        variables: inputField(['real', 'int', 'text', 'nominal'], { required: true, min_count: 1 }),
+        variables: inputField(['real', 'int', 'text'], { required: true, min_count: 1 }),
       });
     }
 
