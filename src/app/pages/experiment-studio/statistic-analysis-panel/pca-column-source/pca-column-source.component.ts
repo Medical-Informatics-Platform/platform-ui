@@ -15,7 +15,13 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
 import { BackendExperiment } from '../../../../models/backend-experiment.model';
 import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
-import { TransformationStep, stepOutputNames } from '../../../../core/transformation-steps.utils';
+import {
+  COLUMN_CODE_PATTERN,
+  TransformationStep,
+  fitSelectedCodes,
+  fitVariablePool,
+  stepOutputNames,
+} from '../../../../core/transformation-steps.utils';
 import { collectVariableCodes } from '../../../../core/variable-availability.utils';
 import {
   KMeansSourceContext,
@@ -30,9 +36,6 @@ import {
   findPcaRecipe,
   nextPcaColumnPrefix,
 } from '../../../../core/pca-column-source.utils';
-
-/** Exaflow column codes: an identifier, not free text. */
-const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 type SourceMode = 'result' | 'fit';
 
@@ -111,44 +114,18 @@ export class PcaColumnSourceComponent implements OnInit {
    * Fit-mode pool: numerical CDEs plus numerical outputs of earlier transformation
    * steps. The current step's own outputs are excluded.
    */
-  readonly fitNumericVariables = computed(() => {
-    const steps = this.studio.appliedTransformations();
-    const myIndex = steps.findIndex((candidate) => candidate.id === this.stepId());
-    const earlier = myIndex === -1 ? steps : steps.slice(0, myIndex);
-    const earlierCodes = new Set(earlier.flatMap((step) => stepOutputNames(step)));
-    const ownCodes = new Set(myIndex >= 0 ? stepOutputNames(steps[myIndex]) : []);
-
-    const assignable = (this.studio.algorithmAssignableVariables() as any[]) ?? [];
-    const seen = new Set<string>();
-    const pool: any[] = [];
-    for (const variable of assignable) {
-      const code = String(variable?.code ?? '');
-      if (!code || seen.has(code) || ownCodes.has(code)) continue;
-      if (!isOutlierEligibleVariable(variable)) continue;
-      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
-      seen.add(code);
-      pool.push(variable);
-    }
-    for (const variable of this.numericVariables()) {
-      const code = String(variable.code);
-      if (seen.has(code) || ownCodes.has(code)) continue;
-      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
-      seen.add(code);
-      pool.push(variable);
-    }
-    return pool;
-  });
+  readonly fitNumericVariables = computed(() =>
+    fitVariablePool(this.studio.appliedTransformations(), this.stepId(), [
+      ...((this.studio.algorithmAssignableVariables() as any[]) ?? []),
+      ...this.numericVariables(),
+    ])
+  );
 
   /**
    * CDEs start selected and created columns start unselected: mixing raw variables with
    * components already built from them is opt-in. A toggle flips the default.
    */
-  readonly fitSelectedCodes = computed(() => {
-    const toggled = this.excludedCodes();
-    return this.fitNumericVariables()
-      .filter((variable) => !!variable?.isCreatedColumn === toggled.has(String(variable.code)))
-      .map((variable) => String(variable.code));
-  });
+  readonly fitSelectedCodes = computed(() => fitSelectedCodes(this.fitNumericVariables(), this.excludedCodes()));
 
   /** In-place report picks: data-model numerical variables (a recipe must replay on CDEs). */
   readonly runSelectedCodes = computed(() => {
@@ -283,11 +260,13 @@ export class PcaColumnSourceComponent implements OnInit {
     this.selectedComponents.set([]);
     this.columnNamesById.set({});
     this.error.set(null);
+    this.applying.set(!!uuid);
     if (!uuid) return;
 
-    this.applying.set(true);
+    // A response for a run the user has since moved away from must not load its recipe.
     this.dashboard.getExperimentResult(uuid).subscribe({
       next: (response) => {
+        if (this.selectedUuid() !== uuid) return;
         this.applying.set(false);
         const recipe = findPcaRecipe(response);
         if (!recipe) {
@@ -305,6 +284,7 @@ export class PcaColumnSourceComponent implements OnInit {
         this.preselectComponents(recipe.component_choices.map((choice) => choice.component_id));
       },
       error: () => {
+        if (this.selectedUuid() !== uuid) return;
         this.applying.set(false);
         this.error.set('Could not load the PCA result.');
       },
@@ -505,7 +485,7 @@ export class PcaColumnSourceComponent implements OnInit {
 
   private validateNames(names: string[]): boolean {
     for (const name of names) {
-      if (!CODE_PATTERN.test(name)) {
+      if (!COLUMN_CODE_PATTERN.test(name)) {
         this.error.set('Use letters, digits and underscores, starting with a letter or underscore.');
         return false;
       }

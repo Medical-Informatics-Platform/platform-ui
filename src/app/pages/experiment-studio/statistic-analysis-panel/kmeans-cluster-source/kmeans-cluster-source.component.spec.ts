@@ -57,8 +57,6 @@ describe('KMeansClusterSourceComponent', () => {
     getActiveDataModelCode: Mock;
     requestDatasets: Mock;
     requestFilters: Mock;
-    appliedKMeansClusterCreator: Mock;
-    setKMeansClusterPreprocessing: Mock;
     appliedTransformations: ReturnType<typeof signal<any[]>>;
     upsertTransformation: Mock;
     outputsInUse: Mock;
@@ -82,8 +80,6 @@ describe('KMeansClusterSourceComponent', () => {
       getActiveDataModelCode: vi.fn().mockReturnValue(CONTEXT.dataModel),
       requestDatasets: vi.fn().mockReturnValue(CONTEXT.datasets),
       requestFilters: vi.fn().mockReturnValue(CONTEXT.filters),
-      appliedKMeansClusterCreator: vi.fn().mockReturnValue(null),
-      setKMeansClusterPreprocessing: vi.fn(),
       appliedTransformations: signal([] as any[]),
       outputsInUse: vi.fn().mockReturnValue([]),
       upsertTransformation: vi.fn((step: any) => {

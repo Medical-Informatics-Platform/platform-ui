@@ -21,7 +21,7 @@ import {
   optionBindingValue,
 } from '../../../../core/algorithm-parameter.utils';
 import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
-import { stepOutputNames } from '../../../../core/transformation-steps.utils';
+import { COLUMN_CODE_PATTERN, fitSelectedCodes, fitVariablePool } from '../../../../core/transformation-steps.utils';
 import {
   KMEANS_CLUSTER_CREATOR,
   KMeansReusablePreprocessing,
@@ -32,9 +32,6 @@ import {
   isPlainObject,
   analysisSourceIsReusable,
 } from '../../../../core/kmeans-cluster-source.utils';
-
-/** Exaflow column codes: an identifier, not free text. */
-const CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Optional fit-mode creator params and their Exaflow defaults. Always-sent keys (k,
  *  enumeration_prefix, variables, new_column_names) are not listed here. */
@@ -137,34 +134,12 @@ export class KMeansClusterSourceComponent implements OnInit {
    * Fit-mode pool: numerical CDEs plus numerical outputs of earlier transformation
    * steps (e.g. PCA columns). The current step's own outputs are excluded.
    */
-  readonly fitNumericVariables = computed(() => {
-    const steps = this.studio.appliedTransformations();
-    const myIndex = steps.findIndex((candidate) => candidate.id === this.stepId());
-    const earlier = myIndex === -1 ? steps : steps.slice(0, myIndex);
-    const earlierCodes = new Set(earlier.flatMap((step) => stepOutputNames(step)));
-    const ownCodes = new Set(myIndex >= 0 ? stepOutputNames(steps[myIndex]) : []);
-
-    const assignable = (this.studio.algorithmAssignableVariables() as any[]) ?? [];
-    const seen = new Set<string>();
-    const pool: any[] = [];
-    for (const variable of assignable) {
-      const code = String(variable?.code ?? '');
-      if (!code || seen.has(code) || ownCodes.has(code)) continue;
-      if (!isOutlierEligibleVariable(variable)) continue;
-      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
-      seen.add(code);
-      pool.push(variable);
-    }
-    // CDEs live in selectedVariables; ensure they appear even if assignable is empty in tests.
-    for (const variable of this.numericVariables()) {
-      const code = String(variable.code);
-      if (seen.has(code) || ownCodes.has(code)) continue;
-      if (variable?.isCreatedColumn && !earlierCodes.has(code)) continue;
-      seen.add(code);
-      pool.push(variable);
-    }
-    return pool;
-  });
+  readonly fitNumericVariables = computed(() =>
+    fitVariablePool(this.studio.appliedTransformations(), this.stepId(), [
+      ...((this.studio.algorithmAssignableVariables() as any[]) ?? []),
+      ...this.numericVariables(),
+    ])
+  );
 
   readonly runSelectedCodes = computed(() => {
     const excluded = this.runExcludedCodes();
@@ -177,12 +152,7 @@ export class KMeansClusterSourceComponent implements OnInit {
    * CDEs start selected and created columns start unselected: clustering raw variables
    * together with components built from them is opt-in. A toggle flips the default.
    */
-  readonly fitSelectedCodes = computed(() => {
-    const toggled = this.runExcludedCodes();
-    return this.fitNumericVariables()
-      .filter((variable) => !!variable?.isCreatedColumn === toggled.has(String(variable.code)))
-      .map((variable) => String(variable.code));
-  });
+  readonly fitSelectedCodes = computed(() => fitSelectedCodes(this.fitNumericVariables(), this.runExcludedCodes()));
 
   /** K-means parameters from the algorithm catalog. Closed until Parameters is opened. */
   readonly parameterFields = computed((): KMeansParameterField[] => {
@@ -338,7 +308,7 @@ export class KMeansClusterSourceComponent implements OnInit {
   apply(): void {
     const code = this.code().trim();
     if (!this.selectedUuid() || !code) return;
-    if (!CODE_PATTERN.test(code)) {
+    if (!COLUMN_CODE_PATTERN.test(code)) {
       this.error.set('Use letters, digits and underscores, starting with a letter or underscore.');
       return;
     }
@@ -367,7 +337,7 @@ export class KMeansClusterSourceComponent implements OnInit {
     const variables = this.fitSelectedCodes();
     const k = this.fitK();
     if (!code || !variables.length || !Number.isFinite(k) || k < 1) return;
-    if (!CODE_PATTERN.test(code)) {
+    if (!COLUMN_CODE_PATTERN.test(code)) {
       this.error.set('Use letters, digits and underscores, starting with a letter or underscore.');
       return;
     }
@@ -467,7 +437,7 @@ export class KMeansClusterSourceComponent implements OnInit {
     const reusable = this.reportReusable();
     const code = this.code().trim();
     if (!reusable || !code) return;
-    if (!CODE_PATTERN.test(code)) {
+    if (!COLUMN_CODE_PATTERN.test(code)) {
       this.runError.set('Use letters, digits and underscores, starting with a letter or underscore.');
       return;
     }

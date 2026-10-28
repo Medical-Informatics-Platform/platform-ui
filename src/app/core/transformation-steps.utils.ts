@@ -7,6 +7,7 @@
 
 import { AnalysisPreprocessingStep } from '../models/backend-algorithms.model';
 import { BackendFilter } from '../models/filters.model';
+import { isOutlierEligibleVariable } from './outlier-rules';
 
 /** Applied descriptive preprocessing config: a map of step name → parameters. */
 export type PreprocessingConfig = Record<string, unknown>;
@@ -20,6 +21,14 @@ export interface TransformationStep {
   id: string;
   name: CreatorName;
   parameters: Record<string, unknown>;
+}
+
+/** Exaflow column codes: an identifier, not free text. */
+export const COLUMN_CODE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** A random step id. `crypto.getRandomValues` works on plain-HTTP origins, unlike `randomUUID`. */
+export function newStepId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export const CREATOR_NAMES: ReadonlySet<CreatorName> = new Set<CreatorName>([
@@ -85,13 +94,41 @@ export function splitPreprocessingSteps(
       continue;
     }
     transformations.push({
-      id: crypto.randomUUID(),
+      id: newStepId(),
       name: step.name as CreatorName,
       parameters: step.parameters,
     });
   }
 
   return { singletons, transformations };
+}
+
+/**
+ * Fit-mode variable pool of a K-means/PCA card: numerical variables, where a created column
+ * counts only when an earlier step writes it. The card's own outputs are left out.
+ */
+export function fitVariablePool(steps: TransformationStep[], stepId: string, candidates: any[]): any[] {
+  const index = steps.findIndex((step) => step.id === stepId);
+  const earlier = new Set((index === -1 ? steps : steps.slice(0, index)).flatMap((step) => stepOutputNames(step)));
+  const own = new Set(index === -1 ? [] : stepOutputNames(steps[index]));
+  const seen = new Set<string>();
+  return candidates.filter((variable) => {
+    const code = String(variable?.code ?? '');
+    if (!code || seen.has(code) || own.has(code) || !isOutlierEligibleVariable(variable)) return false;
+    if (variable?.isCreatedColumn && !earlier.has(code)) return false;
+    seen.add(code);
+    return true;
+  });
+}
+
+/**
+ * Codes picked from a fit pool: CDEs start selected and created columns start unselected
+ * (clustering raw variables with components built from them is opt-in). A toggle flips the default.
+ */
+export function fitSelectedCodes(pool: any[], toggled: ReadonlySet<string>): string[] {
+  return pool
+    .filter((variable) => !!variable?.isCreatedColumn === toggled.has(String(variable.code)))
+    .map((variable) => String(variable.code));
 }
 
 function toArray(value: unknown): string[] {
