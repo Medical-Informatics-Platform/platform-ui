@@ -18,16 +18,14 @@ export function withLabels(
 
 /**
  * Inject human-readable variable names into a saved PCA result so the heatmap and the weights
- * table do not show raw codes. Labels the result's own `variables` (request order); results
- * saved before the engine returned them fall back to the run's variable labels.
+ * table do not show raw codes. Labels the result's own `variables` (request order).
  */
 export function enrichPcaResult<T>(result: T, algorithmName: string, variables: LabeledItem[]): T {
   if (algorithmName !== 'pca' || !result || typeof result !== 'object') return result;
   const codes = (result as { variables?: unknown }).variables;
-  const names = Array.isArray(codes)
-    ? codes.map((code) => variables.find((item) => item.code === String(code))?.label ?? String(code))
-    : variables.map((item) => item.label);
-  return names.length ? { ...result, variable_names: names } : result;
+  if (!Array.isArray(codes) || !codes.length) return result;
+  const names = codes.map((code) => variables.find((item) => item.code === String(code))?.label ?? String(code));
+  return { ...result, variable_names: names };
 }
 
 /** `3 datasets`, `1 dataset`. */

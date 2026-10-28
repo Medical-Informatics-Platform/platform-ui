@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   CREATOR_NAMES,
+  fitSelectedCodes,
+  fitVariablePool,
+  newStepId,
   stepOutputNames,
   stepSourceVariables,
   splitPreprocessingSteps,
@@ -162,5 +165,39 @@ describe('splitPreprocessingSteps', () => {
     const { singletons, transformations } = splitPreprocessingSteps([]);
     expect(singletons).toEqual({});
     expect(transformations).toEqual([]);
+  });
+});
+
+describe('newStepId', () => {
+  it('returns distinct 32-character hex ids', () => {
+    const ids = new Set(Array.from({ length: 50 }, () => newStepId()));
+    expect(ids.size).toBe(50);
+    ids.forEach((id) => expect(id).toMatch(/^[0-9a-f]{32}$/));
+  });
+});
+
+describe('fitVariablePool / fitSelectedCodes', () => {
+  const steps: TransformationStep[] = [
+    { id: 'pca', name: 'pca_column_creator', parameters: { new_column_names: ['pca_pc1'] } },
+    { id: 'km', name: 'kmeans_cluster_creator', parameters: { new_column_names: ['km_score'] } },
+    { id: 'late', name: 'pca_column_creator', parameters: { new_column_names: ['late_pc1'] } },
+  ];
+  const candidates = [
+    { code: 'age', type: 'real' },
+    { code: 'sex', type: 'nominal' },
+    { code: 'pca_pc1', type: 'real', isCreatedColumn: true },
+    { code: 'km_score', type: 'real', isCreatedColumn: true },
+    { code: 'late_pc1', type: 'real', isCreatedColumn: true },
+    { code: 'age', type: 'real' },
+  ];
+
+  it('keeps numerical CDEs and earlier outputs, not own, later, nominal or repeated codes', () => {
+    expect(fitVariablePool(steps, 'km', candidates).map((variable) => variable.code)).toEqual(['age', 'pca_pc1']);
+  });
+
+  it('starts CDEs selected and created columns unselected; a toggle flips each', () => {
+    const pool = fitVariablePool(steps, 'km', candidates);
+    expect(fitSelectedCodes(pool, new Set())).toEqual(['age']);
+    expect(fitSelectedCodes(pool, new Set(['age', 'pca_pc1']))).toEqual(['pca_pc1']);
   });
 });

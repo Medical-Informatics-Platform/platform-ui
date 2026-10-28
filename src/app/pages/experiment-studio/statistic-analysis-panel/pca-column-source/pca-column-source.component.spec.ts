@@ -139,6 +139,23 @@ describe('PcaColumnSourceComponent', () => {
     });
   });
 
+  it('ignores a result that arrives after another experiment was picked', () => {
+    const responses: Record<string, Subject<unknown>> = { a: new Subject(), b: new Subject() };
+    dashboard.listPcaExperiments.mockReturnValue(of([pcaExperiment('a'), pcaExperiment('b')]));
+    dashboard.getExperimentResult.mockImplementation((uuid: string) => responses[uuid]);
+    fixture.detectChanges();
+
+    component.onExperimentChange('a');
+    component.onExperimentChange('b');
+    const recipeB = { ...recipe(), component_choices: [{ component_id: 'PC1', explained_variance_ratio: 0.9 }] };
+    responses['b'].next({ result: { reusable_preprocessing: recipeB } });
+    responses['a'].next({ result: { reusable_preprocessing: recipe() } });
+
+    expect(component.selectedUuid()).toBe('b');
+    expect(component.loadedRecipe()).toEqual(recipeB);
+    expect(component.applying()).toBe(false);
+  });
+
   it('refuses a PCA result built on created columns', () => {
     const onCreated = { ...recipe(), base_parameters: { variables: ['age', 'km_score'], pca_variant: 'pca' } };
     dashboard.listPcaExperiments.mockReturnValue(of([pcaExperiment('a')]));

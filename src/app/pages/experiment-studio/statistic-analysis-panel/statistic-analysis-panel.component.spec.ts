@@ -32,12 +32,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'getAppliedDescriptivePreprocessing',
             'setFilters',
             'setFilterLogic',
-            'setTransformationPreprocessing',
             'filterVariableCodes',
-            'appliedCategoricalCreators',
-            'appliedKMeansClusterCreator',
-            'setKMeansClusterPreprocessing',
-            'withKMeansClusterRequirements',
             'buildTransformationDescribePreprocessing',
             'transformationSourceCodesForInput',
             'requestDatasets',
@@ -45,6 +40,7 @@ describe('StatisticAnalysisPanelComponent', () => {
             'getActiveDataModelCode',
             'upsertTransformation',
             'removeTransformation',
+            'clearTransformations',
             'transformationDependents',
             'outputsInUse',
             'availableCreatorNames',
@@ -71,13 +67,6 @@ describe('StatisticAnalysisPanelComponent', () => {
         mockExpService.getAlgorithmResults.mockReturnValue(of({ result: { histogram: [] } }));
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(null);
         mockExpService.getDatasetLabelMap.mockReturnValue({ 'dataset-a': 'Dataset A' });
-        mockExpService.appliedKMeansClusterCreator.mockImplementation(() => {
-            const step = (mockExpService.appliedTransformations() as any[])
-                .find((candidate) => candidate.name === 'kmeans_cluster_creator' && Array.isArray(candidate.parameters?.new_column_names));
-            return step?.parameters ?? null;
-        });
-        // Pass-through by default; the creator-appending behaviour is the service's, not the panel's.
-        mockExpService.withKMeansClusterRequirements.mockImplementation((config: any) => config ?? null);
         mockExpService.buildTransformationDescribePreprocessing.mockImplementation((singletons: any) => {
             const steps: { name: string; parameters: Record<string, unknown> }[] = [];
             if (singletons && typeof singletons === 'object') {
@@ -117,17 +106,11 @@ describe('StatisticAnalysisPanelComponent', () => {
             (mockExpService.appliedTransformations as any).set(next);
             return true;
         });
+        mockExpService.clearTransformations.mockImplementation(() =>
+            (mockExpService.appliedTransformations as any).set([]));
         mockExpService.removeTransformation.mockImplementation((id: string) => {
             const next = (mockExpService.appliedTransformations() as any[]).filter((step) => step.id !== id);
             (mockExpService.appliedTransformations as any).set(next);
-        });
-        mockExpService.appliedCategoricalCreators.mockImplementation(() => {
-            const fromStore = (mockExpService.appliedTransformations() as any[])
-                .filter((step) => step.name === 'categorical_column_creator')
-                .map((step) => step.parameters);
-            if (fromStore.length) return fromStore;
-            const value = (mockExpService.appliedPreprocessingConfig() as any)?.['categorical_column_creator'];
-            return Array.isArray(value) ? value : [];
         });
         // Mirrors the real collector: a group walks its rules, a condition is its field.
         mockExpService.filterVariableCodes.mockImplementation((logic: any) => {
@@ -2373,6 +2356,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set([transformation].map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -2403,6 +2390,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         const preprocessing = { categorical_column_creator: [transformation] };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set([transformation].map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([clinical]);
         fixture.detectChanges();
 
@@ -2486,6 +2477,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         const preprocessing = { categorical_column_creator: creators };
         mockExpService.getAppliedDescriptivePreprocessing.mockReturnValue(preprocessing);
         (mockExpService.appliedPreprocessingConfig as any).set(preprocessing);
+        // Column creators live in the ordered store; the panel hydrates its cards from there.
+        (mockExpService.appliedTransformations as any).set(creators.map((parameters, index) => ({
+            id: `cat-${index}`, name: 'categorical_column_creator', parameters,
+        })));
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
@@ -2608,6 +2603,22 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         expect(component.sectionOpen().transformation).toBe(true);
         expect(component.transformationDrafts[0].open).toBe(false);
+    });
+
+    it('keeps the stored column and flags the card when an emptied card is read by a later step', () => {
+        openStation('transformation');
+        ensureCategoricalDrafts(1);
+        const draft = component.transformationDrafts[0];
+        draft.code = 'grp';
+        draft.rules = [];
+        // A later step reads 'grp'; an edit that writes no column would orphan it.
+        mockExpService.outputsInUse.mockImplementation((_id: string, next: string[]) => (next.length ? [] : ['grp']));
+        mockExpService.upsertTransformation.mockClear();
+
+        component.onTransformationChange();
+
+        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+        expect(component.transformationDraftStatus(draft).label).toBe('Column in use');
     });
 
     it('applies the first card when two derived columns share a name', () => {
@@ -3320,7 +3331,6 @@ describe('StatisticAnalysisPanelComponent', () => {
                 name: 'kmeans_cluster_creator',
                 parameters: creator,
             });
-            mockExpService.appliedKMeansClusterCreator.mockReturnValue(creator as any);
             fixture.detectChanges();
 
             component.previewTransformationCard('kmeans-preview');
@@ -3375,7 +3385,6 @@ describe('StatisticAnalysisPanelComponent', () => {
                 name: 'kmeans_cluster_creator',
                 parameters: creator,
             });
-            mockExpService.appliedKMeansClusterCreator.mockReturnValue(creator as any);
             fixture.detectChanges();
 
             component.previewTransformationCard('kmeans-fit-preview');

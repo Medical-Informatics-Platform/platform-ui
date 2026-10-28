@@ -34,8 +34,6 @@ import {
 } from '../core/variable-availability.utils';
 import {
   KMEANS_CLUSTER_CREATOR,
-  KMeansClusterCreatorConfig,
-  isPlainObject,
   kmeansCreatorVariables,
 } from '../core/kmeans-cluster-source.utils';
 import { resolvePreprocessingOutputs } from '../core/preprocessing-outputs.utils';
@@ -439,7 +437,8 @@ export class ExperimentStudioService {
           code: names[i],
           label: names[i],
           name: names[i],
-          type: column?.stattype === 'numerical' ? 'real' : 'nominal',
+          // Without a resolved spec (catalog pending or failed) PCA scores are still numerical.
+          type: (column ? column.stattype === 'numerical' : step.name === 'pca_column_creator') ? 'real' : 'nominal',
           enumerations: ExperimentStudioService.dedupeEnumerations(column?.enumerations ?? []),
           isCreatedColumn: true,
         });
@@ -468,13 +467,6 @@ export class ExperimentStudioService {
     });
   }
 
-  /** Every applied categorical column creator config, in store order. */
-  appliedCategoricalCreators(): Record<string, unknown>[] {
-    return this.appliedTransformationsSignal()
-      .filter((step) => step.name === 'categorical_column_creator')
-      .map((step) => step.parameters);
-  }
-
   /** Datasets the next analysis request sends: the selection minus excluded datasets. */
   requestDatasets(): string[] {
     return this.selectedDatasetsSignal().filter((ds) => !this.excludedDatasetsSignal().includes(ds));
@@ -487,19 +479,6 @@ export class ExperimentStudioService {
       ? filterLogic
       : null;
   }
-
-  /**
-   * The applied kmeans_cluster_creator step from the ordered transformation list, or null when
-   * absent / malformed. Exaflow names the created column with `new_column_names`.
-   */
-  appliedKMeansClusterCreator(): KMeansClusterCreatorConfig | null {
-    const step = this.appliedTransformationsSignal().find(
-      (candidate) => candidate.name === KMEANS_CLUSTER_CREATOR,
-    );
-    if (!step) return null;
-    return this.asKMeansCreatorConfig(step.parameters as unknown as KMeansClusterCreatorConfig | undefined);
-  }
-
 
   getActiveDataModelCode(): string {
     const model = this.selectedDataModel();
@@ -771,11 +750,16 @@ export class ExperimentStudioService {
     return [...CREATOR_NAMES].filter((name) => this.hasPreprocessingSpec(name));
   }
 
-  /** Remove a transformation step by id, or by name when the id is unknown. */
+  /** Remove a transformation step by id. */
   removeTransformation(id: string): void {
     const remaining = this.appliedTransformationsSignal().filter((step) => step.id !== id);
     if (remaining.length === this.appliedTransformationsSignal().length) return;
     this.applyTransformations(remaining);
+  }
+
+  /** Remove every transformation step in one write. */
+  clearTransformations(): void {
+    if (this.appliedTransformationsSignal().length) this.applyTransformations([]);
   }
 
   /** Later steps whose sources include this step's output codes. */
@@ -815,79 +799,6 @@ export class ExperimentStudioService {
   hasRequestPreprocessingForRun(algorithmName: string): boolean {
     if (algorithmName === AlgorithmNames.DESCRIBE || algorithmName === AlgorithmNames.OUTLIER_REPORT) return true;
     return this.getEffectivePreprocessingSummary(algorithmName) !== 'none';
-  }
-
-  /**
-   * Merge the categorical column creator steps (exaflow `categorical_column_creator`) into the
-   * ordered transformation list so they reach every experiment run and their derived column is
-   * assignable to y/x. Null/empty clears the categorical step.
-   */
-  setTransformationPreprocessing(config: Record<string, unknown>[] | null): void {
-    const steps = this.stepsFromCreators('categorical_column_creator', config);
-    this.upsertOrClear('categorical_column_creator', steps);
-  }
-
-  /**
-   * Merge the K-means cluster column step (exaflow `kmeans_cluster_creator`) into the ordered
-   * transformation list so it reaches every experiment run and the created column is assignable
-   * to y/x. Null clears the K-means step.
-   */
-  setKMeansClusterPreprocessing(config: KMeansClusterCreatorConfig | null): void {
-    const steps = this.stepsFromCreators(KMEANS_CLUSTER_CREATOR, config);
-    this.upsertOrClear(KMEANS_CLUSTER_CREATOR, steps);
-  }
-
-  /**
-   * Replace the stored steps of one creator name with the given steps, preserving the ids of
-   * the steps that survive so dependents keep referencing them. Clears the name when empty.
-   * Surviving steps keep their original index so request-order/dependency guarantees hold.
-   */
-  private upsertOrClear(name: CreatorName, steps: TransformationStep[]): void {
-    const current = this.appliedTransformationsSignal();
-    if (!steps.length) {
-      // Clear: drop every step of this name.
-      this.applyTransformations(current.filter((step) => step.name !== name));
-      return;
-    }
-    // The new steps take the place of the first old step of this name (any count); the
-    // other names keep their order. With no old step of this name, they are appended.
-    const others = current.filter((step) => step.name !== name);
-    const first = current.findIndex((step) => step.name === name);
-    const at = first === -1 ? others.length : first;
-    this.applyTransformations([...others.slice(0, at), ...steps, ...others.slice(at)]);
-  }
-
-  /**
-   * Build ordered transformation steps for one creator name from its stored parameters.
-   * Reuses the surviving step id when the parameters match, keeping dependents stable.
-   */
-  private stepsFromCreators(
-    name: CreatorName,
-    value: unknown,
-  ): TransformationStep[] {
-    if (value === null || value === undefined) return [];
-    const items = Array.isArray(value) ? value : [value];
-    const surviving = this.appliedTransformationsSignal().filter((step) => step.name === name);
-    return items
-      .map((item, index) => this.toTransformationStep(name, item, surviving[index]))
-      .filter((step): step is TransformationStep => !!step);
-  }
-
-  /**
-   * One transformation step from a stored creator config. Preserves the prior step's id when the
-   * parameters are unchanged so dependents keep referencing it; otherwise a fresh id.
-   */
-  private toTransformationStep(
-    name: CreatorName,
-    value: unknown,
-    prior: TransformationStep | undefined,
-  ): TransformationStep | null {
-    if (!isPlainObject(value)) return null;
-    const parameters = { ...(value as Record<string, unknown>) };
-    if (prior && JSON.stringify(prior.parameters) === JSON.stringify(parameters)) {
-      return { ...prior, parameters };
-    }
-    return { id: crypto.randomUUID(), name, parameters };
   }
 
   async setAlgorithm(algorithm: AlgorithmConfig) {
@@ -1105,55 +1016,6 @@ export class ExperimentStudioService {
       }
     }
     return steps.length ? steps : null;
-  }
-
-  /**
-   * Exaflow rejects missing values in the variables a K-means cluster column is
-   * built from, and the cluster step must run after missing value handling. Only
-   * the request is adjusted — the stored config keeps the user's own choices.
-   * Describe previews call this too, so a previewed cluster column matches a run.
-   */
-  withKMeansClusterRequirements(
-    config: PreprocessingConfig | null,
-  ): PreprocessingConfig | null {
-    const creators = this.appliedTransformationsSignal()
-      .filter((step) => step.name === KMEANS_CLUSTER_CREATOR)
-      .map((step) => this.asKMeansCreatorConfig(step.parameters as unknown as KMeansClusterCreatorConfig | undefined))
-      .filter((creator): creator is KMeansClusterCreatorConfig => !!creator);
-    if (!creators.length) return config;
-
-    // Rebuild the key order so cluster steps are emitted last, after
-    // missing_values_handler and every other step.
-    const next: PreprocessingConfig = {};
-    for (const [key, value] of Object.entries(config ?? {})) {
-      if (key !== KMEANS_CLUSTER_CREATOR) next[key] = value;
-    }
-
-    const clusterVariables = [...new Set(creators.flatMap((creator) => this.kmeansClusterVariables(creator)))];
-    const withDrops = clusterVariables.length
-      ? this.withDropStrategies(next, clusterVariables)
-      : next;
-    // One creator stays a bare object for older readers; N expand to an array that
-    // preprocessingConfigToSteps emits as repeated steps.
-    withDrops[KMEANS_CLUSTER_CREATOR] = creators.length === 1 ? creators[0] : creators;
-    return withDrops;
-  }
-
-  /**
-   * K-means requires `missing_values_handler`. Keep any strategy the user already
-   * set; drop is the default for codes that have none.
-   */
-  private withDropStrategies(config: PreprocessingConfig | null, codes: string[]): PreprocessingConfig {
-    const next: PreprocessingConfig = { ...(config ?? {}) };
-    const missing = isPlainObject(next[MISSING_VALUES_HANDLER])
-      ? { ...(next[MISSING_VALUES_HANDLER] as Record<string, unknown>) }
-      : {};
-    const strategies = { ...((missing['strategies'] as Record<string, unknown>) ?? {}) };
-    for (const code of codes) {
-      if (strategies[code] === undefined) strategies[code] = 'drop';
-    }
-    next[MISSING_VALUES_HANDLER] = { ...missing, strategies };
-    return next;
   }
 
   private buildExperimentRequest(
@@ -2524,29 +2386,6 @@ export class ExperimentStudioService {
 
     walk(logic);
     return [...codes];
-  }
-
-  /** Codes of the CDEs the given K-means cluster creator clusters on. */
-  private kmeansClusterVariables(creator: KMeansClusterCreatorConfig | null): string[] {
-    return kmeansCreatorVariables(creator as Record<string, unknown> | null);
-  }
-
-  /**
-   * Recipe mode needs reusable_preprocessing; fit mode needs non-empty variables.
-   * Both require a column name, k, and enumeration_prefix.
-   */
-  private asKMeansCreatorConfig(
-    creator: KMeansClusterCreatorConfig | null | undefined,
-  ): KMeansClusterCreatorConfig | null {
-    if (!isPlainObject(creator)) return null;
-    const names = creator.new_column_names;
-    const code = Array.isArray(names) ? String(names[0] ?? '').trim() : '';
-    if (!code || typeof creator.k !== 'number' || typeof creator.enumeration_prefix !== 'string') {
-      return null;
-    }
-    if (isPlainObject(creator.reusable_preprocessing)) return creator;
-    if (Array.isArray(creator.variables) && creator.variables.length > 0) return creator;
-    return null;
   }
 
   setEditingExistingExperiment(isEditing: boolean) {

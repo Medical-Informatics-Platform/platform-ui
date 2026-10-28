@@ -12,10 +12,10 @@ describe('enrichPcaResult', () => {
     expect((result as any).variable_names).toEqual(['BMI', 'Age']);
   });
 
-  it('falls back to the run variable labels for results saved without variables', () => {
-    const result = enrichPcaResult({ eigenvalues: [1, 0.5] }, 'pca', labelled);
+  it('leaves a result without variables unchanged', () => {
+    const result = { eigenvalues: [1, 0.5] };
 
-    expect((result as any).variable_names).toEqual(['Age', 'BMI']);
+    expect(enrichPcaResult(result, 'pca', labelled)).toBe(result);
   });
 
   it('leaves other algorithms unchanged', () => {
