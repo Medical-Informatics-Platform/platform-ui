@@ -19,17 +19,6 @@ export interface KMeansReusablePreprocessing {
   cluster_choices: { cluster_id: string; label: string }[];
 }
 
-/** Parameters of the kmeans_cluster_creator preprocessing step.
- *  Exaflow names the created column with `new_column_names`, not `code`.
- *  Recipe mode carries reusable_preprocessing; fit mode carries variables (no recipe). */
-export interface KMeansClusterCreatorConfig {
-  new_column_names: [string];
-  k: number;
-  enumeration_prefix: string;
-  reusable_preprocessing?: KMeansReusablePreprocessing;
-  variables?: string[];
-}
-
 /** Clustering variable codes from a stored creator: recipe `cluster_variables` or fit `variables`. */
 export function kmeansCreatorVariables(
   creator: Record<string, unknown> | null | undefined,
@@ -123,14 +112,6 @@ export function analysisSourceIsReusable(
     .sort();
   return sourceDatasets.join('\u0000') === [...current.datasets].map(String).sort().join('\u0000')
     && canonicalFilterKey(inputdata['filters']) === canonicalFilterKey(current.filters);
-}
-
-/** Whether a finished K-means run can still provide clusters for the current draft. */
-export function kmeansSourceIsReusable(
-  experiment: BackendExperiment,
-  current: KMeansSourceContext,
-): boolean {
-  return analysisSourceIsReusable(experiment, 'kmeans', current);
 }
 
 /**

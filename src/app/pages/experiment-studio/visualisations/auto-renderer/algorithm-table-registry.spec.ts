@@ -207,16 +207,14 @@ describe('AlgorithmTableRegistry', () => {
     expect(exportTable(tables[0]).rows[0]).toEqual(['0', '50', Math.exp(-0.7)]);
   });
 
-  it('renders pca summary', () => {
+  it('renders no pca summary for a result without components', () => {
     const payload = {
       title: 'Eigenvalues and Eigenvectors',
       n_obs: 120,
       eigenvalues: [3.1, 1.2, 0.7],
     };
-    const base = AlgorithmTableRegistry['pca'](payload);
 
-    expect(base.length).toBe(1);
-    expect(base[0].title).toBe('PCA Summary');
+    expect(AlgorithmTableRegistry['pca'](payload as any)).toEqual([]);
   });
 
   it('names pca weight rows with the labels a caller supplies over the raw codes', () => {

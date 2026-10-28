@@ -80,6 +80,7 @@ import { collectVariableCodes } from '../../../core/variable-availability.utils'
 import {
   CreatorName,
   TransformationStep,
+  newStepId,
   stepOutputNames as stepOutputNamesOf,
 } from '../../../core/transformation-steps.utils';
 
@@ -165,7 +166,7 @@ function parseNumber(value: unknown): number | null {
   return text !== '' && Number.isFinite(number) ? number : null;
 }
 
-function emptyTransformationDraft(id = crypto.randomUUID()): TransformationColumnDraft {
+function emptyTransformationDraft(id = newStepId()): TransformationColumnDraft {
   return { id, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
 }
 
@@ -797,7 +798,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    */
   chooseTransformation(kind: CreatorName | 'categorical' | 'kmeans' | 'pca'): void {
     const name = this.resolveCreatorName(kind);
-    const id = crypto.randomUUID();
+    const id = newStepId();
     this.expStudioService.upsertTransformation({ id, name, parameters: {} });
     if (name === 'categorical_column_creator') {
       this.transformationDrafts = [
@@ -1312,11 +1313,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       ? 'Applied'
       : 'Not set';
   }
-
-  /** @deprecated Prefer `isCardOpen(stepId)`; kept for pipeline specs that fold the first K-means card. */
-  readonly kmeansClusterCardOpen = signal(false);
-  /** @deprecated Chooser now upserts store steps; kept for older specs. */
-  readonly kmeansClusterCardChosen = signal(false);
 
   /** True when a named category on any card is still missing an applied filter. */
   get transformationRulesNeedFilters(): boolean {
@@ -2006,14 +2002,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Clear the transformation station: pending edits and the committed config alike. */
   resetTransformation(): void {
-    for (const step of [...this.cards()]) {
-      this.expStudioService.removeTransformation(step.id);
-    }
+    this.expStudioService.clearTransformations();
     this.transformationDrafts = [];
     this.cardOpenState.set({});
     this.previewDraftId = null;
-    this.kmeansClusterCardChosen.set(false);
-    this.kmeansClusterCardOpen.set(false);
     this.transformationStatistics = [];
     this.transformationStatisticsError = '';
     this.invalidateCategoryCounts();
@@ -2114,14 +2106,26 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** Per-card chip: Applied only when every category is complete and the name is unique.
    *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
   transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
+    const problem = this.draftWriteProblem(draft);
+    if (problem) return { label: problem === 'Name already used' ? 'Duplicate name' : 'Column in use', tone: 'pending' };
+    if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
+      return { label: 'Applied', tone: 'applied' };
+    }
+    if (this.draftHasWork(draft)) return { label: 'Not applied', tone: 'pending' };
+    return { label: 'Not set', tone: 'default' };
+  }
+
+  /**
+   * Why a categorical card cannot be written to the store: a name collision, or a later step
+   * still reads the column the edit would drop (renamed, or left incomplete). Mirrors the
+   * refusal in `upsertTransformation`, so a refused edit is shown on the card instead of lost.
+   */
+  private draftWriteProblem(draft: TransformationColumnDraft): string | null {
     const code = draft.code.trim();
     const nameError = code ? this.columnNameError(draft.id, code) : null;
-    if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
-      if (!nameError) return { label: 'Applied', tone: 'applied' };
-      return { label: nameError === 'Name already used' ? 'Duplicate name' : 'Column in use', tone: 'pending' };
-    }
-    if (this.draftHasWork(draft) || nameError) return { label: 'Not applied', tone: 'pending' };
-    return { label: 'Not set', tone: 'default' };
+    if (nameError || this.buildTransformationConfigForDraft(draft)) return nameError;
+    const inUse = this.expStudioService.outputsInUse(draft.id, []);
+    return inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null;
   }
 
   toggleTransformationDraft(draft: TransformationColumnDraft): void {
@@ -3910,12 +3914,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   onTransformationChange(): void {
-    // Each categorical draft upserts by id. Name collisions and incomplete drafts never
-    // overwrite a good store entry with bad parameters (incomplete clears outputs so the
-    // request skips them; errors leave the prior parameters untouched).
+    // Each categorical draft upserts by id. An incomplete draft clears its outputs so the
+    // request skips it. A draft with a write problem leaves the prior parameters untouched and
+    // shows the problem on its status chip.
     for (const draft of this.transformationDrafts) {
-      const code = draft.code.trim();
-      if (code && this.columnNameError(draft.id, code)) continue;
+      if (this.draftWriteProblem(draft)) continue;
       const config = this.buildTransformationConfigForDraft(draft);
       this.expStudioService.upsertTransformation({
         id: draft.id,
@@ -4460,16 +4463,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.pendingLongitudinalStrategies = { ...appliedStrategies };
     }
 
-    this.hydrateAppliedTransformation(preprocessing);
+    this.hydrateAppliedTransformation();
   }
 
-  private hydrateAppliedTransformation(preprocessing: PreprocessingConfig): void {
-    // Prefer the ordered store when Task 3 hydration already filled it; fall back to the
-    // legacy map shape on older applied-config snapshots.
-    const storeSteps = this.expStudioService.appliedTransformations()
-      .filter((step) => step.name === 'categorical_column_creator');
-    if (storeSteps.length) {
-      this.transformationDrafts = storeSteps.map((step) => ({
+  /** One editable card per stored categorical step, keyed by the step id. */
+  private hydrateAppliedTransformation(): void {
+    this.transformationDrafts = this.cards()
+      .filter((step) => step.name === 'categorical_column_creator')
+      .map((step) => ({
         ...this.draftFromCreatorConfig(step.parameters as {
           new_column_names?: unknown;
           rules?: Record<string, CategoryFilter>;
@@ -4477,30 +4478,6 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         }, step.id),
         chosen: true,
       }));
-      return;
-    }
-    const creators = (preprocessing['categorical_column_creator'] as
-      | Record<string, unknown>[]
-      | undefined) ?? [];
-    if (!creators.length) return;
-    const drafts = creators.map((creator) => {
-      const id = crypto.randomUUID();
-      const draft = this.draftFromCreatorConfig(
-        creator as {
-          new_column_names?: unknown;
-          rules?: Record<string, CategoryFilter>;
-          default_enumeration?: unknown;
-        },
-        id,
-      );
-      this.expStudioService.upsertTransformation({
-        id,
-        name: 'categorical_column_creator',
-        parameters: (creator as Record<string, unknown>) ?? {},
-      });
-      return { ...draft, chosen: true };
-    });
-    this.transformationDrafts = drafts;
   }
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
@@ -4510,7 +4487,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       rules?: Record<string, CategoryFilter>;
       default_enumeration?: unknown;
     },
-    id: string = crypto.randomUUID(),
+    id: string,
   ): TransformationColumnDraft {
     const rules = creator.rules ?? {};
     const code = Array.isArray(creator.new_column_names) ? String(creator.new_column_names[0] ?? '').trim() : '';
@@ -4738,11 +4715,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   private discardPendingTransformation(): void {
-    const persisted = this.expStudioService.appliedPreprocessingConfig();
-    if (persisted?.['categorical_column_creator'] || this.cards().some((s) => s.name === 'categorical_column_creator')) {
-      this.hydrateAppliedTransformation(persisted ?? {});
-    } else {
-      this.transformationDrafts = [];
+    this.hydrateAppliedTransformation();
+    if (!this.transformationDrafts.length) {
       this.transformationStatistics = [];
       this.transformationStatisticsError = '';
     }

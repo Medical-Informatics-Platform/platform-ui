@@ -1049,22 +1049,6 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
           asPercent(component.cumulative_explained_variance),
         ]),
       });
-    } else {
-      // Legacy PCA payloads only carried eigenvalues.
-      const eigenvalues = (result.eigenvalues ?? []).map(Number);
-      const total = eigenvalues.reduce((sum, value) => sum + value, 0);
-      if (eigenvalues.length) {
-        let cumulative = 0;
-        const percent = (value: number) => (total > 0 ? `${((value / total) * 100).toFixed(1)}%` : '');
-        tables.push({
-          title: 'PCA Summary',
-          columns: ['Component', 'Eigenvalue', 'Variance explained (%)', 'Cumulative (%)'],
-          rows: eigenvalues.map((value, i) => {
-            cumulative += value;
-            return [`PC${i + 1}`, formatDecimal(value), percent(value), percent(cumulative)];
-          }),
-        });
-      }
     }
 
     // Rows of eigenvectors are components; the table turns them so each variable reads across.

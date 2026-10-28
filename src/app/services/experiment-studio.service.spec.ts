@@ -6,6 +6,12 @@ import { SessionStorageService } from './session-storage.service';
 import { ErrorService } from './error.service';
 import { DataModel } from '../models/data-model.interface';
 import { AnalysisPreprocessingStep } from '../models/backend-algorithms.model';
+import { CreatorName } from '../core/transformation-steps.utils';
+
+/** Store creator cards the way the Transformation stage does: one step per card, ids by position. */
+function setCreators(service: ExperimentStudioService, name: CreatorName, creators: Record<string, unknown>[]): void {
+  creators.forEach((parameters, index) => service.upsertTransformation({ id: `${name}-${index}`, name, parameters }));
+}
 
 describe('ExperimentStudioService', () => {
   let service: ExperimentStudioService;
@@ -815,7 +821,7 @@ describe('ExperimentStudioService', () => {
       strategy: 'filter_rules',
       rules: { m: { condition: 'AND', rules: [{ id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: '1' }] } },
     };
-    service.setTransformationPreprocessing([creator]);
+    setCreators(service, 'categorical_column_creator', [creator]);
 
     const body = service.buildRequestBody('mock_algo', ['sex_group'], ['age']);
     const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
@@ -1442,7 +1448,7 @@ describe('ExperimentStudioService', () => {
       strategy: 'filter_rules',
       rules: { m: { condition: 'AND', rules: [{ id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: '1' }] } },
     };
-    service.setTransformationPreprocessing([creator]);
+    setCreators(service, 'categorical_column_creator', [creator]);
     const steps = service.buildRequestBody('mock_algo').analysis.preprocessing as AnalysisPreprocessingStep[];
     expect(steps.find((step) => step.name === 'categorical_column_creator')?.parameters).toEqual(creator);
   });
@@ -1468,7 +1474,7 @@ describe('ExperimentStudioService', () => {
     service.setSelectedDatasets(['ds1']);
     service.setVariables([{ code: 'age', label: 'Age' }]);
     service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
-    service.setTransformationPreprocessing([{
+    setCreators(service, 'categorical_column_creator', [{
       new_column_names: ['derived_col'],
       rules: { A: {}, B: {} },
       default_enumeration: 'A',
@@ -1522,7 +1528,7 @@ describe('ExperimentStudioService', () => {
       default_enumeration: 'unknown',
     };
 
-    service.setTransformationPreprocessing([good, bad]);
+    setCreators(service, 'categorical_column_creator', [good, bad]);
 
     // Two or more creators persist as an ordered array under the one config key.
     expect(service.appliedPreprocessingConfig()?.['categorical_column_creator']).toEqual([good, bad]);
@@ -1660,7 +1666,7 @@ describe('ExperimentStudioService', () => {
       { code: 'age', label: 'Age' },
     ]);
     service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
-    service.setTransformationPreprocessing([{
+    setCreators(service, 'categorical_column_creator', [{
       new_column_names: ['mrs_good_outcome'],
       strategy: 'filter_rules',
       rules: {
@@ -1686,7 +1692,7 @@ describe('ExperimentStudioService', () => {
     service.setSelectedDatasets(['ds1']);
     service.setVariables([{ code: 'age', label: 'Age' }]);
     service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
-    service.setTransformationPreprocessing([{
+    setCreators(service, 'categorical_column_creator', [{
       new_column_names: ['old_col'],
       rules: { A: {} },
       default_enumeration: 'A',
@@ -1698,7 +1704,7 @@ describe('ExperimentStudioService', () => {
 
     // Renaming the created column makes the old code unassignable, so it is
     // pruned from the x role automatically.
-    service.setTransformationPreprocessing([{
+    setCreators(service, 'categorical_column_creator', [{
       new_column_names: ['new_col'],
       rules: { A: {} },
       default_enumeration: 'A',
@@ -1789,7 +1795,7 @@ describe('ExperimentStudioService', () => {
     expect(service.algorithmY()[0].enumerations.map((e: any) => e.code)).toEqual(['0', '1']);
 
     // Renaming a category later is reflected in the assigned role too.
-    service.setTransformationPreprocessing([{
+    setCreators(service, 'categorical_column_creator', [{
       new_column_names: ['old'], strategy: 'filter_rules', rules: { young: rule('less'), older: rule('greater_or_equal') }, default_enumeration: 'na',
     }]);
     expect(service.algorithmY()[0].enumerations.map((e: any) => e.code)).toEqual(['young', 'older', 'na']);
@@ -1834,9 +1840,8 @@ describe('ExperimentStudioService', () => {
     }
 
     it('exposes the cluster column in the assignable pool and reads back the applied creator', () => {
-      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      setCreators(service, 'kmeans_cluster_creator', [clusterFixture(['a', 'b'])]);
 
-      expect(service.appliedKMeansClusterCreator()?.new_column_names[0]).toBe('kmeans_cluster');
       expect(service.appliedPreprocessingConfig()?.['kmeans_cluster_creator'])
         .toEqual([clusterFixture(['a', 'b'])]);
 
@@ -1852,13 +1857,12 @@ describe('ExperimentStudioService', () => {
     });
 
     it('drops the cluster column from the pool when cleared', () => {
-      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      setCreators(service, 'kmeans_cluster_creator', [clusterFixture(['a', 'b'])]);
 
       expect(service.algorithmAssignableVariables().map((v) => v.code)).toContain('kmeans_cluster');
 
-      service.setKMeansClusterPreprocessing(null);
+      service.clearTransformations();
 
-      expect(service.appliedKMeansClusterCreator()).toBeNull();
       expect(service.appliedPreprocessingConfig()).toBeNull();
       // Nothing was assigned to a role, so the code is no longer assignable.
       expect(service.algorithmAssignableVariables().map((v) => v.code)).not.toContain('kmeans_cluster');
@@ -1869,26 +1873,14 @@ describe('ExperimentStudioService', () => {
 
       expect(service.algorithmY().map((v) => v.code)).toEqual(['kmeans_cluster']);
 
-      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
-      service.setKMeansClusterPreprocessing(null);
+      setCreators(service, 'kmeans_cluster_creator', [clusterFixture(['a', 'b'])]);
+      service.clearTransformations();
 
-      expect(service.appliedKMeansClusterCreator()).toBeNull();
+      expect(service.appliedTransformations()).toEqual([]);
       // Same contract as the transformation column: a synthetic role node stays
       // assignable while it is assigned.
       expect(service.algorithmY().map((v) => v.code)).toEqual(['kmeans_cluster']);
       expect(service.algorithmAssignableVariables().map((v) => v.code)).toContain('kmeans_cluster');
-    });
-
-    it('ignores an applied creator without a column name or recipe/fit payload', () => {
-      service.setAppliedDescriptivePreprocessing({
-        kmeans_cluster_creator: { new_column_names: ['  '], k: 1, enumeration_prefix: 'cluster_', reusable_preprocessing: {} },
-      });
-      expect(service.appliedKMeansClusterCreator()).toBeNull();
-
-      service.setAppliedDescriptivePreprocessing({
-        kmeans_cluster_creator: { new_column_names: ['kmeans_cluster'] },
-      });
-      expect(service.appliedKMeansClusterCreator()).toBeNull();
     });
 
     it('accepts a fit-mode creator (variables + k, no recipe) for applied and request wiring', () => {
@@ -1901,14 +1893,8 @@ describe('ExperimentStudioService', () => {
       service.selectedDataModel.set(mockDataModel);
       service.setSelectedDatasets(['ds1']);
       service.setVariables([{ code: 'a', label: 'A' }, { code: 'b', label: 'B' }]);
-      service.setKMeansClusterPreprocessing(fitCreator);
+      setCreators(service, 'kmeans_cluster_creator', [fitCreator]);
       service.setAlgorithmY([{ code: 'km_fit', label: 'km_fit', isCreatedColumn: true }]);
-
-      expect(service.appliedKMeansClusterCreator()).toEqual(fitCreator);
-      expect(service.appliedKMeansClusterCreator()).not.toHaveProperty('reusable_preprocessing');
-
-      const withReq = (service as any).withKMeansClusterRequirements({});
-      expect(withReq['kmeans_cluster_creator']).toEqual(fitCreator);
 
       const body = service.buildRequestBody('mock_algo');
       expect(body.analysis.inputdata.variables).toEqual(['a', 'b']);
@@ -1925,7 +1911,7 @@ describe('ExperimentStudioService', () => {
       service.setAppliedDescriptivePreprocessing({
         missing_values_handler: { strategies: { a: 'mean' } },
       });
-      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      setCreators(service, 'kmeans_cluster_creator', [clusterFixture(['a', 'b'])]);
       service.setAlgorithmY([{ code: 'kmeans_cluster', label: 'kmeans_cluster', isCreatedColumn: true }]);
 
       const body = service.buildRequestBody('mock_algo');
@@ -1952,7 +1938,7 @@ describe('ExperimentStudioService', () => {
       service.selectedDataModel.set(mockDataModel);
       service.setSelectedDatasets(['ds1']);
       service.setVariables([{ code: 'a', label: 'A' }, { code: 'b', label: 'B' }]);
-      service.setKMeansClusterPreprocessing(clusterFixture(['a', 'b']));
+      setCreators(service, 'kmeans_cluster_creator', [clusterFixture(['a', 'b'])]);
       service.setAlgorithmY([{ code: 'kmeans_cluster', label: 'kmeans_cluster', isCreatedColumn: true }]);
 
       const body = service.buildRequestBody('mock_algo');
@@ -2064,12 +2050,6 @@ describe('ExperimentStudioService', () => {
       }));
     });
 
-    it('leaves a config without a cluster creator untouched', () => {
-      const config = { missing_values_handler: { strategies: { age: 'mean' } } };
-
-      expect((service as any).withKMeansClusterRequirements(config)).toBe(config);
-      expect((service as any).withKMeansClusterRequirements(null)).toBeNull();
-    });
   });
 
   describe('loadKMeansReport', () => {
@@ -2100,7 +2080,7 @@ describe('ExperimentStudioService', () => {
     });
 
     it('adds missing_values_handler when a categorical transformation is applied', () => {
-      service.setTransformationPreprocessing([{
+      setCreators(service, 'categorical_column_creator', [{
         new_column_names: ['grp'],
         rules: { A: { condition: 'AND', rules: [{ field: 'age', operator: 'less', value: 60 }] } },
       }]);
@@ -2390,6 +2370,26 @@ describe('ExperimentStudioService', () => {
       expect(creators).toEqual([['grp']]);
     });
 
+    it('types PCA columns numerical before the preprocessing catalog has loaded', () => {
+      service.upsertTransformation({
+        id: 'pca-x',
+        name: 'pca_column_creator',
+        parameters: { new_column_names: ['pca_pc1'], selected_components: ['PC1'], n_components: 1, variables: ['a', 'b'] },
+      });
+
+      const node = service.algorithmAssignableVariables().find((v) => v.code === 'pca_pc1');
+      expect(node?.type).toBe('real');
+    });
+
+    it('clears every transformation step in one write', () => {
+      service.upsertTransformation(categoricalStep);
+      service.upsertTransformation(pcaAStep);
+
+      service.clearTransformations();
+
+      expect(service.appliedTransformations()).toEqual([]);
+    });
+
     it('keeps a re-edited categorical step before a dependent K-means step', () => {
       // A K-means step that clusters on the categorical output ('grp') so it is a real dependent.
       const kmeansOnCat: any = {
@@ -2416,19 +2416,6 @@ describe('ExperimentStudioService', () => {
 
       // The K-means step still depends on the categorical output at its original index.
       expect(service.transformationDependents(categoricalStep.id).map((s) => s.id)).toEqual(['kmeans-cat']);
-    });
-
-    it('setTransformationPreprocessing grows and shrinks the categorical steps in place', () => {
-      const names = () => service.appliedTransformations().map((s) => s.parameters['new_column_names']);
-      const creator = (name: string) => ({ new_column_names: [name], rules: {} });
-      service.upsertTransformation(pcaAStep);
-      service.setTransformationPreprocessing([creator('grp1')]);
-
-      service.setTransformationPreprocessing([creator('grp1'), creator('grp2')]);
-      expect(names()).toEqual([['pca_a1', 'pca_a2'], ['grp1'], ['grp2']]);
-
-      service.setTransformationPreprocessing([creator('grp2')]);
-      expect(names()).toEqual([['pca_a1', 'pca_a2'], ['grp2']]);
     });
 
     it('refuses an upsert that drops a column a later step reads', () => {

@@ -11,7 +11,6 @@ import {
   kmeansCreatorClusterChoices,
   kmeansCreatorVariables,
   analysisSourceIsReusable,
-  kmeansSourceIsReusable,
 } from './kmeans-cluster-source.utils';
 
 function rule(field: string, operator: string, value: unknown): any {
@@ -91,7 +90,6 @@ describe('kmeans-cluster-source.utils', () => {
       });
 
       expect(analysisSourceIsReusable(source, 'kmeans', current)).toBe(true);
-      expect(kmeansSourceIsReusable(source, current)).toBe(true);
     });
 
     it('accepts a matching PCA experiment when algorithmName is pca', () => {
@@ -100,7 +98,7 @@ describe('kmeans-cluster-source.utils', () => {
         'pca',
         { ...current, filters: null },
       )).toBe(true);
-      expect(kmeansSourceIsReusable(experiment({ algorithm: 'pca' }), { ...current, filters: null }))
+      expect(analysisSourceIsReusable(experiment({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
