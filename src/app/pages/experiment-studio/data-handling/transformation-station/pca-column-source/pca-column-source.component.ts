@@ -11,23 +11,23 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
-import { BackendExperiment } from '../../../../models/backend-experiment.model';
-import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
+import { ExperimentStudioService } from '../../../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../../../services/experiments-dashboard.service';
+import { BackendExperiment } from '../../../../../models/backend-experiment.model';
+import { isOutlierEligibleVariable } from '../../../../../core/outlier-rules';
 import {
   COLUMN_CODE_PATTERN,
   TransformationStep,
   fitSelectedCodes,
   fitVariablePool,
   stepOutputNames,
-} from '../../../../core/transformation-steps.utils';
-import { collectVariableCodes } from '../../../../core/variable-availability.utils';
+} from '../../../../../core/transformation-steps.utils';
+import { collectVariableCodes } from '../../../../../core/variable-availability.utils';
 import {
   KMeansSourceContext,
   analysisSourceIsReusable,
   canonicalFilterKey,
-} from '../../../../core/kmeans-cluster-source.utils';
+} from '../../../../../core/kmeans-cluster-source.utils';
 import {
   PCA_COLUMN_CREATOR,
   PCAReusablePreprocessing,
@@ -35,7 +35,7 @@ import {
   defaultPcaColumnNames,
   findPcaRecipe,
   nextPcaColumnPrefix,
-} from '../../../../core/pca-column-source.utils';
+} from '../../../../../core/pca-column-source.utils';
 
 type SourceMode = 'result' | 'fit';
 

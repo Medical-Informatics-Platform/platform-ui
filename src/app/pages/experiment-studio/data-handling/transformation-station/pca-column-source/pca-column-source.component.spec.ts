@@ -3,10 +3,10 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Subject, of } from 'rxjs';
 
-import { BackendExperiment } from '../../../../models/backend-experiment.model';
-import { PCAReusablePreprocessing } from '../../../../core/pca-column-source.utils';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
+import { BackendExperiment } from '../../../../../models/backend-experiment.model';
+import { PCAReusablePreprocessing } from '../../../../../core/pca-column-source.utils';
+import { ExperimentStudioService } from '../../../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../../../services/experiments-dashboard.service';
 import { PcaColumnSourceComponent } from './pca-column-source.component';
 
 const CONTEXT = { dataModel: 'Stroke:3.7', datasets: ['diabetes'], filters: null };

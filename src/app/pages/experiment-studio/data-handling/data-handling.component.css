@@ -124,46 +124,6 @@
   max-width: 100%;
 }
 
-/* Vertical Directional Connectors */
-.pipeline-connector {
-  height: 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  margin: 0;
-}
-
-.pipeline-connector-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: color-mix(in srgb, var(--primary-color) 18%, #cbd5e1);
-  z-index: 1;
-}
-
-.pipeline-connector-line.is-active {
-  background: var(--primary-color);
-}
-
-.pipeline-connector-arrow {
-  display: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #ffffff;
-  border: 2px solid color-mix(in srgb, var(--primary-color) 25%, #cbd5e1);
-  color: var(--primary-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  z-index: 2;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-}
-
 @media (max-width: 768px) {
   .pipeline-canvas-header {
     flex-wrap: wrap;

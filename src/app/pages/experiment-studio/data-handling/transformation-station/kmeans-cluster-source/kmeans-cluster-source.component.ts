@@ -12,16 +12,16 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
-import { BackendExperiment } from '../../../../models/backend-experiment.model';
-import { KMeansResult } from '../../../../models/algorithm-results.model';
+import { ExperimentStudioService } from '../../../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../../../services/experiments-dashboard.service';
+import { BackendExperiment } from '../../../../../models/backend-experiment.model';
+import { KMeansResult } from '../../../../../models/algorithm-results.model';
 import {
   formatAlgorithmParameterValue,
   optionBindingValue,
-} from '../../../../core/algorithm-parameter.utils';
-import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
-import { COLUMN_CODE_PATTERN, fitSelectedCodes, fitVariablePool } from '../../../../core/transformation-steps.utils';
+} from '../../../../../core/algorithm-parameter.utils';
+import { isOutlierEligibleVariable } from '../../../../../core/outlier-rules';
+import { COLUMN_CODE_PATTERN, fitSelectedCodes, fitVariablePool } from '../../../../../core/transformation-steps.utils';
 import {
   KMEANS_CLUSTER_CREATOR,
   KMeansReusablePreprocessing,
@@ -31,7 +31,7 @@ import {
   findReusablePreprocessing,
   isPlainObject,
   analysisSourceIsReusable,
-} from '../../../../core/kmeans-cluster-source.utils';
+} from '../../../../../core/kmeans-cluster-source.utils';
 
 /** Optional fit-mode creator params and their Exaflow defaults. Always-sent keys (k,
  *  enumeration_prefix, variables, new_column_names) are not listed here. */

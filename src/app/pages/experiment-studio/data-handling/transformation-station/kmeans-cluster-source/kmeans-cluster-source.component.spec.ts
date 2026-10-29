@@ -3,10 +3,10 @@ import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
-import { BackendExperiment } from '../../../../models/backend-experiment.model';
-import { KMeansReusablePreprocessing } from '../../../../core/kmeans-cluster-source.utils';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
-import { ExperimentsDashboardService } from '../../../../services/experiments-dashboard.service';
+import { BackendExperiment } from '../../../../../models/backend-experiment.model';
+import { KMeansReusablePreprocessing } from '../../../../../core/kmeans-cluster-source.utils';
+import { ExperimentStudioService } from '../../../../../services/experiment-studio.service';
+import { ExperimentsDashboardService } from '../../../../../services/experiments-dashboard.service';
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source.component';
 
 const CONTEXT = { dataModel: 'Stroke:3.7', datasets: ['diabetes'], filters: null };
