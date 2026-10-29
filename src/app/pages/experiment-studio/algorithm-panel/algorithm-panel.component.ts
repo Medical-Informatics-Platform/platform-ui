@@ -2,22 +2,16 @@ import { SessionStorageService } from './../../../services/session-storage.servi
 import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
-import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { buildFormControl } from '../../shared/utils/form-control.factory';
+import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { getOutputSchema, prettifyLabel as toHumanLabel } from '../../../core/algorithm-mappers';
-import { formatInputCountRange } from '../../../core/algorithm-input-counts';
-import {
-  omitEmptyOptionalParameters,
-  optionBindingValue,
-  serializeAlgorithmParameterValue,
-} from '../../../core/algorithm-parameter.utils';
+import { optionBindingValue } from '../../../core/algorithm-parameter.utils';
 import { AlgorithmAvailabilityDetail, AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { experimentTables, PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
-import { AlgorithmNames, VariableTypes } from '../../../core/constants/algorithm.constants';
+import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import {
@@ -35,6 +29,22 @@ import {
 } from '../../../core/outlier-rules';
 import { AlgorithmRoleAssignmentComponent } from './algorithm-role-assignment/algorithm-role-assignment.component';
 import { unavailableDatasetsFor, unavailableVariableTooltip } from '../../../core/variable-availability.utils';
+import { availabilityRequirementText, formatAvailabilityMessage } from './utils/algorithm-availability-text.utils';
+import { countAlgorithms, filterAlgorithmCategories, nextCollapsedCategories, runnableCount } from './utils/algorithm-catalog.utils';
+import {
+  allowsDecimal,
+  enrichParameterSchema,
+  enumOptionsForVariableCode,
+  isAdvancedField,
+  buildParameterForm,
+  multiSelectValues,
+  nonBlankString,
+  normalizeParameterValues,
+  parameterFieldLabel,
+  parameterFormSignature,
+} from './utils/algorithm-parameter-form.utils';
+import { buildAlgorithmNeeds, readinessText, resolveRunAlgorithmNames } from './utils/algorithm-run.utils';
+import { tooltipPosition } from './utils/tooltip-position.utils';
 
 type AlgorithmStudioSubstep = 'setup' | 'parameters';
 
@@ -102,122 +112,30 @@ export class AlgorithmPanelComponent {
   readonly algorithmNeeds = computed<AlgorithmNeedItem[]>(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return [];
-
-    const needs: AlgorithmNeedItem[] = [];
-    const details = this.selectedAvailabilityDetails();
-    const detailByRole = new Map(details.map((detail) => [detail.role, detail]));
-
-    for (const role of ['y', 'x'] as const) {
-      const detail = detailByRole.get(role);
-      if (detail) {
-        needs.push({
-          key: `needs-${role}`,
-          met: detail.messages.length === 0,
-          title: this.needsRequirementText(detail),
-          messages: [...detail.messages],
-        });
-      } else if (role === 'y' && !('y' in (algorithm.inputdata ?? {}))) {
-        needs.push({
-          key: 'needs-y',
-          met: true,
-          title: 'No outcome needed',
-          messages: this.experimentStudioService.algorithmY().length ? ['Your outcome is ignored'] : [],
-        });
-      }
-    }
-
-    const unavailable = this.unavailableRunVariablesReason();
-    if (unavailable) {
-      needs.push({ key: 'unavailable-variables', met: false, title: unavailable, messages: [] });
-    }
-
-    this.algorithmRunRequirements().forEach((requirement) => {
-      needs.push({
-        key: `run-${requirement.id}`,
-        met: false,
-        title: requirement.message,
-        messages: [],
-        action: requirement,
-      });
+    return buildAlgorithmNeeds({
+      algorithm,
+      details: this.selectedAvailabilityDetails(),
+      hasOutcome: this.experimentStudioService.algorithmY().length > 0,
+      unavailableVariablesReason: this.unavailableRunVariablesReason(),
+      requirements: this.algorithmRunRequirements(),
     });
-
-    return needs;
   });
 
-  needsRequirementText(detail: AlgorithmAvailabilityDetail): string {
-    const typeText = this.requirementTypeText(detail.types);
+  readonly readinessText = computed(() => readinessText({
+    algorithm: this.selectedAlgorithm(),
+    canRun: this.canRun(),
+    needs: this.algorithmNeeds(),
+    y: this.experimentStudioService.algorithmY(),
+    x: this.experimentStudioService.algorithmX(),
+  }));
 
-    if (detail.role === 'y') {
-      if (detail.minCount <= 0 && !detail.required) {
-        return 'No outcome needed';
-      }
-      const article = typeText
-        ? `${/^[aeiou]/i.test(typeText) ? 'an' : 'a'} ${typeText} `
-        : '';
-      const noun = detail.minCount > 1 ? 'outcomes' : 'outcome';
-      return detail.minCount > 1
-        ? `Needs at least ${detail.minCount} ${noun}`
-        : `Needs ${article}${noun}`;
-    }
-
-    const noun = detail.minCount > 1 ? 'predictors' : 'predictor';
-    if (detail.minCount > 0) {
-      return `At least ${detail.minCount}${typeText ? ` ${typeText}` : ''} ${noun}`;
-    }
-    if (detail.maxCount !== null) {
-      return `Up to ${detail.maxCount} ${noun}`;
-    }
-    return 'Predictors optional';
-  }
-
-  private requirementTypeText(types: string[] | undefined | null): string {
-    if (!Array.isArray(types) || types.length === 0) return '';
-    const labels = new Set<string>();
-    types.forEach((type) => {
-      const normalized = String(type ?? '').trim().toLowerCase();
-      if (!normalized) return;
-      if (['real', 'int', 'integer', 'numeric', 'numerical'].includes(normalized)) {
-        labels.add('numerical');
-      } else if (
-        ['text', 'nominal', 'categorical', 'polynominal', 'ordinal', 'string'].includes(normalized)
-      ) {
-        labels.add('categorical');
-      } else {
-        labels.add(normalized);
-      }
-    });
-    return Array.from(labels).join(' or ');
-  }
-
-  readonly readinessText = computed(() => {
-    const algorithm = this.selectedAlgorithm();
-    if (!algorithm) return 'Pick a method to continue';
-
-    if (!this.canRun()) {
-      const reasons = this.algorithmNeeds()
-        .filter((need) => !need.met)
-        .flatMap((need) => (need.action ? [need.title] : need.messages))
-        .filter((message) => !!message);
-      if (!reasons.length) return 'Not ready to run yet';
-      return `${reasons.length} ${reasons.length === 1 ? 'thing' : 'things'} left — ${reasons.slice(0, 2).join(' · ')}${reasons.length > 2 ? ` +${reasons.length - 2}` : ''}`;
-    }
-
-    const y = this.experimentStudioService.algorithmY();
-    const x = this.experimentStudioService.algorithmX();
-    const outcome = y[0] ? ` · y ${y[0].label ?? y[0].name ?? y[0].code}` : '';
-    const predictors = ` · ${x.length} ${x.length === 1 ? 'predictor' : 'predictors'}`;
-    return `Ready · ${algorithm.label}${outcome}${predictors}`;
-  });
-
-  categoryRunnableCount(category: { algorithms: AlgorithmConfig[] }): number {
-    return category.algorithms.filter((algorithm) => !algorithm.isDisabled).length;
-  }
+  readonly categoryRunnableCount = runnableCount;
 
   readonly selectedAlgorithmAvailabilitySummary = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
     const summary = this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
-    return this.formatAvailabilityMessage(summary);
+    return formatAvailabilityMessage(summary);
   });
   readonly algorithmRunRequirements = computed((): AlgorithmRunRequirement[] => {
     const algorithm = this.selectedAlgorithm();
@@ -338,78 +256,14 @@ export class AlgorithmPanelComponent {
   });
 
   prettyFieldLabel(field: any): string {
-    let base = field.label ?? field.key;
-    if ((field.key === 'groupA' || field.key === 'groupB')) {
-      const x = this.experimentStudioService.algorithmX();
-      const cov = x[0];
-      const covName = cov?.label || cov?.name || cov?.code;
-      if (covName) base = `${base} (${covName})`;
-    }
-    return base;
-  }
-
-  private variableOptionsForRoles(roles: string[]): Array<{ code: string; label: string }> {
-    const roleList = roles.length ? roles : ['x'];
-    return roleList.flatMap((role) => {
-      const selected =
-        role === 'y'
-          ? this.experimentStudioService.algorithmY()
-          : role === 'x'
-            ? this.experimentStudioService.algorithmX()
-            : [];
-
-      return selected
-        .map((item: any) => {
-          const code = item?.code;
-          if (code === null || code === undefined || code === '') return null;
-          return {
-            code: String(code),
-            label: String(item?.label ?? item?.name ?? code),
-          };
-        })
-        .filter((item): item is { code: string; label: string } => !!item);
-    });
-  }
-  private enumOptionsForRole(role: string | null | undefined): any[] {
-    const selected =
-      role === 'x'
-        ? this.experimentStudioService.algorithmX()[0]
-        : this.experimentStudioService.algorithmY()[0];
-    return Array.isArray(selected?.enumerations) ? [...selected.enumerations] : [];
+    return parameterFieldLabel(field, this.experimentStudioService.algorithmX()[0]);
   }
 
   private resolveSelectedEventVarCode(algorithmName: string | undefined): string | null {
     if (!algorithmName) return null;
 
-    const live = this.eventVarSelection();
-    if (live !== null && live !== undefined && String(live).trim() !== '') {
-      return String(live);
-    }
-
-    const stored = untracked(() => this.experimentStudioService.algorithmConfigurations())[
-      algorithmName
-    ]?.['event_var'];
-    if (stored !== undefined && stored !== null && String(stored).trim() !== '') {
-      return String(stored);
-    }
-
-    return null;
-  }
-
-  private buildConfigSchemaSignature(
-    algorithmName: string,
-    schema: Array<{ key?: string; type?: string; required?: boolean; options?: unknown[] }>
-  ): string {
-    return JSON.stringify({
-      algorithmName,
-      crossValidation: this.crossValidationEnabled(),
-      fields: schema.map((field) => ({
-        key: field.key,
-        type: field.type,
-        required: field.required,
-        options: (field.options ?? []).map((opt) => this.optionValue(opt)),
-      })),
-    });
+    const stored = untracked(() => this.experimentStudioService.algorithmConfigurations())[algorithmName]?.['event_var'];
+    return nonBlankString(this.eventVarSelection()) ?? nonBlankString(stored);
   }
 
   private syncEventVarSelectionFromValues(
@@ -417,54 +271,21 @@ export class AlgorithmPanelComponent {
     values: Record<string, unknown>
   ): void {
     if (!Object.prototype.hasOwnProperty.call(values, 'event_var')) return;
-    const raw = values['event_var'];
-    const next =
-      raw !== null && raw !== undefined && String(raw).trim() !== '' ? String(raw) : null;
+    const next = nonBlankString(values['event_var']);
     if (this.eventVarSelection() === next) return;
     this.eventVarSelection.set(next);
     this.syncPositiveClassWithEventVar(algorithmName);
   }
 
   private syncEventVarSelectionFromStored(stored: Record<string, unknown>): void {
-    const raw = stored['event_var'];
-    const next =
-      raw !== null && raw !== undefined && String(raw).trim() !== '' ? String(raw) : null;
-    this.eventVarSelection.set(next);
+    this.eventVarSelection.set(nonBlankString(stored['event_var']));
   }
 
-  private enumOptionsForVariableCode(
-    varCode: string | null | undefined
-  ): Array<{ code: string; label: string }> {
-    if (!varCode) return [];
-
-    const variables = [
+  private enumOptionsForVariableCode(varCode: string | null | undefined) {
+    return enumOptionsForVariableCode(varCode, [
       ...this.experimentStudioService.algorithmY(),
       ...this.experimentStudioService.algorithmX(),
-    ];
-    const variable = variables.find((item) => String(item?.code) === String(varCode));
-    if (!variable) return [];
-
-    const enumerations = Array.isArray(variable.enumerations) ? variable.enumerations : [];
-    const seen = new Set<string>();
-
-    return enumerations
-      .map((entry: any) => {
-        const code = entry?.code ?? entry?.value ?? entry?.name ?? entry?.label;
-        if (code === null || code === undefined || String(code).trim() === '') {
-          return null;
-        }
-        const normalizedCode = String(code);
-        if (seen.has(normalizedCode)) return null;
-        seen.add(normalizedCode);
-        return {
-          code: normalizedCode,
-          label: String(entry?.label ?? entry?.name ?? normalizedCode),
-        };
-      })
-      .filter(
-        (item: { code: string; label: string } | null): item is { code: string; label: string } =>
-          !!item
-      );
+    ]);
   }
 
   /** Live event_var from the config form; avoids reading FormGroup inside other computeds. */
@@ -478,30 +299,6 @@ export class AlgorithmPanelComponent {
   readonly positiveClassOptions = computed(() =>
     this.enumOptionsForVariableCode(this.selectedEventVarCode())
   );
-
-  private isCoxRegressionAlgorithm(algorithmName: string | null | undefined): boolean {
-    return algorithmName === 'cox_regression_classical' || algorithmName === 'cox_regression_stacked';
-  }
-
-  private optionValue(opt: any): any {
-    if (opt && typeof opt === 'object') {
-      return opt.code ?? opt.value ?? opt.name ?? opt.label ?? String(opt);
-    }
-    return opt;
-  }
-
-  // sensible defaults
-  private readonly uiDefaults: Record<string, any> = {
-    alpha: 0.05,
-    alt_hypothesis: 'two-sided',
-    mu: 0.0,
-    n_splits: 5,
-    k: 4,
-    tol: 0.01,
-    sstype: 2,
-    conf_level: 0.95,
-    iterations: 1000,
-  };
 
   constructor() {
     effect(() => {
@@ -561,7 +358,7 @@ export class AlgorithmPanelComponent {
         return;
       }
 
-      const schemaSignature = this.buildConfigSchemaSignature(algorithm.name, schema);
+      const schemaSignature = parameterFormSignature(algorithm.name, this.crossValidationEnabled(), schema);
       if (schemaSignature === this.lastBuiltFormSchemaSignature) {
         return;
       }
@@ -571,79 +368,9 @@ export class AlgorithmPanelComponent {
       const stored = allConfigs?.[algorithm.name] || {};
       this.syncEventVarSelectionFromStored(stored);
 
-      const group: { [key: string]: FormControl } = {};
-
-      schema.forEach((field) => {
-        // backend default
-        let backendDefault =
-          field.default !== undefined ? field.default : null;
-        const storedValue = stored?.[field.key];
-
-        // special treatment for alpha
-        if ((backendDefault === null || backendDefault === undefined) && field.key === 'alpha') {
-          backendDefault = 0.05;
-        }
-
-        // fallback value logic
-        const fallback =
-          storedValue !== undefined
-            ? storedValue
-            : field.default !== undefined && field.default !== null
-              ? field.default
-              : backendDefault !== undefined && backendDefault !== null
-                ? backendDefault
-                : this.uiDefaults[field.key] !== undefined
-                  ? this.uiDefaults[field.key]
-                  : field.type === 'checkbox'
-                    ? false
-                    : '';
-
-        // label if missing
-        const label =
-          field.label && field.label.trim() !== ''
-            ? field.label
-            : toHumanLabel(field.key);
-
-        const prettyField = {
-          ...field,
-          label,
-          desc: field.desc ?? field.description ?? '',
-        };
-
-        const control = buildFormControl(prettyField, fallback);
-
-        // extra validation: integer-only for numeric fields
-        const isNumeric = prettyField.type === 'number';
-        const allowsDecimal =
-          prettyField.types?.includes('real') ||
-          prettyField.key === 'alpha' ||
-          prettyField.key === 'tol' ||
-          prettyField.key === 'mu';
-
-        if (isNumeric && !allowsDecimal) {
-          const integerPattern = Validators.pattern(/^-?\d+$/);
-          const existingValidator = control.validator;
-
-          control.setValidators(
-            existingValidator ? [existingValidator, integerPattern] : [integerPattern]
-          );
-
-          // stop events while building form
-          control.updateValueAndValidity({ emitEvent: false });
-        }
-
-        group[field.key] = control;
-      });
-
-      const form = new FormGroup(group, { updateOn: 'change' });
+      const form = buildParameterForm(schema, stored);
       this.configForm.set(form);
       this.formInvalid.set(form.invalid);
-
-      Object.values(this.configForm().controls).forEach(control => {
-        if (control.valid) {
-          control.markAsTouched({ onlySelf: true });
-        }
-      });
 
       const statusSub = form.statusChanges.subscribe(() => this.formInvalid.set(form.invalid));
       const subscription = form.valueChanges.subscribe((values) => {
@@ -687,90 +414,12 @@ export class AlgorithmPanelComponent {
   enrichedConfigSchema = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return [];
-
-    // Basic algorithm schema (shallow copy)
-    const schema = (algorithm.configSchema ?? []).map(f => ({ ...f }));
-
-    const yVars = this.experimentStudioService.algorithmY();
-    const xVars = this.experimentStudioService.algorithmX();
-    const yVar = yVars[0];
-    const xVar = xVars[0];
-    const eventVarCode = this.selectedEventVarCode();
-    const positiveClassOptions = this.enumOptionsForVariableCode(eventVarCode);
-    const isCox = this.isCoxRegressionAlgorithm(algorithm.name);
-    const enriched = schema.map(field => {
-      let options = field.options ?? [];
-      const enumSource = Array.isArray(field.enumSource) ? field.enumSource : [];
-
-      if (field.enumType === 'input_var_names') {
-        options = this.variableOptionsForRoles(enumSource);
-      } else if (field.enumType === 'input_var_CDE_enums') {
-        options = this.enumOptionsForRole(enumSource[0]);
-      } else if (field.key === 'category_order' && yVar?.enumerations?.length) {
-        options = [...yVar.enumerations];
-      } else if (field.key === 'positive_class' && positiveClassOptions.length) {
-        options = positiveClassOptions;
-      }
-
-      // Placeholder substitution for enums
-      if (Array.isArray(options) && options.length === 1) {
-        const placeholder = options[0];
-
-        if (placeholder === 'y' && yVar?.enumerations?.length) {
-          options = [...yVar.enumerations];
-        } else if (placeholder === 'x' && xVar?.enumerations?.length) {
-          options = [...xVar.enumerations];
-        }
-      }
-
-      // Fallback for empty select fields (not input_var_names — those list y/x variables)
-      if (
-        field.type === 'select' &&
-        field.enumType !== 'input_var_names' &&
-        (!options || options.length === 0) &&
-        yVar?.enumerations?.length
-      ) {
-        options = [...yVar.enumerations];
-      }
-
-      const defaultValue = field.key === 'category_order' && Array.isArray(options) && options.length > 0
-        ? options.map((opt: any) => this.optionValue(opt))
-        : field.default;
-
-      // Normalize label and desc
-      const label = field.label?.trim() || toHumanLabel(field.key);
-      const desc =
-        field.key === 'positive_class' && isCox
-          ? 'Event level mapped to 1; other observed levels are mapped to 0.'
-          : field.desc ?? field.description ?? '';
-      const type =
-        field.key === 'positive_class' && positiveClassOptions.length
-          ? 'select'
-          : field.type;
-      const required =
-        (field.key === 'positive_class' && isCox) ||
-        field.required === true ||
-        String(field.required ?? '').trim().toLowerCase() === 'true';
-
-      // Return enriched field
-      return { ...field, label, desc, options, default: defaultValue, type, required };
+    return enrichParameterSchema(algorithm, {
+      y: this.experimentStudioService.algorithmY(),
+      x: this.experimentStudioService.algorithmX(),
+      eventVarCode: this.selectedEventVarCode(),
+      withCrossValidationFolds: this.crossValidationEnabled() && this.canToggleCrossValidation(),
     });
-
-    if (this.crossValidationEnabled() && this.canToggleCrossValidation()) {
-      const hasSplits = enriched.some((field) => field.key === 'n_splits');
-      if (!hasSplits) {
-        enriched.push({
-          key: 'n_splits',
-          label: 'Folds',
-          desc: 'Number of parts the data is split into; each part is held out once.',
-          type: 'number',
-          min: 2,
-          default: 5,
-        });
-      }
-    }
-
-    return enriched;
   });
 
   readonly visibleConfigSchema = computed(() => {
@@ -779,10 +428,8 @@ export class AlgorithmPanelComponent {
     return schema.filter((field) => field.type !== 'dict' && !['strategies', 'tails', 'folds'].includes(String(field.key)));
   });
 
-  /** Backend metadata has no advanced flag yet; the heuristic mirrors the review handoff. */
-  isAdvancedField(field: any): boolean {
-    return field?.advanced ?? (field?.default !== undefined && !field?.required);
-  }
+  readonly isAdvancedField = isAdvancedField;
+  readonly allowsDecimal = allowsDecimal;
 
   /** n_splits belongs to the cross-validation row, so it renders under that switch, not in the main form. */
   isCrossValidationField(field: any): boolean {
@@ -819,47 +466,13 @@ export class AlgorithmPanelComponent {
 
   readonly searchActive = computed(() => this.algoSearchQuery().trim().length > 0);
 
-  private matchesAlgorithmSearch(algorithm: AlgorithmConfig, query: string): boolean {
-    if (!query) return true;
-    const haystack = [
-      algorithm.label,
-      algorithm.name,
-      algorithm.description,
-      algorithm.documentation ?? '',
-      algorithm.category ?? '',
-      (algorithm.flags ?? []).join(' '),
-    ].join(' ').toLowerCase();
-    return query.split(/\s+/).every((term) => haystack.includes(term));
-  }
+  readonly filteredAlgorithmCategories = computed(() => filterAlgorithmCategories(
+    this.experimentStudioService.availableGroupedAlgorithms(),
+    this.showOnlyActive(),
+    this.algoSearchQuery(),
+  ));
 
-  readonly filteredAlgorithmCategories = computed(() => {
-    const grouped = this.experimentStudioService.availableGroupedAlgorithms();
-    const onlyActive = this.showOnlyActive();
-    const query = this.algoSearchQuery().trim().toLowerCase();
-
-    const entries = Object.entries(grouped ?? {}).map(([name, algorithms]) => {
-      let filtered = (algorithms ?? []).filter(a => this.matchesAlgorithmSearch(a, query));
-      if (onlyActive) {
-        filtered = filtered.filter(a => !a.isDisabled);
-      }
-
-      // Runnable-first: when showing all methods, surface runnable ones before disabled ones.
-      const ordered = onlyActive
-        ? filtered
-        : [...filtered].sort((a, b) => Number(a.isDisabled) - Number(b.isDisabled));
-
-      return { name, algorithms: ordered };
-    });
-
-    return entries.filter(c => c.algorithms.length > 0);
-  });
-
-  readonly algoCounts = computed(() => {
-    const grouped = this.experimentStudioService.availableGroupedAlgorithms();
-    const all = Object.values(grouped ?? {}).flat();
-    const active = all.filter(a => !a.isDisabled);
-    return { all: all.length, active: active.length };
-  });
+  readonly algoCounts = computed(() => countAlgorithms(this.experimentStudioService.availableGroupedAlgorithms()));
 
   toggleActiveOnly() {
     this.showOnlyActive.update(v => !v);
@@ -910,44 +523,25 @@ export class AlgorithmPanelComponent {
     const selectionChanged = this.lastMatchSelectionName !== selectedName;
     this.lastMatchSelectionName = selectedName;
 
-    const selectedCategory = selectedName
-      ? categories.find((category) =>
-          category.algorithms.some((algorithm) => algorithm.name === selectedName))?.name
-      : null;
-
-    const next = new Set(this.collapsedMatchCategories());
-    let changed = false;
-
-    categories.forEach((category) => {
-      if (this.matchCategoryUserToggles.has(category.name)) return;
-      const shouldOpen =
-        category.name === selectedCategory ||
-        category.algorithms.some((algorithm) => !algorithm.isDisabled);
-      if (shouldOpen === !next.has(category.name)) return;
-      if (shouldOpen) {
-        next.delete(category.name);
-      } else {
-        next.add(category.name);
-      }
-      changed = true;
-    });
-
-    if (selectedCategory && selectionChanged && next.delete(selectedCategory)) {
-      changed = true;
-    }
-
-    if (changed) this.collapsedMatchCategories.set(next);
+    const next = nextCollapsedCategories(
+      categories,
+      selectedName,
+      selectionChanged,
+      this.collapsedMatchCategories(),
+      this.matchCategoryUserToggles,
+    );
+    if (next !== this.collapsedMatchCategories()) this.collapsedMatchCategories.set(next);
   }
 
   algorithmUnavailableReason(algorithm: AlgorithmConfig): string {
     const availability = this.experimentStudioService.getAlgorithmAvailability(algorithm.name);
     const summary = availability?.summary || algorithm.availability?.summary || '';
-    if (summary) return this.formatAvailabilityMessage(summary);
+    if (summary) return formatAvailabilityMessage(summary);
     const details = availability?.details?.length
       ? availability.details
       : (algorithm.availability?.details ?? []);
     const first = details.find((detail) => detail.messages.length > 0);
-    return first ? this.formatAvailabilityMessage(first.messages[0]) : 'Unavailable';
+    return first ? formatAvailabilityMessage(first.messages[0]) : 'Unavailable';
   }
 
 
@@ -1035,28 +629,7 @@ export class AlgorithmPanelComponent {
   }
 
   private normalizeFormValues(values: Record<string, any>, schema: any[]): Record<string, any> {
-    const normalized = { ...values };
-    schema
-      .filter((field) => field?.type === 'number')
-      .forEach((field) => {
-        const key = String(field.key);
-        const value = normalized[key];
-        if (typeof value !== 'string') return;
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        const parsed = Number(trimmed);
-        if (Number.isFinite(parsed)) normalized[key] = parsed;
-    });
-
-    schema.forEach((field) => {
-      const key = String(field.key);
-      if (!(key in normalized)) return;
-      if (field?.type === 'select' || field?.type === 'multi-select' || key === 'positive_class') {
-        normalized[key] = serializeAlgorithmParameterValue(normalized[key], field);
-      }
-    });
-
-    return omitEmptyOptionalParameters(normalized, schema) as Record<string, any>;
+    return normalizeParameterValues(values, schema);
   }
 
   private mergeOutlierReportConfig(configValues: Record<string, any>): Record<string, any> {
@@ -1311,21 +884,12 @@ export class AlgorithmPanelComponent {
       return;
     }
 
-    const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const baseAlgorithmName = isCvOnly
-      ? algo.name
-      : this.experimentStudioService.getCrossValidationBase(algo.name) ?? algo.name;
-    const cvVariant =
-      this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
-    const shouldIncludeSplits =
-      this.crossValidationEnabled() ||
-      this.experimentStudioService.isCrossValidationOnly(algo.name);
-    const useCrossValidation = shouldIncludeSplits && !!cvVariant;
-    const effectiveAlgorithmName = useCrossValidation
-      ? cvVariant
-      : baseAlgorithmName;
-
-    const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
+    const {
+      baseName: baseAlgorithmName,
+      effectiveName: effectiveAlgorithmName,
+      finalName: finalAlgorithmName,
+      includeSplits: shouldIncludeSplits,
+    } = resolveRunAlgorithmNames(algo.name, this.crossValidationEnabled(), this.experimentStudioService);
 
     this.experimentStudioService.lastUsedAlgorithm.set(finalAlgorithmName);
     this.errorMsg.set(null);
@@ -1431,12 +995,7 @@ export class AlgorithmPanelComponent {
   }
 
   private multiSelectValues(key: string): string[] {
-    const value = this.configForm().get(key)?.value;
-    if (Array.isArray(value)) return value.map((entry) => String(entry));
-    if (typeof value === 'string' && value.trim() !== '') {
-      return value.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '');
-    }
-    return [];
+    return multiSelectValues(this.configForm().get(key)?.value);
   }
 
   isMultiSelectOptionSelected(key: string, option: unknown): boolean {
@@ -1468,31 +1027,7 @@ export class AlgorithmPanelComponent {
     return this.experimentStudioService.getAlgorithmAvailability(target.name).details ?? [];
   }
 
-  availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
-    const count = this.formatAvailabilityCount(detail);
-    const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
-    const types = this.formatRequirementTypes(detail.types);
-    if (types) {
-      parts.push('type: ' + types.join(', '));
-    }
-    return parts.join(' • ');
-  }
-
-  private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {
-    return formatInputCountRange(detail.minCount, detail.maxCount);
-  }
-
-  private formatAvailabilityMessage(message: string): string {
-    return message.replace(
-      /((?:Outcome|Predictor) type must be one of )([^.]*)\./g,
-      (_match, prefix: string, types: string) => {
-        const displayTypes = this.formatRequirementTypes(
-          types.split(',').map((type) => type.trim())
-        );
-        return prefix + (displayTypes ?? []).join(', ') + '.';
-      }
-    );
-  }
+  readonly availabilityRequirementText = availabilityRequirementText;
 
   resolveRunRequirement(requirement: AlgorithmRunRequirement): void {
     if (requirement.id === 'preprocessing') {
@@ -1537,7 +1072,7 @@ export class AlgorithmPanelComponent {
     this.tooltipVisible.set(true);
     this.tooltipData.set(algorithm);
 
-    const initialPosition = this.getTooltipPosition(rect, containerRect, 320, 200, viewportWidth, viewportHeight, padding, offset);
+    const initialPosition = tooltipPosition(rect, containerRect, { width: 320, height: 200, viewportWidth, viewportHeight, padding, offset });
 
     // Immediate initial placement
     this.tooltipPosition.set(initialPosition);
@@ -1551,77 +1086,13 @@ export class AlgorithmPanelComponent {
       const h = el.offsetHeight || 200;
 
       this.tooltipPosition.set(
-        this.getTooltipPosition(rect, containerRect, w, h, viewportWidth, viewportHeight, padding, offset)
+        tooltipPosition(rect, containerRect, { width: w, height: h, viewportWidth, viewportHeight, padding, offset })
       );
     }, 0);
   }
 
   hideTooltip() {
     this.tooltipVisible.set(false);
-  }
-
-  private getTooltipPosition(
-    rect: DOMRect,
-    containerRect: DOMRect,
-    tooltipWidth: number,
-    tooltipHeight: number,
-    viewportWidth: number,
-    viewportHeight: number,
-    padding: number,
-    offset: number,
-  ): { x: number; y: number } {
-    const rightAlignedX = rect.right + offset;
-    const leftAlignedX = rect.left - tooltipWidth - offset;
-    const centeredY = rect.top + (rect.height - tooltipHeight) / 2;
-
-    let x = rightAlignedX;
-    if (rightAlignedX + tooltipWidth > viewportWidth - padding) {
-      x = leftAlignedX >= padding
-        ? leftAlignedX
-        : viewportWidth - tooltipWidth - padding;
-    }
-
-    let y = centeredY;
-    if (y + tooltipHeight > viewportHeight - padding) {
-      y = viewportHeight - tooltipHeight - padding;
-    }
-    if (y < padding) {
-      y = padding;
-    }
-
-    return {
-      x: Math.max(padding, x - containerRect.left),
-      y: Math.max(padding, y - containerRect.top),
-    };
-  }
-
-  private normalizeRequirementDisplayType(type: unknown): string | null {
-    const normalized = String(type ?? '').trim().toLowerCase();
-    if (!normalized) return null;
-
-    switch (normalized) {
-      case VariableTypes.TEXT:
-      case 'polynominal':
-      case 'ordinal':
-        return VariableTypes.NOMINAL;
-      case VariableTypes.INTEGER:
-        return VariableTypes.INT;
-      default:
-        return normalized;
-    }
-  }
-
-  private formatRequirementTypes(types: unknown): string[] | null {
-    if (!Array.isArray(types) || types.length === 0) {
-      return null;
-    }
-
-    const normalized = types
-      .map((type) => this.normalizeRequirementDisplayType(type))
-      .filter((type): type is string => !!type);
-
-    const unique = Array.from(new Set(normalized));
-    return unique.length ? unique : null;
   }
 
   onExportResult(section: HTMLElement) {

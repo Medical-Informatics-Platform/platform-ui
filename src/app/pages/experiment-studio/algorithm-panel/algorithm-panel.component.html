@@ -339,14 +339,7 @@
 
                 @if (field.type === 'number') {
                 <input type="number" [formControlName]="field.key" class="config-input" [min]="field.min" [max]="field.max"
-                  [step]="
-                      field.types?.includes('real') ||
-                      field.key === 'alpha' ||
-                      field.key === 'tol' ||
-                      field.key === 'mu'
-                        ? 'any'
-                        : 1
-                    " [placeholder]="
+                  [step]="allowsDecimal(field) ? 'any' : 1" [placeholder]="
                       field.default !== undefined ? field.default : 'Enter value...'
                     " />
 
