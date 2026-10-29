@@ -188,8 +188,8 @@
                       </td>
                       <td>
                         <label class="checkbox-wrapper outlier-enable">
-                          <input type="checkbox" [checked]="outlierReportRuleFor(variable).enabled"
-                            (change)="onOutlierReportEnabledChange(variable, $any($event.target).checked)"
+                          <input #enabledBox type="checkbox" [checked]="outlierReportRuleFor(variable).enabled"
+                            (change)="onOutlierReportEnabledChange(variable, enabledBox.checked)"
                             [attr.aria-label]="'Enable ' + outlierVariableLabel(variable)" />
                         </label>
                       </td>
@@ -351,7 +351,7 @@
 
                   @for (opt of field.options; track opt) {
                   <option [ngValue]="bindOptionValue(opt)">
-                    {{ opt.label ?? opt.name ?? opt }}
+                    {{ optionLabel(opt) }}
                   </option>
                   }
                 </select>
@@ -361,7 +361,7 @@
                   <button type="button" class="chip-picker-option"
                     [class.active]="isMultiSelectOptionSelected(field.key, opt)"
                     (click)="toggleMultiSelectOption(field.key, opt)">
-                    {{ opt.label ?? opt.name ?? opt }}
+                    {{ optionLabel(opt) }}
                   </button>
                   }
                 </div>

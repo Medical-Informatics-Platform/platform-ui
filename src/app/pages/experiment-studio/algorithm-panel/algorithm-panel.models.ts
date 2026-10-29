@@ -76,3 +76,17 @@ export interface CodeLabelOption {
   code: string;
   label: string;
 }
+
+/** A numerical variable the outlier report editor lists (always has a code). */
+export interface OutlierReportVariable extends StudioVariable {
+  code: string;
+}
+
+/** The run an export describes. */
+export interface ExperimentRunInfo {
+  experimentName: string;
+  variables: StudioVariable[];
+  covariates: StudioVariable[];
+  filters: StudioVariable[];
+  algorithmConfigs: Record<string, unknown>;
+}

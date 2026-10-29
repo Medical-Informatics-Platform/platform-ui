@@ -40,29 +40,23 @@ import {
   multiSelectValues,
   nonBlankString,
   normalizeParameterValues,
+  optionLabel,
   parameterFieldLabel,
   parameterFormSignature,
 } from './utils/algorithm-parameter-form.utils';
 import { buildAlgorithmNeeds, readinessText, resolveRunAlgorithmNames } from './utils/algorithm-run.utils';
 import { tooltipPosition } from './utils/tooltip-position.utils';
-
-type AlgorithmStudioSubstep = 'setup' | 'parameters';
-
-type AlgorithmRunRequirementKind = 'availability' | 'preprocessing';
-
-interface AlgorithmRunRequirement {
-  id: AlgorithmRunRequirementKind;
-  message: string;
-  actionLabel: string;
-}
-
-interface AlgorithmNeedItem {
-  key: string;
-  met: boolean;
-  title: string;
-  messages: string[];
-  action?: AlgorithmRunRequirement;
-}
+import {
+  AlgorithmNeedItem,
+  AlgorithmParameterField,
+  AlgorithmRunRequirement,
+  AlgorithmStudioSubstep,
+  EnrichedParameterField,
+  ExperimentRunInfo,
+  OutlierReportVariable,
+  ParameterOption,
+  StudioVariable,
+} from './algorithm-panel.models';
 
 @Component({
   selector: 'app-algorithm-panel',
@@ -255,7 +249,7 @@ export class AlgorithmPanelComponent {
     return this.filteredAlgorithmCategories().some(c => c.algorithms?.length > 0);
   });
 
-  prettyFieldLabel(field: any): string {
+  prettyFieldLabel(field: EnrichedParameterField): string {
     return parameterFieldLabel(field, this.experimentStudioService.algorithmX()[0]);
   }
 
@@ -429,11 +423,12 @@ export class AlgorithmPanelComponent {
   });
 
   readonly isAdvancedField = isAdvancedField;
+  readonly optionLabel = optionLabel;
   readonly allowsDecimal = allowsDecimal;
 
   /** n_splits belongs to the cross-validation row, so it renders under that switch, not in the main form. */
-  isCrossValidationField(field: any): boolean {
-    return field?.key === 'n_splits' && (this.canToggleCrossValidation() || this.isCrossValidationOnly());
+  isCrossValidationField(field: AlgorithmParameterField): boolean {
+    return field.key === 'n_splits' && (this.canToggleCrossValidation() || this.isCrossValidationOnly());
   }
 
   readonly primaryConfigSchema = computed(() =>
@@ -453,9 +448,9 @@ export class AlgorithmPanelComponent {
   );
 
   readonly outlierReportVariables = computed(() => {
-    const unique = new Map<string, any>();
-    this.experimentStudioService.algorithmAssignableVariables().forEach((variable: any) => {
-      if (variable?.code) unique.set(String(variable.code), variable);
+    const unique = new Map<string, OutlierReportVariable>();
+    this.experimentStudioService.algorithmAssignableVariables().forEach((variable: StudioVariable) => {
+      if (hasCode(variable)) unique.set(String(variable.code), variable);
     });
     return Array.from(unique.values()).filter((variable) => isOutlierEligibleVariable(variable));
   });
@@ -555,7 +550,8 @@ export class AlgorithmPanelComponent {
     }));
   });
 
-  readonly experimentInfo = computed(() => {
+  /** Name, roles, filters and parameters of the run the exports describe. */
+  readonly experimentInfo = computed((): ExperimentRunInfo => {
     const selected = this.experimentStudioService.selectedAlgorithm();
     const lastRunName =
       this.experimentStudioService.lastUsedAlgorithm() || this.lastUsedAlgorithm;
@@ -566,25 +562,14 @@ export class AlgorithmPanelComponent {
     const algoMeta = algoName ? algoCatalog[algoName] : null;
 
     const displayLabel = selected?.label || algoMeta?.label || algoName || 'N/A';
-    const defaultName = `Experiment for ${displayLabel}`;
-
     const allConfigs = this.experimentStudioService.algorithmConfigurations();
-    const configs =
-      (algoName && allConfigs[algoName]) || {};
-
-    const preprocessingSteps = this.experimentStudioService.formatPreprocessingEntries(
-      this.experimentStudioService.getAppliedDescriptivePreprocessing(),
-      this.labelMap(),
-      this.experimentStudioService.getCategoricalEnumMaps(),
-    );
 
     return {
-      experimentName: defaultName,
+      experimentName: `Experiment for ${displayLabel}`,
       variables: this.experimentStudioService.algorithmY(),
       covariates: this.experimentStudioService.algorithmX(),
       filters: this.experimentStudioService.selectedFilters(),
-      algorithmConfigs: configs,
-      preprocessingSteps,
+      algorithmConfigs: (algoName && allConfigs[algoName]) || {},
     };
   });
 
@@ -607,7 +592,7 @@ export class AlgorithmPanelComponent {
     }
   }
 
-  private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, any> {
+  private persistCurrentFormConfig(algorithmName: string, schema = this.visibleConfigSchema()): Record<string, unknown> {
     const values = this.normalizeFormValues(this.configForm().getRawValue(), schema);
     const nextValues = algorithmName === AlgorithmNames.OUTLIER_REPORT
       ? this.mergeOutlierReportConfig(values)
@@ -624,15 +609,15 @@ export class AlgorithmPanelComponent {
     return nextValues;
   }
 
-  bindOptionValue(option: unknown): string {
+  bindOptionValue(option: ParameterOption): string {
     return optionBindingValue(option);
   }
 
-  private normalizeFormValues(values: Record<string, any>, schema: any[]): Record<string, any> {
+  private normalizeFormValues(values: Record<string, unknown>, schema: readonly EnrichedParameterField[]): Record<string, unknown> {
     return normalizeParameterValues(values, schema);
   }
 
-  private mergeOutlierReportConfig(configValues: Record<string, any>): Record<string, any> {
+  private mergeOutlierReportConfig(configValues: Record<string, unknown>): Record<string, unknown> {
     if (!this.isOutlierReportSelected()) return configValues;
     delete configValues['strategies'];
     delete configValues['tails'];
@@ -655,7 +640,7 @@ export class AlgorithmPanelComponent {
     });
   }
 
-  private reconcileOutlierReportRules(variables: any[], stored: Record<string, any>): void {
+  private reconcileOutlierReportRules(variables: OutlierReportVariable[], stored: Record<string, unknown>): void {
     const allowedCodes = new Set(variables.map((variable) => variable.code));
     const hydrated = hydrateOutlierRules(stored, allowedCodes);
     const hasStoredRules = !!stored && typeof stored === 'object' && Object.keys(stored?.['strategies'] ?? {}).length > 0;
@@ -677,7 +662,7 @@ export class AlgorithmPanelComponent {
     );
   }
 
-  outlierReportRuleFor(variable: any): OutlierRule {
+  outlierReportRuleFor(variable: OutlierReportVariable): OutlierRule {
     if (!this.outlierReportRules[variable.code]) {
       this.outlierReportRules = {
         ...this.outlierReportRules,
@@ -687,11 +672,11 @@ export class AlgorithmPanelComponent {
     return this.outlierReportRules[variable.code];
   }
 
-  outlierVariableLabel(variable: any): string {
+  outlierVariableLabel(variable: OutlierReportVariable): string {
     return variable?.label ?? variable?.name ?? variable?.code ?? '';
   }
 
-  onOutlierReportEnabledChange(variable: any, enabled: boolean): void {
+  onOutlierReportEnabledChange(variable: OutlierReportVariable, enabled: boolean): void {
     const existing = this.outlierReportRuleFor(variable);
     this.outlierReportRules = {
       ...this.outlierReportRules,
@@ -704,7 +689,7 @@ export class AlgorithmPanelComponent {
     this.persistOutlierReportConfig();
   }
 
-  onOutlierReportStrategyChange(variable: any, strategy: OutlierStrategy): void {
+  onOutlierReportStrategyChange(variable: OutlierReportVariable, strategy: OutlierStrategy): void {
     const existing = this.outlierReportRuleFor(variable);
     this.outlierReportRules = {
       ...this.outlierReportRules,
@@ -722,7 +707,7 @@ export class AlgorithmPanelComponent {
     this.persistOutlierReportConfig();
   }
 
-  onOutlierReportTailChange(variable: any, tail: OutlierTail): void {
+  onOutlierReportTailChange(variable: OutlierReportVariable, tail: OutlierTail): void {
     const existing = this.outlierReportRuleFor(variable);
     this.outlierReportRules = {
       ...this.outlierReportRules,
@@ -731,7 +716,7 @@ export class AlgorithmPanelComponent {
     this.persistOutlierReportConfig();
   }
 
-  onOutlierReportFoldChange(variable: any, rawValue: string | number): void {
+  onOutlierReportFoldChange(variable: OutlierReportVariable, rawValue: string | number): void {
     const existing = this.outlierReportRuleFor(variable);
     const value = String(rawValue ?? '').trim();
     const fold = value === '' ? null : Number(value);
@@ -751,7 +736,7 @@ export class AlgorithmPanelComponent {
     this.persistOutlierReportConfig();
   }
 
-  outlierReportRuleError(variable: any): string {
+  outlierReportRuleError(variable: OutlierReportVariable): string {
     const rule = this.outlierReportRuleFor(variable);
     return this.outlierReportValidationErrors[variable.code] || validateOutlierRule(rule) || '';
   }
@@ -805,7 +790,7 @@ export class AlgorithmPanelComponent {
 
   readonly tooltipVisible = signal(false);
   readonly tooltipPosition = signal({ x: 0, y: 0 });
-  readonly tooltipData = signal<any | null>(null);
+  readonly tooltipData = signal<AlgorithmConfig | null>(null);
 
   selectAlgorithm(algorithm: AlgorithmConfig) {
     this.lastBuiltFormSchemaSignature = '';
@@ -998,12 +983,12 @@ export class AlgorithmPanelComponent {
     return multiSelectValues(this.configForm().get(key)?.value);
   }
 
-  isMultiSelectOptionSelected(key: string, option: unknown): boolean {
+  isMultiSelectOptionSelected(key: string, option: ParameterOption): boolean {
     const value = String(this.bindOptionValue(option));
     return this.multiSelectValues(key).includes(value);
   }
 
-  toggleMultiSelectOption(key: string, option: unknown): void {
+  toggleMultiSelectOption(key: string, option: ParameterOption): void {
     const control = this.configForm().get(key);
     if (!control) return;
     const value = String(this.bindOptionValue(option));
@@ -1057,7 +1042,7 @@ export class AlgorithmPanelComponent {
     return 'Assign outcome';
   }
 
-  showTooltip(algorithm: any, event: MouseEvent) {
+  showTooltip(algorithm: AlgorithmConfig, event: MouseEvent) {
     event.stopPropagation();
     const item = (event.currentTarget as HTMLElement)?.closest('li') || (event.currentTarget as HTMLElement);
     const rect = item.getBoundingClientRect();
@@ -1159,11 +1144,11 @@ export class AlgorithmPanelComponent {
           .join('\n'),
         domain: model ? [model.label || model.code, model.version].filter(Boolean).join(' ') : null,
         datasets: this.datasetsWithLabels().map((d) => d.label),
-        variables: (info.variables ?? []).map((v: any) => v.label || v.name || v.code),
-        covariates: (info.covariates ?? []).map((c: any) => c.label || c.name || c.code),
+        variables: (info.variables ?? []).map(variableDisplayName),
+        covariates: (info.covariates ?? []).map(variableDisplayName),
         filters: filterExpression
           ? [filterExpression]
-          : (info.filters ?? []).map((f: any) => f.label || f.name || f.code),
+          : (info.filters ?? []).map(variableDisplayName),
         transformations: null,
         mipVersion: this.mipVersion,
       },
@@ -1171,4 +1156,13 @@ export class AlgorithmPanelComponent {
       result,
     };
   }
+}
+
+/** How exports name a variable: label, then name, then code. */
+function variableDisplayName(variable: StudioVariable): string {
+  return variable.label || variable.name || variable.code || '';
+}
+
+function hasCode(variable: StudioVariable | null | undefined): variable is OutlierReportVariable {
+  return !!variable?.code;
 }
