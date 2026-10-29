@@ -117,7 +117,8 @@ import {
   DescriptiveProgressState,
 } from './data-handling.models';
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
-import { emptyTransformationDraft } from './utils/transformation-draft.utils';
+import { TransformationColumnConfig, TransformationDraftStatus, emptyTransformationDraft, firstFilterCondition, draftStatusHasNewWork, transformationConfigFor, transformationDraftStatus } from './utils/transformation-draft.utils';
+import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
 import {
   formatInteger,
   formatOutlierBound,
@@ -134,6 +135,7 @@ import {
     { provide: DATA_HANDLING, useExisting: forwardRef(() => DataHandlingComponent) },
     RuleBuilderRegistry,
     SectionAnchors,
+    TransformationDraftsService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -158,6 +160,7 @@ export class DataHandlingComponent implements OnDestroy {
   private readonly sectionAnchors = inject(SectionAnchors);
   /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
   readonly ruleBuilders = inject(RuleBuilderRegistry);
+  readonly transformationDraftState = inject(TransformationDraftsService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
@@ -601,8 +604,8 @@ export class DataHandlingComponent implements OnDestroy {
     this.addStep('transformation');
   }
 
-  isDraftShown(draft: TransformationColumnDraft): boolean {
-    return !!draft.chosen || this.draftHasWork(draft);
+isDraftShown(draft: TransformationColumnDraft): boolean {
+    return this.transformationDraftState.isShown(draft);
   }
 
   /** Ordered cards from the store — one station per transformation step. */
@@ -895,8 +898,13 @@ export class DataHandlingComponent implements OnDestroy {
   previewDraftId: string | null = null;
   /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
   countsDraftId: string | null = null;
-  /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
-  transformationDrafts: TransformationColumnDraft[] = [];
+  /** The nominal-column cards, one per categorical store step (state and rules in TransformationDraftsService). */
+  get transformationDrafts(): TransformationColumnDraft[] {
+    return this.transformationDraftState.drafts;
+  }
+  set transformationDrafts(drafts: TransformationColumnDraft[]) {
+    this.transformationDraftState.drafts = drafts;
+  }
   /** Collapsed/expanded state per store step id (categorical drafts also keep `open`). */
   readonly cardOpenState = signal<Record<string, boolean>>({});
   transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
@@ -1082,49 +1090,24 @@ export class DataHandlingComponent implements OnDestroy {
     countFilterRules(this.expStudioService.filterLogic())
   );
 
-  /** Drafts that already form a valid column config (code + at least one filtered rule). */
-  private transformationConfigs(): Record<string, unknown>[] {
-    return this.transformationDrafts
-      .map((draft) => this.buildTransformationConfigForDraft(draft))
-      .filter((config): config is Record<string, unknown> => !!config);
-  }
-
-  /** A draft counts as touched once the user typed any column name, default, or rule. */
-  private draftHasWork(draft: TransformationColumnDraft): boolean {
-    return (
-      draft.code.trim().length > 0 ||
-      draft.defaultEnumeration.trim().length > 0 ||
-      draft.rules.some((rule) => rule.value.trim().length > 0 || !!rule.filter)
-    );
-  }
-
   /** Two columns cannot share a name: exaflow errors when `code` already exists. */
-  get transformationHasDuplicateCodes(): boolean {
-    const codes = this.transformationDrafts.map((draft) => draft.code.trim()).filter((code) => code.length > 0);
-    return new Set(codes).size !== codes.length;
+get transformationHasDuplicateCodes(): boolean {
+    return this.transformationDraftState.hasDuplicateCodes;
   }
 
-  get transformationHasPendingChange(): boolean {
-    if (this.transformationHasDuplicateCodes) return true;
-    return this.transformationDrafts.some(
-      (draft) => this.draftHasWork(draft) && (this.hasUnfinishedCategory(draft) || !this.buildTransformationConfigForDraft(draft))
-    );
-  }
-
-  /** A category without a name or a rule is left out of the saved column. */
-  private hasUnfinishedCategory(draft: TransformationColumnDraft): boolean {
-    return draft.rules.some((rule) => !rule.value.trim() || !rule.filter);
+get transformationHasPendingChange(): boolean {
+    return this.transformationDraftState.hasPendingChange;
   }
 
   get transformationStatusLabel(): string {
-    const validCount = this.transformationConfigs().length;
+    const validCount = this.transformationDraftState.configs().length;
     const hasAppliedColumn = validCount > 0
       || this.cards().some((step) => step.name !== 'categorical_column_creator' && stepOutputNamesOf(step).length > 0);
     if (hasAppliedColumn && !this.transformationHasPendingChange) return 'Applied';
     if (
       hasAppliedColumn
       || this.transformationHasPendingChange
-      || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
+      || this.transformationDraftState.hasAnyWork
       || this.cards().length > 0
     ) {
       return 'Not applied';
@@ -1152,12 +1135,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** True when a named category on any card is still missing an applied filter. */
-  get transformationRulesNeedFilters(): boolean {
-    return this.transformationDrafts.some((draft) => {
-      if (!draft.code.trim()) return false;
-      const named = draft.rules.filter((rule) => rule.value.trim().length > 0);
-      return named.length > 0 && named.some((rule) => !rule.filter);
-    });
+get transformationRulesNeedFilters(): boolean {
+    return this.transformationDraftState.rulesNeedFilters;
   }
 
   get pendingMissingChangeCount(): number {
@@ -1744,9 +1723,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
-  draftHasNewWork(draft: TransformationColumnDraft): boolean {
-    const { label } = this.transformationDraftStatus(draft);
-    return label === 'Not applied' || label === 'Duplicate name';
+draftHasNewWork(draft: TransformationColumnDraft): boolean {
+    return draftStatusHasNewWork(this.transformationDraftStatus(draft));
   }
 
   /** A card's own Apply/Close: commit its rule builders, then fold it once it is settled.
@@ -1765,7 +1743,7 @@ export class DataHandlingComponent implements OnDestroy {
   /** Clear the transformation station: pending edits and the committed config alike. */
   resetTransformation(): void {
     this.expStudioService.clearTransformations();
-    this.transformationDrafts = [];
+    this.transformationDraftState.reset();
     this.cardOpenState.set({});
     this.previewDraftId = null;
     this.transformationStatistics = [];
@@ -1776,10 +1754,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** A new category opens straight onto its filter, with the first condition ready. */
-  addTransformationRule(draft: TransformationColumnDraft): void {
-    draft.rules.push({ value: '', filter: null });
-    const index = draft.rules.length - 1;
-    draft.openRuleIndex = index;
+addTransformationRule(draft: TransformationColumnDraft): void {
+    const index = this.transformationDraftState.addRule(draft);
     this.onTransformationChange();
     this.cdr.detectChanges();
     this.ruleBuilderAt(draft, index)?.ensureFirstCondition();
@@ -1810,10 +1786,8 @@ export class DataHandlingComponent implements OnDestroy {
     this.refreshTransformationStatistics();
   }
 
-  removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
-    draft.rules.splice(index, 1);
-    if (draft.openRuleIndex === index) draft.openRuleIndex = null;
-    else if (draft.openRuleIndex != null && draft.openRuleIndex > index) draft.openRuleIndex -= 1;
+removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
+    this.transformationDraftState.removeRule(draft, index);
     this.onTransformationChange();
   }
 
@@ -1822,22 +1796,9 @@ export class DataHandlingComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
-  private firstFilterCondition(filter: unknown): { field: string; operator: string; value: unknown } | null {
-    if (!filter || typeof filter !== 'object') return null;
-    const node = filter as { field?: unknown; operator?: unknown; value?: unknown; rules?: unknown[] };
-    if (node.field) {
-      return { field: String(node.field), operator: String(node.operator ?? ''), value: node.value };
-    }
-    for (const rule of Array.isArray(node.rules) ? node.rules : []) {
-      const found = this.firstFilterCondition(rule);
-      if (found) return found;
-    }
-    return null;
-  }
-
   /** A one-line rule summary for the collapsed row. */
   transformationRuleSummary(rule: TransformationRule): string {
-    const condition = this.firstFilterCondition(rule.filter);
+    const condition = firstFilterCondition(rule.filter);
     return condition ? this.filterConditionSentence(condition) : 'No rule yet';
   }
 
@@ -1864,14 +1825,8 @@ export class DataHandlingComponent implements OnDestroy {
 
   /** Per-card chip: Applied only when every category is complete and the name is unique.
    *  An unfinished row is omitted from the saved column, so it must not leave the chip on Applied. */
-  transformationDraftStatus(draft: TransformationColumnDraft): { label: string; tone: 'applied' | 'pending' | 'default' } {
-    const problem = this.draftWriteProblem(draft);
-    if (problem) return { label: problem === 'Name already used' ? 'Duplicate name' : 'Column in use', tone: 'pending' };
-    if (!this.hasUnfinishedCategory(draft) && this.buildTransformationConfigForDraft(draft)) {
-      return { label: 'Applied', tone: 'applied' };
-    }
-    if (this.draftHasWork(draft)) return { label: 'Not applied', tone: 'pending' };
-    return { label: 'Not set', tone: 'default' };
+  transformationDraftStatus(draft: TransformationColumnDraft): TransformationDraftStatus {
+    return transformationDraftStatus(draft, this.draftWriteProblem(draft));
   }
 
   /**
@@ -3501,25 +3456,8 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Build the exaflow config for one card, or null when it is not yet complete. */
-  buildTransformationConfigForDraft(draft: TransformationColumnDraft): Record<string, unknown> | null {
-    const code = draft.code.trim();
-    if (!code) return null;
-    const rules: Record<string, CategoryFilter> = {};
-    for (const r of draft.rules) {
-      const value = r.value.trim();
-      if (value && r.filter) rules[value] = r.filter;
-    }
-    if (!Object.keys(rules).length) return null;
-    // Exaflow names the created column with `new_column_names`; the draft keeps `code` as the
-    // editable UI name only. The emitted creator parameters never carry a `code` key.
-    const config: Record<string, unknown> = {
-      new_column_names: [code],
-      strategy: 'filter_rules',
-      rules,
-    };
-    const def = draft.defaultEnumeration.trim();
-    if (def) config['default_enumeration'] = def;
-    return config;
+buildTransformationConfigForDraft(draft: TransformationColumnDraft): TransformationColumnConfig | null {
+    return transformationConfigFor(draft);
   }
 
   onTransformationChange(): void {
@@ -3657,7 +3595,7 @@ export class DataHandlingComponent implements OnDestroy {
         .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) })),
       ...kmeansPlaceholders,
     ];
-    const configs = this.transformationConfigs();
+    const configs = this.transformationDraftState.configs();
 
     if (!configs.length && !kmeansEntries.length) {
       this.transformationStatistics = placeholderBlocks;
