@@ -1,23 +1,7 @@
 @if (selectedAlgorithm()) {
 <div class="algorithm-params__body">
   @if (run.algorithmNeeds().length) {
-  <ul class="algo-needs algorithm-requirements-panel" aria-label="Requirements before running">
-    <li class="algorithm-requirements-heading sr-only">Complete before running</li>
-    @for (need of run.algorithmNeeds(); track need.key) {
-    <li class="algorithm-requirement-item" [class.is-met]="need.met">
-      <span class="algo-needs-mark" aria-hidden="true"></span>
-      <span>{{ need.title }}</span>
-      @for (message of need.messages; track message) {
-      <small>{{ message }}</small>
-      }
-      @if (need.action) {
-      <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(need.action)">
-        {{ need.action.actionLabel }}
-      </button>
-      }
-    </li>
-    }
-  </ul>
+  <ul app-algorithm-run-requirements class="algo-needs algorithm-requirements-panel" aria-label="Requirements before running"></ul>
   } @else if (selectedAlgorithm()) {
   <p class="algo-needs-all-met">✓ All inputs match</p>
   }

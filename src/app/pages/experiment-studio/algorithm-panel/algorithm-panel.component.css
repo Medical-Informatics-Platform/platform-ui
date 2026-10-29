@@ -113,35 +113,7 @@
   color: var(--text-muted);
 }
 
-.algorithm-run-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.algorithm-run-dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #b45309;
-}
-
-.algorithm-run-bar.is-ready .algorithm-run-dot {
-  background: var(--success);
-}
-
-.algorithm-run-text {
-  min-width: 0;
-}
-
 .algorithm-run-bar.is-ready {
   color: #065f46;
   font-weight: 600;
-}
-
-.algorithm-run-error {
-  flex-basis: 100%;
-  color: #8a1f1f;
 }

@@ -4,6 +4,7 @@ import { ExperimentStudioService } from '../../../services/experiment-studio.ser
 import { AlgorithmSelectionComponent } from './algorithm-selection/algorithm-selection.component';
 import { AlgorithmAvailabilityTooltipComponent } from './algorithm-selection/algorithm-availability-tooltip/algorithm-availability-tooltip.component';
 import { AlgorithmCatalogService } from './algorithm-selection/algorithm-catalog.service';
+import { ExperimentResultComponent } from './experiment-result/experiment-result.component';
 import { AlgorithmConfigFormService } from './algorithm-selection/algorithm-config-form.service';
 import { AlgorithmRunService } from './experiment-result/algorithm-run.service';
 import { AlgorithmStudioSubstepService } from './algorithm-studio-substep.service';
@@ -11,12 +12,12 @@ import { AlgorithmStudioSubstep } from './algorithm-panel.models';
 
 /**
  * The studio's Algorithm step. A shell: it provides the feature services its sections share,
- * lays out the algorithm card and the availability tooltip, and keeps the API the studio calls
+ * lays out the algorithm card, its readiness bar and the availability tooltip, and keeps the API the studio calls
  * (run state for the run button, the run itself, the exports and the sub-step).
  */
 @Component({
   selector: 'app-algorithm-panel',
-  imports: [AlgorithmSelectionComponent, AlgorithmAvailabilityTooltipComponent],
+  imports: [AlgorithmSelectionComponent, ExperimentResultComponent, AlgorithmAvailabilityTooltipComponent],
   providers: [
     AlgorithmStudioSubstepService,
     AlgorithmCatalogService,

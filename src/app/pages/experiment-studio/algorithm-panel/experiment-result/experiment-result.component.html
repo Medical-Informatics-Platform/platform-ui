@@ -1,0 +1,10 @@
+<span class="algorithm-run-status">
+  <span class="algorithm-run-dot" aria-hidden="true"></span>
+  <span class="algorithm-run-text">{{ run.readinessText() }}</span>
+</span>
+@if (!run.canRun()) {
+<span class="algorithm-run-hint">Finish the needs above to enable the run.</span>
+}
+@if (run.errorMsg()) {
+<span class="algorithm-run-error">Backend error: {{ run.errorMsg() }}</span>
+}

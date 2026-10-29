@@ -2,18 +2,7 @@
 
 @if (assignablePool().length > 0) {
 <section app-algorithm-selection class="algorithm-roles-board algorithm-studio-card" aria-label="Algorithm selection workspace">
-  <div class="algorithm-run-bar" [class.is-ready]="run.canRun()" role="status">
-    <span class="algorithm-run-status">
-      <span class="algorithm-run-dot" aria-hidden="true"></span>
-      <span class="algorithm-run-text">{{ run.readinessText() }}</span>
-    </span>
-    @if (!run.canRun()) {
-    <span class="algorithm-run-hint">Finish the needs above to enable the run.</span>
-    }
-    @if (run.errorMsg()) {
-    <span class="algorithm-run-error">Backend error: {{ run.errorMsg() }}</span>
-    }
-  </div>
+  <div app-experiment-result class="algorithm-run-bar" role="status"></div>
 </section>
 
 @if (catalog.tooltipVisible()) {
