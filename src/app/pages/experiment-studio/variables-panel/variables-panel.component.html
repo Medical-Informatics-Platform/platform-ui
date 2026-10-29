@@ -18,35 +18,35 @@
                 [attr.title]="studyContextTitle()"
                 (click)="toggleContext()">
                 <span class="study-context-value">
-                  {{ selectedDataModel()?.label ?? 'Select pathology' }}
+                  {{ catalog.selectedDataModel()?.label ?? 'Select pathology' }}
                 </span>
-                @if (selectedDataModel()) {
+                @if (catalog.selectedDataModel()) {
                 <span class="study-context-sep" aria-hidden="true">·</span>
                 <span class="study-context-count" [title]="studyContextTitle()">
                   <i class="fas fa-hospital" aria-hidden="true"></i>
-                  <span>{{ selectedDatasetCount() }} dataset{{ selectedDatasetCount() === 1 ? '' : 's' }}</span>
+                  <span>{{ catalog.selectedDatasetCount() }} dataset{{ catalog.selectedDatasetCount() === 1 ? '' : 's' }}</span>
                 </span>
                 }
                 <i class="fas fa-chevron-down study-context-chevron" aria-hidden="true"></i>
               </button>
               @if (contextOpen()) {
               <div class="study-context-panel" role="region" aria-label="Study context settings">
-                <app-data-model-selector [crossSectionalModels]="crossSectionalModels()"
-                  [longitudinalModels]="longitudinalModels()" [defaultModel]="selectedDataModel()"
-                  (dataModelChange)="onSelectedDataModelChange($event)">
+                <app-data-model-selector [crossSectionalModels]="catalog.crossSectionalModels()"
+                  [longitudinalModels]="catalog.longitudinalModels()" [defaultModel]="catalog.selectedDataModel()"
+                  (dataModelChange)="onDataModelChange($event)">
                 </app-data-model-selector>
 
                 <div class="study-context-divider" aria-hidden="true"></div>
 
                 <app-dataset-selector
-                  [datasets]="availableDatasets()"
-                  [selectedDatasetCodes]="experimentStudioService.selectedDatasets()">
+                  [datasets]="catalog.availableDatasets()"
+                  [selectedDatasetCodes]="catalog.selectedDatasets()">
                 </app-dataset-selector>
               </div>
               }
             </div>
 
-            @if (hierarchy()) {
+            @if (catalog.hierarchy()) {
             <div class="visualization-toolbar-modes">
               <div
                 class="metadata-browser-switcher"
@@ -91,7 +91,7 @@
               </button>
               @if (searchExpanded()) {
               <div class="search-popover">
-                <app-search-bar [dataModelHierarchy]="hierarchy()" [unavailableVariables]="unavailableVariables()" (searchResultSelected)="onSearchSelected($event)">
+                <app-search-bar [dataModelHierarchy]="catalog.hierarchy()" [unavailableVariables]="catalog.unavailableVariables()" (searchResultSelected)="onSearchSelected($event)">
                 </app-search-bar>
               </div>
               }
@@ -99,7 +99,7 @@
             }
           </div>
 
-          @if (selectedDataModel() && hierarchy()) {
+          @if (catalog.selectedDataModel() && catalog.hierarchy()) {
           <div
             class="metadata-browser-shell"
             [class.is-map]="metadataBrowserMode() === 'bubble'"
@@ -108,33 +108,33 @@
               @switch (metadataBrowserMode()) {
                 @case ('ontology') {
                 <app-ontology-tree-browser
-                  [data]="hierarchy()"
-                  [highlightNode]="highlightNode()"
-                  [poolVariables]="selectedVariables()"
-                  [unavailableVariables]="unavailableVariables()"
-                  (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
-                  (nodeDoubleClicked)="onNodeDoubleClicked($event)"
-                  (variablePoolToggle)="toggleSelectedNodeInPool()">
+                  [data]="catalog.hierarchy()"
+                  [highlightNode]="selection.highlightNode()"
+                  [poolVariables]="catalog.selectedVariables()"
+                  [unavailableVariables]="catalog.unavailableVariables()"
+                  (selectedNodeChange)="selection.pickInBrowser($event)"
+                  (nodeDoubleClicked)="selection.pickAndAdd($event)"
+                  (variablePoolToggle)="selection.togglePool()">
                 </app-ontology-tree-browser>
                 }
                 @case ('collapsible') {
                 <app-collapsible-tree-browser
-                  [data]="hierarchy()"
-                  [highlightNode]="highlightNode()"
-                  [selectedVariables]="selectedVariables()"
-                  [unavailableVariables]="unavailableVariables()"
-                  (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
-                  (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+                  [data]="catalog.hierarchy()"
+                  [highlightNode]="selection.highlightNode()"
+                  [selectedVariables]="catalog.selectedVariables()"
+                  [unavailableVariables]="catalog.unavailableVariables()"
+                  (selectedNodeChange)="selection.pickInBrowser($event)"
+                  (nodeDoubleClicked)="selection.pickAndAdd($event)">
                 </app-collapsible-tree-browser>
                 }
                 @default {
                 <app-bubble-chart
-                  [d3Data]="hierarchy()"
-                  [highlightNode]="highlightNode()"
-                  [selectedVariables]="selectedVariables()"
-                  [unavailableVariables]="unavailableVariables()"
-                  (selectedNodeChange)="onBubbleNodeSelected($event)"
-                  (nodeDoubleClicked)="onNodeDoubleClicked($event)">
+                  [d3Data]="catalog.hierarchy()"
+                  [highlightNode]="selection.highlightNode()"
+                  [selectedVariables]="catalog.selectedVariables()"
+                  [unavailableVariables]="catalog.unavailableVariables()"
+                  (selectedNodeChange)="selection.pickInMap($event)"
+                  (nodeDoubleClicked)="selection.pickAndAdd($event)">
                 </app-bubble-chart>
                 }
               }
@@ -150,10 +150,10 @@
           <div class="details-panel-header">
             <div class="details-panel-header-main">
               <div class="details-panel-title-block">
-                @if (selectedNode()) {
-                <div class="details-panel-identity" [class.is-group]="isSelectedNodeGroup()">
+                @if (selection.selectedNode()) {
+                <div class="details-panel-identity" [class.is-group]="selection.isSelectedNodeGroup()">
                   <div class="details-panel-heading">
-                    <span class="details-panel-eyebrow">{{ isSelectedNodeGroup() ? 'Group' : 'Variable' }}</span>
+                    <span class="details-panel-eyebrow">{{ selection.isSelectedNodeGroup() ? 'Group' : 'Variable' }}</span>
                     <h2 class="details-panel-title" [title]="detailsPanelTitle()">{{ detailsPanelTitle() }}</h2>
                     @if (detailsPanelSubtitle()) {
                     <p class="details-panel-subtitle" [title]="detailsPanelSubtitle()">{{ detailsPanelSubtitle() }}</p>
@@ -169,20 +169,20 @@
                 type="button"
                 class="selection-toggle-btn"
                 data-guide="guide-add-variable"
-                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode()"
-                [class.is-remove]="isSelectedNodeInPool()"
-                [disabled]="selectionToggleDisabled()"
-                [title]="selectionToggleTitle()"
-                (click)="toggleSelectedNodeInPool()">
-                <i class="fas" [class.fa-plus]="!isSelectedNodeInPool()" [class.fa-minus]="isSelectedNodeInPool()" aria-hidden="true"></i>
-                <span>{{ selectionToggleLabel() }}</span>
+                [class.pulse-hint--variable]="!selection.isSelectedNodeInPool() && !!selection.selectedNode()"
+                [class.is-remove]="selection.isSelectedNodeInPool()"
+                [disabled]="selection.poolToggleDisabled()"
+                [title]="selection.poolToggleTitle()"
+                (click)="selection.togglePool()">
+                <i class="fas" [class.fa-plus]="!selection.isSelectedNodeInPool()" [class.fa-minus]="selection.isSelectedNodeInPool()" aria-hidden="true"></i>
+                <span>{{ selection.isSelectedNodeInPool() ? 'Remove' : 'Add' }}</span>
               </button>
             </div>
             <div
               class="details-segment"
               role="tablist"
               aria-label="Selected node views"
-              [style.--segment-active-index]="activeDetailsTab() === 'info' ? 1 : 0">
+              [style.--segment-active-index]="selection.activeDetailsTab() === 'info' ? 1 : 0">
               <span class="details-segment-track" aria-hidden="true">
                 <span class="details-segment-indicator"></span>
               </span>
@@ -191,10 +191,10 @@
                 class="details-segment-btn"
                 role="tab"
                 id="details-tab-chart"
-                [class.active]="activeDetailsTab() === 'histogram'"
-                [attr.aria-selected]="activeDetailsTab() === 'histogram'"
+                [class.active]="selection.activeDetailsTab() === 'histogram'"
+                [attr.aria-selected]="selection.activeDetailsTab() === 'histogram'"
                 aria-controls="histogram-tab-panel"
-                (click)="setActiveDetailsTab('histogram')">
+                (click)="selection.activeDetailsTab.set('histogram')">
                 <i class="fas fa-chart-bar" aria-hidden="true"></i>
                 <span>Chart</span>
               </button>
@@ -203,30 +203,30 @@
                 class="details-segment-btn"
                 role="tab"
                 id="details-tab-details"
-                [class.active]="activeDetailsTab() === 'info'"
-                [attr.aria-selected]="activeDetailsTab() === 'info'"
+                [class.active]="selection.activeDetailsTab() === 'info'"
+                [attr.aria-selected]="selection.activeDetailsTab() === 'info'"
                 aria-controls="metadata-tab-panel"
-                (click)="setActiveDetailsTab('info')">
+                (click)="selection.activeDetailsTab.set('info')">
                 <i class="fas fa-list-ul" aria-hidden="true"></i>
                 <span>Details</span>
               </button>
             </div>
           </div>
 
-          @if (activeDetailsTab() === 'histogram') {
+          @if (selection.activeDetailsTab() === 'histogram') {
           <div class="histogram-tab-content details-tab-panel" id="histogram-tab-panel" role="tabpanel" aria-labelledby="details-tab-chart">
-            @if (canSplitHistogram() || histogramData() || groupHistogramData()) {
+            @if (histogram.canSplitHistogram() || histogram.histogramData() || histogram.groupHistogramData()) {
             <div class="histogram-toolbar">
-              @if (!groupHistogramData() && canSplitHistogram()) {
+              @if (!histogram.groupHistogramData() && histogram.canSplitHistogram()) {
               <div class="bin-selector">
                 <label for="histogram-split-select">Split by</label>
                 <select
                   id="histogram-split-select"
-                  [value]="histogramSplit()"
+                  [value]="histogram.histogramSplit()"
                   (change)="onHistogramSplitChange($event)"
                   aria-label="Split histogram by category">
                   <option value="">None</option>
-                  @for (option of histogramSplitOptions(); track option.code) {
+                  @for (option of histogram.histogramSplitOptions(); track option.code) {
                   <option
                     [value]="option.code"
                     [disabled]="option.disabled"
@@ -236,7 +236,7 @@
                 </select>
               </div>
               }
-              @if (histogramData() || groupHistogramData()) {
+              @if (histogram.histogramData() || histogram.groupHistogramData()) {
               <div class="histogram-export-group" aria-label="Export histogram">
                 <button type="button" class="studio-export-btn"
                   [disabled]="isExportDisabled() || isExporting()"
@@ -268,7 +268,7 @@
             }
             <div class="histogram-graph-area">
               <div class="histogram-graph" #histogramExport>
-                @if (isLoadingHistogram()) {
+                @if (histogram.isLoadingHistogram()) {
                 <div class="histogram-loader">
                   <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
                     <span class="studio-skeleton-line medium"></span>
@@ -282,29 +282,29 @@
                     </div>
                   </div>
                 </div>
-                } @else if (errorMessage()) {
+                } @else if (histogram.errorMessage()) {
                 <div class="message-container error">
-                  <p>{{ errorMessage() }}</p>
+                  <p>{{ histogram.errorMessage() }}</p>
                 </div>
-                } @else if (emptyChartMessage()) {
+                } @else if (histogram.emptyChartMessage()) {
                 <div class="message-container empty">
-                  <p>{{ emptyChartMessage() }}</p>
+                  <p>{{ histogram.emptyChartMessage() }}</p>
                 </div>
-                } @else if (!selectedNode()) {
+                } @else if (!selection.selectedNode()) {
                 <div class="message-container empty-state-clinical">
                   <h3>No variable selected</h3>
                   <p>Click a variable in the browser to see its chart and details.</p>
                 </div>
-                } @else if (groupHistogramData()) {
-                <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
-                } @else if (histogramData()) {
-                <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
+                } @else if (histogram.groupHistogramData()) {
+                <app-histogram-graph [data]="histogram.groupHistogramData()"></app-histogram-graph>
+                } @else if (histogram.histogramData()) {
+                <app-histogram-graph [data]="histogram.histogramData()"></app-histogram-graph>
                 }
               </div>
-              @if (histogramPrivacyTrimNote()) {
+              @if (histogram.histogramPrivacyTrimNote()) {
               <div class="histogram-privacy-note" role="note">
                 <i class="fas fa-info-circle" aria-hidden="true"></i>
-                <span>{{ histogramPrivacyTrimNote() }}</span>
+                <span>{{ histogram.histogramPrivacyTrimNote() }}</span>
               </div>
               }
             </div>
@@ -312,9 +312,9 @@
           } @else {
           <div class="metadata-tab-content details-tab-panel" id="metadata-tab-panel" role="tabpanel" aria-labelledby="details-tab-details">
             <app-metadata-info-panel
-              [selectedNode]="selectedNode()"
-              [pathNodes]="selectedPath()"
-              [groupInfo]="groupHistogramMeta()"
+              [selectedNode]="selection.selectedNode()"
+              [pathNodes]="selection.selectedPath()"
+              [groupInfo]="histogram.groupHistogramMeta()"
               [hideHeader]="true">
             </app-metadata-info-panel>
           </div>
@@ -333,7 +333,7 @@
         <app-selected-variables
           mode="inline"
           data-guide="variable-containers"
-          [selectedNode]="selectedNode()"
+          [selectedNode]="selection.selectedNode()"
           (variableClicked)="onVariableClicked($event)">
         </app-selected-variables>
       </aside>
