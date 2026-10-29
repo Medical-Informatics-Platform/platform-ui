@@ -31,6 +31,7 @@
 - Use component CSS for feature-specific styles.
 - Use `src/styles.css` for app-wide styles and QueryBuilder theming.
 - A component may list several stylesheets in `styleUrls`; Angular concatenates them **in array order**, so that order is the cascade. Splitting a file must preserve the original order and must not move a rule across another rule that shares its selector — `statistic-analysis-panel` is split this way (`.component.css` shell + pipeline canvas, then `.preprocessing.css`, then `.results.css`).
+- A component split into section components keeps its DOM by attaching each section to the element it renders into (attribute selectors such as `section[app-algorithm-parameters]`). Each rule moves to the stylesheet of the template its element is declared in; a rule that reaches into a section from its host element is rewritten as `:host(.class)` (same specificity as `.class` under emulated encapsulation). Rules several sections share go into `styles/*.shared.css` partials, `@import`ed at the top of each stylesheet, so a rule only moves into a partial when it does not cross an equal-specificity rule for the same element (`algorithm-panel/` keeps its `.ng-touched` validation rules inline for that reason).
 - Consult `DESIGN.md` before visual changes.
 - Existing branding assets live under `src/assets`.
 
