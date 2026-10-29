@@ -1,6 +1,7 @@
 import type { MockedObject, Mock } from 'vitest';
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
 import { ErrorService } from '../../../services/error.service';
@@ -12,6 +13,7 @@ import { AlgorithmConfig } from '../../../models/algorithm-definition.model';
 import { AlgorithmPanelComponent } from './algorithm-panel.component';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
 import { AlgorithmCatalogService } from './algorithm-selection/algorithm-catalog.service';
+import { AlgorithmCatalogComponent } from './algorithm-selection/algorithm-catalog/algorithm-catalog.component';
 import { AlgorithmConfigFormService } from './algorithm-selection/algorithm-config-form.service';
 import { normalizeParameterValues } from './utils/algorithm-parameter-form.utils';
 
@@ -158,6 +160,9 @@ describe('AlgorithmPanelComponent', () => {
   /** The panel's feature services, as its template sees them. */
   const catalog = () => fixture.debugElement.injector.get(AlgorithmCatalogService);
   const configForm = () => fixture.debugElement.injector.get(AlgorithmConfigFormService);
+  /** Picks a method as a click on its catalog tile does, even when its group is collapsed. */
+  const chooseAlgorithm = (next: AlgorithmConfig) =>
+    fixture.debugElement.query(By.directive(AlgorithmCatalogComponent)).componentInstance.onAlgorithmClick(next);
 
   it('groups default optional parameter fields under a closed Advanced disclosure', async () => {
     fixture.componentInstance.setStudioSubstep('parameters');
@@ -378,7 +383,7 @@ describe('AlgorithmPanelComponent', () => {
     const unavailableListItem = (fixture.nativeElement as HTMLElement).querySelector('.algo-tile.disabled-algo') as HTMLElement;
     expect(getComputedStyle(unavailableListItem).cursor).toBe('pointer');
 
-    fixture.componentInstance.onAlgorithmClick(unavailableAlgorithm);
+    chooseAlgorithm(unavailableAlgorithm);
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -829,7 +834,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(root.querySelector('.algo-tile')).toBeTruthy();
     expect(root.querySelector('.documentation-panel')).toBeNull();
 
-    fixture.componentInstance.onAlgorithmClick(algorithm);
+    chooseAlgorithm(algorithm);
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -845,7 +850,7 @@ describe('AlgorithmPanelComponent', () => {
   });
 
   it('renders setup and configuration in one unified card', () => {
-    fixture.componentInstance.onAlgorithmClick(algorithm);
+    chooseAlgorithm(algorithm);
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
@@ -878,7 +883,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(root.querySelector('.algorithm-details')).toBeNull();
     expect(column?.contains(params ?? null)).toBe(true);
 
-    fixture.componentInstance.onAlgorithmClick(algorithm);
+    chooseAlgorithm(algorithm);
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -1022,7 +1027,7 @@ describe('AlgorithmPanelComponent', () => {
     fixture.detectChanges();
     expect(rows[0].querySelector('.algo-tile')).toBeNull();
 
-    fixture.componentInstance.onAlgorithmClick(groupComparison[1]);
+    chooseAlgorithm(groupComparison[1]);
     fixture.detectChanges();
     await fixture.whenStable();
 
@@ -1045,7 +1050,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(root.querySelector('.algorithm-readonly-fieldset')).toBeNull();
     expect(root.querySelector('.documentation-panel')).toBeNull();
 
-    fixture.componentInstance.onAlgorithmClick(algorithm);
+    chooseAlgorithm(algorithm);
     fixture.detectChanges();
 
     expect(root.querySelector('.documentation-panel')).toBeTruthy();

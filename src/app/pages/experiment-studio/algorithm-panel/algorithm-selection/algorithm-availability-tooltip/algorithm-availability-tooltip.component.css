@@ -1,0 +1,54 @@
+.tooltip-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  line-height: 1.3;
+}
+
+.tooltip-description {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+.tooltip-requirements {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.tooltip-requirements-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.req-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.req-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.req-text {
+  font-size: 0.78rem;
+  color: var(--chart-label-color);
+  line-height: 1.4;
+}
+
+.req-error {
+  font-size: 0.72rem;
+  color: #b45309;
+  line-height: 1.35;
+}

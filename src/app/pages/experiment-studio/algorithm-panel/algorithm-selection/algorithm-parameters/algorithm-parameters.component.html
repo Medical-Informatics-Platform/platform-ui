@@ -1,0 +1,107 @@
+@if (selectedAlgorithm()) {
+<div class="algorithm-params__body">
+  @if (run.algorithmNeeds().length) {
+  <ul class="algo-needs algorithm-requirements-panel" aria-label="Requirements before running">
+    <li class="algorithm-requirements-heading sr-only">Complete before running</li>
+    @for (need of run.algorithmNeeds(); track need.key) {
+    <li class="algorithm-requirement-item" [class.is-met]="need.met">
+      <span class="algo-needs-mark" aria-hidden="true"></span>
+      <span>{{ need.title }}</span>
+      @for (message of need.messages; track message) {
+      <small>{{ message }}</small>
+      }
+      @if (need.action) {
+      <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(need.action)">
+        {{ need.action.actionLabel }}
+      </button>
+      }
+    </li>
+    }
+  </ul>
+  } @else if (selectedAlgorithm()) {
+  <p class="algo-needs-all-met">✓ All inputs match</p>
+  }
+
+  <fieldset class="algorithm-readonly-fieldset" [disabled]="catalog.selectedAlgorithmUnavailable()" [style.pointer-events]="catalog.selectedAlgorithmUnavailable() ? 'none' : null">
+
+  @if (form.hasAlgorithmParameterControls()) {
+  <h3 class="algorithm-params__title">Parameters</h3>
+  }
+
+  @if (form.isOutlierReportSelected()) {
+  <section app-outlier-report-editor class="outlier-report-editor" aria-label="Outlier report configuration"></section>
+  }
+
+
+  @if (form.primaryConfigSchema().length || form.advancedConfigSchema().length) {
+  <form [formGroup]="form.configForm()" class="config-form flex flex-col gap-4">
+    @for (field of form.primaryConfigSchema(); track field.key) {
+    <div app-algorithm-config-field class="config-field" [formGroup]="form.configForm()" [field]="field"></div>
+    }
+
+    @if (form.advancedConfigSchema().length) {
+    <details class="config-advanced">
+      <summary class="config-advanced__summary">
+        <span class="config-advanced__chevron" aria-hidden="true"></span>
+        Advanced ({{ form.advancedConfigSchema().length }})
+      </summary>
+      <div class="config-advanced__body">
+        @for (field of form.advancedConfigSchema(); track field.key) {
+        <div app-algorithm-config-field class="config-field" [formGroup]="form.configForm()" [field]="field"></div>
+        }
+      </div>
+    </details>
+    }
+  </form>
+  }
+
+  @if (form.canToggleCrossValidation() || form.isCrossValidationOnly()) {
+  <div class="config-option-row" [class.is-locked]="form.isCrossValidationOnly()">
+    <div class="config-option-copy">
+      <span class="config-option-label">Cross-validation</span>
+      <span class="config-option-hint">
+        {{ form.isCrossValidationOnly() ? 'Always on for this method' : 'Runs the cross-validation variant and reports fold metrics' }}
+      </span>
+    </div>
+    <label class="toggle-switch" [class.is-locked]="form.isCrossValidationOnly()">
+      <input type="checkbox" [checked]="form.crossValidationEnabled()" [disabled]="form.isCrossValidationOnly()"
+        (change)="toggleCrossValidation($event)" />
+      <span class="toggle-slider" aria-hidden="true"></span>
+      <span class="sr-only">Cross-validation</span>
+    </label>
+  </div>
+
+  @if (form.crossValidationConfigSchema().length) {
+  <div class="config-option-detail">
+    @for (field of form.crossValidationConfigSchema(); track field.key) {
+    <div app-algorithm-config-field class="config-field" [formGroup]="form.configForm()" [field]="field"></div>
+    }
+  </div>
+  }
+  }
+
+  @if (!form.hasAlgorithmParameterControls()) {
+  <div class="config-placeholder config-placeholder--minimal">
+    <div class="config-placeholder-content">
+      <h6>No additional parameters for this algorithm</h6>
+      <p>
+        This algorithm does not expose extra configuration fields. Review the
+        documentation and run the experiment when you are ready.
+      </p>
+    </div>
+  </div>
+  }
+
+  </fieldset>
+
+</div>
+} @else {
+<div class="algorithm-params__empty">
+  <div class="step-kicker"><span class="step-kicker-n">3</span></div>
+  <h3 class="algorithm-params__empty-title">No algorithm selected</h3>
+  <p class="algorithm-params__empty-text">
+    Select a runnable algorithm from the catalog to configure parameters and run the
+    experiment.
+  </p>
+</div>
+}
