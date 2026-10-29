@@ -21,7 +21,7 @@ import {
   normalizeMetadataTree,
   selectionFromSearchResult,
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
-import { countLeafNodes } from '../../../core/data-model.utils';
+import { isSameDataModel } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { isVariableUnavailable } from '../../../core/variable-availability.utils';
 import {
@@ -38,8 +38,26 @@ import {
   extractHistogramItems,
   isNominalHistogramNode,
 } from '../visualisations/histogram/histogram-data';
-
-type DetailsPanelTab = 'histogram' | 'info';
+import {
+  buildGroupCensus,
+  collectLeafNodes,
+  describeGroup,
+  enumerationLabel,
+  findNodeByCode,
+  isInsufficientDataResponse,
+  labelHistogramBins,
+  pathToNode,
+  studyContextTitle,
+} from './variables-panel.utils';
+import {
+  DatasetOption,
+  DetailsPanelTab,
+  GroupCensusData,
+  GroupHistogramMeta,
+  HighlightedNode,
+  PathNode,
+  MetadataBrowserModeOption,
+} from './variables-panel.models';
 
 /** Shown when the selected node groups variables only, so there is nothing to census. */
 const GROUP_OF_VARIABLES_ONLY_MESSAGE =
@@ -64,12 +82,7 @@ const GROUP_OF_VARIABLES_ONLY_MESSAGE =
 })
 export class VariablesPanelComponent implements OnDestroy {
   private readonly metadataBrowserModeStorageKey = 'metadata_browser_mode';
-  readonly metadataBrowserModes: Array<{
-    value: MetadataBrowserMode;
-    label: string;
-    icon: string;
-    title: string;
-  }> = [
+  readonly metadataBrowserModes: MetadataBrowserModeOption[] = [
       {
         value: 'bubble',
         label: 'Map',
@@ -93,7 +106,7 @@ export class VariablesPanelComponent implements OnDestroy {
   @ViewChild('histogramExport') histogramExport?: ElementRef<HTMLElement>;
   @ViewChild('searchSection') searchSection?: ElementRef<HTMLElement>;
   @ViewChild('contextSection') contextSection?: ElementRef<HTMLElement>;
-  highlightNode: any = null;
+  highlightNode: HighlightedNode | null = null;
 
   experimentStudioService = inject(ExperimentStudioService);
   pdfExportService = inject(PdfExportService);
@@ -106,7 +119,7 @@ export class VariablesPanelComponent implements OnDestroy {
   filteredVariables: WritableSignal<any[]> = signal([]);
   filteredGroups: WritableSignal<any[]> = signal([]);
   histogramData = signal<HistogramChartData | null>(null);
-  groupHistogramData = signal<{ bins: string[]; counts: number[]; variableName: string } | null>(null);
+  groupHistogramData = signal<GroupCensusData | null>(null);
   histogramSplit = signal(HISTOGRAM_SPLIT_NONE);
   plottedVariable = signal<any | null>(null);
   readonly histogramSplitOptions = computed((): HistogramSplitOption[] =>
@@ -128,17 +141,13 @@ export class VariablesPanelComponent implements OnDestroy {
     }
     return formatClippedNullEdgesNote(describeClippedNullEdges(data.bins, data.counts));
   });
-  groupHistogramMeta = signal<{
-    pathNodes: Array<{ code: string; label: string }>;
-    groupCount: number;
-    hasGroups: boolean;
-  } | null>(null);
+  groupHistogramMeta = signal<GroupHistogramMeta | null>(null);
   d3Data: any;
   selectedDataModel = this.experimentStudioService.selectedDataModel;
   selectedNode: any;
   crossSectionalModels: DataModel[] = [];
   longitudinalModels: DataModel[] = [];
-  availableDatasets: { code: string; label: string }[] = [];
+  availableDatasets: DatasetOption[] = [];
   error: string | null = null;
   isLoadingHistogram = signal(false);
   errorMessage = signal<string | null>(null);
@@ -222,16 +231,6 @@ export class VariablesPanelComponent implements OnDestroy {
     this.searchExpanded.set(false);
   }
 
-  private findNodeByCode(node: any, code: string): any | null {
-    if (!node) return null;
-    if (node.code === code) return node;
-    for (const child of node.children ?? []) {
-      const found = this.findNodeByCode(child, code);
-      if (found) return found;
-    }
-    return null;
-  }
-
   onVariableClicked(variable: any): void {
     if (!variable?.code) {
       console.warn('Invalid variable clicked:', variable);
@@ -282,15 +281,7 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   get contextChipTitle(): string {
-    const label = this.selectedDataModel()?.label;
-    if (!label) {
-      return 'Select a pathology';
-    }
-    const count = this.selectedDatasetCount();
-    if (count > 0) {
-      return `${label} · ${count} dataset${count === 1 ? '' : 's'}`;
-    }
-    return `${label} · Select datasets`;
+    return studyContextTitle(this.selectedDataModel()?.label, this.selectedDatasetCount());
   }
 
   toggleSearch(): void {
@@ -415,22 +406,7 @@ export class VariablesPanelComponent implements OnDestroy {
     if (!selectedNode) {
       return [];
     }
-    return selectedNode.children ? this.getLeafNodes(selectedNode) : [selectedNode];
-  }
-
-  private getLeafNodes(node: any): any[] {
-    const leaves: any[] = [];
-
-    function collectLeaves(n: any) {
-      if (!n.children || n.children.length === 0) {
-        leaves.push(n);
-      } else {
-        n.children.forEach(collectLeaves);
-      }
-    }
-
-    collectLeaves(node);
-    return leaves;
+    return selectedNode.children ? collectLeafNodes(selectedNode) : [selectedNode];
   }
 
   loadDataModels(): void {
@@ -449,13 +425,7 @@ export class VariablesPanelComponent implements OnDestroy {
     if (dataModels.length > 0) {
       const current = this.selectedDataModel();
       const models = [...crossSectional, ...longitudinal];
-      const next = current
-        ? models.find(
-          (model) =>
-            model.code === current.code
-            && String(model.version) === String(current.version)
-        ) ?? null
-        : null;
+      const next = current ? models.find((model) => isSameDataModel(model, current)) ?? null : null;
       const fallback = this.experimentStudioService.editingExistingExperiment()
         ? null
         : models[0] ?? null;
@@ -541,12 +511,7 @@ export class VariablesPanelComponent implements OnDestroy {
   // end of services functions
   onSelectedDataModelChange(selectedDataModel: DataModel | null): void {
     if (!selectedDataModel) return;
-    const current = this.selectedDataModel();
-    if (
-      current
-      && current.code === selectedDataModel.code
-      && String(current.version) === String(selectedDataModel.version)
-    ) {
+    if (isSameDataModel(this.selectedDataModel(), selectedDataModel)) {
       return;
     }
     // update service signal
@@ -606,11 +571,7 @@ export class VariablesPanelComponent implements OnDestroy {
     }
 
     if (node.children && node.children.length > 0) {
-      const children = Array.isArray(node.children) ? node.children : [];
-      const hasGroups = children.some((child: any) => child?.children?.length);
-      const items = hasGroups
-        ? children.filter((child: any) => child?.children?.length)
-        : children;
+      const { hasGroups, items } = describeGroup(node);
 
       if (!items.length) {
         this.isLoadingHistogram.set(false);
@@ -633,18 +594,7 @@ export class VariablesPanelComponent implements OnDestroy {
         return;
       }
 
-      const rows = items
-        .map((child: any) => ({
-          bin: String(child?.label ?? child?.name ?? child?.code ?? ''),
-          count: countLeafNodes(child),
-        }))
-        .sort((a: { bin: string; count: number }, b: { bin: string; count: number }) => b.count - a.count);
-
-      this.groupHistogramData.set({
-        bins: rows.map((row: { bin: string; count: number }) => row.bin),
-        counts: rows.map((row: { bin: string; count: number }) => row.count),
-        variableName: String(node?.label ?? 'Groups'),
-      });
+      this.groupHistogramData.set(buildGroupCensus(node, items));
       return;
     }
 
@@ -693,7 +643,7 @@ export class VariablesPanelComponent implements OnDestroy {
             const histList = extractHistogramItems(response);
             if (histList.length) {
               const variableCode = String(histList[0]?.var ?? histList[0]?.variable ?? codes?.[0] ?? '');
-              const variableNode = variableCode ? this.findNodeByCode(this.d3Data, variableCode) : null;
+              const variableNode = variableCode ? findNodeByCode(this.d3Data, variableCode) : null;
               const stacked = buildStackedHistogramSeries(
                 histList,
                 variableCode,
@@ -706,12 +656,7 @@ export class VariablesPanelComponent implements OnDestroy {
                 this.emptyChartMessage.set('No distribution for this selection.');
                 return;
               }
-              const enriched = this.mapBinsToEnumLabels(
-                { ...stacked, variable: variableCode },
-                variableNode?.enumerations
-              );
-              const resolvedVariable = this.findNodeByCode(this.d3Data, variableCode);
-              const binLabels = (enriched.bins ?? stacked.bins).map(String);
+              const binLabels = labelHistogramBins(stacked.bins, variableNode?.enumerations);
               const splitLabel = grouping
                 ? (this.histogramSplitOptions().find((option) => option.code === grouping)?.label ?? grouping)
                 : undefined;
@@ -719,15 +664,14 @@ export class VariablesPanelComponent implements OnDestroy {
                 bins: binLabels,
                 counts: stacked.counts,
                 groups: stacked.groups,
-                variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
+                variableName: label ?? variableNode?.label ?? '',
                 variableType: variableNode?.type,
                 splitLabel,
               });
               this.clearChartNotices();
             } else {
               this.histogramData.set(null);
-              const resultData = response?.result?.data || response?.data;
-              if (typeof resultData === 'string' && resultData.includes('insufficient data')) {
+              if (isInsufficientDataResponse(response)) {
                 this.emptyChartMessage.set('This variable does not have sufficient data.');
               } else {
                 this.emptyChartMessage.set('No distribution for this selection.');
@@ -784,49 +728,13 @@ export class VariablesPanelComponent implements OnDestroy {
       const fromList = this.availableDatasets.find((dataset) => dataset.code === groupingEnum)?.label;
       if (fromList) return fromList;
     }
-    const node = this.findNodeByCode(this.d3Data, groupingVar)
+    const node = findNodeByCode(this.d3Data, groupingVar)
       ?? this.experimentStudioService.selectedVariables().find((variable: { code?: string }) => variable.code === groupingVar);
-    return this.mapEnumValueLabel(groupingEnum, node?.enumerations) ?? groupingEnum;
+    return enumerationLabel(groupingEnum, node?.enumerations) ?? groupingEnum;
   }
 
-  getPathNodes(node: any): Array<{ code: string; label: string }> {
-    const code = node?.code;
-    if (!code) {
-      const fallbackLabel = String(node?.label ?? '');
-      return fallbackLabel ? [{ code: String(code ?? ''), label: fallbackLabel }] : [];
-    }
-    const pathNodes: Array<{ code: string; label: string }> = [];
-    const found = this.collectPathNodes(this.d3Data, code, pathNodes);
-    if (!found) {
-      return [{ code: String(code), label: String(node?.label ?? code) }];
-    }
-    const collapsed: Array<{ code: string; label: string }> = [];
-    for (const pathNode of pathNodes) {
-      if (collapsed.length && collapsed[collapsed.length - 1].label === pathNode.label) {
-        continue;
-      }
-      collapsed.push(pathNode);
-    }
-    return collapsed;
-  }
-
-  private collectPathNodes(
-    current: any,
-    code: string,
-    path: Array<{ code: string; label: string }>
-  ): boolean {
-    if (!current) return false;
-    const label = String(current?.label ?? current?.name ?? current?.code ?? '');
-    const currentCode = String(current?.code ?? '');
-    if (label) {
-      path.push({ code: currentCode, label });
-    }
-    if (current?.code === code) return true;
-    for (const child of current.children ?? []) {
-      if (this.collectPathNodes(child, code, path)) return true;
-    }
-    path.pop();
-    return false;
+  getPathNodes(node: any): PathNode[] {
+    return pathToNode(this.d3Data, node);
   }
 
   isExportDisabled(): boolean {
@@ -919,37 +827,6 @@ export class VariablesPanelComponent implements OnDestroy {
     }
   }
 
-
-  /**
-   * Replace histogram bin codes with enumeration labels when available.
-   */
-  private mapBinsToEnumLabels(hist: any, enumerations?: Array<{ code?: any; label?: string; name?: string }>) {
-    if (!hist || !Array.isArray(hist.bins) || !enumerations || !enumerations.length) return hist;
-
-    const codeToLabel = new Map(
-      enumerations.map((e) => [String(e.code ?? e.label ?? ''), e.label ?? e.name ?? String(e.code ?? '')])
-    );
-
-    let mapped = 0;
-    const binsWithLabels = hist.bins.map((b: any) => {
-      const label = codeToLabel.get(String(b));
-      if (label) {
-        mapped += 1;
-        return label;
-      }
-      return b;
-    });
-
-    if (!mapped) return hist;
-    return { ...hist, bins: binsWithLabels };
-  }
-
-  private mapEnumValueLabel(value: any, enumerations?: Array<{ code?: any; label?: string; name?: string }>): string | null {
-    if (value === null || value === undefined || !enumerations?.length) return null;
-    const match = enumerations.find((entry) => String(entry?.code ?? entry?.label ?? entry?.name ?? '') === String(value));
-    if (!match) return null;
-    return String(match?.label ?? match?.name ?? value);
-  }
 
   private loadMetadataBrowserMode(): MetadataBrowserMode {
     try {
