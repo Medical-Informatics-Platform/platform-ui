@@ -40,6 +40,13 @@ describe('algorithm availability text', () => {
     expect(availabilityRequirementText(detail({ types: [] }))).toBe('Outcome: exactly 1, selected 0');
   });
 
+  it('displays text availability types as nominal in requirement tips', () => {
+    const text = availabilityRequirementText(detail({ role: 'x', minCount: 1, maxCount: null, selectedCount: 1, types: ['real', 'int', 'text'] }));
+
+    expect(text).toContain('type: real, int, nominal');
+    expect(text).not.toContain('text');
+  });
+
   it('rewrites backend type lists in availability messages', () => {
     expect(formatAvailabilityMessage('Outcome type must be one of text, polynominal. Other text.'))
       .toBe('Outcome type must be one of nominal. Other text.');
