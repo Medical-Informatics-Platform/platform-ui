@@ -1,8 +1,8 @@
 import { BubbleChartComponent } from './../visualisations/bubble-chart/bubble-chart.component';
 import { ErrorService } from '../../../services/error.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
-import { Component, HostListener, signal, inject, WritableSignal, OnDestroy, ElementRef, ViewChild, effect, computed, ChangeDetectionStrategy, ChangeDetectorRef, untracked } from '@angular/core';
-import { DataModel } from '../../../models/data-model.interface';
+import { Component, HostListener, signal, inject, OnDestroy, ElementRef, ViewChild, effect, computed, ChangeDetectionStrategy, ChangeDetectorRef, untracked } from '@angular/core';
+import { D3HierarchyNode, DataModel } from '../../../models/data-model.interface';
 import { DataModelSelectorComponent } from './data-model-selector/data-model-selector.component';
 import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.component';
 import { SearchBarComponent } from './search-bar/search-bar.component';
@@ -116,12 +116,10 @@ export class VariablesPanelComponent implements OnDestroy {
   private cdr = inject(ChangeDetectorRef);
 
   errorService = inject(ErrorService);
-  filteredVariables: WritableSignal<any[]> = signal([]);
-  filteredGroups: WritableSignal<any[]> = signal([]);
   histogramData = signal<HistogramChartData | null>(null);
   groupHistogramData = signal<GroupCensusData | null>(null);
   histogramSplit = signal(HISTOGRAM_SPLIT_NONE);
-  plottedVariable = signal<any | null>(null);
+  plottedVariable = signal<D3HierarchyNode | null>(null);
   readonly histogramSplitOptions = computed((): HistogramSplitOption[] =>
     buildHistogramSplitOptions({
       plottedCode: this.plottedVariable()?.code,
@@ -142,9 +140,9 @@ export class VariablesPanelComponent implements OnDestroy {
     return formatClippedNullEdgesNote(describeClippedNullEdges(data.bins, data.counts));
   });
   groupHistogramMeta = signal<GroupHistogramMeta | null>(null);
-  d3Data: any;
+  d3Data: D3HierarchyNode | null = null;
   selectedDataModel = this.experimentStudioService.selectedDataModel;
-  selectedNode: any;
+  selectedNode: D3HierarchyNode | null = null;
   crossSectionalModels: DataModel[] = [];
   longitudinalModels: DataModel[] = [];
   availableDatasets: DatasetOption[] = [];
@@ -231,7 +229,7 @@ export class VariablesPanelComponent implements OnDestroy {
     this.searchExpanded.set(false);
   }
 
-  onVariableClicked(variable: any): void {
+  onVariableClicked(variable: D3HierarchyNode): void {
     if (!variable?.code) {
       console.warn('Invalid variable clicked:', variable);
       return;
@@ -240,25 +238,25 @@ export class VariablesPanelComponent implements OnDestroy {
     this.onSelectedNodeChange(variable);
   }
 
-  onBubbleNodeSelected(node: any): void {
+  onBubbleNodeSelected(node: D3HierarchyNode): void {
     if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
   }
 
-  onMetadataBrowserNodeSelected(node: any): void {
+  onMetadataBrowserNodeSelected(node: D3HierarchyNode): void {
     if (this.isUnavailable(node)) return;
     this.highlightNode = node;
     this.onSelectedNodeChange(node);
   }
 
-  onNodeDoubleClicked(node: any): void {
+  onNodeDoubleClicked(node: D3HierarchyNode): void {
     if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();
     this.cdr.detectChanges();
   }
 
-  get selectedVariables(): any[] {
+  get selectedVariables(): D3HierarchyNode[] {
     return this.experimentStudioService.selectedVariables();
   }
 
@@ -326,7 +324,7 @@ export class VariablesPanelComponent implements OnDestroy {
     return (this.experimentStudioService.selectedDatasets() || []).length > 0;
   }
 
-  private isUnavailable(node: any): boolean {
+  private isUnavailable(node: D3HierarchyNode | null | undefined): boolean {
     return isVariableUnavailable(this.unavailableVariables(), node);
   }
 
@@ -397,11 +395,11 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   /** Selection targets minus unavailable variables, so adding a group never pools one. */
-  private addableTargets(): any[] {
+  private addableTargets(): D3HierarchyNode[] {
     return this.selectionTargets().filter((item) => !this.isUnavailable(item));
   }
 
-  private selectionTargets(): any[] {
+  private selectionTargets(): D3HierarchyNode[] {
     const selectedNode = this.selectedNode;
     if (!selectedNode) {
       return [];
@@ -441,8 +439,6 @@ export class VariablesPanelComponent implements OnDestroy {
 
   private clearModelView(): void {
     this.availableDatasets = [];
-    this.filteredVariables.set([]);
-    this.filteredGroups.set([]);
     this.d3Data = null;
     this.selectedNode = null;
     this.guideState.setSelectedHierarchyNode(null);
@@ -456,35 +452,10 @@ export class VariablesPanelComponent implements OnDestroy {
     const model = this.selectedDataModel();
     if (!model) return; // exit early
 
-    const { hierarchy, allVariables } =
-      this.experimentStudioService.convertToD3Hierarchy(model);
-
-    this.d3Data = hierarchy;
-    this.filteredVariables.set(allVariables);
-    this.filteredGroups.set(this.d3Data.children.filter((item: any) => item.children));
+    this.d3Data = this.experimentStudioService.convertToD3Hierarchy(model).hierarchy;
     // TODO: Refactor dataset sourcing via Exaflow so datasets/labels come from a single canonical source.
-    const datasetVariable = allVariables.find(
-      (variable: any) => String(variable?.code ?? '').toLowerCase() === 'dataset'
-    );
-    const datasetEnums = datasetVariable?.enumerations ?? [];
-    const datasetSource: any = (model as any).datasets;
-    const allowedCodes = new Set<string>(
-      Array.isArray(datasetSource)
-        ? datasetSource
-          .map((item: any) => String(item?.code ?? item ?? ''))
-          .filter((code: string) => code)
-        : []
-    );
-    this.availableDatasets = datasetEnums
-      .filter((dataset: any) => {
-        const code = String(dataset?.code ?? '');
-        return allowedCodes.size === 0 || allowedCodes.has(code);
-      })
-      .map((dataset: any) => ({
-        code: String(dataset?.code ?? ''),
-        label: String(dataset?.label ?? dataset?.name ?? dataset?.code ?? ''),
-      }));
-    this.experimentStudioService.availableDatasets.set(this.availableDatasets);
+    this.experimentStudioService.updateAvailableDatasets(model);
+    this.availableDatasets = this.experimentStudioService.availableDatasets();
     this.ensureDatasetsSelected();
   }
 
@@ -520,8 +491,6 @@ export class VariablesPanelComponent implements OnDestroy {
     // clean up selections
     this.experimentStudioService.clearSelectionsForDataModelChange();
 
-    this.filteredVariables.set([]);
-    this.filteredGroups.set([]);
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
@@ -533,7 +502,7 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
 
-  onSelectedNodeChange(node: any): void {
+  onSelectedNodeChange(node: D3HierarchyNode | null): void {
     if (!node) {
       this.selectedNode = null;
       this.guideState.setSelectedHierarchyNode(null);
@@ -598,8 +567,7 @@ export class VariablesPanelComponent implements OnDestroy {
       return;
     }
 
-    const codes = [node.code];
-    this.queueHistogramRequest(codes, node.label);
+    this.queueHistogramRequest([node.code ?? ''], node.label);
   }
 
 
@@ -733,7 +701,7 @@ export class VariablesPanelComponent implements OnDestroy {
     return enumerationLabel(groupingEnum, node?.enumerations) ?? groupingEnum;
   }
 
-  getPathNodes(node: any): PathNode[] {
+  getPathNodes(node: D3HierarchyNode | null): PathNode[] {
     return pathToNode(this.d3Data, node);
   }
 

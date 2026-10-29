@@ -22,6 +22,8 @@ describe('VariablesPanelComponent bubble selection', () => {
     setSelectedDatasets: Mock;
     addVariableAndEnrich: Mock;
     clearSelectionsForDataModelChange: Mock;
+    updateAvailableDatasets: Mock;
+    availableDatasets: ReturnType<typeof signal<{ code: string; label: string }[]>>;
     editingExistingExperiment: () => boolean;
     unavailableVariables: ReturnType<typeof signal<ReadonlyMap<string, readonly string[]>>>;
   };
@@ -43,6 +45,8 @@ describe('VariablesPanelComponent bubble selection', () => {
       setSelectedDatasets: vi.fn(),
       addVariableAndEnrich: vi.fn(),
       clearSelectionsForDataModelChange: vi.fn(),
+      updateAvailableDatasets: vi.fn(),
+      availableDatasets: signal<{ code: string; label: string }[]>([]),
       editingExistingExperiment: () => false,
       unavailableVariables: signal<ReadonlyMap<string, readonly string[]>>(new Map()),
     };

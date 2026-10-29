@@ -18,9 +18,9 @@ export class SelectedVariablesComponent {
   private expStudioService = inject(ExperimentStudioService);
   private elementRef = inject(ElementRef);
 
-  readonly selectedNode = input<any>();
+  readonly selectedNode = input<D3HierarchyNode | null>(null);
   readonly mode = input<'popover' | 'inline'>('popover');
-  readonly variableClicked = output<any>();
+  readonly variableClicked = output<D3HierarchyNode>();
 
   readonly isOpen = signal(false);
 
@@ -52,7 +52,7 @@ export class SelectedVariablesComponent {
     }
   }
 
-  removeItem(item: any): void {
+  removeItem(item: D3HierarchyNode): void {
     this.expStudioService.setVariables(
       this.variables().filter((v) => v.code !== item.code)
     );
