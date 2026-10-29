@@ -42,9 +42,9 @@ Notes: Stored historical experiment payloads may depend on legacy algorithm keys
 
 ## `src/app/pages/experiment-studio`
 Purpose: Experiment composition workflow.
-Key files: `experiment-studio.component.*`, `variables-panel/*`, `statistic-analysis-panel/*` (including `pca-column-source` / `kmeans-cluster-source`), `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
+Key files: `experiment-studio.component.*`, `variables-panel/*` (layout shell; `model-browser/` and `variable-details-panel/` children; panel-scoped `VariableCatalogService`, `VariableHistogramService`, `VariableSelectionService`; pure helpers in `variables-panel.utils.ts`), `statistic-analysis-panel/*` (including `pca-column-source` / `kmeans-cluster-source`), `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
 Used by: `/experiment-studio` route and dashboard edit flows.
-Rules: Keep page-specific UI here; use `ExperimentStudioService` for shared selection/run state. Transformation cards append to `appliedTransformations` in creation order; each creator step names outputs with `new_column_names`. Do not reintroduce `pca_with_transformation`.
+Rules: Keep page-specific UI here; use `ExperimentStudioService` for shared selection/run state. Transformation cards append to `appliedTransformations` in creation order; each creator step names outputs with `new_column_names`. Do not reintroduce `pca_with_transformation`. Variables-panel state lives in its three panel-scoped services (provided by the shell, not `root`); children inject them instead of relaying inputs and outputs.
 Tests: Component specs live near components; e2e covers PCA then K-means then logistic regression payload order in `e2e/experiment-studio.flows.spec.ts`.
 Notes: Browser validation often requires a backend with data models, algorithms, and authenticated user state. PCA/K-means creators need the aggregation server in the preprocessing catalog.
 
