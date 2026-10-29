@@ -15,14 +15,14 @@
                 type="button"
                 class="study-context-chip"
                 [attr.aria-expanded]="contextOpen()"
-                [attr.title]="contextChipTitle"
+                [attr.title]="studyContextTitle()"
                 (click)="toggleContext()">
                 <span class="study-context-value">
                   {{ selectedDataModel()?.label ?? 'Select pathology' }}
                 </span>
                 @if (selectedDataModel()) {
                 <span class="study-context-sep" aria-hidden="true">·</span>
-                <span class="study-context-count" [title]="contextChipTitle">
+                <span class="study-context-count" [title]="studyContextTitle()">
                   <i class="fas fa-hospital" aria-hidden="true"></i>
                   <span>{{ selectedDatasetCount() }} dataset{{ selectedDatasetCount() === 1 ? '' : 's' }}</span>
                 </span>
@@ -31,22 +31,22 @@
               </button>
               @if (contextOpen()) {
               <div class="study-context-panel" role="region" aria-label="Study context settings">
-                <app-data-model-selector [crossSectionalModels]="crossSectionalModels"
-                  [longitudinalModels]="longitudinalModels" [defaultModel]="selectedDataModel()"
+                <app-data-model-selector [crossSectionalModels]="crossSectionalModels()"
+                  [longitudinalModels]="longitudinalModels()" [defaultModel]="selectedDataModel()"
                   (dataModelChange)="onSelectedDataModelChange($event)">
                 </app-data-model-selector>
 
                 <div class="study-context-divider" aria-hidden="true"></div>
 
                 <app-dataset-selector
-                  [datasets]="availableDatasets"
+                  [datasets]="availableDatasets()"
                   [selectedDatasetCodes]="experimentStudioService.selectedDatasets()">
                 </app-dataset-selector>
               </div>
               }
             </div>
 
-            @if (d3Data) {
+            @if (hierarchy()) {
             <div class="visualization-toolbar-modes">
               <div
                 class="metadata-browser-switcher"
@@ -91,7 +91,7 @@
               </button>
               @if (searchExpanded()) {
               <div class="search-popover">
-                <app-search-bar [dataModelHierarchy]="d3Data" [unavailableVariables]="unavailableVariables()" (searchResultSelected)="onSearchSelected($event)">
+                <app-search-bar [dataModelHierarchy]="hierarchy()" [unavailableVariables]="unavailableVariables()" (searchResultSelected)="onSearchSelected($event)">
                 </app-search-bar>
               </div>
               }
@@ -99,7 +99,7 @@
             }
           </div>
 
-          @if (selectedDataModel() && d3Data) {
+          @if (selectedDataModel() && hierarchy()) {
           <div
             class="metadata-browser-shell"
             [class.is-map]="metadataBrowserMode() === 'bubble'"
@@ -108,9 +108,9 @@
               @switch (metadataBrowserMode()) {
                 @case ('ontology') {
                 <app-ontology-tree-browser
-                  [data]="d3Data"
-                  [highlightNode]="highlightNode"
-                  [poolVariables]="selectedVariables"
+                  [data]="hierarchy()"
+                  [highlightNode]="highlightNode()"
+                  [poolVariables]="selectedVariables()"
                   [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)"
@@ -119,9 +119,9 @@
                 }
                 @case ('collapsible') {
                 <app-collapsible-tree-browser
-                  [data]="d3Data"
-                  [highlightNode]="highlightNode"
-                  [selectedVariables]="selectedVariables"
+                  [data]="hierarchy()"
+                  [highlightNode]="highlightNode()"
+                  [selectedVariables]="selectedVariables()"
                   [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onMetadataBrowserNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)">
@@ -129,9 +129,9 @@
                 }
                 @default {
                 <app-bubble-chart
-                  [d3Data]="d3Data"
-                  [highlightNode]="highlightNode"
-                  [selectedVariables]="selectedVariables"
+                  [d3Data]="hierarchy()"
+                  [highlightNode]="highlightNode()"
+                  [selectedVariables]="selectedVariables()"
                   [unavailableVariables]="unavailableVariables()"
                   (selectedNodeChange)="onBubbleNodeSelected($event)"
                   (nodeDoubleClicked)="onNodeDoubleClicked($event)">
@@ -150,7 +150,7 @@
           <div class="details-panel-header">
             <div class="details-panel-header-main">
               <div class="details-panel-title-block">
-                @if (selectedNode) {
+                @if (selectedNode()) {
                 <div class="details-panel-identity" [class.is-group]="isSelectedNodeGroup()">
                   <div class="details-panel-heading">
                     <span class="details-panel-eyebrow">{{ isSelectedNodeGroup() ? 'Group' : 'Variable' }}</span>
@@ -169,7 +169,7 @@
                 type="button"
                 class="selection-toggle-btn"
                 data-guide="guide-add-variable"
-                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode"
+                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode()"
                 [class.is-remove]="isSelectedNodeInPool()"
                 [disabled]="selectionToggleDisabled()"
                 [title]="selectionToggleTitle()"
@@ -290,7 +290,7 @@
                 <div class="message-container empty">
                   <p>{{ emptyChartMessage() }}</p>
                 </div>
-                } @else if (!selectedNode) {
+                } @else if (!selectedNode()) {
                 <div class="message-container empty-state-clinical">
                   <h3>No variable selected</h3>
                   <p>Click a variable in the browser to see its chart and details.</p>
@@ -312,8 +312,8 @@
           } @else {
           <div class="metadata-tab-content details-tab-panel" id="metadata-tab-panel" role="tabpanel" aria-labelledby="details-tab-details">
             <app-metadata-info-panel
-              [selectedNode]="selectedNode"
-              [pathNodes]="getPathNodes(selectedNode)"
+              [selectedNode]="selectedNode()"
+              [pathNodes]="selectedPath()"
               [groupInfo]="groupHistogramMeta()"
               [hideHeader]="true">
             </app-metadata-info-panel>
@@ -333,7 +333,7 @@
         <app-selected-variables
           mode="inline"
           data-guide="variable-containers"
-          [selectedNode]="selectedNode"
+          [selectedNode]="selectedNode()"
           (variableClicked)="onVariableClicked($event)">
         </app-selected-variables>
       </aside>

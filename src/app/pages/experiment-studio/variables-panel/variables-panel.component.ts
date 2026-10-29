@@ -1,7 +1,7 @@
 import { BubbleChartComponent } from './../visualisations/bubble-chart/bubble-chart.component';
-import { ErrorService } from '../../../services/error.service';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
-import { Component, HostListener, signal, inject, OnDestroy, ElementRef, ViewChild, effect, computed, ChangeDetectionStrategy, ChangeDetectorRef, untracked } from '@angular/core';
+import { Component, signal, inject, OnInit, ElementRef, viewChild, effect, computed, ChangeDetectionStrategy, untracked, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { D3HierarchyNode, DataModel } from '../../../models/data-model.interface';
 import { DataModelSelectorComponent } from './data-model-selector/data-model-selector.component';
 import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.component';
@@ -9,7 +9,7 @@ import { SearchBarComponent } from './search-bar/search-bar.component';
 import { SelectedVariablesComponent } from './selected-variables/selected-variables.component';
 import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
 import { MetadataInfoPanelComponent } from './metadata-info-panel/metadata-info-panel.component';
-import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
+import { catchError, map, of, Subject, switchMap } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
@@ -55,9 +55,13 @@ import {
   GroupCensusData,
   GroupHistogramMeta,
   HighlightedNode,
-  PathNode,
   MetadataBrowserModeOption,
 } from './variables-panel.models';
+
+/** localStorage key of the last Map / List / Graph choice. */
+const METADATA_BROWSER_MODE_STORAGE_KEY = 'metadata_browser_mode';
+
+const NO_DISTRIBUTION_MESSAGE = 'No distribution for this selection.';
 
 /** Shown when the selected node groups variables only, so there is nothing to census. */
 const GROUP_OF_VARIABLES_ONLY_MESSAGE =
@@ -68,6 +72,10 @@ const GROUP_OF_VARIABLES_ONLY_MESSAGE =
   templateUrl: './variables-panel.component.html',
   styleUrl: './variables-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+    '(document:keydown)': 'onDocumentKeydown($event)',
+  },
   imports: [
     BubbleChartComponent,
     OntologyTreeBrowserComponent,
@@ -80,8 +88,7 @@ const GROUP_OF_VARIABLES_ONLY_MESSAGE =
     SelectedVariablesComponent,
   ]
 })
-export class VariablesPanelComponent implements OnDestroy {
-  private readonly metadataBrowserModeStorageKey = 'metadata_browser_mode';
+export class VariablesPanelComponent implements OnInit {
   readonly metadataBrowserModes: MetadataBrowserModeOption[] = [
       {
         value: 'bubble',
@@ -103,19 +110,19 @@ export class VariablesPanelComponent implements OnDestroy {
       },
     ];
 
-  @ViewChild('histogramExport') histogramExport?: ElementRef<HTMLElement>;
-  @ViewChild('searchSection') searchSection?: ElementRef<HTMLElement>;
-  @ViewChild('contextSection') contextSection?: ElementRef<HTMLElement>;
-  highlightNode: HighlightedNode | null = null;
+  private readonly histogramExport = viewChild<ElementRef<HTMLElement>>('histogramExport');
+  private readonly searchSection = viewChild<ElementRef<HTMLElement>>('searchSection');
+  private readonly contextSection = viewChild<ElementRef<HTMLElement>>('contextSection');
+  /** The node the browsers scroll to and outline; search picks carry their breadcrumb. */
+  readonly highlightNode = signal<HighlightedNode | null>(null);
 
-  experimentStudioService = inject(ExperimentStudioService);
-  pdfExportService = inject(PdfExportService);
-  csvExportService = inject(CsvExportService);
+  protected readonly experimentStudioService = inject(ExperimentStudioService);
+  private readonly pdfExportService = inject(PdfExportService);
+  private readonly csvExportService = inject(CsvExportService);
   private readonly mipVersion = inject(RuntimeEnvService).mipVersion;
-  guideState = inject(ExperimentStudioGuideStateService);
-  private cdr = inject(ChangeDetectorRef);
+  private readonly guideState = inject(ExperimentStudioGuideStateService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  errorService = inject(ErrorService);
   histogramData = signal<HistogramChartData | null>(null);
   groupHistogramData = signal<GroupCensusData | null>(null);
   histogramSplit = signal(HISTOGRAM_SPLIT_NONE);
@@ -140,19 +147,20 @@ export class VariablesPanelComponent implements OnDestroy {
     return formatClippedNullEdgesNote(describeClippedNullEdges(data.bins, data.counts));
   });
   groupHistogramMeta = signal<GroupHistogramMeta | null>(null);
-  d3Data: D3HierarchyNode | null = null;
-  selectedDataModel = this.experimentStudioService.selectedDataModel;
-  selectedNode: D3HierarchyNode | null = null;
-  crossSectionalModels: DataModel[] = [];
-  longitudinalModels: DataModel[] = [];
-  availableDatasets: DatasetOption[] = [];
-  error: string | null = null;
+  /** The selected pathology as a browsable tree; null until a data model is loaded. */
+  readonly hierarchy = signal<D3HierarchyNode | null>(null);
+  readonly selectedDataModel = this.experimentStudioService.selectedDataModel;
+  readonly selectedNode = signal<D3HierarchyNode | null>(null);
+  readonly crossSectionalModels = signal<DataModel[]>([]);
+  readonly longitudinalModels = signal<DataModel[]>([]);
+  readonly availableDatasets = signal<DatasetOption[]>([]);
+  readonly selectedVariables = this.experimentStudioService.selectedVariables;
   isLoadingHistogram = signal(false);
   errorMessage = signal<string | null>(null);
   emptyChartMessage = signal<string | null>(null);
   isExporting = signal(false);
   exportMenuOpen = signal(false);
-  metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
+  metadataBrowserMode = signal<MetadataBrowserMode>(loadMetadataBrowserMode());
   readonly metadataBrowserModeIndex = computed(() => {
     const index = this.metadataBrowserModes.findIndex(
       (mode) => mode.value === this.metadataBrowserMode()
@@ -164,9 +172,73 @@ export class VariablesPanelComponent implements OnDestroy {
   /** Variables missing from a selected dataset: grayed out in every view and never selected. */
   readonly unavailableVariables = this.experimentStudioService.unavailableVariables;
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
+  private readonly hasSelectedDatasets = computed(() => this.selectedDatasetCount() > 0);
+  readonly studyContextTitle = computed(() => studyContextTitle(this.selectedDataModel()?.label, this.selectedDatasetCount()));
+  /** Breadcrumb of the selected node for the Details tab. */
+  readonly selectedPath = computed(() => pathToNode(this.hierarchy(), this.selectedNode()));
+
+  /** The variables the selected node stands for: itself, or every variable under a group. */
+  private readonly selectionTargets = computed((): D3HierarchyNode[] => {
+    const node = this.selectedNode();
+    if (!node) return [];
+    return node.children ? collectLeafNodes(node) : [node];
+  });
+  /** Selection targets minus unavailable variables, so adding a group never pools one. */
+  private readonly addableTargets = computed(() => this.selectionTargets().filter((item) => !this.isUnavailable(item)));
+  /**
+   * Unavailable variables can never be added, so they do not count against "all added";
+   * a node with only unavailable variables still reads as pooled when they were added earlier.
+   */
+  readonly isSelectedNodeInPool = computed(() => {
+    const addable = this.addableTargets();
+    const targets = addable.length ? addable : this.selectionTargets();
+    if (!targets.length) return false;
+    const selected = this.selectedVariables();
+    return targets.every((item) => selected.some((variable) => variable.code === item.code));
+  });
+  /** The selected node offers nothing to add: every variable under it is unavailable. */
+  private readonly selectedNodeOnlyUnavailable = computed(
+    () => this.selectionTargets().length > 0 && this.addableTargets().length === 0
+  );
+  readonly selectionToggleDisabled = computed(() =>
+    !this.hasSelectedDatasets()
+    || !this.selectedNode()
+    || (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool())
+  );
+  readonly selectionToggleLabel = computed(() => (this.isSelectedNodeInPool() ? 'Remove' : 'Add'));
+  readonly selectionToggleTitle = computed(() => {
+    if (!this.hasSelectedDatasets()) return 'Select datasets first';
+    if (!this.selectedNode()) return 'Select a variable or group on the map';
+    if (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool()) {
+      return 'Not available in the selected datasets';
+    }
+    return this.isSelectedNodeInPool()
+      ? 'Remove the selected variable from this experiment'
+      : 'Add the selected variable to this experiment';
+  });
+  readonly isSelectedNodeGroup = computed(() => !!this.selectedNode()?.children?.length);
+  readonly detailsPanelTitle = computed(() => {
+    const node = this.selectedNode();
+    return node ? String(node.label ?? '').trim() : 'Select a variable';
+  });
+  readonly detailsPanelSubtitle = computed(() => {
+    const node = this.selectedNode();
+    if (!node) return '';
+    const meta = this.groupHistogramMeta();
+    if (this.isSelectedNodeGroup() && meta) {
+      return meta.hasGroups ? `${meta.groupCount} groups in this view` : `${meta.groupCount} variables in this group`;
+    }
+    return String(node.description ?? '').trim();
+  });
+  readonly isExportDisabled = computed(() =>
+    this.isLoadingHistogram()
+    || !!this.errorMessage()
+    || !this.selectedNode()
+    || (!this.histogramData() && !this.groupHistogramData())
+  );
+
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
-  private destroy$ = new Subject<void>();
-  private histogramRequest$ = new Subject<{
+  private readonly histogramRequest$ = new Subject<{
     codes: string[];
     label?: string;
     bins?: number | null;
@@ -190,257 +262,67 @@ export class VariablesPanelComponent implements OnDestroy {
 
     effect(() => {
       const model = this.selectedDataModel();
-      if (!model) {
-        // A studio reset (e.g. a saved experiment whose pathology is gone) must not leave the old chart up.
-        if (this.lastModelKey !== null) {
-          this.lastModelKey = null;
-          untracked(() => this.clearModelView());
-        }
-        return;
-      }
-      const key = `${model.code}:${model.version}`;
-      if (this.lastModelKey === key) return;
-      this.lastModelKey = key;
-      this.loadVisualizationData();
-      if (this.d3Data) {
-        this.onSelectedNodeChange(this.d3Data);
-      }
+      untracked(() => this.showDataModel(model));
     });
   }
-
 
   ngOnInit(): void {
     this.loadDataModels();
   }
 
-
-  onSearchSelected(result: MetadataSearchResult): void {
-    if (!this.d3Data) {
-      console.warn('[Search] No data model loaded');
-      return;
-    }
-
-    const index = normalizeMetadataTree(this.d3Data);
-    const selection = selectionFromSearchResult(index, result);
-    const node = selection.originalNode;
-    if (this.isUnavailable(node)) return;
-    this.highlightNode = { ...node, path: result.path };
-    this.onSelectedNodeChange(node);
-    this.searchExpanded.set(false);
-  }
-
-  onVariableClicked(variable: D3HierarchyNode): void {
-    if (!variable?.code) {
-      console.warn('Invalid variable clicked:', variable);
-      return;
-    }
-    this.highlightNode = variable;
-    this.onSelectedNodeChange(variable);
-  }
-
-  onBubbleNodeSelected(node: D3HierarchyNode): void {
-    if (this.isUnavailable(node)) return;
-    this.onSelectedNodeChange(node);
-  }
-
-  onMetadataBrowserNodeSelected(node: D3HierarchyNode): void {
-    if (this.isUnavailable(node)) return;
-    this.highlightNode = node;
-    this.onSelectedNodeChange(node);
-  }
-
-  onNodeDoubleClicked(node: D3HierarchyNode): void {
-    if (this.isUnavailable(node)) return;
-    this.onSelectedNodeChange(node);
-    this.addVariableFromBubble();
-    this.cdr.detectChanges();
-  }
-
-  get selectedVariables(): D3HierarchyNode[] {
-    return this.experimentStudioService.selectedVariables();
-  }
-
-
-  setMetadataBrowserMode(mode: MetadataBrowserMode): void {
-    this.metadataBrowserMode.set(mode);
-    try {
-      localStorage.setItem(this.metadataBrowserModeStorageKey, mode);
-    } catch {
-      // Ignore private-mode or quota failures; the UI can still use the in-memory signal.
-    }
-  }
-
-  setActiveDetailsTab(tab: DetailsPanelTab): void {
-    this.activeDetailsTab.set(tab);
-  }
-
-  toggleContext(): void {
-    this.contextOpen.update(open => !open);
-  }
-
-  get contextChipTitle(): string {
-    return studyContextTitle(this.selectedDataModel()?.label, this.selectedDatasetCount());
-  }
-
-  toggleSearch(): void {
-    this.searchExpanded.update(expanded => {
-      if (!expanded) {
-        setTimeout(() => {
-          this.searchSection?.nativeElement?.querySelector('input')?.focus();
-        }, 0);
-      }
-      return !expanded;
-    });
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClickForContext(event: MouseEvent): void {
-    const target = event.target as Node;
-    if (this.contextOpen() && this.contextSection && !this.contextSection.nativeElement.contains(target)) {
-      this.contextOpen.set(false);
-    }
-    if (
-      this.searchExpanded()
-      && this.searchSection
-      && !this.searchSection.nativeElement.contains(target)
-    ) {
-      this.searchExpanded.set(false);
-    }
-    if (this.exportMenuOpen() && !(target as HTMLElement)?.closest?.('.histogram-export-group')) {
-      this.exportMenuOpen.set(false);
-    }
-  }
-
-  @HostListener('document:keydown', ['$event'])
-  onDocumentKeydownForContext(event: KeyboardEvent): void {
-    if (event.key === 'Escape') {
-      this.contextOpen.set(false);
-      this.searchExpanded.set(false);
-      this.exportMenuOpen.set(false);
-    }
-  }
-
-  get hasSelectedDatasets(): boolean {
-    return (this.experimentStudioService.selectedDatasets() || []).length > 0;
-  }
-
-  private isUnavailable(node: D3HierarchyNode | null | undefined): boolean {
-    return isVariableUnavailable(this.unavailableVariables(), node);
-  }
-
-  isSelectedNodeInPool(): boolean {
-    // Unavailable variables can never be added, so they do not count against "all added";
-    // a node with only unavailable variables still reads as pooled when they were added earlier.
-    const addable = this.addableTargets();
-    const targets = addable.length ? addable : this.selectionTargets();
-    if (!targets.length) {
-      return false;
-    }
-    const selected = this.experimentStudioService.selectedVariables();
-    return targets.every((item) => selected.some((variable) => variable.code === item.code));
-  }
-
-  selectionToggleDisabled(): boolean {
-    return !this.hasSelectedDatasets
-      || !this.selectedNode
-      || (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool());
-  }
-
-  /** The selected node offers nothing to add: every variable under it is unavailable. */
-  private selectedNodeOnlyUnavailable(): boolean {
-    return this.selectionTargets().length > 0 && this.addableTargets().length === 0;
-  }
-
-  selectionToggleLabel(): string {
-    return this.isSelectedNodeInPool() ? 'Remove' : 'Add';
-  }
-
-  selectionToggleTitle(): string {
-    if (!this.hasSelectedDatasets) {
-      return 'Select datasets first';
-    }
-    if (!this.selectedNode) {
-      return 'Select a variable or group on the map';
-    }
-    if (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool()) {
-      return 'Not available in the selected datasets';
-    }
-    return this.isSelectedNodeInPool()
-      ? 'Remove the selected variable from this experiment'
-      : 'Add the selected variable to this experiment';
-  }
-
-  toggleSelectedNodeInPool(): void {
-    if (this.selectionToggleDisabled()) {
-      return;
-    }
-    if (!this.selectionTargets().length) {
-      return;
-    }
-    if (this.isSelectedNodeInPool()) {
-      const removeCodes = new Set(this.selectionTargets().map((item) => item.code));
-      this.experimentStudioService.setVariables(
-        this.experimentStudioService.selectedVariables().filter((variable) => !removeCodes.has(variable.code))
-      );
-      return;
-    }
-    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
-  }
-
-  addVariableFromBubble(): void {
-    if (!this.hasSelectedDatasets || !this.selectedNode) {
-      return;
-    }
-    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
-  }
-
-  /** Selection targets minus unavailable variables, so adding a group never pools one. */
-  private addableTargets(): D3HierarchyNode[] {
-    return this.selectionTargets().filter((item) => !this.isUnavailable(item));
-  }
-
-  private selectionTargets(): D3HierarchyNode[] {
-    const selectedNode = this.selectedNode;
-    if (!selectedNode) {
-      return [];
-    }
-    return selectedNode.children ? collectLeafNodes(selectedNode) : [selectedNode];
-  }
+  // ── Data models and the hierarchy ──────────────────────────────────────────
 
   loadDataModels(): void {
     this.experimentStudioService.getAllDataModels()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((dataModels) => {
-        this.handleDataModelResponse(dataModels);
-      });
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((dataModels) => this.handleDataModelResponse(dataModels));
   }
 
   handleDataModelResponse(dataModels: DataModel[]): void {
     const { crossSectional, longitudinal } = this.experimentStudioService.categorizeDataModels(dataModels);
-    this.crossSectionalModels = crossSectional;
-    this.longitudinalModels = longitudinal;
+    this.crossSectionalModels.set(crossSectional);
+    this.longitudinalModels.set(longitudinal);
 
     if (dataModels.length > 0) {
       const current = this.selectedDataModel();
       const models = [...crossSectional, ...longitudinal];
       const next = current ? models.find((model) => isSameDataModel(model, current)) ?? null : null;
-      const fallback = this.experimentStudioService.editingExistingExperiment()
-        ? null
-        : models[0] ?? null;
+      const fallback = this.experimentStudioService.editingExistingExperiment() ? null : models[0] ?? null;
       this.selectedDataModel.set(next ?? fallback);
-      this.experimentStudioService.selectedDataModel.set(this.selectedDataModel() ?? null);
       return;
     }
 
     this.selectedDataModel.set(null);
-    this.experimentStudioService.selectedDataModel.set(null);
     this.clearModelView();
   }
 
+  /**
+   * Loads the tree of a newly selected pathology and selects its root. The same
+   * pathology (code and version) is not reloaded; a studio reset (e.g. a saved
+   * experiment whose pathology is gone) must not leave the old chart up.
+   */
+  private showDataModel(model: DataModel | null): void {
+    if (!model) {
+      if (this.lastModelKey !== null) {
+        this.lastModelKey = null;
+        this.clearModelView();
+      }
+      return;
+    }
+    const key = `${model.code}:${model.version}`;
+    if (this.lastModelKey === key) return;
+    this.lastModelKey = key;
+    this.loadVisualizationData();
+    const root = this.hierarchy();
+    if (root) {
+      this.onSelectedNodeChange(root);
+    }
+  }
+
   private clearModelView(): void {
-    this.availableDatasets = [];
-    this.d3Data = null;
-    this.selectedNode = null;
+    this.availableDatasets.set([]);
+    this.hierarchy.set(null);
+    this.selectedNode.set(null);
     this.guideState.setSelectedHierarchyNode(null);
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
@@ -450,12 +332,12 @@ export class VariablesPanelComponent implements OnDestroy {
 
   loadVisualizationData(): void {
     const model = this.selectedDataModel();
-    if (!model) return; // exit early
+    if (!model) return;
 
-    this.d3Data = this.experimentStudioService.convertToD3Hierarchy(model).hierarchy;
+    this.hierarchy.set(this.experimentStudioService.convertToD3Hierarchy(model).hierarchy);
     // TODO: Refactor dataset sourcing via Exaflow so datasets/labels come from a single canonical source.
     this.experimentStudioService.updateAvailableDatasets(model);
-    this.availableDatasets = this.experimentStudioService.availableDatasets();
+    this.availableDatasets.set(this.experimentStudioService.availableDatasets());
     this.ensureDatasetsSelected();
   }
 
@@ -469,26 +351,16 @@ export class VariablesPanelComponent implements OnDestroy {
       return;
     }
     const selected = new Set(this.experimentStudioService.selectedDatasets());
-    const hasValidSelection = this.availableDatasets.some((dataset) => selected.has(dataset.code));
-    if (hasValidSelection) {
+    const available = this.availableDatasets();
+    if (available.some((dataset) => selected.has(dataset.code))) {
       return;
     }
-    this.experimentStudioService.setSelectedDatasets(
-      this.availableDatasets.map((dataset) => dataset.code)
-    );
+    this.experimentStudioService.setSelectedDatasets(available.map((dataset) => dataset.code));
   }
 
-
-  // end of services functions
   onSelectedDataModelChange(selectedDataModel: DataModel | null): void {
-    if (!selectedDataModel) return;
-    if (isSameDataModel(this.selectedDataModel(), selectedDataModel)) {
-      return;
-    }
-    // update service signal
+    if (!selectedDataModel || isSameDataModel(this.selectedDataModel(), selectedDataModel)) return;
     this.experimentStudioService.selectedDataModel.set(selectedDataModel);
-
-    // clean up selections
     this.experimentStudioService.clearSelectionsForDataModelChange();
 
     this.histogramData.set(null);
@@ -497,16 +369,54 @@ export class VariablesPanelComponent implements OnDestroy {
     this.activeDetailsTab.set('histogram');
     this.searchExpanded.set(false);
 
-    // reload new model data
     this.loadVisualizationData();
   }
 
+  // ── Node selection ─────────────────────────────────────────────────────────
+
+  onSearchSelected(result: MetadataSearchResult): void {
+    const root = this.hierarchy();
+    if (!root) {
+      console.warn('[Search] No data model loaded');
+      return;
+    }
+    const node = selectionFromSearchResult(normalizeMetadataTree(root), result).originalNode;
+    if (this.isUnavailable(node)) return;
+    this.highlightNode.set({ ...node, path: result.path });
+    this.onSelectedNodeChange(node);
+    this.searchExpanded.set(false);
+  }
+
+  onVariableClicked(variable: D3HierarchyNode): void {
+    if (!variable?.code) {
+      console.warn('Invalid variable clicked:', variable);
+      return;
+    }
+    this.highlightNode.set(variable);
+    this.onSelectedNodeChange(variable);
+  }
+
+  onBubbleNodeSelected(node: D3HierarchyNode): void {
+    if (this.isUnavailable(node)) return;
+    this.onSelectedNodeChange(node);
+  }
+
+  onMetadataBrowserNodeSelected(node: D3HierarchyNode): void {
+    if (this.isUnavailable(node)) return;
+    this.highlightNode.set(node);
+    this.onSelectedNodeChange(node);
+  }
+
+  onNodeDoubleClicked(node: D3HierarchyNode): void {
+    if (this.isUnavailable(node)) return;
+    this.onSelectedNodeChange(node);
+    this.addVariableFromBubble();
+  }
 
   onSelectedNodeChange(node: D3HierarchyNode | null): void {
     if (!node) {
-      this.selectedNode = null;
+      this.selectedNode.set(null);
       this.guideState.setSelectedHierarchyNode(null);
-      this.cdr.detectChanges();
       this.histogramData.set(null);
       this.groupHistogramData.set(null);
       this.histogramSplit.set(HISTOGRAM_SPLIT_NONE);
@@ -519,39 +429,33 @@ export class VariablesPanelComponent implements OnDestroy {
     }
 
     // Guard against redundant clicks on the already selected node
-    if (this.selectedNode?.code === node.code && this.selectedNode?.label === node.label) {
+    const current = this.selectedNode();
+    if (current?.code === node.code && current?.label === node.label) {
       return;
     }
 
-    this.selectedNode = { ...node };
+    const selected = { ...node };
+    this.selectedNode.set(selected);
     this.activeDetailsTab.set('histogram');
-    this.guideState.setSelectedHierarchyNode(this.selectedNode);
-    this.cdr.detectChanges();
+    this.guideState.setSelectedHierarchyNode(selected);
     this.clearChartNotices();
-    this.histogramData.set(null); // clear previous histogram
+    this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.histogramSplit.set(HISTOGRAM_SPLIT_NONE);
     this.plottedVariable.set(node);
     this.groupHistogramMeta.set(null);
-    if (!node) {
-      this.isLoadingHistogram.set(false);
-      this.errorMessage.set('No variable selected.');
-      return;
-    }
 
     if (node.children && node.children.length > 0) {
       const { hasGroups, items } = describeGroup(node);
-
       if (!items.length) {
         this.isLoadingHistogram.set(false);
         this.errorMessage.set('No groups found for this selection.');
         return;
       }
 
-      const pathNodes = this.getPathNodes(node);
       this.isLoadingHistogram.set(false);
       this.groupHistogramMeta.set({
-        pathNodes,
+        pathNodes: pathToNode(this.hierarchy(), node),
         groupCount: items.length,
         hasGroups,
       });
@@ -562,7 +466,6 @@ export class VariablesPanelComponent implements OnDestroy {
         this.emptyChartMessage.set(GROUP_OF_VARIABLES_ONLY_MESSAGE);
         return;
       }
-
       this.groupHistogramData.set(buildGroupCensus(node, items));
       return;
     }
@@ -570,26 +473,92 @@ export class VariablesPanelComponent implements OnDestroy {
     this.queueHistogramRequest([node.code ?? ''], node.label);
   }
 
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  private isUnavailable(node: D3HierarchyNode | null | undefined): boolean {
+    return isVariableUnavailable(this.unavailableVariables(), node);
   }
+
+  // ── Variable pool ──────────────────────────────────────────────────────────
+
+  toggleSelectedNodeInPool(): void {
+    if (this.selectionToggleDisabled() || !this.selectionTargets().length) {
+      return;
+    }
+    if (this.isSelectedNodeInPool()) {
+      const removeCodes = new Set(this.selectionTargets().map((item) => item.code));
+      this.experimentStudioService.setVariables(
+        this.selectedVariables().filter((variable) => !removeCodes.has(variable.code))
+      );
+      return;
+    }
+    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
+  }
+
+  addVariableFromBubble(): void {
+    if (!this.hasSelectedDatasets() || !this.selectedNode()) {
+      return;
+    }
+    this.addableTargets().forEach((item) => this.experimentStudioService.addVariableAndEnrich(item));
+  }
+
+  // ── Toolbar popovers and browser mode ──────────────────────────────────────
+
+  setMetadataBrowserMode(mode: MetadataBrowserMode): void {
+    this.metadataBrowserMode.set(mode);
+    try {
+      localStorage.setItem(METADATA_BROWSER_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Ignore private-mode or quota failures; the UI can still use the in-memory signal.
+    }
+  }
+
+  setActiveDetailsTab(tab: DetailsPanelTab): void {
+    this.activeDetailsTab.set(tab);
+  }
+
+  toggleContext(): void {
+    this.contextOpen.update((open) => !open);
+  }
+
+  toggleSearch(): void {
+    this.searchExpanded.update((expanded) => {
+      if (!expanded) {
+        setTimeout(() => this.searchSection()?.nativeElement?.querySelector('input')?.focus(), 0);
+      }
+      return !expanded;
+    });
+  }
+
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as Node;
+    const contextSection = this.contextSection()?.nativeElement;
+    if (this.contextOpen() && contextSection && !contextSection.contains(target)) {
+      this.contextOpen.set(false);
+    }
+    const searchSection = this.searchSection()?.nativeElement;
+    if (this.searchExpanded() && searchSection && !searchSection.contains(target)) {
+      this.searchExpanded.set(false);
+    }
+    if (this.exportMenuOpen() && !(target as HTMLElement)?.closest?.('.histogram-export-group')) {
+      this.exportMenuOpen.set(false);
+    }
+  }
+
+  onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.contextOpen.set(false);
+      this.searchExpanded.set(false);
+      this.exportMenuOpen.set(false);
+    }
+  }
+
+  // ── Histogram ──────────────────────────────────────────────────────────────
 
   private setupHistogramPipeline(): void {
     this.histogramRequest$
       .pipe(
-        takeUntil(this.destroy$),
-        switchMap(({ codes, label, bins, grouping }) => {
-          return this.experimentStudioService
-            .getAlgorithmResults(
-              AlgorithmNames.HISTOGRAM,
-              codes,
-              bins ?? null,
-              undefined,
-              undefined,
-              grouping ? [grouping] : undefined
-            )
+        switchMap(({ codes, label, bins, grouping }) =>
+          this.experimentStudioService
+            .getAlgorithmResults(AlgorithmNames.HISTOGRAM, codes, bins ?? null, undefined, undefined, grouping ? [grouping] : undefined)
             .pipe(
               catchError((error) => {
                 this.isLoadingHistogram.set(false);
@@ -598,53 +567,16 @@ export class VariablesPanelComponent implements OnDestroy {
                 return of(null);
               }),
               map((response) => ({ response, label, codes, grouping: grouping ?? null }))
-            );
-        })
+            )
+        ),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: ({ response, label, codes, grouping }) => {
           this.isLoadingHistogram.set(false);
-
           if (!response) return;
-
           try {
-            const histList = extractHistogramItems(response);
-            if (histList.length) {
-              const variableCode = String(histList[0]?.var ?? histList[0]?.variable ?? codes?.[0] ?? '');
-              const variableNode = variableCode ? findNodeByCode(this.d3Data, variableCode) : null;
-              const stacked = buildStackedHistogramSeries(
-                histList,
-                variableCode,
-                grouping,
-                (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
-                this.experimentStudioService.selectedDatasets()
-              );
-              if (!stacked) {
-                this.histogramData.set(null);
-                this.emptyChartMessage.set('No distribution for this selection.');
-                return;
-              }
-              const binLabels = labelHistogramBins(stacked.bins, variableNode?.enumerations);
-              const splitLabel = grouping
-                ? (this.histogramSplitOptions().find((option) => option.code === grouping)?.label ?? grouping)
-                : undefined;
-              this.histogramData.set({
-                bins: binLabels,
-                counts: stacked.counts,
-                groups: stacked.groups,
-                variableName: label ?? variableNode?.label ?? '',
-                variableType: variableNode?.type,
-                splitLabel,
-              });
-              this.clearChartNotices();
-            } else {
-              this.histogramData.set(null);
-              if (isInsufficientDataResponse(response)) {
-                this.emptyChartMessage.set('This variable does not have sufficient data.');
-              } else {
-                this.emptyChartMessage.set('No distribution for this selection.');
-              }
-            }
+            this.showHistogramResponse(response, codes, label, grouping);
           } catch (error) {
             console.error('Error parsing histogram:', error);
             this.histogramData.set(null);
@@ -659,17 +591,49 @@ export class VariablesPanelComponent implements OnDestroy {
       });
   }
 
+  private showHistogramResponse(response: unknown, codes: string[], label: string | undefined, grouping: string | null): void {
+    const items = extractHistogramItems(response);
+    if (!items.length) {
+      this.histogramData.set(null);
+      this.emptyChartMessage.set(
+        isInsufficientDataResponse(response) ? 'This variable does not have sufficient data.' : NO_DISTRIBUTION_MESSAGE
+      );
+      return;
+    }
+    const variableCode = String(items[0]?.var ?? items[0]?.variable ?? codes?.[0] ?? '');
+    const variableNode = variableCode ? findNodeByCode(this.hierarchy(), variableCode) : null;
+    const stacked = buildStackedHistogramSeries(
+      items,
+      variableCode,
+      grouping,
+      (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+      this.experimentStudioService.selectedDatasets()
+    );
+    if (!stacked) {
+      this.histogramData.set(null);
+      this.emptyChartMessage.set(NO_DISTRIBUTION_MESSAGE);
+      return;
+    }
+    const splitLabel = grouping
+      ? (this.histogramSplitOptions().find((option) => option.code === grouping)?.label ?? grouping)
+      : undefined;
+    this.histogramData.set({
+      bins: labelHistogramBins(stacked.bins, variableNode?.enumerations),
+      counts: stacked.counts,
+      groups: stacked.groups,
+      variableName: label ?? variableNode?.label ?? '',
+      variableType: variableNode?.type,
+      splitLabel,
+    });
+    this.clearChartNotices();
+  }
+
   private clearChartNotices(): void {
     this.errorMessage.set(null);
     this.emptyChartMessage.set(null);
   }
 
-  private queueHistogramRequest(
-    codes: string[],
-    label?: string,
-    bins: number | null = null,
-    grouping: string | null = null
-  ) {
+  private queueHistogramRequest(codes: string[], label?: string, bins: number | null = null, grouping: string | null = null): void {
     this.isLoadingHistogram.set(true);
     this.clearChartNotices();
     this.histogramData.set(null);
@@ -684,7 +648,7 @@ export class VariablesPanelComponent implements OnDestroy {
 
   private applyHistogramSplit(resolved: string): void {
     this.histogramSplit.set(resolved);
-    const node = this.selectedNode ?? this.plottedVariable();
+    const node = this.selectedNode() ?? this.plottedVariable();
     if (!node?.code || node.children?.length) return;
     this.queueHistogramRequest([node.code], node.label, null, resolved || null);
   }
@@ -693,53 +657,18 @@ export class VariablesPanelComponent implements OnDestroy {
     if (groupingVar.toLowerCase() === DATASET_VARIABLE_CODE) {
       const fromMap = this.experimentStudioService.getDatasetLabelMap()[groupingEnum];
       if (fromMap) return fromMap;
-      const fromList = this.availableDatasets.find((dataset) => dataset.code === groupingEnum)?.label;
+      const fromList = this.availableDatasets().find((dataset) => dataset.code === groupingEnum)?.label;
       if (fromList) return fromList;
     }
-    const node = findNodeByCode(this.d3Data, groupingVar)
-      ?? this.experimentStudioService.selectedVariables().find((variable: { code?: string }) => variable.code === groupingVar);
+    const node = findNodeByCode(this.hierarchy(), groupingVar)
+      ?? this.selectedVariables().find((variable: { code?: string }) => variable.code === groupingVar);
     return enumerationLabel(groupingEnum, node?.enumerations) ?? groupingEnum;
   }
 
-  getPathNodes(node: D3HierarchyNode | null): PathNode[] {
-    return pathToNode(this.d3Data, node);
-  }
-
-  isExportDisabled(): boolean {
-    if (this.isLoadingHistogram()) return true;
-    if (this.errorMessage()) return true;
-    if (!this.selectedNode) return true;
-    return !this.histogramData() && !this.groupHistogramData();
-  }
-
-  isSelectedNodeGroup(): boolean {
-    return !!this.selectedNode?.children?.length;
-  }
-
-  detailsPanelTitle(): string {
-    if (!this.selectedNode) {
-      return 'Select a variable';
-    }
-    return String(this.selectedNode.label ?? '').trim();
-  }
-
-  detailsPanelSubtitle(): string {
-    if (!this.selectedNode) {
-      return '';
-    }
-    if (this.isSelectedNodeGroup()) {
-      const meta = this.groupHistogramMeta();
-      if (meta) {
-        return meta.hasGroups
-          ? `${meta.groupCount} groups in this view`
-          : `${meta.groupCount} variables in this group`;
-      }
-    }
-    return String(this.selectedNode.description ?? '').trim();
-  }
+  // ── Export ─────────────────────────────────────────────────────────────────
 
   toggleExportMenu(): void {
-    this.exportMenuOpen.update(open => !open);
+    this.exportMenuOpen.update((open) => !open);
   }
 
   closeExportMenu(): void {
@@ -752,25 +681,26 @@ export class VariablesPanelComponent implements OnDestroy {
     this.isExporting.set(true);
 
     try {
-      const exportTarget = this.histogramExport?.nativeElement;
+      const exportTarget = this.histogramExport()?.nativeElement;
       if (!exportTarget) {
         console.warn('Histogram export target not found.');
         return;
       }
-
+      const node = this.selectedNode();
+      const model = this.selectedDataModel();
+      const datasets = this.availableDatasets();
       await this.pdfExportService.exportHistogramPdf(exportTarget, {
         title: this.groupHistogramData() ? 'Group Description' : 'Histogram',
-        nodeLabel: String(this.selectedNode?.label ?? this.histogramData()?.variableName ?? ''),
-        modelLabel: String(this.selectedDataModel()?.label ?? this.selectedDataModel()?.code ?? ''),
+        nodeLabel: String(node?.label ?? this.histogramData()?.variableName ?? ''),
+        modelLabel: String(model?.label ?? model?.code ?? ''),
         datasetLabels: this.experimentStudioService.selectedDatasets()
-          .map(code => this.availableDatasets.find(d => d.code === code)?.label ?? code)
-          .filter(label => !!label),
-        description: String(this.selectedNode?.description ?? ''),
+          .map((code) => datasets.find((dataset) => dataset.code === code)?.label ?? code)
+          .filter((label) => !!label),
+        description: String(node?.description ?? ''),
         meta: this.groupHistogramMeta() ?? undefined,
         isGroupView: !!this.groupHistogramData(),
         mipVersion: this.mipVersion,
       });
-
     } catch (err) {
       console.error('Histogram PDF export failed:', err);
     } finally {
@@ -788,23 +718,22 @@ export class VariablesPanelComponent implements OnDestroy {
     try {
       this.csvExportService.exportHistogramCsv(
         { bins: data.bins, counts: data.counts, groups: 'groups' in data ? data.groups : undefined },
-        String(this.selectedNode?.label ?? data.variableName ?? 'histogram')
+        String(this.selectedNode()?.label ?? data.variableName ?? 'histogram')
       );
     } catch (err) {
       console.error('Histogram CSV export failed:', err);
     }
   }
+}
 
-
-  private loadMetadataBrowserMode(): MetadataBrowserMode {
-    try {
-      const saved = localStorage.getItem(this.metadataBrowserModeStorageKey);
-      if (saved === 'ontology' || saved === 'collapsible' || saved === 'bubble') {
-        return saved;
-      }
-    } catch {
-      // Fall through to the Map default.
+function loadMetadataBrowserMode(): MetadataBrowserMode {
+  try {
+    const saved = localStorage.getItem(METADATA_BROWSER_MODE_STORAGE_KEY);
+    if (saved === 'ontology' || saved === 'collapsible' || saved === 'bubble') {
+      return saved;
     }
-    return 'bubble';
+  } catch {
+    // Fall through to the Map default.
   }
+  return 'bubble';
 }

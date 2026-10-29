@@ -1,5 +1,5 @@
 import type { Mock } from 'vitest';
-import { provideZonelessChangeDetection, signal, ElementRef } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ErrorService } from '../../../services/error.service';
@@ -69,8 +69,12 @@ describe('VariablesPanelComponent bubble selection', () => {
       ],
     });
 
+    // Only the two toolbar sections the outside-click handling measures against.
     TestBed.overrideComponent(VariablesPanelComponent, {
-      set: { template: '' },
+      set: {
+        template: '<div #contextSection class="ctx"><span class="ctx-inner"></span></div>'
+          + '<div #searchSection class="search"><input class="search-input" /></div>',
+      },
     });
     localStorage.removeItem('metadata_browser_mode');
   });
@@ -107,7 +111,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('adds the selected node when it is not in the pool', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode.set({ code: 'age_value', label: 'Age', type: 'real' });
 
     component.toggleSelectedNodeInPool();
 
@@ -126,7 +130,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     ]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode.set({ code: 'age_value', label: 'Age', type: 'real' });
 
     component.toggleSelectedNodeInPool();
 
@@ -148,7 +152,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     component.onNodeDoubleClicked(node);
 
     expect(selectSpy).not.toHaveBeenCalled();
-    expect(component.highlightNode).toBeNull();
+    expect(component.highlightNode()).toBeNull();
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
   });
 
@@ -158,7 +162,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     const age = { code: 'age_value', label: 'Age', type: 'real' };
     const sex = { code: 'sex_value', label: 'Sex', type: 'string' };
-    component.selectedNode = { code: 'demo', label: 'Demographics', children: [age, sex] };
+    component.selectedNode.set({ code: 'demo', label: 'Demographics', children: [age, sex] });
 
     component.toggleSelectedNodeInPool();
 
@@ -170,7 +174,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode.set({ code: 'age_value', label: 'Age', type: 'real' });
 
     expect(component.selectionToggleDisabled()).toBe(true);
     expect(component.selectionToggleTitle()).toBe('Not available in the selected datasets');
@@ -183,7 +187,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode.set({ code: 'age_value', label: 'Age', type: 'real' });
 
     expect(component.selectionToggleDisabled()).toBe(false);
     component.toggleSelectedNodeInPool();
@@ -194,7 +198,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.selectedDatasets.set([]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.selectedNode = { code: 'age_value', label: 'Age', type: 'real' };
+    component.selectedNode.set({ code: 'age_value', label: 'Age', type: 'real' });
 
     component.toggleSelectedNodeInPool();
 
@@ -206,10 +210,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.selectedDatasets.set([]);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.availableDatasets = [
+    component.availableDatasets.set([
       { code: 'ds-a', label: 'Dataset A' },
       { code: 'ds-b', label: 'Dataset B' },
-    ];
+    ]);
 
     component.ensureDatasetsSelected();
 
@@ -220,10 +224,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.selectedDatasets.set(['ds-b']);
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.availableDatasets = [
+    component.availableDatasets.set([
       { code: 'ds-a', label: 'Dataset A' },
       { code: 'ds-b', label: 'Dataset B' },
-    ];
+    ]);
 
     component.ensureDatasetsSelected();
 
@@ -235,7 +239,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     experimentStudioService.editingExistingExperiment = () => true;
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.availableDatasets = [{ code: 'ds-a', label: 'Dataset A' }];
+    component.availableDatasets.set([{ code: 'ds-a', label: 'Dataset A' }]);
 
     component.ensureDatasetsSelected();
 
@@ -248,7 +252,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     component.selectedDataModel.set({ code: 'stroke', label: 'Stroke 3.7' } as any);
     experimentStudioService.selectedDatasets.set(['ds-a', 'ds-b']);
 
-    expect(component.contextChipTitle).toBe('Stroke 3.7 · 2 datasets');
+    expect(component.studyContextTitle()).toBe('Stroke 3.7 · 2 datasets');
   });
 
   it('points to the dataset gate in the context chip title when none are selected', () => {
@@ -257,7 +261,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     component.selectedDataModel.set({ code: 'stroke', label: 'Stroke 3.7' } as any);
     experimentStudioService.selectedDatasets.set([]);
 
-    expect(component.contextChipTitle).toBe('Stroke 3.7 · Select datasets');
+    expect(component.studyContextTitle()).toBe('Stroke 3.7 · Select datasets');
   });
 
   it('toggles the context popover open and closed', () => {
@@ -289,18 +293,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     component.toggleContext();
     expect(component.contextOpen()).toBe(true);
 
-    const contextSection = document.createElement('div');
-    const sibling = document.createElement('div');
-    document.body.appendChild(contextSection);
-    document.body.appendChild(sibling);
-    try {
-      component.contextSection = { nativeElement: contextSection } as unknown as ElementRef;
-      component.onDocumentClickForContext({ target: sibling } as unknown as MouseEvent);
-      expect(component.contextOpen()).toBe(false);
-    } finally {
-      contextSection.remove();
-      sibling.remove();
-    }
+    fixture.detectChanges();
+    const sibling = fixture.nativeElement.querySelector('.search') as HTMLElement;
+    component.onDocumentClick({ target: sibling } as unknown as MouseEvent);
+    expect(component.contextOpen()).toBe(false);
   });
 
   it('keeps the context sheet open on a click inside the context section', () => {
@@ -308,17 +304,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     component.toggleContext();
 
-    const contextSection = document.createElement('div');
-    const inner = document.createElement('span');
-    contextSection.appendChild(inner);
-    document.body.appendChild(contextSection);
-    try {
-      component.contextSection = { nativeElement: contextSection } as unknown as ElementRef;
-      component.onDocumentClickForContext({ target: inner } as unknown as MouseEvent);
-      expect(component.contextOpen()).toBe(true);
-    } finally {
-      contextSection.remove();
-    }
+    fixture.detectChanges();
+    const inner = fixture.nativeElement.querySelector('.ctx-inner') as HTMLElement;
+    component.onDocumentClick({ target: inner } as unknown as MouseEvent);
+    expect(component.contextOpen()).toBe(true);
   });
 
   it('closes the context popover on Escape', () => {
@@ -326,7 +315,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     component.toggleContext();
 
-    component.onDocumentKeydownForContext(new KeyboardEvent('keydown', { key: 'Escape' }));
+    component.onDocumentKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(component.contextOpen()).toBe(false);
   });
 
@@ -349,18 +338,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     component.toggleSearch();
     expect(component.searchExpanded()).toBe(true);
 
-    const searchEl = document.createElement('div');
-    document.body.appendChild(searchEl);
+    fixture.detectChanges();
     const outside = document.createElement('span');
-    document.body.appendChild(outside);
-    try {
-      component.searchSection = { nativeElement: searchEl } as unknown as ElementRef;
-      component.onDocumentClickForContext({ target: outside } as unknown as MouseEvent);
-      expect(component.searchExpanded()).toBe(false);
-    } finally {
-      searchEl.remove();
-      outside.remove();
-    }
+    component.onDocumentClick({ target: outside } as unknown as MouseEvent);
+    expect(component.searchExpanded()).toBe(false);
   });
 
   it('keeps the search bar open on an inside click', () => {
@@ -368,17 +349,10 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     component.toggleSearch();
 
-    const searchEl = document.createElement('div');
-    const inner = document.createElement('input');
-    searchEl.appendChild(inner);
-    document.body.appendChild(searchEl);
-    try {
-      component.searchSection = { nativeElement: searchEl } as unknown as ElementRef;
-      component.onDocumentClickForContext({ target: inner } as unknown as MouseEvent);
-      expect(component.searchExpanded()).toBe(true);
-    } finally {
-      searchEl.remove();
-    }
+    fixture.detectChanges();
+    const inner = fixture.nativeElement.querySelector('.search-input') as HTMLElement;
+    component.onDocumentClick({ target: inner } as unknown as MouseEvent);
+    expect(component.searchExpanded()).toBe(true);
   });
 
   it('collapses the search bar on Escape', () => {
@@ -386,7 +360,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     component.toggleSearch();
 
-    component.onDocumentKeydownForContext(new KeyboardEvent('keydown', { key: 'Escape' }));
+    component.onDocumentKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(component.searchExpanded()).toBe(false);
   });
 
@@ -427,7 +401,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const outside = document.createElement('span');
     document.body.appendChild(outside);
     try {
-      component.onDocumentClickForContext({ target: outside } as unknown as MouseEvent);
+      component.onDocumentClick({ target: outside } as unknown as MouseEvent);
       expect(component.exportMenuOpen()).toBe(false);
     } finally {
       group.remove();
@@ -446,7 +420,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     group.appendChild(item);
     document.body.appendChild(group);
     try {
-      component.onDocumentClickForContext({ target: item } as unknown as MouseEvent);
+      component.onDocumentClick({ target: item } as unknown as MouseEvent);
       expect(component.exportMenuOpen()).toBe(true);
     } finally {
       group.remove();
@@ -458,7 +432,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     const component = fixture.componentInstance;
     component.toggleExportMenu();
 
-    component.onDocumentKeydownForContext(new KeyboardEvent('keydown', { key: 'Escape' }));
+    component.onDocumentKeydown(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(component.exportMenuOpen()).toBe(false);
   });
 
@@ -590,7 +564,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     }));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
+    component.hierarchy.set({ code: 'stroke', label: 'Stroke 3.7' });
     component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
     await new Promise((resolve) => setTimeout(resolve, 0));
     component.onHistogramSplitChange({ target: { value: 'dataset' } } as unknown as Event);
@@ -673,16 +647,16 @@ describe('VariablesPanelComponent bubble selection', () => {
   it('collapses consecutive duplicate breadcrumb labels', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    component.d3Data = {
+    component.hierarchy.set({
       code: 'stroke',
       label: 'Stroke 3.7',
       children: [
         { code: 'inr', label: 'INR', type: 'real' },
       ],
-    };
+    });
 
-    const path = component.getPathNodes({ code: 'stroke', label: 'Stroke 3.7' });
-    expect(path.map((node) => node.label)).toEqual(['Stroke 3.7']);
+    component.selectedNode.set({ code: 'stroke', label: 'Stroke 3.7' });
+    expect(component.selectedPath().map((node) => node.label)).toEqual(['Stroke 3.7']);
   });
 
   it('builds a group census chart for the pathology root', () => {
@@ -696,7 +670,7 @@ describe('VariablesPanelComponent bubble selection', () => {
         { code: 'g2', label: 'Hospitalization', children: [{ code: 'b', label: 'B', value: 1 }, { code: 'c', label: 'C', value: 1 }] },
       ],
     };
-    component.d3Data = root;
+    component.hierarchy.set(root);
     component.onSelectedNodeChange(root);
 
     expect(component.groupHistogramData()).toEqual({
@@ -719,7 +693,7 @@ describe('VariablesPanelComponent bubble selection', () => {
         { code: 'b', label: 'B', type: 'real' },
       ],
     };
-    component.d3Data = { code: 'stroke', label: 'Stroke 3.7', children: [group] };
+    component.hierarchy.set({ code: 'stroke', label: 'Stroke 3.7', children: [group] });
 
     component.onSelectedNodeChange(group);
 
@@ -734,7 +708,7 @@ describe('VariablesPanelComponent bubble selection', () => {
   });
 
   function flushLeafHistogram(component: VariablesPanelComponent): Promise<void> {
-    component.d3Data = { code: 'stroke', label: 'Stroke 3.7' };
+    component.hierarchy.set({ code: 'stroke', label: 'Stroke 3.7' });
     component.onSelectedNodeChange({ code: 'age_value', label: 'Age', type: 'real' });
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
