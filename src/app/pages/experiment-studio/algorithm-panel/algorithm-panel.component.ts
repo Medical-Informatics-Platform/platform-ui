@@ -1,5 +1,5 @@
 import { SessionStorageService } from './../../../services/session-storage.service';
-import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, computed, effect, untracked, output, linkedSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ExperimentStudioService } from '../../../services/experiment-studio.service';
 import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -47,6 +47,7 @@ import {
 import { buildAlgorithmNeeds, readinessText, resolveRunAlgorithmNames } from './utils/algorithm-run.utils';
 import { tooltipPosition } from './utils/tooltip-position.utils';
 import {
+  AlgorithmCategory,
   AlgorithmNeedItem,
   AlgorithmParameterField,
   AlgorithmRunRequirement,
@@ -80,7 +81,8 @@ export class AlgorithmPanelComponent {
   private studioNavigation = inject(ExperimentStudioNavigationService);
   experimentStudioService = inject(ExperimentStudioService);
   sessionStorage = inject(SessionStorageService);
-  lastUsedAlgorithm = '';
+  /** The algorithm of the last successful run; the exports name it. */
+  private readonly lastRunAlgorithm = signal('');
   errorMsg = signal<string | null>(null);
   readonly isRunning = this.experimentStudioService.isRunning;
 
@@ -161,7 +163,8 @@ export class AlgorithmPanelComponent {
   readonly yVar = computed(() => this.experimentStudioService.algorithmY()[0]?.code ?? null);
   readonly xVar = computed(() => this.experimentStudioService.algorithmX()[0]?.code ?? null);
   readonly crossValidationEnabled = signal(false);
-  private readonly crossValidationSelections: Record<string, boolean> = {};
+  /** Cross-validation on/off the user chose per base method; a memory, not reactive state. */
+  private readonly crossValidationChoices = new Map<string, boolean>();
   readonly isCrossValidationOnly = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return false;
@@ -169,8 +172,10 @@ export class AlgorithmPanelComponent {
   });
   readonly outlierStrategies = OUTLIER_STRATEGIES;
   readonly outlierTails = OUTLIER_TAILS;
-  outlierReportRules: Record<string, OutlierRule> = {};
-  outlierReportValidationErrors: Record<string, string> = {};
+  /** Per-variable outlier_report rules, keyed by variable code. */
+  readonly outlierReportRules = signal<Record<string, OutlierRule>>({});
+  /** Fold errors shown under each outlier_report rule, keyed by variable code. */
+  readonly outlierReportValidationErrors = signal<Record<string, string>>({});
   readonly canToggleCrossValidation = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return false;
@@ -311,7 +316,7 @@ export class AlgorithmPanelComponent {
         this.crossValidationEnabled.set(false);
         return;
       }
-      const stored = this.crossValidationSelections[baseName];
+      const stored = this.crossValidationChoices.get(baseName);
       const defaultValue = stored !== undefined
         ? stored
         : this.experimentStudioService.isCrossValidationAlgorithm(algorithm.name);
@@ -333,7 +338,7 @@ export class AlgorithmPanelComponent {
       const algorithm = this.selectedAlgorithm();
       const variables = this.outlierReportVariables();
       if (!algorithm || algorithm.name !== AlgorithmNames.OUTLIER_REPORT) {
-        this.outlierReportValidationErrors = {};
+        this.outlierReportValidationErrors.set({});
         return;
       }
       const stored = untracked(() => this.experimentStudioService.algorithmConfigurations()[algorithm.name] ?? {});
@@ -345,7 +350,7 @@ export class AlgorithmPanelComponent {
       const schema = this.visibleConfigSchema();
 
       if (!algorithm) {
-        this.lastBuiltFormSchemaSignature = '';
+        this.builtFormSignature.set('');
         this.eventVarSelection.set(null);
         this.configForm.set(new FormGroup({}));
         this.formInvalid.set(false);
@@ -353,10 +358,10 @@ export class AlgorithmPanelComponent {
       }
 
       const schemaSignature = parameterFormSignature(algorithm.name, this.crossValidationEnabled(), schema);
-      if (schemaSignature === this.lastBuiltFormSchemaSignature) {
+      if (schemaSignature === untracked(this.builtFormSignature)) {
         return;
       }
-      this.lastBuiltFormSchemaSignature = schemaSignature;
+      this.builtFormSignature.set(schemaSignature);
 
       const allConfigs = untracked(() => this.experimentStudioService.algorithmConfigurations());
       const stored = allConfigs?.[algorithm.name] || {};
@@ -378,8 +383,6 @@ export class AlgorithmPanelComponent {
         subscription.unsubscribe();
         statusSub.unsubscribe();
       });
-
-      this.formKey++;
     });
     effect(() => {
       const res = this.experimentStudioService.runResult();
@@ -393,17 +396,12 @@ export class AlgorithmPanelComponent {
       }
     });
 
-    effect(() => {
-      const categories = this.filteredAlgorithmCategories();
-      const selectedName = this.selectedAlgorithm()?.name ?? null;
-      untracked(() => this.syncMatchCategoryOpen(categories, selectedName));
-    });
   }
 
 
   configForm = signal<FormGroup>(new FormGroup({}));
-  formKey = 0;
-  private lastBuiltFormSchemaSignature = '';
+  /** Signature of the built form; cleared so that picking a method always rebuilds it. */
+  private readonly builtFormSignature = signal('');
 
   enrichedConfigSchema = computed(() => {
     const algorithm = this.selectedAlgorithm();
@@ -481,51 +479,40 @@ export class AlgorithmPanelComponent {
     this.algoSearchQuery.set('');
   }
 
+  /** Groups the user opened or closed themselves; these are never changed automatically. */
+  private readonly userToggledCategories = signal<ReadonlySet<string>>(new Set<string>());
+
   /**
-   * Collapsed Matching-method categories. A category missing from this set is open, so
-   * categories coming back after a filter switch keep the state the user left them in.
+   * Collapsed catalog groups. A group missing from this set is open, so groups coming back
+   * after a filter switch keep the state the user left them in. Recomputed from the listed
+   * groups and the selection (see nextCollapsedCategories); a toggle sets it directly.
    */
-  private readonly collapsedMatchCategories = signal<ReadonlySet<string>>(new Set<string>());
-  /** Categories the user opened/closed themselves; these are never changed automatically. */
-  private readonly matchCategoryUserToggles = new Set<string>();
-  private lastMatchSelectionName: string | null | undefined;
+  private readonly collapsedMatchCategories = linkedSignal<
+    { categories: AlgorithmCategory[]; selectedName: string | null },
+    ReadonlySet<string>
+  >({
+    source: () => ({
+      categories: this.filteredAlgorithmCategories(),
+      selectedName: this.selectedAlgorithm()?.name ?? null,
+    }),
+    computation: (source, previous) => nextCollapsedCategories(
+      source.categories,
+      source.selectedName,
+      previous?.source.selectedName !== source.selectedName,
+      previous?.value ?? new Set<string>(),
+      untracked(this.userToggledCategories),
+    ),
+  });
 
   isMatchCategoryOpen(categoryName: string): boolean {
     return !this.collapsedMatchCategories().has(categoryName);
   }
 
   toggleMatchCategory(categoryName: string): void {
-    this.matchCategoryUserToggles.add(categoryName);
+    this.userToggledCategories.update((toggled) => new Set(toggled).add(categoryName));
     const next = new Set(this.collapsedMatchCategories());
-    if (next.has(categoryName)) {
-      next.delete(categoryName);
-    } else {
-      next.add(categoryName);
-    }
+    if (!next.delete(categoryName)) next.add(categoryName);
     this.collapsedMatchCategories.set(next);
-  }
-
-  /**
-   * Default state: a group is open only when it holds the selected method or at least one
-   * runnable method — with nothing runnable in a group it stays collapsed so the catalog
-   * opens straight to what can actually be executed. Beyond that default, the group a new
-   * selection lands in is revealed; groups the user toggled are never changed automatically.
-   */
-  private syncMatchCategoryOpen(
-    categories: Array<{ name: string; algorithms: AlgorithmConfig[] }>,
-    selectedName: string | null,
-  ): void {
-    const selectionChanged = this.lastMatchSelectionName !== selectedName;
-    this.lastMatchSelectionName = selectedName;
-
-    const next = nextCollapsedCategories(
-      categories,
-      selectedName,
-      selectionChanged,
-      this.collapsedMatchCategories(),
-      this.matchCategoryUserToggles,
-    );
-    if (next !== this.collapsedMatchCategories()) this.collapsedMatchCategories.set(next);
   }
 
   algorithmUnavailableReason(algorithm: AlgorithmConfig): string {
@@ -554,7 +541,7 @@ export class AlgorithmPanelComponent {
   readonly experimentInfo = computed((): ExperimentRunInfo => {
     const selected = this.experimentStudioService.selectedAlgorithm();
     const lastRunName =
-      this.experimentStudioService.lastUsedAlgorithm() || this.lastUsedAlgorithm;
+      this.experimentStudioService.lastUsedAlgorithm() || this.lastRunAlgorithm();
 
     const algoName = selected?.name || lastRunName || null;
 
@@ -623,7 +610,7 @@ export class AlgorithmPanelComponent {
     delete configValues['tails'];
     delete configValues['folds'];
     const payload = serializeOutlierRules(
-      this.outlierReportRules,
+      this.outlierReportRules(),
       new Set(this.outlierReportVariables().map((variable) => variable.code))
     );
     return payload ? { ...configValues, ...payload } : configValues;
@@ -640,36 +627,28 @@ export class AlgorithmPanelComponent {
     });
   }
 
+  /** One rule per listed variable: kept, else restored from the stored config, else a default. */
   private reconcileOutlierReportRules(variables: OutlierReportVariable[], stored: Record<string, unknown>): void {
     const allowedCodes = new Set(variables.map((variable) => variable.code));
     const hydrated = hydrateOutlierRules(stored, allowedCodes);
     const hasStoredRules = !!stored && typeof stored === 'object' && Object.keys(stored?.['strategies'] ?? {}).length > 0;
-    const hasExistingRules = Object.keys(this.outlierReportRules).length > 0;
+    const current = untracked(this.outlierReportRules);
+    const enableDefaults = Object.keys(current).length > 0 || !hasStoredRules;
     const next: Record<string, OutlierRule> = {};
 
-    variables.forEach((variable) => {
-      const code = variable.code;
-      next[code] = this.outlierReportRules[code]
-        ? { ...this.outlierReportRules[code] }
-        : hydrated[code]
-          ? { ...hydrated[code] }
-          : createDefaultOutlierRule(code, hasExistingRules || !hasStoredRules);
+    variables.forEach(({ code }) => {
+      const kept = current[code] ?? hydrated[code];
+      next[code] = kept ? { ...kept } : createDefaultOutlierRule(code, enableDefaults);
     });
 
-    this.outlierReportRules = next;
-    this.outlierReportValidationErrors = Object.fromEntries(
-      Object.entries(this.outlierReportValidationErrors).filter(([code]) => allowedCodes.has(code))
-    );
+    this.outlierReportRules.set(next);
+    this.outlierReportValidationErrors.update((errors) =>
+      Object.fromEntries(Object.entries(errors).filter(([code]) => allowedCodes.has(code))));
   }
 
+  /** The variable's rule; a variable without one reads as an enabled default rule. */
   outlierReportRuleFor(variable: OutlierReportVariable): OutlierRule {
-    if (!this.outlierReportRules[variable.code]) {
-      this.outlierReportRules = {
-        ...this.outlierReportRules,
-        [variable.code]: createDefaultOutlierRule(variable.code, true),
-      };
-    }
-    return this.outlierReportRules[variable.code];
+    return this.outlierReportRules()[variable.code] ?? createDefaultOutlierRule(variable.code, true);
   }
 
   outlierVariableLabel(variable: OutlierReportVariable): string {
@@ -677,68 +656,44 @@ export class AlgorithmPanelComponent {
   }
 
   onOutlierReportEnabledChange(variable: OutlierReportVariable, enabled: boolean): void {
-    const existing = this.outlierReportRuleFor(variable);
-    this.outlierReportRules = {
-      ...this.outlierReportRules,
-      [variable.code]: { ...existing, enabled },
-    };
-    this.outlierReportValidationErrors = {
-      ...this.outlierReportValidationErrors,
-      [variable.code]: '',
-    };
-    this.persistOutlierReportConfig();
+    this.patchOutlierRule(variable, { enabled }, () => '');
   }
 
   onOutlierReportStrategyChange(variable: OutlierReportVariable, strategy: OutlierStrategy): void {
-    const existing = this.outlierReportRuleFor(variable);
-    this.outlierReportRules = {
-      ...this.outlierReportRules,
-      [variable.code]: {
-        ...existing,
-        enabled: true,
-        strategy,
-        fold: defaultFoldForStrategy(strategy),
-      },
-    };
-    this.outlierReportValidationErrors = {
-      ...this.outlierReportValidationErrors,
-      [variable.code]: '',
-    };
-    this.persistOutlierReportConfig();
+    this.patchOutlierRule(variable, { enabled: true, strategy, fold: defaultFoldForStrategy(strategy) }, () => '');
   }
 
   onOutlierReportTailChange(variable: OutlierReportVariable, tail: OutlierTail): void {
-    const existing = this.outlierReportRuleFor(variable);
-    this.outlierReportRules = {
-      ...this.outlierReportRules,
-      [variable.code]: { ...existing, enabled: true, tail },
-    };
-    this.persistOutlierReportConfig();
+    this.patchOutlierRule(variable, { enabled: true, tail });
   }
 
   onOutlierReportFoldChange(variable: OutlierReportVariable, rawValue: string | number): void {
-    const existing = this.outlierReportRuleFor(variable);
     const value = String(rawValue ?? '').trim();
     const fold = value === '' ? null : Number(value);
-    this.outlierReportRules = {
-      ...this.outlierReportRules,
-      [variable.code]: {
-        ...existing,
-        enabled: true,
-        fold: typeof fold === 'number' && Number.isFinite(fold) ? fold : null,
-      },
-    };
-    const error = validateOutlierRule(this.outlierReportRules[variable.code]);
-    this.outlierReportValidationErrors = {
-      ...this.outlierReportValidationErrors,
-      [variable.code]: error ?? '',
-    };
+    this.patchOutlierRule(
+      variable,
+      { enabled: true, fold: typeof fold === 'number' && Number.isFinite(fold) ? fold : null },
+      (rule) => validateOutlierRule(rule) ?? '',
+    );
+  }
+
+  /** Applies an edit to one rule, optionally replaces its shown error, and persists the config. */
+  private patchOutlierRule(
+    variable: OutlierReportVariable,
+    patch: Partial<OutlierRule>,
+    errorFor?: (rule: OutlierRule) => string,
+  ): void {
+    const rule = { ...this.outlierReportRuleFor(variable), ...patch };
+    this.outlierReportRules.update((rules) => ({ ...rules, [variable.code]: rule }));
+    if (errorFor) {
+      this.outlierReportValidationErrors.update((errors) => ({ ...errors, [variable.code]: errorFor(rule) }));
+    }
     this.persistOutlierReportConfig();
   }
 
   outlierReportRuleError(variable: OutlierReportVariable): string {
     const rule = this.outlierReportRuleFor(variable);
-    return this.outlierReportValidationErrors[variable.code] || validateOutlierRule(rule) || '';
+    return this.outlierReportValidationErrors()[variable.code] || validateOutlierRule(rule) || '';
   }
 
   private validateOutlierReportConfig(): boolean {
@@ -750,21 +705,27 @@ export class AlgorithmPanelComponent {
       return false;
     }
 
+    // Every listed variable runs with a rule, so the defaults it reads as become real rules.
+    this.outlierReportRules.update((rules) => {
+      const complete = { ...rules };
+      variables.forEach((variable) => { complete[variable.code] ??= createDefaultOutlierRule(variable.code, true); });
+      return complete;
+    });
+
     const errors: Record<string, string> = {};
     variables.forEach((variable) => {
-      const rule = this.outlierReportRuleFor(variable);
-      const error = validateOutlierRule(rule);
+      const error = validateOutlierRule(this.outlierReportRuleFor(variable));
       if (error) errors[variable.code] = error;
     });
 
-    this.outlierReportValidationErrors = errors;
+    this.outlierReportValidationErrors.set(errors);
     if (Object.keys(errors).length > 0) {
       this.errorMsg.set('Fix the outlier report configuration before running.');
       return false;
     }
 
     const serialized = serializeOutlierRules(
-      this.outlierReportRules,
+      this.outlierReportRules(),
       new Set(variables.map((variable) => variable.code))
     );
     if (!serialized) {
@@ -793,7 +754,7 @@ export class AlgorithmPanelComponent {
   readonly tooltipData = signal<AlgorithmConfig | null>(null);
 
   selectAlgorithm(algorithm: AlgorithmConfig) {
-    this.lastBuiltFormSchemaSignature = '';
+    this.builtFormSignature.set('');
     this.eventVarSelection.set(null);
     // Use service method so it enriches configSchema and persists to sessionStorage
     this.experimentStudioService.setAlgorithm(algorithm);
@@ -925,7 +886,7 @@ export class AlgorithmPanelComponent {
         });
         // Save persists this kept run, so the saved experiment is the result shown here.
         this.experimentStudioService.runId.set(res?.uuid ?? null);
-        this.lastUsedAlgorithm = finalAlgorithmName;
+        this.lastRunAlgorithm.set(finalAlgorithmName);
         this.experimentStudioService.lastRunSchema.set(schema);
       },
       error: () => {
@@ -952,7 +913,7 @@ export class AlgorithmPanelComponent {
     const currentFormValues = this.configForm()?.getRawValue?.() ?? {};
     const preservedConfig = { ...(configs[baseName] ?? {}), ...currentFormValues };
 
-    this.crossValidationSelections[baseName] = enabled;
+    this.crossValidationChoices.set(baseName, enabled);
 
     if (!enabled) {
       if (preservedConfig['n_splits'] !== undefined) delete preservedConfig['n_splits'];
@@ -1111,7 +1072,7 @@ export class AlgorithmPanelComponent {
 
     const info = this.experimentInfo();
     const algoKey =
-      this.lastUsedAlgorithm ||
+      this.lastRunAlgorithm() ||
       this.experimentStudioService.lastUsedAlgorithm() ||
       this.experimentStudioService.selectedAlgorithm()?.name ||
       'experiment';
