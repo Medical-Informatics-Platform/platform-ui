@@ -650,7 +650,7 @@ export class DataHandlingComponent implements OnDestroy {
     this.addStep('transformation');
   }
 
-isDraftShown(draft: TransformationColumnDraft): boolean {
+  isDraftShown(draft: TransformationColumnDraft): boolean {
     return this.transformationDraftState.isShown(draft);
   }
 
@@ -1152,11 +1152,11 @@ isDraftShown(draft: TransformationColumnDraft): boolean {
   );
 
   /** Two columns cannot share a name: exaflow errors when `code` already exists. */
-get transformationHasDuplicateCodes(): boolean {
+  get transformationHasDuplicateCodes(): boolean {
     return this.transformationDraftState.hasDuplicateCodes;
   }
 
-get transformationHasPendingChange(): boolean {
+  get transformationHasPendingChange(): boolean {
     return this.transformationDraftState.hasPendingChange;
   }
 
@@ -1196,7 +1196,7 @@ get transformationHasPendingChange(): boolean {
   }
 
   /** True when a named category on any card is still missing an applied filter. */
-get transformationRulesNeedFilters(): boolean {
+  get transformationRulesNeedFilters(): boolean {
     return this.transformationDraftState.rulesNeedFilters;
   }
 
@@ -1307,7 +1307,7 @@ get transformationRulesNeedFilters(): boolean {
     }
   }
 
-isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
+  isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
     return this.preprocessingState.isUsingDefaultMissing(variable.code);
   }
 
@@ -1755,7 +1755,7 @@ isPreprocessingVariableUsingDefault(variable: VariableRow): boolean {
   }
 
   /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
-draftHasNewWork(draft: TransformationColumnDraft): boolean {
+  draftHasNewWork(draft: TransformationColumnDraft): boolean {
     return draftStatusHasNewWork(this.transformationDraftStatus(draft));
   }
 
@@ -1786,7 +1786,7 @@ draftHasNewWork(draft: TransformationColumnDraft): boolean {
   }
 
   /** A new category opens straight onto its filter, with the first condition ready. */
-addTransformationRule(draft: TransformationColumnDraft): void {
+  addTransformationRule(draft: TransformationColumnDraft): void {
     const index = this.transformationDraftState.addRule(draft);
     this.onTransformationChange();
     this.cdr.detectChanges();
@@ -1818,7 +1818,7 @@ addTransformationRule(draft: TransformationColumnDraft): void {
     this.refreshTransformationStatistics();
   }
 
-removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
+  removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
     this.transformationDraftState.removeRule(draft, index);
     this.onTransformationChange();
   }
@@ -2228,7 +2228,7 @@ removeTransformationRule(draft: TransformationColumnDraft, index: number): void 
       .filter((tile): tile is { label: string; missing: number; total: number; share: number } => !!tile);
   }
 
-ruleFor(variable: VariableRow): PreprocessingRule {
+  ruleFor(variable: VariableRow): PreprocessingRule {
     return this.preprocessingState.missingRule(variable.code);
   }
 
@@ -2401,7 +2401,7 @@ ruleFor(variable: VariableRow): PreprocessingRule {
     };
   }
 
-outlierRuleFor(variable: VariableRow): OutlierRule {
+  outlierRuleFor(variable: VariableRow): OutlierRule {
     return this.preprocessingState.outlierRule(variable.code);
   }
 
@@ -2865,7 +2865,7 @@ outlierRuleFor(variable: VariableRow): OutlierRule {
    * default; a pending preview keys on the rules it is showing instead, so the two
    * states cannot reuse each other's response.
    */
-private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
+  private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
     return this.statisticSummary.rawKeyFor(filterOverride);
   }
 
@@ -2974,7 +2974,7 @@ private rawSummaryKeyFor(filterOverride?: BackendFilter | null): string {
   /** Every kind with a summary surface, in pipeline order. */
   readonly summaryKinds: SummaryKind[] = ['source', 'raw', 'processed'];
 
-getSummary(kind: SummaryKind): SummaryView {
+  getSummary(kind: SummaryKind): SummaryView {
     return this.statisticSummary.get(kind);
   }
 
@@ -2987,7 +2987,7 @@ getSummary(kind: SummaryKind): SummaryView {
     });
   }
 
-private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
+  private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
     return this.statisticSummary.fromDescribeResponse(response, this.getSummary(kind), this.preprocessingVariables);
   }
 
@@ -3387,7 +3387,7 @@ private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryV
   }
 
   /** Build the exaflow config for one card, or null when it is not yet complete. */
-buildTransformationConfigForDraft(draft: TransformationColumnDraft): TransformationColumnConfig | null {
+  buildTransformationConfigForDraft(draft: TransformationColumnDraft): TransformationColumnConfig | null {
     return transformationConfigFor(draft);
   }
 
@@ -4108,7 +4108,7 @@ buildTransformationConfigForDraft(draft: TransformationColumnDraft): Transformat
     return JSON.stringify({ enabled, visit1, visit2, strategies });
   }
 
-private hasAppliedPreprocessing(variableCode: string): boolean {
+  private hasAppliedPreprocessing(variableCode: string): boolean {
     return this.preprocessingState.hasAppliedMissing(variableCode);
   }
 
@@ -4118,7 +4118,7 @@ private hasAppliedPreprocessing(variableCode: string): boolean {
     return !!this.appliedLongitudinalStrategies[variableCode];
   }
 
-private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
+  private hasAppliedOutlierPreprocessing(variableCode: string): boolean {
     return this.preprocessingState.hasAppliedOutlier(variableCode);
   }
 
