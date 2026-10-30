@@ -1,0 +1,37 @@
+/* Preprocessing stations of the Data review step: station shell, preview bar,
+   glass feedback cards, the documentation panel, the missing/outlier/longitudinal
+   controls and the preprocessing variable browser.
+   Split from data-handling.component.css to keep every component
+   stylesheet inside the anyComponentStyle budget. Angular concatenates the
+   component's styleUrl array IN ORDER, and this file is the second of three —
+   the order below is the cascade, so do not reorder or move rules across files:
+     1. data-handling.component.css      panel shell + node-pipeline canvas
+     2. data-handling.preprocessing.css  (this file)
+     3. data-handling.results.css        shared controls + result surfaces
+   Shared/one-off overrides that must win over styles.css live in the file that
+   owns the rule's section, never duplicated. */
+
+@import './styles/search-and-empty-states.shared.css';
+
+/* Stations sit in a gapped shell: the preview bar needs no extra bottom margin. */
+.preprocessing-shell .station-preview-bar {
+  margin-bottom: 0;
+}
+
+.empty-state {
+  margin: 12px 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  padding: 24px;
+  background: var(--studio-card-header-bg);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  box-shadow: none;
+  border-radius: var(--radius-lg, 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 160px;
+  justify-content: center;
+}

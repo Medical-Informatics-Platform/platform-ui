@@ -1,0 +1,109 @@
+@let column = draft();
+<section class="column-step">
+  <label class="column-step-head" [attr.for]="'transformation-code-' + column.id">
+    <span class="column-step-number">1</span>Name the new column
+  </label>
+  <div class="transformation-name-row">
+    <input [id]="'transformation-code-' + column.id" class="transformation-code-input" type="text" [ngModel]="column.code" (ngModelChange)="rename($event)" placeholder="e.g. mrs_good_outcome" />
+    @if (drafts.columnNameError(column.id, column.code); as nameError) {
+    <span class="transformation-hint transformation-hint-error">{{ nameError }}</span>
+    } @else {
+    <span class="transformation-hint">Lowercase letters, digits and _ only</span>
+    }
+  </div>
+</section>
+
+<section class="column-step">
+  <div class="column-step-head">
+    <span class="column-step-number">2</span>Add categories, each with a rule
+    <span class="column-step-meta">
+      @if (column.openRuleIndex != null) {
+      Editing category {{ column.openRuleIndex + 1 }} of {{ column.rules.length }}
+      } @else {
+      {{ column.rules.length }} {{ column.rules.length === 1 ? 'category' : 'categories' }} + fallback
+      }
+    </span>
+  </div>
+<!-- Collapsed rows by default. Editing one rule focuses the table on it: the other
+     rows fold away (hidden, never destroyed — each builder stays registered for its rule) and
+     Done brings the whole list back. -->
+<div class="transformation-rules" [class.is-focused]="column.openRuleIndex != null">
+  <div class="transformation-rule-head">
+    <span></span>
+    <span>Value</span>
+    <span>Rule — records that…</span>
+    <span>Records</span>
+    <span></span>
+  </div>
+  <div class="transformation-rules-list">
+    @for (rule of column.rules; track $index; let ruleIndex = $index) {
+    <div class="transformation-rule-row" [class.is-editing]="column.openRuleIndex === ruleIndex">
+      <span class="transformation-rule-number">{{ ruleIndex + 1 }}</span>
+      <input
+        type="text"
+        [ngModel]="rule.value"
+        (ngModelChange)="setCategory(rule, $event)"
+        placeholder="Enumeration value"
+        class="transformation-rule-value input"
+      />
+      <span class="transformation-rule-summary">
+        <span class="transformation-rule-sentence" [class.is-empty]="!rule.filter">{{ dh.transformationRuleSummary(rule) }}</span>
+        @if (column.openRuleIndex !== ruleIndex) {
+        <button type="button" class="transformation-rule-edit-link"
+                (click)="dh.toggleTransformationRule(column, ruleIndex)">
+          <i class="fas" [class.fa-pen]="rule.filter" [class.fa-plus]="!rule.filter" aria-hidden="true"></i>
+          {{ rule.filter ? 'Edit rule' : 'Set rule' }}
+        </button>
+        }
+      </span>
+      <span class="transformation-rule-record-count">{{ stats.count(column, rule.value) }}</span>
+      <button type="button" class="transformation-rule-remove" title="Remove category"
+              (click)="dh.removeTransformationRule(column, ruleIndex)">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+      <div class="transformation-rule-editor" [class.is-open]="column.openRuleIndex === ruleIndex">
+        <p class="transformation-rule-editor-lead">
+          Records that match get
+          <strong>{{ rule.value.trim() || 'this category' }}</strong>@if (ruleIndex > 0) {, unless an earlier category already took them}.
+        </p>
+        <app-filter-config-modal
+          [ruleBuilderFor]="rule"
+          variableScope="selectedVariables"
+          [filterLogic]="rule.filter"
+        ></app-filter-config-modal>
+        <div class="transformation-rule-editor-foot">
+          <button type="button" class="transformation-rule-done"
+                  (click)="dh.finishTransformationRule(column, ruleIndex)">
+            <i class="fas fa-check" aria-hidden="true"></i>
+            Done
+          </button>
+          <span>Saves this rule and returns to all categories.</span>
+        </div>
+      </div>
+    </div>
+    }
+    <!-- Ghost row: the next category slots in above the fallback. -->
+    <button type="button" class="transformation-add-category" (click)="dh.addTransformationRule(column)">
+      <i class="fas fa-plus" aria-hidden="true"></i>
+      <span>{{ column.rules.length ? 'Add category' : 'Add the first category, then define the rule that selects its records' }}</span>
+    </button>
+    <div class="transformation-rule-row transformation-rule-fallback">
+      <span class="transformation-rule-number">↳</span>
+      <input
+        type="text"
+        [ngModel]="column.defaultEnumeration"
+        (ngModelChange)="setFallback($event)"
+        placeholder="unknown"
+        class="transformation-rule-value input"
+      />
+      <span class="transformation-rule-summary">Otherwise — records that match no rule</span>
+      <span class="transformation-rule-record-count">{{ stats.count(column, column.defaultEnumeration) }}</span>
+      <span></span>
+    </div>
+  </div>
+  <p class="transformation-rules-foot">
+    Rules are checked top to bottom; the first match wins ·
+    {{ column.defaultEnumeration ? 'the fallback covers every other record' : 'records matching no rule get no value' }}
+  </p>
+</div>
+</section>

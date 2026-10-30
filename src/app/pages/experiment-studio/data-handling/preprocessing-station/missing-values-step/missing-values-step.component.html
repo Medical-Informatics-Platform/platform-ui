@@ -1,0 +1,202 @@
+<aside
+  app-prep-variable-rail
+  class="statistics-browser preprocessing-browser"
+  aria-label="Preprocessing variables"
+  step="missing"
+  heading="Variables · action"
+  searchLabel="Search preprocessing variables"
+  searchId="preprocessing-search"
+  emptyHint="Clear the search field to show selected variables.">
+  <div class="batch-menu">
+    <button
+      type="button"
+      class="studio-export-btn batch-menu-trigger"
+      [attr.aria-expanded]="dh.batchMenuOpen() === 'missing'"
+      (click)="dh.toggleBatchMenu('missing')">
+      <i class="fas fa-bolt" aria-hidden="true"></i>
+      Set all
+    </button>
+    @if (dh.batchMenuOpen() === 'missing') {
+    <div class="batch-menu-list" role="menu">
+      <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('mean')">Set all numerical to Mean imputation</button>
+      <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('median')">Set all numerical to Median imputation</button>
+      <button type="button" role="menuitem" (click)="dh.applyBatchMissingStrategy('drop')">Reset all to Remove rows (Drop NaN)</button>
+    </div>
+    }
+  </div>
+  <ng-template prepRailSlot="lead" let-variable>
+    @if (dh.coverageFor(variable); as coverage) {
+    <small class="preprocessing-variable-coverage" [attr.data-severity]="dh.coverageSeverity(coverage)" [title]="dh.coverageTitle(coverage)">{{ dh.coveragePercent(coverage) }}</small>
+    }
+  </ng-template>
+  <ng-template prepRailSlot="action" let-variable>
+    <span class="prep-rail-action" [attr.data-state]="dh.prepVariableHasPendingChange('missing', variable) ? 'pending' : 'set'">
+      {{ dh.missingStrategyLabel(dh.ruleFor(variable).action) }}{{ dh.ruleFor(variable).action === 'drop' && dh.prepVariableStateLabel('missing', variable) === 'Default' ? ' · default' : '' }}{{ dh.prepVariableHasPendingChange('missing', variable) ? ' · not applied' : '' }}
+    </span>
+  </ng-template>
+</aside>
+
+<div class="statistics-panel preprocessing-detail-panel">
+  @if (dh.selectedPrepVariable('missing'); as variable) {
+  @let rule = dh.ruleFor(variable);
+  @let state = dh.prepVariableStateLabel('missing', variable);
+  <div class="statistics-panel-header">
+    <div>
+      <span class="statistics-panel-kicker">{{ dh.variableTypeLabel(variable) }} variable</span>
+      <h4>{{ dh.variableLabel(variable) }} @if (variable.code) {<code class="statistics-panel-code">{{ variable.code }}</code>}</h4>
+    </div>
+    @if (dh.coverageFor(variable); as headerCoverage) {
+    <span class="preprocessing-header-coverage">{{ headerCoverage.missing.toLocaleString() }} of {{ headerCoverage.total.toLocaleString() }} values missing</span>
+    }
+    <span
+      class="preprocessing-state-chip"
+      [class.state-pending]="dh.prepVariableHasPendingChange('missing', variable)"
+      [class.state-applied]="state === 'Applied'"
+      [class.state-default]="state === 'Default'"
+    >
+      {{ state }}
+    </span>
+  </div>
+
+  <div class="preprocessing-detail-section">
+    <div class="preprocessing-detail-heading">
+      <i class="fa fa-wrench" aria-hidden="true"></i>
+      <span>Missing value handling</span>
+    </div>
+    <fieldset class="missing-choice-grid">
+      <legend class="preprocessing-evidence-title">What to do with missing values</legend>
+      @for (action of dh.missingActions; track action.value) {
+      <label class="missing-choice" [class.is-selected]="rule.action === action.value"
+             [class.is-disabled]="dh.isMissingActionDisabled(variable, action.value)">
+        <input type="radio" [name]="'missing-' + variable.code" [value]="action.value"
+               [checked]="rule.action === action.value"
+               [disabled]="dh.isMissingActionDisabled(variable, action.value)"
+               (change)="dh.onMissingActionChange(variable, action.value)" />
+        <span class="missing-choice-label">{{ action.label }}</span>
+        <span class="missing-choice-effect">{{ dh.missingActionEffect(variable, action.value) }}</span>
+      </label>
+      }
+    </fieldset>
+    @if (rule.action === 'constant') {
+      <label class="preprocessing-control">
+        <span>Fill with</span>
+        @if (dh.isCategoricalVariable(variable) && dh.enumOptions(variable).length > 0) {
+        <select class="table-select" [ngModel]="rule.value" (ngModelChange)="dh.onMissingValueChange(variable, $event)">
+          <option value="">Select category</option>
+          @for (option of dh.enumOptions(variable); track option.code) {
+          <option [ngValue]="option.code">{{ option.label }}</option>
+          }
+        </select>
+        } @else {
+        <input class="table-input" type="text" [ngModel]="rule.value" (ngModelChange)="dh.onMissingValueChange(variable, $event)" placeholder="Value" />
+        }
+      </label>
+      }
+    @if (dh.preprocessingValidationErrors[variable.code]) {
+    <div class="row-error">{{ dh.preprocessingValidationErrors[variable.code] }}</div>
+    }
+  </div>
+
+  @if (dh.coverageFor(variable); as coverage) {
+  <aside class="preprocessing-evidence" [attr.data-severity]="dh.coverageSeverity(coverage)">
+    <div class="preprocessing-evidence-group">
+      <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+      @if (dh.coverageByDataset(variable).length) {
+      <div class="coverage-tiles">
+        @for (tile of dh.coverageByDataset(variable); track tile.label) {
+        <div class="coverage-tile">
+          <div class="coverage-tile-head">
+            <strong>{{ tile.label }}</strong>
+            <span>{{ tile.missing.toLocaleString() }} of {{ tile.total.toLocaleString() }}</span>
+          </div>
+          <span
+            class="preprocessing-meter"
+            role="img"
+            [attr.aria-label]="tile.missing + ' of ' + tile.total + ' values missing (' + dh.coveragePercent(tile) + ')'"
+          >
+            <span class="preprocessing-meter-fill" [style.width.%]="dh.barWidth(tile.share, 800)"></span>
+          </span>
+          <div class="coverage-tile-head">
+            <span>{{ dh.coveragePercent(tile) }} missing</span>
+          </div>
+        </div>
+        }
+      </div>
+      } @else {
+      <dl class="preprocessing-stat-grid">
+        <div class="preprocessing-stat">
+          <dt>Total rows</dt>
+          <dd>{{ coverage.total.toLocaleString() }}</dd>
+        </div>
+        <div class="preprocessing-stat">
+          <dt>Missing</dt>
+          <dd>{{ coverage.missing.toLocaleString() }}</dd>
+        </div>
+        <div class="preprocessing-stat">
+          <dt>Share missing</dt>
+          <dd>{{ dh.coveragePercent(coverage) }}</dd>
+        </div>
+      </dl>
+      <span
+        class="preprocessing-meter"
+        role="img"
+        [attr.aria-label]="coverage.missing + ' of ' + coverage.total + ' values missing (' + dh.coveragePercent(coverage) + ')'"
+      >
+        <span class="preprocessing-meter-fill" [style.width.%]="coverage.share * 100"></span>
+      </span>
+      }
+    </div>
+
+    @let distribution = dh.distributionFor(variable);
+    @if (distribution.length) {
+    <div class="preprocessing-evidence-group">
+      <h5 class="preprocessing-evidence-title">Distribution</h5>
+      <dl class="preprocessing-stat-strip">
+        @for (point of distribution; track point.label) {
+        <div class="preprocessing-stat">
+          <dt>{{ point.label }}</dt>
+          <dd>{{ point.value }}</dd>
+        </div>
+        }
+      </dl>
+    </div>
+    }
+
+    @let categories = dh.categoryCountsFor(variable);
+    @if (categories.length) {
+    <div class="preprocessing-evidence-group preprocessing-evidence-wide">
+      <h5 class="preprocessing-evidence-title">Category frequencies</h5>
+      <ul class="preprocessing-frequency-list">
+        @for (category of categories; track category.label) {
+        <li class="preprocessing-frequency">
+          <span class="preprocessing-frequency-label">{{ category.label }}</span>
+          <span class="preprocessing-frequency-track">
+            <span class="preprocessing-frequency-bar" [style.width.%]="category.share * 100"></span>
+          </span>
+          <span class="preprocessing-frequency-value">{{ category.value }}</span>
+        </li>
+        }
+      </ul>
+    </div>
+    }
+  </aside>
+  } @else {
+  <!-- The evidence slot is what makes this card read as a decision
+       rather than a bare select. When statistics are unavailable it
+       has to say so — blank space reads as a broken card. -->
+  <aside class="preprocessing-evidence" data-severity="none">
+    <div class="preprocessing-evidence-group">
+      <h5 class="preprocessing-evidence-title">Dataset coverage</h5>
+      <p class="preprocessing-consequence">{{ dh.summaryUnavailableNote() }}</p>
+    </div>
+  </aside>
+  }
+
+  } @else {
+  <div class="empty-state-block compact-empty">
+    <i class="fa fa-search"></i>
+    <p>No variables match the current search.</p>
+    <span>Clear the search field to choose a preprocessing variable.</span>
+  </div>
+  }
+</div>

@@ -1,0 +1,108 @@
+/* The transformation step's slice of the Data Handling stylesheets, in the panel's
+   cascade order. Shared chrome and controls come from ../styles/. */
+
+@import '../styles/pipeline-node.shared.css';
+@import '../styles/search-and-empty-states.shared.css';
+@import '../styles/tables.shared.css';
+@import '../styles/transformation-rules.shared.css';
+
+/* The panel's 1px icon nudge (`.stats-panel-shell i`), repeated for this template. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* The panel's `.pipeline-node .workflow-section-body`, for this step's bodies. */
+:host(.pipeline-node) .workflow-section-body {
+  padding-inline: 16px;
+}
+
+/* ===== TRANSFORMATION: CREATE CATEGORICAL COLUMN =====
+   Chrome comes from app-station-card / app-station-list-row / app-station-action-bar;
+   only the field and table styling is local. */
+.transformation-create {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The K-means card previewing its counts hides its report without destroying it. */
+app-kmeans-cluster-source.is-previewing {
+  display: none;
+}
+
+/* Derived columns as a vertical graph: cards joined by the pipeline connector, ending
+   in the type chooser. The connector sits shorter here than between stages. */
+.transformation-graph > .pipeline-connector {
+  height: 28px;
+}
+
+/* Statistics preview: the card owns the frame, the table owns the rows.
+   A K-means column reuses the categorical rule rows instead of that table. */
+.transformation-statistics {
+  display: grid;
+  gap: 12px;
+}
+
+.transformation-count-chart {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(43, 51, 233, 0.1);
+  border-radius: 8px;
+  padding: 8px 12px 4px;
+  box-sizing: border-box;
+}
+
+.transformation-stats-title {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.transformation-stats-lead {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.transformation-rule-value--fixed {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  border-color: transparent;
+  background: transparent;
+  padding-left: 0;
+  font-weight: 600;
+}
+
+.transformation-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(43, 51, 233, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.transformation-stats-table th,
+.transformation-stats-table td {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+  font-variant-numeric: tabular-nums;
+}
+
+.transformation-stats-table th {
+  font-weight: 700;
+  color: var(--text-main);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.transformation-stats-table tr:last-child td {
+  border-bottom: none;
+}
+
+.transformation-stats-table td {
+  color: var(--chart-label-color);
+}

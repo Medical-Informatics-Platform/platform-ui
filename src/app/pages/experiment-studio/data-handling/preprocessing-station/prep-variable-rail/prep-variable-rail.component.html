@@ -1,0 +1,43 @@
+@let kind = step();
+@let groups = dh.prepGroups(kind);
+<div class="statistics-browser-header">
+  <span>{{ heading() }}</span>
+  <small>{{ dh.filteredPrepVariables(kind).length }} shown</small>
+  <ng-content select=".batch-menu" />
+</div>
+<div class="search-inline chart-search">
+  <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+  <input [attr.id]="searchId()" class="preprocessing-search" type="search" placeholder="Search variables..." [attr.aria-label]="searchLabel()" [(ngModel)]="dh.prepSearch[kind]" />
+</div>
+
+@for (group of groups; track group.key) {
+<div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="groupStates() ? group.key : null">
+  <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+  @for (variable of group.variables; track variable.code) {
+  @let state = dh.prepVariableStateLabel(kind, variable);
+  <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="dh.isPrepVariableSelected(kind, variable)" (click)="dh.selectPrepVariable(kind, variable)">
+    <span>{{ dh.variableLabel(variable) }}</span>
+    <span class="statistics-variable-meta">
+      <ng-container [ngTemplateOutlet]="slot()('lead')" [ngTemplateOutletContext]="{ $implicit: variable }" />
+      <span
+        class="preprocessing-state-mini"
+        [class.state-pending]="dh.prepVariableHasPendingChange(kind, variable)"
+        [class.state-applied]="state === 'Applied'"
+        [class.state-default]="state === 'Default'"
+      >
+        {{ state }}
+      </span>
+      <ng-container [ngTemplateOutlet]="slot()('trail')" [ngTemplateOutletContext]="{ $implicit: variable }" />
+    </span>
+    <ng-container [ngTemplateOutlet]="slot()('action')" [ngTemplateOutletContext]="{ $implicit: variable }" />
+  </button>
+  }
+</div>
+}
+@if (groups.length === 0) {
+<div class="empty-state-block compact-empty">
+  <i class="fa fa-search"></i>
+  <p>No variables match the current search.</p>
+  <span>{{ emptyHint() }}</span>
+</div>
+}

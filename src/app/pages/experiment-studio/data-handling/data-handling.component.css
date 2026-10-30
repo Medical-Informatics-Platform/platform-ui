@@ -1,0 +1,137 @@
+@import './styles/statistics-panel.shared.css';
+@import './styles/pipeline-node.shared.css';
+
+.pipeline-node {
+  scroll-margin-top: calc(
+    var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
+  );
+}
+
+.stats-panel-shell {
+  --panel-success-bg: #dfefe4;
+  --panel-success-text: #166534;
+  --panel-warning-text: color-mix(in srgb, var(--primary-color) 70%, var(--accent-color) 30%);
+
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  font-family: inherit;
+}
+
+.modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.stats-panel-shell i {
+  transform: translateY(1px);
+}
+
+/* =========================================================================
+   VERTICAL NODE-PIPELINE CANVAS
+   ========================================================================= */
+
+/* Width is explicit on purpose: `margin: 0 auto` opts this flex item out of the
+   cross-axis stretch it would otherwise get, so an auto width resolves to
+   max-content — the widest open section then set the width of every station
+   card (the summary table made the whole rail ~120px wider than Filtering).
+   One capped width keeps Filtering, both summaries and Preprocessing on the
+   same two edges. */
+.pipeline-canvas-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, var(--studio-step-max, 1160px));
+  max-width: 100%;
+  margin: 0 auto;
+  gap: 0;
+}
+
+/* Every step renders as a solid card; one that adds nothing to the next run says so
+   in its status chip. A collapsed step (`is-compact`) shows only its overview rail,
+   so it reads as a compact flowchart at `--studio-pipeline-overview-max`. An open
+   step re-expands to the full rail width, which is what the QueryBuilder, summary
+   tables and charts need. `align-self` opts the row out of the shell's cross-axis
+   stretch. The terminal card (pipeline-terminal) repeats the cap on its host. */
+.pipeline-node.is-compact {
+  align-self: center;
+  width: 100%;
+  max-width: var(--studio-pipeline-overview-max, 860px);
+}
+
+/* The header titles the whole rail rather than one step, so it is not a card:
+   one hairline under the title, no frame or shadow, and the stage chips sit on
+   that line instead of in a badge box. */
+.pipeline-canvas-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  margin-bottom: 18px;
+  padding: 4px 2px 18px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--studio-card-header-border);
+  border-radius: 0;
+  box-shadow: none;
+  gap: 16px;
+}
+
+.pipeline-header-title-group h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0 0 4px 0;
+  letter-spacing: 0;
+}
+
+.pipeline-header-title-group p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+/* Pipeline Node Card */
+.pipeline-node {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--studio-card-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--studio-card-shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+/* Step 0 is permanent, so it borrows the compact width of the collapsed rows
+   rather than the full rail; only its snapshot needs the wide pivot table, and
+   widening then keeps the card and the table on the same two edges. */
+.pipeline-node.is-readonly {
+  align-self: center;
+  width: 100%;
+  max-width: var(--studio-pipeline-overview-max, 860px);
+}
+
+.pipeline-node.is-readonly.is-active {
+  align-self: stretch;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .pipeline-canvas-header {
+    flex-wrap: wrap;
+  }
+}
+
+/* Inside a pipeline node the station card draws its own frame; without an inset
+   it sat flush on the node border and the two 1px lines vibrated as one. */
+.pipeline-node .workflow-section-body {
+  padding-inline: 16px;
+}
