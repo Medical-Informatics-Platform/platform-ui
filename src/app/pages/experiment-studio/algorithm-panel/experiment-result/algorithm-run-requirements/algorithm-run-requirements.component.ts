@@ -23,15 +23,11 @@ export class AlgorithmRunRequirementsComponent {
     }
     // Availability issues are fixed on the setup board, which stays on screen above.
     this.substep.set('setup');
-    requestAnimationFrame(() =>
-      scrollStudioTargetIntoView(document.querySelector<HTMLElement>('[data-guide="guide-role-assignment"]'), true)
-    );
+    requestAnimationFrame(() => {
+      // `scroll-margin-top` on the target clears the sticky chrome.
+      const target = document.querySelector<HTMLElement>('[data-guide="guide-role-assignment"]');
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      target?.focus({ preventScroll: true });
+    });
   }
-}
-
-/** Scrolls a studio anchor; `scroll-margin-top` on the target clears sticky chrome. */
-function scrollStudioTargetIntoView(target: HTMLElement | null, focus = false): void {
-  if (!target) return;
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (focus) target.focus({ preventScroll: true });
 }

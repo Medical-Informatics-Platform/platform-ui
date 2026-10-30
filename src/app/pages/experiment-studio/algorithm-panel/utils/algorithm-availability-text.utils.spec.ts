@@ -1,6 +1,5 @@
 import { AlgorithmAvailabilityDetail } from '../../../../models/algorithm-definition.model';
 import {
-  availabilityRequirementText,
   formatAvailabilityMessage,
   needsRequirementText,
 } from './algorithm-availability-text.utils';
@@ -32,19 +31,6 @@ describe('algorithm availability text', () => {
     expect(needsRequirementText(detail({ role: 'x', minCount: 2, types: ['nominal'] }))).toBe('At least 2 categorical predictors');
     expect(needsRequirementText(detail({ role: 'x', minCount: 0, maxCount: 3 }))).toBe('Up to 3 predictor');
     expect(needsRequirementText(detail({ role: 'x', minCount: 0, maxCount: null }))).toBe('Predictors optional');
-  });
-
-  it('lists count, selection and display types in tooltip requirements', () => {
-    expect(availabilityRequirementText(detail({ minCount: 1, maxCount: 1, selectedCount: 0, types: ['text', 'integer', 'text'] })))
-      .toBe('Outcome: exactly 1, selected 0 • type: nominal, int');
-    expect(availabilityRequirementText(detail({ types: [] }))).toBe('Outcome: exactly 1, selected 0');
-  });
-
-  it('displays text availability types as nominal in requirement tips', () => {
-    const text = availabilityRequirementText(detail({ role: 'x', minCount: 1, maxCount: null, selectedCount: 1, types: ['real', 'int', 'text'] }));
-
-    expect(text).toContain('type: real, int, nominal');
-    expect(text).not.toContain('text');
   });
 
   it('rewrites backend type lists in availability messages', () => {

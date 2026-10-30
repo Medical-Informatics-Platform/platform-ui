@@ -6,8 +6,8 @@ import { countAlgorithms, filterAlgorithmCategories, nextCollapsedCategories } f
 import { AlgorithmCategory } from '../algorithm-panel.models';
 
 /**
- * The method catalog: search text, the Runnable/All filter, which groups are open, the
- * availability tooltip, and why a method is unavailable. Provided by the algorithm panel.
+ * The method catalog: search text, the Runnable/All filter, which groups are open, and why
+ * a method is unavailable. Provided by the algorithm panel.
  */
 @Injectable()
 export class AlgorithmCatalogService {
@@ -54,10 +54,6 @@ export class AlgorithmCatalogService {
     ),
   });
 
-  readonly tooltipVisible = signal(false);
-  readonly tooltipPosition = signal({ x: 0, y: 0 });
-  readonly tooltipData = signal<AlgorithmConfig | null>(null);
-
   /** The selected method cannot run with the current roles and datasets. */
   readonly selectedAlgorithmUnavailable = computed(() => {
     const algorithm = this.studio.selectedAlgorithm();
@@ -100,9 +96,5 @@ export class AlgorithmCatalogService {
       : (algorithm.availability?.details ?? []);
     const first = details.find((detail) => detail.messages.length > 0);
     return first ? formatAvailabilityMessage(first.messages[0]) : 'Unavailable';
-  }
-
-  hideTooltip(): void {
-    this.tooltipVisible.set(false);
   }
 }

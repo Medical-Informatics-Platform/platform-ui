@@ -230,23 +230,18 @@ export class AlgorithmRunService {
       return;
     }
 
-    const algo = this.studio.selectedAlgorithm();
-    this.errorMsg.set(null);
-    this.errorService.clearError();
+    const algo = this.selectedAlgorithm();
+    if (!algo) {
+      this.errorMsg.set('Please choose an algorithm before running.');
+      return;
+    }
+
     this.studio.runStatusText.set('Processing experiment...');
     this.studio.hasRunStarted.set(true);
     this.studio.runError.set(null);
     this.studio.runResult.set(null);
     this.studio.runId.set(null);
     this.studio.setRunning(true);
-
-    if (!algo) {
-      console.error('No algorithm selected in service.');
-      this.errorMsg.set('Please choose an algorithm before running.');
-      this.studio.setRunning(false);
-      this.studio.hasRunStarted.set(false);
-      return;
-    }
 
     const outlierReportError = this.configForm.validateOutlierReportForRun();
     if (outlierReportError) {
@@ -263,7 +258,6 @@ export class AlgorithmRunService {
     } = resolveRunAlgorithmNames(algo.name, this.configForm.crossValidationEnabled(), this.studio);
 
     this.studio.lastUsedAlgorithm.set(finalAlgorithmName);
-    this.errorMsg.set(null);
 
     const configValues = this.configForm.runParameterValues();
     if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {

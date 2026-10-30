@@ -1,4 +1,3 @@
-import { formatInputCountRange } from '../../../../core/algorithm-input-counts';
 import { VariableTypes } from '../../../../core/constants/algorithm.constants';
 import { AlgorithmAvailabilityDetail } from '../../../../models/algorithm-definition.model';
 
@@ -73,17 +72,6 @@ function requirementDisplayTypes(types: unknown): string[] | null {
     .filter((type): type is string => !!type);
   const unique = Array.from(new Set(normalized));
   return unique.length ? unique : null;
-}
-
-/** One requirement line of the availability tooltip, e.g. "Outcome: 1, selected 0 • type: real". */
-export function availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
-  const count = formatInputCountRange(detail.minCount, detail.maxCount);
-  const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
-  const types = requirementDisplayTypes(detail.types);
-  if (types) {
-    parts.push('type: ' + types.join(', '));
-  }
-  return parts.join(' • ');
 }
 
 /** Rewrites the type list of "Outcome/Predictor type must be one of …." with display type names. */

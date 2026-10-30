@@ -256,7 +256,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(details?.querySelector('.documentation-content')?.textContent).toContain('Line one.');
   });
 
-  it('shows disabled algorithm availability reasons on the card and in the tooltip', async () => {
+  it('shows disabled algorithm availability reasons on the card', async () => {
     const disabledAlgorithm: AlgorithmConfig = {
       ...algorithm,
       name: 'needs_two_variables',
@@ -293,21 +293,10 @@ describe('AlgorithmPanelComponent', () => {
     ((fixture.nativeElement as HTMLElement).querySelector('.algorithm-match-cat') as HTMLButtonElement).click();
     fixture.detectChanges();
 
-    catalog().tooltipVisible.set(true);
-    catalog().tooltipData.set(disabledAlgorithm);
-    fixture.detectChanges();
-
     const nativeElement = fixture.nativeElement as HTMLElement;
     const algorithmItem = nativeElement.querySelector('.algo-tile') as HTMLElement;
     expect(algorithmItem.textContent).toContain('Needs Two Variables');
     expect(algorithmItem.querySelector('.algo-why')?.textContent).toContain('Outcome needs at least 2, selected 1.');
-    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome needs at least 2, selected 1.');
-    expect(nativeElement.textContent).toContain('Availability');
-    expect(nativeElement.textContent).toContain('Outcome: 2-3, selected 1');
-    expect(nativeElement.textContent).toContain('type: real');
-    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome type must be one of real.');
-    expect(nativeElement.textContent).not.toContain('type: nominal');
-    expect(nativeElement.textContent).not.toContain('stattypes: nominal');
   });
 
   it('shows type availability reasons on algorithm cards', async () => {

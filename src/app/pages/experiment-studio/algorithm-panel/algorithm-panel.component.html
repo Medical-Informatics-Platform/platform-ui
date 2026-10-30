@@ -4,11 +4,6 @@
 <section app-algorithm-selection class="algorithm-roles-board algorithm-studio-card" aria-label="Algorithm selection workspace">
   <div app-experiment-result class="algorithm-run-bar" role="status"></div>
 </section>
-
-@if (catalog.tooltipVisible()) {
-<div app-algorithm-availability-tooltip class="tooltip" [algorithm]="catalog.tooltipData()" [style.top.px]="catalog.tooltipPosition().y" [style.left.px]="catalog.tooltipPosition().x">
-</div>
-}
 } @else {
 <section class="algorithm-panel-empty" aria-label="Algorithm configuration placeholder">
   <h5 class="algorithm-panel-empty__title">Select variables first</h5>
