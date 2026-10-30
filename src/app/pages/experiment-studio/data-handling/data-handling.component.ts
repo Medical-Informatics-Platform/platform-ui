@@ -22,8 +22,6 @@ import {
   HISTOGRAM_SPLIT_NONE,
   HistogramSplitOption,
   buildHistogramSplitOptions,
-  buildStackedHistogramSeries,
-  extractHistogramItems,
   histogramCacheKey,
 } from '../visualisations/histogram/histogram-data';
 import { PdfExportService } from '../../../services/pdf-export.service';
@@ -42,7 +40,7 @@ import { emptySummaryView, selectionKey, statisticBlockKey } from './utils/summa
 import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
 import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
 import { StatisticSummaryService } from './statistic-summary.service';
-import { categoryCounts, enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
+import { enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { kmeansCreatorClusterChoices, kmeansCreatorVariables } from '../../../core/kmeans-cluster-source.utils';
@@ -106,6 +104,12 @@ import {
   DescriptiveProgressState,
 } from './data-handling.models';
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
+import {
+  HistogramPreviewVariable,
+  histogramFromDescribeCounts,
+  parseHistogramResponse,
+  withDefaultDropFor,
+} from './utils/histogram-preview.utils';
 import { CREATOR_CHOOSER_COPY, firstFilterCondition, transformationConfigFor } from './utils/transformation-draft.utils';
 import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
 import { TransformationStatisticsService } from './transformation-station/transformation-statistics.service';
@@ -2822,7 +2826,7 @@ export class DataHandlingComponent implements OnDestroy {
     if (summary.histogramDataByVariable[cacheKey]) return;
 
     if (!split) {
-      const fromDescribe = this.buildHistogramFromDescribeCounts(kind, code, block);
+      const fromDescribe = histogramFromDescribeCounts(summary.featurewiseRows, code, this.histogramVariable(kind, block));
       if (fromDescribe) {
         summary.histogramDataByVariable = {
           ...summary.histogramDataByVariable,
@@ -2880,7 +2884,17 @@ export class DataHandlingComponent implements OnDestroy {
         next: (response) => {
           const nextSummary = this.getSummary(kind);
           if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
-          const parsed = this.parseHistogramResponse(response, code, block, kind, split);
+          const parsed = parseHistogramResponse({
+            response,
+            code,
+            variable: this.histogramVariable(kind, block),
+            kind,
+            groupingCode: split,
+            groupLabel: (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+            datasets: this.expStudioService.selectedDatasets(),
+            splitLabel: (groupingCode) =>
+              this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode,
+          });
           if (parsed.data) {
             nextSummary.histogramDataByVariable = {
               ...nextSummary.histogramDataByVariable,
@@ -2939,24 +2953,9 @@ export class DataHandlingComponent implements OnDestroy {
         this.pendingPreprocessingRules,
         this.currentPreprocessingCodeSet(),
       );
-      return this.withDefaultDropFor(pending, code);
+      return withDefaultDropFor(pending, code);
     }
-    return this.withDefaultDropFor(null, code);
-  }
-
-  /** Add `drop` for `code` unless the config already carries a strategy for it. */
-  private withDefaultDropFor(
-    preprocessing: PreprocessingConfig | null,
-    code: string
-  ): PreprocessingConfig {
-    const config: PreprocessingConfig = { ...(preprocessing ?? {}) };
-    const handler = { ...((config['missing_values_handler'] as Record<string, unknown>) ?? {}) };
-    const strategies = { ...((handler['strategies'] as Record<string, unknown>) ?? {}) };
-    if (strategies[code]) return config;
-    strategies[code] = 'drop';
-    handler['strategies'] = strategies;
-    config['missing_values_handler'] = handler;
-    return config;
+    return withDefaultDropFor(null, code);
   }
 
   private clearProcessedPreviewSubscription(): void {
@@ -2974,121 +2973,12 @@ export class DataHandlingComponent implements OnDestroy {
     summary.histogramSubscriptionsByVariable = {};
   }
 
-  private buildHistogramFromDescribeCounts(
-    kind: SummaryKind,
-    code: string,
-    block: PivotBlock
-  ): HistogramPreviewData | null {
-    const featurewise = this.getSummary(kind).featurewiseRows;
-    const row = featurewise.find((item) => item?.variable === code && String(item?.dataset ?? '') === 'all datasets')
-      ?? featurewise.find((item) => item?.variable === code);
-    const counts = categoryCounts(row?.data);
-    if (!Object.keys(counts).length) {
-      return null;
-    }
-
-    const variable = this.statisticBlockVariable(block);
-    const binCodes = Object.keys(counts);
-    const binsWithLabels = this.mapBinsToEnumLabels(binCodes, variable?.enumerations);
-    const mappedCounts = binCodes.map((key) => {
-      const value = counts[key];
-      return typeof value === 'number' && Number.isFinite(value) ? value : null;
-    });
-    if (!mappedCounts.some((count) => count !== null && count > 0)) {
-      return null;
-    }
-
+  /** The plotted variable as a histogram preview describes it. */
+  private histogramVariable(kind: SummaryKind, block: PivotBlock): HistogramPreviewVariable {
     return {
-      bins: binsWithLabels.map((bin) => String(bin)),
-      counts: mappedCounts,
-      variableName: block.name,
-      variableType: this.statisticBlockType(kind, block),
-    };
-  }
-
-  private extractTransientHistogramError(response: unknown, payload: unknown): string | null {
-    const candidates: unknown[] = [payload, response];
-    if (response && typeof response === 'object' && 'result' in (response as object)) {
-      candidates.push((response as { result?: unknown }).result);
-    }
-
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        return candidate.trim();
-      }
-      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-        continue;
-      }
-      const record = candidate as Record<string, unknown>;
-      const data = record['data'];
-      if (typeof data === 'string' && data.trim()) {
-        return data.trim();
-      }
-      const message = record['message'];
-      if (typeof message === 'string' && message.trim()) {
-        return message.trim();
-      }
-    }
-
-    return null;
-  }
-
-  private parseHistogramResponse(
-    response: unknown,
-    code: string,
-    block: PivotBlock,
-    kind: SummaryKind,
-    groupingCode: string | null = null
-  ): { data: HistogramPreviewData | null; error: string } {
-    if (!response) {
-      return { data: null, error: 'Failed to load histogram preview.' };
-    }
-
-    const payload = (response as { result?: unknown })?.result ?? response;
-    const histList = extractHistogramItems(response);
-    const stacked = buildStackedHistogramSeries(
-      histList,
-      code,
-      groupingCode,
-      (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
-      this.expStudioService.selectedDatasets()
-    );
-    if (!stacked) {
-      const backendError = this.extractTransientHistogramError(response, payload);
-      if (backendError) {
-        return { data: null, error: backendError };
-      }
-      const fallback = kind === 'processed'
-        ? 'No histogram data available for this variable after preprocessing. The federated histogram preview returned no bins—often because preprocessing removed too many rows or the execution engine reported an error.'
-        : 'No histogram data available for this variable.';
-      return { data: null, error: fallback };
-    }
-
-    const { bins, counts: numericCounts } = stacked;
-    if (!numericCounts.some((count) => count !== null && count > 0)) {
-      return {
-        data: null,
-        error: 'Histogram counts are unavailable (privacy threshold or insufficient data after preprocessing).',
-      };
-    }
-
-    const variable = this.statisticBlockVariable(block);
-    const binsWithLabels = this.mapBinsToEnumLabels(bins, variable?.enumerations);
-    const binLabels = binsWithLabels.map((bin) => String(bin));
-    const splitLabel = groupingCode
-      ? (this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode)
-      : undefined;
-
-    return {
-      data: {
-        bins: binLabels,
-        counts: numericCounts,
-        groups: stacked.groups,
-        variableName: block.name,
-        variableType: this.statisticBlockType(kind, block),
-        splitLabel,
-      },
-      error: '',
+      name: block.name,
+      type: this.statisticBlockType(kind, block),
+      enumerations: this.statisticBlockVariable(block)?.enumerations,
     };
   }
 
@@ -3741,32 +3631,6 @@ export class DataHandlingComponent implements OnDestroy {
   private variableCodeForBlock(block: PivotBlock): string | null {
     if (block.code) return block.code;
     return this.variableForBlock(block)?.code ?? null;
-  }
-
-  private mapBinsToEnumLabels(
-    bins: unknown[],
-    enumerations?: Array<{ code?: unknown; label?: string; name?: string }>
-  ): unknown[] {
-    if (!Array.isArray(bins) || !enumerations?.length) return bins;
-
-    const codeToLabel = new Map(
-      enumerations.map((entry) => [
-        String(entry?.code ?? entry?.label ?? entry?.name ?? ''),
-        entry?.label ?? entry?.name ?? String(entry?.code ?? ''),
-      ])
-    );
-
-    let mapped = 0;
-    const mappedBins = bins.map((bin) => {
-      const label = codeToLabel.get(String(bin));
-      if (label !== undefined) {
-        mapped += 1;
-        return label;
-      }
-      return bin;
-    });
-
-    return mapped > 0 ? mappedBins : bins;
   }
 
   private pivotBlocksWithDatasetLabels(blocks: PivotBlock[]): PivotBlock[] {
