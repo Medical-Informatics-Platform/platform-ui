@@ -104,6 +104,7 @@ import {
   DescriptiveProgressState,
 } from './data-handling.models';
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
+import { OutlierBoundsView, outlierBoundsView, outlierDistributionNumbers } from './utils/outlier-bounds.utils';
 import {
   HistogramPreviewVariable,
   histogramFromDescribeCounts,
@@ -2111,98 +2112,12 @@ export class DataHandlingComponent implements OnDestroy {
     return this.outlierPreviewRows.filter((row) => row.variable === label || row.variable === variable.code);
   }
 
-  private outlierDistributionNumbers(variable: VariableRow): {
-    min: number; q1: number; median: number; q3: number; max: number; mean: number | null; std: number | null;
-  } | null {
-    const points = this.distributionFor(variable);
-    if (!points.length) return null;
-    const byLabel = new Map(points.map((point) => [point.label.toLowerCase(), point.value]));
-    const number = (label: string) => parseNumber(byLabel.get(label));
-    const min = number('min');
-    const q1 = number('q1');
-    const median = number('median');
-    const q3 = number('q3');
-    const max = number('max');
-    if (min === null || q1 === null || median === null || q3 === null || max === null) return null;
-    return { min, q1, median, q3, max, mean: number('mean'), std: number('standard deviation') };
-  }
-
-  /** Client-side bounds for the strategies the summary can price. MAD/quantile and
-   *  Gaussian without mean/std return null; the strip then says so. */
-  private outlierBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
-    const numbers = this.outlierDistributionNumbers(variable);
-    if (!numbers) return null;
-    const rule = this.outlierRuleFor(variable);
-    const k = Number(rule.fold);
-    if (!Number.isFinite(k)) return null;
-    let lo: number;
-    let hi: number;
-    switch (rule.strategy) {
-      case 'iqr': {
-        const iqr = numbers.q3 - numbers.q1;
-        lo = numbers.q1 - k * iqr;
-        hi = numbers.q3 + k * iqr;
-        break;
-      }
-      case 'gaussian': {
-        if (numbers.mean === null || numbers.std === null) return this.reportBounds(variable);
-        lo = numbers.mean - k * numbers.std;
-        hi = numbers.mean + k * numbers.std;
-        break;
-      }
-      default:
-        // MAD and arbitrary quantiles are not in the summary; the report's own
-        // bounds are the fallback once a report has run.
-        return this.reportBounds(variable);
-    }
-    return {
-      lo: rule.tail === 'right' ? null : lo,
-      hi: rule.tail === 'left' ? null : hi,
-    };
-  }
-
-  private reportBounds(variable: VariableRow): { lo: number | null; hi: number | null } | null {
-    const row = this.outlierPreviewRowsFor(variable)[0];
-    if (!row) return null;
-    const lo = parseNumber(row.lowerBound);
-    const hi = parseNumber(row.upperBound);
-    if (lo === null && hi === null) return null;
-    return { lo, hi };
-  }
-
-  outlierBoundsView(variable: VariableRow): {
-    min: number; iqrLeft: number; iqrWidth: number; medianLeft: number;
-    loPct: number | null; hiPct: number | null; cappedLeft: number | null; cappedRight: number | null;
-    loLabel: string | null; hiLabel: string | null; note: string;
-  } | null {
-    const numbers = this.outlierDistributionNumbers(variable);
-    if (!numbers || numbers.max <= numbers.min) return null;
-    const span = numbers.max - numbers.min;
-    const pct = (value: number) => Math.max(0, Math.min(100, ((value - numbers.min) / span) * 100));
-    const bounds = this.outlierBounds(variable);
-    const loPct = bounds?.lo != null ? pct(bounds.lo) : null;
-    const hiPct = bounds?.hi != null ? pct(bounds.hi) : null;
-    const reportRows = this.outlierPreviewRowsFor(variable);
-    const cappedCount = reportRows.reduce(
-      (sum, row) => sum + (parseNumber(row.lowerOutliers) ?? 0) + (parseNumber(row.upperOutliers) ?? 0), 0);
-    const note = bounds
-      ? `Below ${bounds.lo?.toLocaleString() ?? '—'} or above ${bounds.hi?.toLocaleString() ?? '—'} → capped`
-        + (reportRows.length && cappedCount > 0 ? ` · ${cappedCount.toLocaleString()} values` : '')
-      : 'Bounds shown after Refresh report';
-
-    return {
-      min: numbers.min,
-      iqrLeft: pct(numbers.q1),
-      iqrWidth: Math.max(2, pct(numbers.q3) - pct(numbers.q1)),
-      medianLeft: pct(numbers.median),
-      loPct,
-      hiPct,
-      cappedLeft: loPct,
-      cappedRight: hiPct !== null ? 100 - hiPct : null,
-      loLabel: bounds?.lo != null ? bounds.lo.toLocaleString() : null,
-      hiLabel: bounds?.hi != null ? bounds.hi.toLocaleString() : null,
-      note,
-    };
+  outlierBoundsView(variable: VariableRow): OutlierBoundsView | null {
+    return outlierBoundsView(
+      outlierDistributionNumbers(this.distributionFor(variable)),
+      this.outlierRuleFor(variable),
+      this.outlierPreviewRowsFor(variable)
+    );
   }
 
   outlierRuleFor(variable: VariableRow): OutlierRule {
