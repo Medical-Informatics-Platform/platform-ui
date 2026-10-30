@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, OnChanges, OnInit, output, SimpleChanges } from '@angular/core';
 import { DataModel } from '../../../../models/data-model.interface';
+import { isSameDataModel } from '../../../../core/data-model.utils';
 
 @Component({
   selector: 'app-data-model-selector',
@@ -35,7 +36,7 @@ export class DataModelSelectorComponent implements OnChanges, OnInit {
       return;
     }
 
-    const shouldEmit = !this.isSameModel(this.selectedDataModel, defaultModel);
+    const shouldEmit = !isSameDataModel(this.selectedDataModel, defaultModel);
     this.selectedDataModel = defaultModel;
     if (shouldEmit) {
       this.dataModelChange.emit(this.selectedDataModel);
@@ -48,12 +49,6 @@ export class DataModelSelectorComponent implements OnChanges, OnInit {
   }
 
   isOptionSelected(model: DataModel): boolean {
-    return this.isSameModel(this.selectedDataModel, model);
-  }
-
-  private isSameModel(a: DataModel | null, b: DataModel | null): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    return a.code === b.code && String(a.version) === String(b.version);
+    return isSameDataModel(this.selectedDataModel, model);
   }
 }
