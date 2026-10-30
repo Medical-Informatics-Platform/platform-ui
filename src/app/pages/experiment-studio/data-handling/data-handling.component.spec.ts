@@ -2464,15 +2464,15 @@ describe('DataHandlingComponent', () => {
         ensureCategoricalDrafts(1);
         const draft = component.transformationDrafts[0];
         draft.code = 'elderly';
-        component.countsDraftId = draft.id;
-        component.transformationStatistics = [{ code: 'elderly', rows: [{ value: 'old', count: 12 }] }];
-        component.transformationStatisticsError = 'Failed to load category counts.';
+        component.transformationStats.countsDraftId.set(draft.id);
+        component.transformationStats.blocks.set([{ code: 'elderly', rows: [{ value: 'old', count: 12 }] }]);
+        component.transformationStats.error.set('Failed to load category counts.');
 
         component.removeTransformationRule(draft, 0);
 
-        expect(component.countsDraftId).toBeNull();
-        expect(component.transformationStatistics).toEqual([]);
-        expect(component.transformationStatisticsError).toBe('');
+        expect(component.transformationStats.countsDraftId()).toBeNull();
+        expect(component.transformationStats.blocks()).toEqual([]);
+        expect(component.transformationStats.error()).toBe('');
     });
 
     it('hydrates every saved categorical creator into its own card', () => {
@@ -3303,9 +3303,9 @@ describe('DataHandlingComponent', () => {
 
             // An incomplete card simply drops out of the describe; the complete ones
             // still get their counts, which each card charts for its own column.
-            expect(component.countsDraftId).toBe(first.id);
+            expect(component.transformationStats.countsDraftId()).toBe(first.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledTimes(1);
-            expect(component.transformationStatistics).toEqual([
+            expect(component.transformationStats.blocks()).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 3 }] },
                 { code: 'group_b', rows: [{ value: 'b', count: 4 }] },
             ]);
@@ -3355,7 +3355,7 @@ describe('DataHandlingComponent', () => {
             expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
             expect(sourceCodes).toContain('age');
             expect(sourceCodes).toContain('sex');
-            expect(component.transformationStatistics).toEqual([{
+            expect(component.transformationStats.blocks()).toEqual([{
                 code: 'kmeans_cluster',
                 rows: [
                     { value: 'cluster_0', count: 12 },
@@ -3407,18 +3407,18 @@ describe('DataHandlingComponent', () => {
             expect((preprocessing as any[]).some((step) => step.name === 'kmeans_cluster_creator')).toBe(true);
             expect(sourceCodes).toContain('age');
             expect(sourceCodes).toContain('bmi');
-            expect(component.transformationStatistics).toEqual([{
+            expect(component.transformationStats.blocks()).toEqual([{
                 code: 'km_fit',
                 rows: [
                     { value: 'cluster_1', count: 9 },
                     { value: 'cluster_2', count: 4 },
                 ],
             }]);
-            expect(component.kmeansColumnView('km_fit')?.rules).toEqual({
+            expect(component.transformationStats.kmeansColumnView('km_fit')?.rules).toEqual({
                 cluster_1: 'Nearest cluster',
                 cluster_2: 'Nearest cluster',
             });
-            expect(component.transformationStatisticsError).not.toContain('no clustering variables');
+            expect(component.transformationStats.error()).not.toContain('no clustering variables');
         });
 
         it('keeps a rejected category open on Done without loading counts', () => {
@@ -3442,7 +3442,7 @@ describe('DataHandlingComponent', () => {
             // and no describe runs for a half-typed condition.
             expect(draft.openRuleIndex).toBe(0);
             expect(draft.rules[0].filter).toBeNull();
-            expect(component.countsDraftId).toBeNull();
+            expect(component.transformationStats.countsDraftId()).toBeNull();
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
         });
 
@@ -3478,7 +3478,7 @@ describe('DataHandlingComponent', () => {
             // too. Before, it rendered dashes under "counts from a describe run" — a describe
             // that never happened.
             expect(mockExpService.loadDescriptiveOverview).not.toHaveBeenCalled();
-            expect(component.transformationStatistics.map((block) => block.code)).toEqual(['pro']);
+            expect(component.transformationStats.blocks().map((block) => block.code)).toEqual(['pro']);
             const statistics = workflowSection('Transformation').querySelector('.transformation-statistics');
             expect(statistics?.querySelector('.glass-feedback-warning')?.textContent?.trim())
                 .toBe('Each derived column needs a named category before counts can be loaded.');
@@ -3486,7 +3486,7 @@ describe('DataHandlingComponent', () => {
         });
 
         it('turns category counts into a bar chart and skips a chart when every count is missing', () => {
-            expect(component.transformationCountChart({
+            expect(component.transformationStats.countChart({
                 code: 'aaa',
                 rows: [
                     { value: 'a', count: 88426 },
@@ -3498,7 +3498,7 @@ describe('DataHandlingComponent', () => {
                 variableName: 'aaa',
                 variableType: 'nominal',
             });
-            expect(component.transformationCountChart({
+            expect(component.transformationStats.countChart({
                 code: 'aaa',
                 rows: [{ value: 'a', count: null }],
             })).toBeNull();
@@ -3518,9 +3518,9 @@ describe('DataHandlingComponent', () => {
                     type: 'text/plain+error',
                 },
             }));
-            component.refreshTransformationStatistics();
-            expect(component.transformationStatisticsError).toBe('Failed to load category counts.');
-            expect(component.transformationStatisticsError).not.toContain('insufficient data');
+            component.transformationStats.refresh();
+            expect(component.transformationStats.error()).toBe('Failed to load category counts.');
+            expect(component.transformationStats.error()).not.toContain('insufficient data');
 
             mockExpService.loadDescriptiveOverview.mockReturnValue(of({
                 status: 'success',
@@ -3528,8 +3528,8 @@ describe('DataHandlingComponent', () => {
                     featurewise: [{ variable: 'cohort', dataset: 'all datasets', data: null }],
                 },
             }));
-            component.refreshTransformationStatistics();
-            expect(component.transformationStatisticsError)
+            component.transformationStats.refresh();
+            expect(component.transformationStats.error())
                 .toBe('No counts were returned (privacy threshold or insufficient data after preprocessing).');
         });
 
@@ -3546,7 +3546,7 @@ describe('DataHandlingComponent', () => {
             component.finishTransformationRule(unfiltered, 0);
 
             // One line for the whole stage, covering each card's own shortcoming.
-            expect(component.transformationStatisticsError).toBe(
+            expect(component.transformationStats.error()).toBe(
                 'Each derived column needs a named category and a filter on each one before counts can be loaded.'
             );
         });
@@ -3633,7 +3633,7 @@ describe('DataHandlingComponent', () => {
             component.finishTransformationRule(draft, 0);
             fixture.detectChanges();
 
-            expect(component.countsDraftId).toBe(draft.id);
+            expect(component.transformationStats.countsDraftId()).toBe(draft.id);
             expect(mockExpService.loadDescriptiveOverview).toHaveBeenCalledWith(
                 ['group_a'],
                 [
@@ -3645,7 +3645,7 @@ describe('DataHandlingComponent', () => {
                 ['age']
             );
             expect(mockExpService.buildTransformationDescribePreprocessing).toHaveBeenCalled();
-            expect(component.transformationStatistics).toEqual([
+            expect(component.transformationStats.blocks()).toEqual([
                 { code: 'group_a', rows: [{ value: 'a', count: 7 }] },
             ]);
         });

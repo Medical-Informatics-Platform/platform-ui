@@ -1090,7 +1090,7 @@ describe('DataHandlingComponent pipeline presence', () => {
             component.chooseTransformation('kmeans_cluster_creator');
             const stepId = component.cards().find((step) => step.name === 'kmeans_cluster_creator')!.id;
             const commit = vi.spyOn(component, 'commitTransformationRuleFilters').mockReturnValue(undefined);
-            vi.spyOn(component, 'refreshTransformationStatistics').mockReturnValue(undefined);
+            vi.spyOn(component.transformationStats, 'refresh').mockReturnValue(undefined);
 
             component.previewTransformationCard(stepId);
 

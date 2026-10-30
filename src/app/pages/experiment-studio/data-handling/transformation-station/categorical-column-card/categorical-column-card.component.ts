@@ -5,6 +5,7 @@ import { DATA_HANDLING } from '../../data-handling.context';
 import { TransformationColumnDraft, TransformationRule } from '../../data-handling.models';
 import { RuleBuilderForDirective } from '../../transformation/rule-builder-registry';
 import { TransformationDraftsService } from '../transformation-drafts.service';
+import { TransformationStatisticsService } from '../transformation-statistics.service';
 
 /**
  * The editor body of one "Nominal column" card: the column name, the ordered categories
@@ -24,6 +25,7 @@ import { TransformationDraftsService } from '../transformation-drafts.service';
 export class CategoricalColumnCardComponent {
   protected readonly dh = inject(DATA_HANDLING);
   protected readonly drafts = inject(TransformationDraftsService);
+  protected readonly stats = inject(TransformationStatisticsService);
 
   /** The pipeline's draft, edited in place (the pipeline owns and persists the list). */
   readonly draft = input.required<TransformationColumnDraft>();

@@ -5,6 +5,7 @@ import { FilterConfigModalComponent } from '../../../shared/filter-config-modal/
 import type { DataHandlingComponent } from '../../data-handling.component';
 import { DATA_HANDLING } from '../../data-handling.context';
 import { TransformationDraftsService } from '../transformation-drafts.service';
+import { TransformationStatisticsService } from '../transformation-statistics.service';
 import type { TransformationColumnDraft, TransformationRule } from '../../data-handling.models';
 import { RuleBuilderForDirective } from '../../transformation/rule-builder-registry';
 import { CategoricalColumnCardComponent } from './categorical-column-card.component';
@@ -33,7 +34,6 @@ function render(draft: Partial<TransformationColumnDraft>, nameError: string | n
   const dh = {
     onTransformationInput: vi.fn(),
     transformationRuleSummary: (rule: TransformationRule) => (rule.filter ? 'Sex is Female' : 'No rule yet'),
-    transformationCount: (_draft: TransformationColumnDraft, value: string) => (value ? 3 : '—'),
     toggleTransformationRule: vi.fn(),
     removeTransformationRule: vi.fn(),
     finishTransformationRule: vi.fn(),
@@ -43,6 +43,7 @@ function render(draft: Partial<TransformationColumnDraft>, nameError: string | n
     providers: [
       { provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent },
       { provide: TransformationDraftsService, useValue: { columnNameError: () => nameError } },
+      { provide: TransformationStatisticsService, useValue: { count: (_draft: TransformationColumnDraft, value: string) => (value ? 3 : '—') } },
     ],
   });
   TestBed.overrideComponent(CategoricalColumnCardComponent, {

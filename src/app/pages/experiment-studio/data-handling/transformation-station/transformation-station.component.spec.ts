@@ -5,6 +5,7 @@ import type { DataHandlingComponent } from '../data-handling.component';
 import { DATA_HANDLING } from '../data-handling.context';
 import { TransformationStationComponent } from './transformation-station.component';
 import { TransformationDraftsService } from './transformation-drafts.service';
+import { TransformationStatisticsService } from './transformation-statistics.service';
 
 @Component({
   imports: [TransformationStationComponent],
@@ -31,6 +32,7 @@ function render(nodes: Array<{ id: string; title: string }>, applied = false) {
     providers: [
       { provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent },
       { provide: TransformationDraftsService, useValue: {} },
+      { provide: TransformationStatisticsService, useValue: {} },
     ],
   });
   const fixture = TestBed.createComponent(HostComponent);

@@ -1,36 +1,36 @@
 <!-- One derived column's category counts: shown inside its card in place of the editor. -->
 <ng-template #transformationStats let-code>
   <div class="transformation-statistics">
-    @if (dh.isTransformationStatsLoading) {
+    @if (stats.loading()) {
     <div class="studio-skeleton-line"></div>
     <div class="studio-skeleton-line short"></div>
-    } @else if (dh.transformationStatisticsError && dh.transformationStatsFor(code).length === 0) {
+    } @else if (stats.error() && stats.forColumn(code).length === 0) {
     <div class="glass-feedback glass-feedback-warning">
-      {{ dh.transformationStatisticsError }}
+      {{ stats.error() }}
     </div>
-    } @else if (dh.transformationStatsFor(code).length === 0) {
+    } @else if (stats.forColumn(code).length === 0) {
     <div class="empty-state-block compact-empty">
       <i class="fa fa-bar-chart"></i>
       <p>No counts for this column yet.</p>
       <span>Run the report and name the column, then preview again.</span>
     </div>
     } @else {
-    @if (dh.transformationStatisticsError) {
+    @if (stats.error()) {
     <div class="glass-feedback glass-feedback-warning">
-      {{ dh.transformationStatisticsError }}
+      {{ stats.error() }}
     </div>
-    } @else if (dh.showsRuleColumnCounts()) {
+    } @else if (stats.showsRuleColumnCounts()) {
     <div class="glass-feedback">
       Category counts from a describe run with your applied transformation.
     </div>
     }
-    @for (block of dh.transformationStatsFor(code); track block.code) {
-    @if (dh.transformationCountChart(block); as chart) {
+    @for (block of stats.forColumn(code); track block.code) {
+    @if (stats.countChart(block); as chart) {
     <div class="transformation-count-chart">
       <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
     </div>
     }
-    @if (dh.kmeansColumnView(block.code); as column) {
+    @if (stats.kmeansColumnView(block.code); as column) {
     <div class="transformation-stats-block transformation-create">
       <h4 class="transformation-stats-title">Nominal column · {{ column.code }}</h4>
       <p class="transformation-stats-lead">{{ column.lead }}</p>
@@ -175,18 +175,18 @@
         [open]="draft.open"
         (openChange)="dh.toggleTransformationDraft(draft)">
         <ng-container ngProjectAs="[stationAction]" [ngTemplateOutlet]="removeColumn" [ngTemplateOutletContext]="{ $implicit: step.id }"></ng-container>
-        @if (dh.countsDraftId === draft.id && (dh.isTransformationStatsLoading || dh.transformationStatisticsError)) {
+        @if (stats.countsDraftId() === draft.id && (stats.loading() || stats.error())) {
         <div class="transformation-statistics">
-          @if (dh.isTransformationStatsLoading) {
+          @if (stats.loading()) {
           <div class="studio-skeleton-line"></div>
           <div class="studio-skeleton-line short"></div>
           } @else {
-          <div class="glass-feedback glass-feedback-warning">{{ dh.transformationStatisticsError }}</div>
+          <div class="glass-feedback glass-feedback-warning">{{ stats.error() }}</div>
           }
         </div>
         }
-        @for (block of dh.transformationStatsFor(draft.code); track block.code) {
-        @if (dh.transformationCountChart(block); as chart) {
+        @for (block of stats.forColumn(draft.code); track block.code) {
+        @if (stats.countChart(block); as chart) {
         <div class="transformation-count-chart">
           <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
         </div>

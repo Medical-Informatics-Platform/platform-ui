@@ -7,6 +7,7 @@ import { CategoricalColumnCardComponent } from './categorical-column-card/catego
 import { KMeansClusterSourceComponent } from './kmeans-cluster-source/kmeans-cluster-source.component';
 import { PcaColumnSourceComponent } from './pca-column-source/pca-column-source.component';
 import { TransformationDraftsService } from './transformation-drafts.service';
+import { TransformationStatisticsService } from './transformation-statistics.service';
 import { CREATOR_CHOOSER_COPY } from '../utils/transformation-draft.utils';
 import { stepOutputNames } from '../../../../core/transformation-steps.utils';
 import { StationActionBarComponent } from '../../shared/station-action-bar/station-action-bar.component';
@@ -29,6 +30,7 @@ import { DATA_HANDLING } from '../data-handling.context';
 export class TransformationStationComponent {
   protected readonly dh = inject(DATA_HANDLING);
   protected readonly drafts = inject(TransformationDraftsService);
+  protected readonly stats = inject(TransformationStatisticsService);
   protected readonly creatorCopy = CREATOR_CHOOSER_COPY;
   protected readonly outputNames = stepOutputNames;
   /** Stable callback for the K-means / PCA cards' `[columnNameError]` input. */

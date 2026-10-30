@@ -28,10 +28,7 @@ import {
 } from '../visualisations/histogram/histogram-data';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import {
-  getFeaturewiseDescribeRows,
-  resolveDatasetDisplayLabel,
-} from '../../../core/describe-result.utils';
+import { resolveDatasetDisplayLabel } from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { StationStatus } from '../shared/station-card/station-card.component';
 import { DATA_HANDLING } from './data-handling.context';
@@ -111,6 +108,7 @@ import {
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
 import { CREATOR_CHOOSER_COPY, firstFilterCondition, transformationConfigFor } from './utils/transformation-draft.utils';
 import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
+import { TransformationStatisticsService } from './transformation-station/transformation-statistics.service';
 import {
   formatInteger,
   formatOutlierBound,
@@ -128,6 +126,7 @@ import {
     RuleBuilderRegistry,
     SectionAnchors,
     TransformationDraftsService,
+    TransformationStatisticsService,
     PreprocessingStateService,
     StatisticSummaryService,
   ],
@@ -155,6 +154,7 @@ export class DataHandlingComponent implements OnDestroy {
   /** Each category's live filter builder, by rule (see RuleBuilderRegistry). */
   readonly ruleBuilders = inject(RuleBuilderRegistry);
   readonly transformationDraftState = inject(TransformationDraftsService);
+  readonly transformationStats = inject(TransformationStatisticsService);
   readonly preprocessingState = inject(PreprocessingStateService);
   readonly statisticSummary = inject(StatisticSummaryService);
 
@@ -813,8 +813,6 @@ export class DataHandlingComponent implements OnDestroy {
 
   /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
   previewDraftId: string | null = null;
-  /** The categorical card whose Done loaded the current counts; it shows their loading/error state. */
-  countsDraftId: string | null = null;
   /** Ordered cards; the stage always keeps at least one (possibly empty) draft. */
   /** The nominal-column cards (state and rules in TransformationDraftsService). */
   get transformationDrafts(): TransformationColumnDraft[] {
@@ -823,10 +821,6 @@ export class DataHandlingComponent implements OnDestroy {
   set transformationDrafts(drafts: TransformationColumnDraft[]) {
     this.transformationDraftState.drafts = drafts;
   }
-  transformationStatistics: Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> = [];
-  isTransformationStatsLoading = false;
-  transformationStatisticsError = '';
-  private transformationStatsRequestId = 0;
 
   readonly longitudinalStrategies: Array<{ value: LongitudinalStrategy; label: string }> = [
     { value: 'diff', label: 'Diff (Visit 2 - Visit 1)' },
@@ -899,6 +893,11 @@ export class DataHandlingComponent implements OnDestroy {
   private readonly guideState = inject(ExperimentStudioGuideStateService);
 
   constructor() {
+    this.transformationStats.ports = {
+      hasInvalidPendingRules: () => Object.keys(this.validatePendingRules()).length > 0,
+      pendingPreprocessingConfig: () => this.buildPreprocessingConfig(this.pendingPreprocessingRules),
+      variableLabel: (code) => this.variableLabelForCode(code),
+    };
     effect(() => {
       const layout = getAnalysisGuideLayout(this.guideState.activeStepId());
       if (!layout) return;
@@ -1055,11 +1054,6 @@ export class DataHandlingComponent implements OnDestroy {
     return this.transformationStatusLabel === 'Applied' ? 'Applied' : 'Not in run yet';
   }
 
-
-  /** True when a named category on any card is still missing an applied filter. */
-  get transformationRulesNeedFilters(): boolean {
-    return this.transformationDraftState.rulesNeedFilters;
-  }
 
   get pendingMissingChangeCount(): number {
     return this.hasPendingMissingChanges ? 1 : 0;
@@ -1592,7 +1586,7 @@ export class DataHandlingComponent implements OnDestroy {
     this.previewDraftId = stepId
       ?? this.cards().find((step) => step.name === 'kmeans_cluster_creator')?.id
       ?? null;
-    this.refreshTransformationStatistics();
+    this.transformationStats.refresh();
     this.cdr.markForCheck();
   }
 
@@ -1604,11 +1598,6 @@ export class DataHandlingComponent implements OnDestroy {
   toggleTransformationPreview(): void {
     if (this.previewDraftId) this.closeTransformationPreview();
     else this.previewTransformationCard();
-  }
-
-  transformationStatsFor(code: string): Array<{ code: string; rows: Array<{ value: string; count: number | null }> }> {
-    const target = code.trim();
-    return this.transformationStatistics.filter((block) => block.code === target);
   }
 
   /** A card's own Apply/Close: commit its rule builders, then fold it once it is settled.
@@ -1628,9 +1617,8 @@ export class DataHandlingComponent implements OnDestroy {
   resetTransformation(): void {
     this.transformationDraftState.reset();
     this.previewDraftId = null;
-    this.transformationStatistics = [];
-    this.transformationStatisticsError = '';
-    this.invalidateCategoryCounts();
+    this.transformationStats.clear();
+    this.transformationStats.invalidate();
     this.emitProgressState();
     this.cdr.markForCheck();
   }
@@ -1664,8 +1652,8 @@ export class DataHandlingComponent implements OnDestroy {
     }
     draft.openRuleIndex = null;
     this.onTransformationChange();
-    this.countsDraftId = draft.id;
-    this.refreshTransformationStatistics();
+    this.transformationStats.countsDraftId.set(draft.id);
+    this.transformationStats.refresh();
   }
 
   removeTransformationRule(draft: TransformationColumnDraft, index: number): void {
@@ -1698,13 +1686,6 @@ export class DataHandlingComponent implements OnDestroy {
     return values ? `${label} ${phrase} ${values}` : `${label} ${phrase}`;
   }
 
-  /** Loaded record count for one enumeration of a card's column. */
-  transformationCount(draft: TransformationColumnDraft, value: string): string {
-    const block = this.transformationStatistics.find((item) => item.code === draft.code.trim());
-    const row = block?.rows.find((item) => item.value === value);
-    return row?.count != null ? row.count.toLocaleString() : '—';
-  }
-
   toggleTransformationDraft(draft: TransformationColumnDraft): void {
     draft.open = !draft.open;
     this.cdr.markForCheck();
@@ -1716,7 +1697,7 @@ export class DataHandlingComponent implements OnDestroy {
    */
   removeTransformationDraft(id: string): void {
     if (!this.transformationDraftState.remove(id)) return;
-    this.invalidateCategoryCounts();
+    this.transformationStats.invalidate();
     this.emitProgressState();
     this.cdr.markForCheck();
   }
@@ -3217,285 +3198,9 @@ export class DataHandlingComponent implements OnDestroy {
         parameters: transformationConfigFor(draft) ?? {},
       });
     }
-    this.invalidateCategoryCounts();
+    this.transformationStats.invalidate();
     this.emitProgressState();
     this.cdr.markForCheck();
-  }
-
-  /** Applied K-means creators from store cards (every card with an output name). */
-  private appliedKMeansCreators(): Array<{ code: string; creator: Record<string, unknown> }> {
-    return this.cards()
-      .filter((step) => step.name === 'kmeans_cluster_creator')
-      .map((step) => {
-        const code = String((step.parameters['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
-        return { code, creator: step.parameters };
-      })
-      .filter((entry) => !!entry.code);
-  }
-
-  /** Category counts describe the config at the last Done; any later edit drops them. */
-  private invalidateCategoryCounts(): void {
-    if (this.countsDraftId === null) return;
-    this.countsDraftId = null;
-    // ponytail: also cancels an in-flight K-means preview; scope per card if both overlap in practice.
-    this.transformationStatsRequestId++;
-    this.isTransformationStatsLoading = false;
-    this.transformationStatisticsError = '';
-    const clusterCodes = new Set(this.appliedKMeansCreators().map((entry) => entry.code));
-    this.transformationStatistics = this.transformationStatistics.filter((block) => clusterCodes.has(block.code));
-  }
-
-  /** Placeholder (null-count) rows for one card so Preview shows the category shape. */
-  private placeholderRowsForDraft(draft: TransformationColumnDraft): Array<{ value: string; count: number | null }> {
-    const configuredValues = draft.rules.map((r) => r.value.trim()).filter((v) => v.length > 0);
-    const rows: Array<{ value: string; count: number | null }> = configuredValues.map((value) => ({ value, count: null }));
-    const def = draft.defaultEnumeration.trim();
-    if (def && !configuredValues.includes(def)) {
-      rows.push({ value: def, count: null });
-    }
-    return rows;
-  }
-
-  /**
-   * Why no card reached a complete config, phrased once for every named card that is short
-   * of one: a card with no named category needs a category, a card whose categories are
-   * unnamed by a filter needs the filter. A stage with no named cards at all has nothing to
-   * explain — the empty state already says so.
-   */
-  private transformationStatsGapNotice(): string {
-    const gaps: string[] = [];
-    if (this.transformationDrafts.some((draft) => draft.code.trim()
-      && !draft.rules.some((rule) => rule.value.trim().length > 0))) {
-      gaps.push('a named category');
-    }
-    if (this.transformationRulesNeedFilters) {
-      gaps.push('a filter on each one');
-    }
-    return gaps.length
-      ? `Each derived column needs ${gaps.join(' and ')} before counts can be loaded.`
-      : '';
-  }
-
-  /**
-   * The counts note belongs to rule-built columns. A K-means column carries its own
-   * sentence, in the same shape as the categorical column card.
-   */
-  showsRuleColumnCounts(): boolean {
-    const clusterCodes = new Set(this.appliedKMeansCreators().map((entry) => entry.code));
-    return this.transformationStatistics.some((block) => !clusterCodes.has(block.code));
-  }
-
-  /**
-   * Present an applied K-means column as a categorical column: a name, one assignment
-   * rule per cluster, and the variables that placed each record. Null for any other column.
-   */
-  kmeansColumnView(code: string): {
-    code: string;
-    lead: string;
-    foot: string;
-    rules: Record<string, string>;
-  } | null {
-    const target = code.trim();
-    const match = this.appliedKMeansCreators().find((entry) => entry.code === target);
-    if (!match) return null;
-
-    const sources = kmeansCreatorVariables(match.creator);
-    const variables = sources
-      .map((variable) => this.variableLabelForCode(variable))
-      .filter((label, index, all) => !!label && label !== sources[index] && all.indexOf(label) === index);
-    const choices = kmeansCreatorClusterChoices(match.creator);
-    const rules: Record<string, string> = {};
-    for (const choice of choices) {
-      const label = choice.label.trim();
-      rules[choice.cluster_id] = label && label !== choice.cluster_id
-        ? `Nearest cluster — ${label}`
-        : 'Nearest cluster';
-    }
-    const count = choices.length;
-    const clusterWord = count === 1 ? 'cluster' : 'clusters';
-    return {
-      code: target,
-      lead: variables.length
-        ? `Each record is assigned to the nearest of these clusters, using ${variables.join(', ')}.`
-        : 'Each record is assigned to the nearest of these clusters.',
-      foot: variables.length
-        ? `${count} ${clusterWord} from ${variables.join(', ')} · covers every record that has those variables`
-        : `${count} ${clusterWord} · covers every record`,
-      rules,
-    };
-  }
-
-  refreshTransformationStatistics(): void {
-    // One stats table per derived column (categorical cards and every applied K-means
-    // cluster column); counts come from a single describe over all of them.
-    const kmeansEntries = this.appliedKMeansCreators();
-    const kmeansPlaceholders = kmeansEntries.map((entry) => {
-      const values = kmeansCreatorClusterChoices(entry.creator).map((choice) => choice.cluster_id);
-      return { code: entry.code, rows: values.map((value) => ({ value, count: null as number | null })) };
-    });
-    const placeholderBlocks = [
-      ...this.transformationDrafts
-        .filter((draft) => draft.code.trim().length > 0)
-        .map((draft) => ({ code: draft.code.trim(), rows: this.placeholderRowsForDraft(draft) })),
-      ...kmeansPlaceholders,
-    ];
-    const configs = this.transformationDraftState.configs();
-
-    if (!configs.length && !kmeansEntries.length) {
-      this.transformationStatistics = placeholderBlocks;
-      // Every named card gets a heading over this table, so a named card always needs a
-      // reason beside it: falling through to the "counts from a describe run" line would
-      // describe a describe that never ran.
-      this.transformationStatisticsError = this.transformationStatsGapNotice();
-      this.isTransformationStatsLoading = false;
-      this.cdr.markForCheck();
-      return;
-    }
-
-    const columnCodes = [
-      ...configs.map((config) => String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim()).filter(Boolean),
-      ...kmeansEntries.map((entry) => entry.code),
-    ];
-    const columnSet = new Set(columnCodes);
-    // Same CDE set a run would send: filter fields + selected variables + K-means/PCA sources
-    // that are not earlier outputs. Created columns (pca_pc*, cluster codes) stay out.
-    const sourceCodes = Array.from(
-      new Set(
-        [
-          ...configs.flatMap((config) =>
-            Object.values((config['rules'] as Record<string, BackendFilter>) ?? {}).flatMap((filter) =>
-              this.expStudioService.filterVariableCodes(filter)
-            )
-          ),
-          ...this.expStudioService.transformationSourceCodesForInput(),
-          ...this.expStudioService.selectedVariables().map((v) => String(v?.code ?? '')),
-        ]
-          .map((code) => String(code).trim())
-          .filter((code) => !!code && !columnSet.has(code))
-      )
-    );
-
-    if (!sourceCodes.length) {
-      this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError = configs.length
-        ? 'Category filters must reference at least one data-model variable before counts can be loaded.'
-        : 'The K-means cluster column has no clustering variables to read.';
-      this.isTransformationStatsLoading = false;
-      this.cdr.markForCheck();
-      return;
-    }
-
-    const requestId = ++this.transformationStatsRequestId;
-    this.isTransformationStatsLoading = true;
-    this.transformationStatisticsError = '';
-    this.transformationStatistics = placeholderBlocks;
-    this.cdr.markForCheck();
-
-    // Pipeline consistency: the preview uses the same ordered-step builder as a run
-    // (singletons, then PCA/categorical/K-means in store order with CDE-only drops).
-    if (Object.keys(this.validatePendingRules()).length > 0) {
-      this.transformationStatistics = placeholderBlocks;
-      this.transformationStatisticsError = 'Fix the preprocessing rules before loading category counts.';
-      this.isTransformationStatsLoading = false;
-      this.cdr.markForCheck();
-      return;
-    }
-    const preprocessing = this.expStudioService.buildTransformationDescribePreprocessing(
-      this.buildPreprocessingConfig(this.pendingPreprocessingRules),
-    );
-    this.expStudioService
-      .loadDescriptiveOverview(columnCodes, preprocessing, sourceCodes)
-      .subscribe({
-        next: (response) => {
-          if (requestId !== this.transformationStatsRequestId) return;
-          if (!response) {
-            this.transformationStatisticsError = 'Failed to load category counts.';
-            this.isTransformationStatsLoading = false;
-            this.cdr.markForCheck();
-            return;
-          }
-          this.transformationStatistics = [
-            ...configs.map((config) => {
-              const code = String((config['new_column_names'] as unknown[] | undefined)?.[0] ?? '').trim();
-              const rules = (config['rules'] as Record<string, BackendFilter>) ?? {};
-              const def = String(config['default_enumeration'] ?? '').trim();
-              return {
-                code,
-                rows: this.buildTransformationStatisticsFromDescribe(response, code, Object.keys(rules), def),
-              };
-            }),
-            ...kmeansEntries.map((entry) => {
-              const values = kmeansCreatorClusterChoices(entry.creator).map((choice) => choice.cluster_id);
-              return {
-                code: entry.code,
-                rows: this.buildTransformationStatisticsFromDescribe(response, entry.code, values, ''),
-              };
-            }),
-          ];
-          const hasAnyCount = this.transformationStatistics.some((block) =>
-            block.rows.some((row) => typeof row.count === 'number' && Number.isFinite(row.count))
-          );
-          this.transformationStatisticsError = hasAnyCount
-            ? ''
-            : this.isErrorResponse(response)
-              ? 'Failed to load category counts.'
-              : 'No counts were returned (privacy threshold or insufficient data after preprocessing).';
-          this.isTransformationStatsLoading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          if (requestId !== this.transformationStatsRequestId) return;
-          this.transformationStatisticsError = 'Failed to load category counts.';
-          this.isTransformationStatsLoading = false;
-          this.cdr.markForCheck();
-        },
-      });
-  }
-
-  private isErrorResponse(response: unknown): boolean {
-    const r = response as { status?: unknown; result?: { type?: unknown; data?: unknown } } | null;
-    return r?.status === 'error' ||
-      (typeof r?.result?.type === 'string' && r.result.type.includes('error')) ||
-      typeof r?.result?.data === 'string';
-  }
-
-  /** Category counts as the same horizontal bar chart the summary uses for groups. */
-  transformationCountChart(block: { code: string; rows: Array<{ value: string; count: number | null }> }): HistogramPreviewData | null {
-    if (!block.rows.some((row) => typeof row.count === 'number')) return null;
-    return {
-      bins: block.rows.map((row) => row.value),
-      counts: block.rows.map((row) => row.count),
-      variableName: block.code,
-      variableType: 'nominal',
-    };
-  }
-
-  private buildTransformationStatisticsFromDescribe(
-    response: unknown,
-    columnCode: string,
-    configuredValues: string[],
-    defaultEnumeration: string
-  ): Array<{ value: string; count: number | null }> {
-    const featurewise = getFeaturewiseDescribeRows(response);
-    const row =
-      featurewise.find(
-        (item: { variable?: string; dataset?: string }) =>
-          item?.variable === columnCode && String(item?.dataset ?? '') === 'all datasets'
-      ) ??
-      featurewise.find((item: { variable?: string }) => item?.variable === columnCode);
-    const counts = (row as { data?: { counts?: Record<string, number> } })?.data?.counts ?? {};
-    const ordered = [...configuredValues];
-    if (defaultEnumeration && !ordered.includes(defaultEnumeration)) {
-      ordered.push(defaultEnumeration);
-    }
-    Object.keys(counts).forEach((key) => {
-      if (!ordered.includes(key)) ordered.push(key);
-    });
-    return ordered.map((value) => {
-      const raw = counts[value];
-      const count = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
-      return { value, count };
-    });
   }
 
   private buildMissingPreprocessingConfig(
@@ -3964,8 +3669,7 @@ export class DataHandlingComponent implements OnDestroy {
   private discardPendingTransformation(): void {
     this.hydrateAppliedTransformation();
     if (!this.transformationDrafts.length) {
-      this.transformationStatistics = [];
-      this.transformationStatisticsError = '';
+      this.transformationStats.clear();
     }
     this.onTransformationChange();
   }
