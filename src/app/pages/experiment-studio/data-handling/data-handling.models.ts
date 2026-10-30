@@ -47,15 +47,15 @@ export interface TransformationRule {
 
 /** One "Create new categorical column" card. The stage holds an ordered list. */
 export interface TransformationColumnDraft {
-  id: number;
+  /** Matches the store step id, so the drafts and the ordered cards stay aligned. */
+  id: string;
   code: string;
   defaultEnumeration: string;
   rules: TransformationRule[];
   open: boolean;
   /** Rule index whose filter editor is expanded; at most one open per card. */
   openRuleIndex?: number | null;
-  /** Picked from the type chooser (or restored from the store). The stage keeps one blank
-   *  draft as its model; until it is chosen it stays off screen and the chooser shows. */
+  /** Picked from the type chooser (or restored from the store). */
   chosen?: boolean;
 }
 

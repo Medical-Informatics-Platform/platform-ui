@@ -5,7 +5,11 @@
   </label>
   <div class="transformation-name-row">
     <input [id]="'transformation-code-' + column.id" class="transformation-code-input" type="text" [ngModel]="column.code" (ngModelChange)="rename($event)" placeholder="e.g. mrs_good_outcome" />
+    @if (drafts.columnNameError(column.id, column.code); as nameError) {
+    <span class="transformation-hint transformation-hint-error">{{ nameError }}</span>
+    } @else {
     <span class="transformation-hint">Lowercase letters, digits and _ only</span>
+    }
   </div>
 </section>
 

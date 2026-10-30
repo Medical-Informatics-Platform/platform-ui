@@ -29,9 +29,17 @@ This document describes what the frontend currently renders for each algorithm a
 ### T-Tests (`ttest_independent`, `ttest_paired`, `ttest_onesample`)
 
 - Charts:
-  - Mean difference with 95% CI error-bar style chart.
+  - Independent t-test: mean difference with its CI as an error-bar style chart, two-sided runs only
+    (a one-sided CI has an open side to draw).
+- Key figures:
+  - Mean difference with what it is the difference of (group A − group B; paired: measurement 1 (x)
+    − measurement 2 (y)) and the CI at the run's level, (1 − alpha). One-sided runs show their
+    one-sided bound: `≥ lower` for `greater`, `≤ upper` for `less`.
 - Tables:
-  - Compact test summary table with t, df, p, mean difference, CI, Cohen's d.
+  - Compact test summary table with t, df, p, mean difference, CI, Cohen's d. The chart and the table
+    label the CI without a level (they do not know the run's alpha); the key figure states it. On screen the open
+    side of a one-sided CI (`"Infinity"` / `"-Infinity"` from Exaflow) shows as `∞` / `−∞`; CSV
+    keeps the engine's text.
 
 ### Cox Regression Classical (`cox_regression_classical`)
 
@@ -115,7 +123,7 @@ This document describes what the frontend currently renders for each algorithm a
   - Cluster profiles table (compactness, profile, interpretation).
   - Notes table (privacy, center definition, warnings, limitations, intended use).
 
-### PCA (`pca`, `pca_with_transformation`)
+### PCA (`pca`)
 
 - Charts:
   - Eigenvector heatmap.

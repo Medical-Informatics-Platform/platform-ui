@@ -250,21 +250,11 @@ export class AlgorithmPanelComponent {
   readonly xVar = computed(() => this.experimentStudioService.algorithmX()[0]?.code ?? null);
   readonly crossValidationEnabled = signal(false);
   private readonly crossValidationSelections: Record<string, boolean> = {};
-  readonly transformationEnabled = signal(false);
-  private readonly transformationSelectionsByAlgorithm: Record<string, Record<string, string>> = {};
   readonly isCrossValidationOnly = computed(() => {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm) return false;
     return this.experimentStudioService.isCrossValidationOnly(algorithm.name);
   });
-  readonly canToggleTransformation = computed(() => {
-    const algorithm = this.selectedAlgorithm();
-    if (!algorithm) return false;
-    const baseName = this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
-    return !!this.experimentStudioService.getTransformationVariant(baseName);
-  });
-  readonly transformationTypes = ['standardize', 'center', 'exp'] as const;
-  transformationAssignments: Record<string, string> = {};
   readonly outlierStrategies = OUTLIER_STRATEGIES;
   readonly outlierTails = OUTLIER_TAILS;
   outlierReportRules: Record<string, OutlierRule> = {};
@@ -286,8 +276,7 @@ export class AlgorithmPanelComponent {
     this.visibleConfigSchema().length > 0 ||
     this.isOutlierReportSelected() ||
     this.canToggleCrossValidation() ||
-    this.isCrossValidationOnly() ||
-    this.canToggleTransformation()
+    this.isCrossValidationOnly()
   ));
   readonly preprocessingRunBlockMessage = computed(() => {
     const algorithm = this.selectedAlgorithm();
@@ -536,44 +525,6 @@ export class AlgorithmPanelComponent {
         ? stored
         : this.experimentStudioService.isCrossValidationAlgorithm(algorithm.name);
       this.crossValidationEnabled.set(defaultValue);
-    });
-
-    effect(() => {
-      const algorithm = this.selectedAlgorithm();
-      const variables = this.experimentStudioService.algorithmY();
-      if (!algorithm) {
-        this.transformationEnabled.set(false);
-        this.transformationAssignments = {};
-        return;
-      }
-
-      const baseName =
-        this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
-      const hasVariant = !!this.experimentStudioService.getTransformationVariant(baseName);
-
-      if (!hasVariant) {
-        this.transformationEnabled.set(false);
-        this.transformationAssignments = {};
-        return;
-      }
-
-      const storedConfigs = this.experimentStudioService.algorithmConfigurations();
-      const storedData = storedConfigs?.[baseName]?.['data_transformation'];
-      const fromConfig = this.extractTransformationAssignments(storedData);
-      const previous = this.transformationSelectionsByAlgorithm[baseName] ?? {};
-
-      const next: Record<string, string> = {};
-      (variables ?? []).forEach((v) => {
-        const code = v?.code;
-        if (!code) return;
-        next[code] = fromConfig[code] ?? previous[code] ?? 'none';
-      });
-
-      this.transformationAssignments = next;
-      this.transformationSelectionsByAlgorithm[baseName] = { ...next };
-
-      const hasAny = Object.values(next).some(v => v && v !== 'none');
-      this.transformationEnabled.set(hasAny);
     });
 
     effect(() => {
@@ -853,13 +804,6 @@ export class AlgorithmPanelComponent {
       ? this.visibleConfigSchema().filter((field) => this.isCrossValidationField(field) && this.configForm().get(field.key))
       : []
   );
-
-  readonly transformationOptions = [
-    { value: 'none', label: 'None' },
-    { value: 'standardize', label: 'Standardize' },
-    { value: 'center', label: 'Center' },
-    { value: 'exp', label: 'Exp' },
-  ] as const;
 
   readonly outlierReportVariables = computed(() => {
     const unique = new Map<string, any>();
@@ -1370,23 +1314,16 @@ export class AlgorithmPanelComponent {
     const isCvOnly = this.experimentStudioService.isCrossValidationOnly(algo.name);
     const baseAlgorithmName = isCvOnly
       ? algo.name
-      : this.experimentStudioService.getCrossValidationBase(algo.name) ??
-      this.experimentStudioService.getTransformationBase(algo.name) ??
-      algo.name;
+      : this.experimentStudioService.getCrossValidationBase(algo.name) ?? algo.name;
     const cvVariant =
       this.experimentStudioService.getCrossValidationVariant(baseAlgorithmName);
     const shouldIncludeSplits =
       this.crossValidationEnabled() ||
       this.experimentStudioService.isCrossValidationOnly(algo.name);
     const useCrossValidation = shouldIncludeSplits && !!cvVariant;
-    const transformationVariant =
-      this.experimentStudioService.getTransformationVariant(baseAlgorithmName);
-    const useTransformation = this.transformationEnabled() && !!transformationVariant;
     const effectiveAlgorithmName = useCrossValidation
       ? cvVariant
-      : useTransformation
-        ? transformationVariant
-        : baseAlgorithmName;
+      : baseAlgorithmName;
 
     const finalAlgorithmName = isCvOnly ? algo.name : effectiveAlgorithmName;
 
@@ -1397,12 +1334,6 @@ export class AlgorithmPanelComponent {
     configValues = this.mergeOutlierReportConfig(configValues);
     if (!shouldIncludeSplits && configValues['n_splits'] !== undefined) {
       delete configValues['n_splits'];
-    }
-    if (useTransformation) {
-      const payload = this.buildTransformationPayload();
-      configValues['data_transformation'] = payload;
-    } else if (configValues['data_transformation']) {
-      delete configValues['data_transformation'];
     }
     this.experimentStudioService.algorithmConfigurations.set({
       ...this.experimentStudioService.algorithmConfigurations(),
@@ -1499,52 +1430,6 @@ export class AlgorithmPanelComponent {
     this.crossValidationEnabled.set(enabled);
   }
 
-  toggleTransformation(event: Event) {
-    const target = event.target as HTMLInputElement | null;
-    const enabled = !!target?.checked;
-    const algorithm = this.selectedAlgorithm();
-    if (!algorithm) return;
-    const baseName = this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
-    if (!this.experimentStudioService.getTransformationVariant(baseName)) return;
-    this.transformationEnabled.set(enabled);
-  }
-
-  setTransformationAssignment(variableCode: string, value: string) {
-    if (!variableCode) return;
-    this.transformationAssignments = {
-      ...this.transformationAssignments,
-      [variableCode]: value,
-    };
-
-    const algorithm = this.selectedAlgorithm();
-    if (!algorithm) return;
-    const baseName = this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
-    this.transformationSelectionsByAlgorithm[baseName] = { ...this.transformationAssignments };
-  }
-
-  getTransformationAssignment(variableCode: string): string {
-    return this.transformationAssignments?.[variableCode] ?? 'none';
-  }
-
-  isAllTransformation(value: string): boolean {
-    const variables = this.selectedVariables;
-    if (!variables.length) return false;
-    return variables.every((v) => this.getTransformationAssignment(v.code) === value);
-  }
-
-  setAllTransformationAssignments(value: string): void {
-    const algorithm = this.selectedAlgorithm();
-    if (!algorithm) return;
-    const next = { ...this.transformationAssignments };
-    this.selectedVariables.forEach((v) => {
-      if (v?.code) next[String(v.code)] = value;
-    });
-    this.transformationAssignments = next;
-    const baseName =
-      this.experimentStudioService.getTransformationBase(algorithm.name) ?? algorithm.name;
-    this.transformationSelectionsByAlgorithm[baseName] = { ...next };
-  }
-
   private multiSelectValues(key: string): string[] {
     const value = this.configForm().get(key)?.value;
     if (Array.isArray(value)) return value.map((entry) => String(entry));
@@ -1570,36 +1455,6 @@ export class AlgorithmPanelComponent {
     control.setValue(next);
     control.markAsTouched();
     control.updateValueAndValidity();
-  }
-
-  private extractTransformationAssignments(data: any): Record<string, string> {
-    if (!data || typeof data !== 'object') return {};
-    const result: Record<string, string> = {};
-    this.transformationTypes.forEach((type) => {
-      const values = Array.isArray(data[type]) ? data[type] : [];
-      values.forEach((code: any) => {
-        if (code === null || code === undefined) return;
-        result[String(code)] = type;
-      });
-    });
-    return result;
-  }
-
-  private buildTransformationPayload(): Record<string, string[]> {
-    const payload: Record<string, string[]> = {
-      standardize: [],
-      center: [],
-      exp: [],
-    };
-    Object.entries(this.transformationAssignments).forEach(([code, choice]) => {
-      if (!choice || choice === 'none') return;
-      if (!payload[choice]) payload[choice] = [];
-      payload[choice].push(code);
-    });
-    Object.keys(payload).forEach((key) => {
-      if (!payload[key].length) delete payload[key];
-    });
-    return payload;
   }
 
   isAlgorithmAvailable(algorithm: string): boolean {
@@ -1812,15 +1667,6 @@ export class AlgorithmPanelComponent {
     const createdBy =
       currentUser?.fullname || currentUser?.username || currentUser?.email || null;
 
-    const transformations = this.transformationEnabled()
-      ? Object.entries(this.transformationAssignments)
-        .filter(([_, choice]) => choice && choice !== 'none')
-        .map(([code, choice]) => {
-          const label = this.labelMap()[code] || code;
-          return `${label}: ${choice}`;
-        })
-      : null;
-
     const filterLogic = this.experimentStudioService.filterLogic();
     const enumMaps = this.experimentStudioService.getCategoricalEnumMaps();
     const filterExpression = filterLogic
@@ -1847,7 +1693,7 @@ export class AlgorithmPanelComponent {
         filters: filterExpression
           ? [filterExpression]
           : (info.filters ?? []).map((f: any) => f.label || f.name || f.code),
-        transformations,
+        transformations: null,
         mipVersion: this.mipVersion,
       },
       algorithmKey: algoKey,

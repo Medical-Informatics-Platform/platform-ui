@@ -68,6 +68,7 @@ flowchart TD
 ## State Management
 - The app uses Angular Signals heavily for feature state.
 - `ExperimentStudioService` is the main orchestration layer for selected data models, datasets, variables, covariates, filters, algorithm configuration, run/save flows, preview calls, edit hydration, and sessionStorage persistence.
+- Transformation (derived-column) state is an ordered `appliedTransformations: TransformationStep[]` signal on that service — not a keyed map. Singletons (`missing_values_handler`, outlier, longitudinal) stay in the preprocessing config; column creators (`categorical_column_creator`, `kmeans_cluster_creator`, `pca_column_creator`) live only in the ordered list and emit in list order after the singletons. Creator output codes come from `new_column_names` (never a legacy `code` field). There is no `pca_with_transformation` algorithm; PCA component scores are created with `pca_column_creator`.
 - `ExperimentsDashboardService` owns paged experiment list state, filtering, sharing, renaming, deletion, and result fetches.
 - `ErrorService` shares global feature errors through a `BehaviorSubject`.
 

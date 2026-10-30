@@ -1,4 +1,5 @@
 import { BackendFilter } from './filters.model';
+import { PreprocessingOutputs } from '../core/preprocessing-outputs.utils';
 
 interface RawIOField {
   label: string;
@@ -54,10 +55,7 @@ export interface PreprocessingStepSpecification {
   documentation?: string;
   order?: number;
   parameters: Record<string, RawParameter | RawDictParameter> | null;
-  output?: {
-    type: string;
-    code_parameter?: string;
-  } | null;
+  outputs?: PreprocessingOutputs | null;
 }
 
 /** Algorithm specification from GET /services/specifications/algorithms */
@@ -94,10 +92,7 @@ export interface RawPreprocessingStep {
   documentation?: string;
   order?: number;
   parameters: Record<string, RawParameter | RawDictParameter>;
-  output?: {
-    type: string;
-    code_parameter?: string;
-  } | null;
+  outputs?: PreprocessingOutputs | null;
 }
 
 

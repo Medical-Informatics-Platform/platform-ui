@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import { FilterConfigModalComponent } from '../../../shared/filter-config-modal/filter-config-modal.component';
 import type { DataHandlingComponent } from '../../data-handling.component';
 import { DATA_HANDLING } from '../../data-handling.context';
+import { TransformationDraftsService } from '../transformation-drafts.service';
 import type { TransformationColumnDraft, TransformationRule } from '../../data-handling.models';
 import { RuleBuilderForDirective } from '../../transformation/rule-builder-registry';
 import { CategoricalColumnCardComponent } from './categorical-column-card.component';
@@ -28,7 +29,7 @@ class HostComponent {
   draft!: TransformationColumnDraft;
 }
 
-function render(draft: Partial<TransformationColumnDraft>) {
+function render(draft: Partial<TransformationColumnDraft>, nameError: string | null = null) {
   const dh = {
     onTransformationInput: vi.fn(),
     transformationRuleSummary: (rule: TransformationRule) => (rule.filter ? 'Sex is Female' : 'No rule yet'),
@@ -38,13 +39,18 @@ function render(draft: Partial<TransformationColumnDraft>) {
     finishTransformationRule: vi.fn(),
     addTransformationRule: vi.fn(),
   };
-  TestBed.configureTestingModule({ providers: [{ provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent }] });
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent },
+      { provide: TransformationDraftsService, useValue: { columnNameError: () => nameError } },
+    ],
+  });
   TestBed.overrideComponent(CategoricalColumnCardComponent, {
     remove: { imports: [FilterConfigModalComponent, RuleBuilderForDirective] },
     add: { imports: [FakeRuleBuilder, FakeRuleBuilderFor] },
   });
   const fixture = TestBed.createComponent(HostComponent);
-  const column: TransformationColumnDraft = { id: 7, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null, ...draft };
+  const column: TransformationColumnDraft = { id: '7', code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null, ...draft };
   fixture.componentInstance.draft = column;
   fixture.detectChanges();
   return { dh, column, fixture, el: fixture.nativeElement as HTMLElement };
@@ -56,6 +62,18 @@ const type = (input: HTMLInputElement, value: string) => {
 };
 
 describe('CategoricalColumnCardComponent', () => {
+  it('says why a column name cannot be used, instead of the naming hint', () => {
+    const { el } = render({ code: 'age' }, 'Name already used');
+    expect(el.querySelector('.transformation-hint-error')?.textContent).toContain('Name already used');
+    expect(el.querySelectorAll('.transformation-hint').length).toBe(1);
+  });
+
+  it('keeps the naming hint while the name is usable', () => {
+    const { el } = render({ code: 'fresh' });
+    expect(el.querySelector('.transformation-hint-error')).toBeNull();
+    expect(el.querySelector('.transformation-hint')?.textContent).toContain('Lowercase letters');
+  });
+
   it('edits the name, categories and fallback on the draft and tells the pipeline', async () => {
     const { dh, column, fixture, el } = render({ rules: [{ value: 'female', filter: null }] });
     await fixture.whenStable();

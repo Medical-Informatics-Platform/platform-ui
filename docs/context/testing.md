@@ -65,12 +65,21 @@ npm run e2e -- e2e/dashboard.spec.ts     # one file
 npm run e2e -- -g "save shows"           # tests whose name matches
 ```
 
-- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, histogram and describe previews, run and save lifecycle, result rendering.
+- `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, histogram and describe previews, run and save lifecycle, result rendering. Includes an ordered-transformation flow (PCA columns → K-means on those outputs → `logistic_regression`) that asserts preprocessing step order and `inputdata.variables`.
 - `dashboard.spec.ts`: rename, share, delete (with rollback), compare, duplicate.
 - `access.spec.ts`: Keycloak redirect, terms acceptance, notebook route on and off.
 - `fixtures.ts`: the `test` every spec imports. It installs the mock (`api`), and fails the test if the app called a `/services` endpoint the mock does not answer.
-- `experiment-studio-api.ts`: the mock and its data. Linear regression, `describe` and `histogram` answers follow the shapes Exaflow returns (see the expected outputs under `exaflow/tests/prod_env_tests/expected/`). `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
-- `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, run, save).
+- `experiment-studio-api.ts`: the mock and its data. Linear regression, `describe`, `histogram`, and `pca` answers follow the shapes Exaflow returns (PCA includes `variables`, `components`, and `reusable_preprocessing`). Preprocessing specs expose creators with the `outputs` shape (`pca_column_creator`, `categorical_column_creator`, `kmeans_cluster_creator`). `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
+- `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, add PCA/K-means columns, run, save).
+
+### Manual QA (PCA / ordered transformations)
+Against a stack with Exaflow `ed9d6982b` or later and the aggregation server deployed:
+
+- Two PCA cards (fit and/or reuse a finished PCA run).
+- One K-means card whose clustering variables are PCA output columns.
+- Logistic regression on the derived outputs.
+- Edit and rerun the saved experiment.
+- Confirm creators send `new_column_names` (not `code`) and that there is no `pca_with_transformation` path.
 
 Failed tests keep a trace and a screenshot in `e2e/test-results/`; CI uploads that folder as the `e2e-test-results` artifact. Open a trace with `npx playwright show-trace <trace.zip>`. Locally the tests use the installed Chrome; CI uses Playwright's Chromium.
 

@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import type { DataHandlingComponent } from '../data-handling.component';
 import { DATA_HANDLING } from '../data-handling.context';
 import { TransformationStationComponent } from './transformation-station.component';
+import { TransformationDraftsService } from './transformation-drafts.service';
 
 @Component({
   imports: [TransformationStationComponent],
@@ -26,7 +27,12 @@ function render(nodes: Array<{ id: string; title: string }>, applied = false) {
     jumpToSubNode: vi.fn(),
     addTransformationSubNode: vi.fn(),
   };
-  TestBed.configureTestingModule({ providers: [{ provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent }] });
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: DATA_HANDLING, useValue: dh as unknown as DataHandlingComponent },
+      { provide: TransformationDraftsService, useValue: {} },
+    ],
+  });
   const fixture = TestBed.createComponent(HostComponent);
   fixture.detectChanges();
   return { dh, el: fixture.nativeElement as HTMLElement };

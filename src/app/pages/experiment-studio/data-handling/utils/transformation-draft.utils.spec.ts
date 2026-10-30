@@ -2,7 +2,7 @@ import type { CategoryFilter, TransformationColumnDraft } from '../data-handling
 import { draftHasWork, firstFilterCondition, hasUnfinishedCategory, transformationConfigFor } from './transformation-draft.utils';
 
 const draft = (patch: Partial<TransformationColumnDraft>): TransformationColumnDraft => ({
-  id: 1, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null, ...patch,
+  id: 'step-1', code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null, ...patch,
 });
 const rule = { field: 'age', operator: 'greater_or_equal', value: 60 } as unknown as CategoryFilter;
 
@@ -26,7 +26,7 @@ describe('transformation draft utils', () => {
     expect(transformationConfigFor(draft({ rules: [{ value: 'a', filter: rule }] }))).toBeNull();
     expect(transformationConfigFor(draft({ code: 'c', rules: [{ value: 'a', filter: null }] }))).toBeNull();
     expect(transformationConfigFor(draft({ code: ' c ', rules: [{ value: ' a ', filter: rule }] }))).toEqual({
-      code: 'c', strategy: 'filter_rules', rules: { a: rule },
+      new_column_names: ['c'], strategy: 'filter_rules', rules: { a: rule },
     });
   });
 });

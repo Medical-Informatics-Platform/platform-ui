@@ -1,6 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
+import { collectVariableCodes } from '../../../../core/variable-availability.utils';
+import {
+  CreatorName,
+  TransformationStep,
+  newStepId,
+  stepOutputNames,
+} from '../../../../core/transformation-steps.utils';
+import { StationStatus } from '../../shared/station-card/station-card.component';
 import { TransformationColumnDraft } from '../data-handling.models';
 import {
+  CREATOR_CHOOSER_COPY,
   TransformationColumnConfig,
   TransformationDraftStatus,
   draftHasWork,
@@ -8,28 +18,89 @@ import {
   hasDuplicateColumnCodes,
   hasUnfinishedCategory,
   transformationConfigFor,
-  transformationDraftStatus,
 } from '../utils/transformation-draft.utils';
 
+const NAME_TAKEN = 'Name already used';
+
 /**
- * The transformation stage's nominal-column drafts: the ordered card list and every
- * question asked of it (status, completeness, duplicate names, the store payload) plus
- * the in-place edits on a card's categories. Provided by the Data Handling panel, so
- * it lives exactly as long as the pipeline; the panel keeps the side effects (store
- * writes, statistics, rule builders, change detection).
+ * The transformation stage's cards: the ordered steps of the shared store (one per derived
+ * column, any creator) and, for each nominal one, its draft with the rules being edited.
+ * Answers every question about them (status, titles, name clashes, what may be removed, the
+ * store payload) and holds the in-place edits on a card's categories. Provided by the Data
+ * Handling panel, so it lives exactly as long as the pipeline; the panel keeps the side
+ * effects (store writes, statistics, rule builders, change detection).
  */
 @Injectable()
 export class TransformationDraftsService {
-  /** The cards, in display and payload order. Never empty: the last card resets instead. */
-  drafts: TransformationColumnDraft[] = [emptyTransformationDraft()];
+  private readonly studio = inject(ExperimentStudioService);
+
+  /** The nominal-column drafts, in display order; each id is its store step id. */
+  drafts: TransformationColumnDraft[] = [];
+  /** Folded/open state per store step id (nominal drafts also keep `open`). */
+  readonly cardOpenState = signal<Record<string, boolean>>({});
+
+  /** Ordered cards from the store: one station per transformation step. */
+  cards(): TransformationStep[] {
+    return this.studio.appliedTransformations();
+  }
+
+  /** Creator types the deployment exposes in `/services/specifications/preprocessing`. */
+  availableCreators(): CreatorName[] {
+    return this.studio.availableCreatorNames();
+  }
+
+  draftFor(stepId: string): TransformationColumnDraft | undefined {
+    return this.drafts.find((draft) => draft.id === stepId);
+  }
 
   /** A card is on screen once chosen from the type chooser or once it holds any work. */
   isShown(draft: TransformationColumnDraft): boolean {
     return !!draft.chosen || draftHasWork(draft);
   }
 
+  /**
+   * Why a nominal card cannot be written to the store: a name collision, or a later step
+   * still reads the column the edit would drop (renamed, or left incomplete). Mirrors the
+   * refusal in `upsertTransformation`, so a refused edit is shown on the card instead of lost.
+   */
+  writeProblem(draft: TransformationColumnDraft): string | null {
+    const code = draft.code.trim();
+    const nameError = code ? this.columnNameError(draft.id, code) : null;
+    if (nameError || transformationConfigFor(draft)) return nameError;
+    const inUse = this.studio.outputsInUse(draft.id, []);
+    return inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null;
+  }
+
+  /** The reason `name` cannot be the output of step `stepId`, or null. */
+  columnNameError(stepId: string, name: string): string | null {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    if (new Set(collectVariableCodes(this.studio.selectedDataModel())).has(trimmed)) return NAME_TAKEN;
+    for (const step of this.cards()) {
+      // Ignore empty/incomplete placeholders — only real outputs collide.
+      if (step.id !== stepId && stepOutputNames(step).includes(trimmed)) return NAME_TAKEN;
+    }
+    // Among local drafts, the first occurrence of a name wins; later cards show the error
+    // and never overwrite the store.
+    for (const draft of this.drafts) {
+      if (draft.id === stepId) break;
+      if (draft.code.trim() === trimmed) return NAME_TAKEN;
+    }
+    // A nominal card writes one column: renaming it must not orphan a later step that reads it.
+    if (this.draftFor(stepId)) {
+      const inUse = this.studio.outputsInUse(stepId, [trimmed]);
+      if (inUse.length) return `Used by a later step: ${inUse.join(', ')}`;
+    }
+    return null;
+  }
+
+  /** Per-card chip: Applied only when every category is complete and the card can be written. */
   status(draft: TransformationColumnDraft): TransformationDraftStatus {
-    return transformationDraftStatus(draft, this.drafts);
+    const problem = this.writeProblem(draft);
+    if (problem) return { label: problem === NAME_TAKEN ? 'Duplicate name' : 'Column in use', tone: 'pending' };
+    if (!hasUnfinishedCategory(draft) && transformationConfigFor(draft)) return { label: 'Applied', tone: 'applied' };
+    if (draftHasWork(draft)) return { label: 'Not applied', tone: 'pending' };
+    return { label: 'Not set', tone: 'default' };
   }
 
   /** Card is incomplete or clashes: its primary slot says Apply, otherwise Close. */
@@ -38,23 +109,56 @@ export class TransformationDraftsService {
     return label === 'Not applied' || label === 'Duplicate name';
   }
 
-  /** Drafts that already form a valid column config (code + at least one filtered rule). */
-  configs(): TransformationColumnConfig[] {
-    return this.drafts.map(transformationConfigFor).filter((config): config is TransformationColumnConfig => !!config);
+  /** The chip of any card, whatever its creator. */
+  stepStatus(step: TransformationStep): { label: string; tone: StationStatus } {
+    if (!this.isCreatorAvailable(step.name)) return { label: 'Unavailable', tone: 'pending' };
+    if (step.name === 'categorical_column_creator') {
+      const draft = this.draftFor(step.id);
+      return draft ? this.status(draft) : { label: 'Not set', tone: 'default' };
+    }
+    return stepOutputNames(step).length ? { label: 'Applied', tone: 'applied' } : { label: 'Not set', tone: 'default' };
+  }
+
+  stepTitle(step: TransformationStep): string {
+    const outputs = stepOutputNames(step);
+    if (step.name === 'categorical_column_creator') {
+      const code = this.draftFor(step.id)?.code.trim() || outputs[0] || '';
+      return code ? `Nominal column · ${code}` : 'Nominal column';
+    }
+    const { title } = CREATOR_CHOOSER_COPY[step.name];
+    return outputs.length ? `${title} · ${outputs[0]}` : title;
   }
 
   /**
-   * Payload for the shared store: the valid configs in order, keeping only the first
-   * card of a duplicated name; null when there is none.
+   * True when the editor should render for this creator. Empty specs before the catalog
+   * loads are not "unavailable" — only loaded && missing means the deployment placeholder.
    */
-  payload(): TransformationColumnConfig[] | null {
-    const seen = new Set<string>();
-    const configs = this.configs().filter((config) => {
-      if (seen.has(config.code)) return false;
-      seen.add(config.code);
-      return true;
-    });
-    return configs.length ? configs : null;
+  isCreatorAvailable(name: CreatorName): boolean {
+    return !this.studio.catalogLoaded() || this.studio.hasPreprocessingSpec(name);
+  }
+
+  canRemove(stepId: string): boolean {
+    return this.studio.transformationDependents(stepId).length === 0;
+  }
+
+  removeTooltip(stepId: string): string {
+    const dependents = this.studio.transformationDependents(stepId);
+    if (!dependents.length) return 'Remove column';
+    const names = dependents.flatMap(stepOutputNames);
+    return names.length ? `Used by ${names.join(', ')}` : 'Used by a later step';
+  }
+
+  isCardOpen(stepId: string): boolean {
+    return this.cardOpenState()[stepId] ?? true;
+  }
+
+  setCardOpen(stepId: string, open: boolean): void {
+    this.cardOpenState.update((state) => ({ ...state, [stepId]: open }));
+  }
+
+  /** Drafts that already form a valid column config (name + at least one filtered rule). */
+  configs(): TransformationColumnConfig[] {
+    return this.drafts.map(transformationConfigFor).filter((config): config is TransformationColumnConfig => !!config);
   }
 
   get hasDuplicateCodes(): boolean {
@@ -80,30 +184,33 @@ export class TransformationDraftsService {
     });
   }
 
-  /** The type chooser reuses the blank model card before stacking another one. */
-  firstHidden(): TransformationColumnDraft | undefined {
-    return this.drafts.find((draft) => !this.isShown(draft));
-  }
-
-  /** Appends another (chosen) empty card. */
-  add(): void {
-    this.drafts.push({ ...emptyTransformationDraft(), chosen: true });
-  }
-
   /**
-   * Removes a card; the last one is reset to the blank, unchosen model card instead, so
-   * the stage falls back to its type chooser. Returns false when there is no such card.
+   * Type chooser row: appends a new store step (fresh id) and opens its card. A nominal card
+   * also gets a draft for its rule editor. Returns the new step id.
    */
-  remove(id: number): boolean {
-    const index = this.drafts.findIndex((draft) => draft.id === id);
-    if (index < 0) return false;
-    if (this.drafts.length === 1) this.drafts[0] = emptyTransformationDraft();
-    else this.drafts.splice(index, 1);
+  choose(name: CreatorName): string {
+    const id = newStepId();
+    this.studio.upsertTransformation({ id, name, parameters: {} });
+    if (name === 'categorical_column_creator') {
+      this.drafts = [...this.drafts.filter((draft) => this.isShown(draft)), { ...emptyTransformationDraft(id), chosen: true, open: true }];
+    }
+    this.setCardOpen(id, true);
+    return id;
+  }
+
+  /** Removes a step and its draft. Returns false while a later step still reads its columns. */
+  remove(stepId: string): boolean {
+    if (!this.canRemove(stepId)) return false;
+    this.studio.removeTransformation(stepId);
+    this.drafts = this.drafts.filter((draft) => draft.id !== stepId);
+    this.cardOpenState.update(({ [stepId]: _removed, ...rest }) => rest);
     return true;
   }
 
   reset(): void {
-    this.drafts = [emptyTransformationDraft()];
+    this.studio.clearTransformations();
+    this.drafts = [];
+    this.cardOpenState.set({});
   }
 
   /** Appends an empty category and opens it; returns its index. */

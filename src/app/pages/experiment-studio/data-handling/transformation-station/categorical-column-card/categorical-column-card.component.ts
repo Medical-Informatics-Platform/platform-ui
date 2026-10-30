@@ -4,6 +4,7 @@ import { FilterConfigModalComponent } from '../../../shared/filter-config-modal/
 import { DATA_HANDLING } from '../../data-handling.context';
 import { TransformationColumnDraft, TransformationRule } from '../../data-handling.models';
 import { RuleBuilderForDirective } from '../../transformation/rule-builder-registry';
+import { TransformationDraftsService } from '../transformation-drafts.service';
 
 /**
  * The editor body of one "Nominal column" card: the column name, the ordered categories
@@ -22,6 +23,7 @@ import { RuleBuilderForDirective } from '../../transformation/rule-builder-regis
 })
 export class CategoricalColumnCardComponent {
   protected readonly dh = inject(DATA_HANDLING);
+  protected readonly drafts = inject(TransformationDraftsService);
 
   /** The pipeline's draft, edited in place (the pipeline owns and persists the list). */
   readonly draft = input.required<TransformationColumnDraft>();

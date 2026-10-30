@@ -1,0 +1,184 @@
+<section class="pca-column-source">
+  @if (applied(); as creator) {
+  <div class="pca-column-source-applied">
+    <span class="pca-column-source-applied-code">{{ creator.new_column_names.join(', ') }}</span>
+    <span class="pca-column-source-applied-detail">
+      {{ creator.selected_components.join(', ') }} from {{ appliedVariables().join(', ') }}
+    </span>
+    <button
+      type="button"
+      class="pca-column-source-remove"
+      [disabled]="!canRemove()"
+      [title]="removeTooltip()"
+      (click)="remove()">Remove</button>
+  </div>
+  } @else {
+  <div class="pca-mode-switch" role="group" aria-label="PCA column source">
+    <button type="button" class="pca-mode-btn"
+            [class.active]="sourceMode() === 'result'"
+            [attr.aria-pressed]="sourceMode() === 'result'"
+            (click)="setSourceMode('result')">
+      From a PCA result
+    </button>
+    <button type="button" class="pca-mode-btn"
+            [class.active]="sourceMode() === 'fit'"
+            [attr.aria-pressed]="sourceMode() === 'fit'"
+            (click)="setSourceMode('fit')">
+      Fit on selected variables
+    </button>
+  </div>
+
+  @if (sourceMode() === 'fit') {
+  <div class="pca-step">
+    <div class="pca-step-head">
+      <span class="pca-step-number">1</span>Choose at least two numerical variables
+    </div>
+
+    @if (fitNumericVariables().length === 0) {
+    <p class="pca-column-source-note">No numerical variables in this experiment yet.</p>
+    } @else {
+    <div class="pca-column-source-vars">
+      @for (variable of fitNumericVariables(); track variable.code) {
+      <button type="button" class="pca-column-source-var"
+              [class.is-selected]="fitSelectedCodes().includes(variable.code)"
+              [attr.aria-pressed]="fitSelectedCodes().includes(variable.code)"
+              (click)="toggleFitVariable(variable.code)">
+        <i class="fas" [class.fa-check]="fitSelectedCodes().includes(variable.code)" [class.fa-plus]="!fitSelectedCodes().includes(variable.code)" aria-hidden="true"></i>
+        {{ variable.label || variable.code }}
+      </button>
+      }
+    </div>
+    @if (fitSelectedCodes().length > 0 && fitSelectedCodes().length < 2) {
+    <p class="pca-column-source-note">Select at least two variables.</p>
+    }
+    }
+  </div>
+  } @else {
+  @if (loading()) {
+  <p class="pca-column-source-note">Loading PCA experiments…</p>
+  }
+  @if (!loading() && compatible().length === 0) {
+  <!-- No reusable run: same as the K-means card, run a PCA report here and use its components. -->
+  <div class="pca-step">
+    <div class="pca-step-head">
+      <span class="pca-step-number">1</span>Choose at least two numerical variables
+      @if (recipeFromReport()) {
+      <span class="pca-step-meta">
+        {{ availableComponents().length }} components@if (reportObservations() !== null) { · {{ reportObservations() }} records}
+      </span>
+      }
+    </div>
+
+    @if (numericVariables().length === 0) {
+    <p class="pca-column-source-note">No numerical variables in this experiment yet.</p>
+    } @else {
+    <div class="pca-column-source-vars">
+      @for (variable of numericVariables(); track variable.code) {
+      <button type="button" class="pca-column-source-var"
+              [class.is-selected]="runSelectedCodes().includes(variable.code)"
+              [attr.aria-pressed]="runSelectedCodes().includes(variable.code)"
+              (click)="toggleRunVariable(variable.code)">
+        <i class="fas" [class.fa-check]="runSelectedCodes().includes(variable.code)" [class.fa-plus]="!runSelectedCodes().includes(variable.code)" aria-hidden="true"></i>
+        {{ variable.label || variable.code }}
+      </button>
+      }
+    </div>
+    }
+
+    <div class="pca-step-run">
+      <button type="button" class="pca-column-source-apply"
+              [disabled]="runLoading() || runSelectedCodes().length < 2"
+              (click)="runReport()">
+        <i class="fas fa-play" aria-hidden="true"></i>
+        {{ runLoading() ? 'Running PCA…' : 'Run PCA report' }}
+      </button>
+      <span class="pca-column-source-note">
+        {{ runLoading() ? 'Waiting for every node to answer…' : 'Uses your current datasets and filters.' }}
+      </span>
+    </div>
+
+    @if (runError()) {
+    <p class="pca-column-source-error">{{ runError() }}</p>
+    }
+  </div>
+  }
+  @if (!loading() && compatible().length > 0) {
+  <div class="pca-column-source-field">
+    <label for="pca-column-source-experiment">PCA experiment</label>
+    <select
+      id="pca-column-source-experiment"
+      [ngModel]="selectedUuid() ?? ''"
+      (ngModelChange)="onExperimentChange($event)">
+      <option value="">Select a finished PCA run…</option>
+      @for (experiment of compatible(); track experiment.uuid) {
+      <option [value]="experiment.uuid">
+        {{ experiment.name }} · {{ experiment.finished | date: 'mediumDate' }}
+      </option>
+      }
+    </select>
+  </div>
+  }
+  @if (!loading() && hiddenCount() > 0) {
+  <p class="pca-column-source-note">
+    {{ hiddenCount() }} PCA experiment{{ hiddenCount() === 1 ? '' : 's' }} hidden — different data model, datasets or filters.
+  </p>
+  }
+  }
+
+  @if (availableComponents().length) {
+  <div class="pca-step">
+    <div class="pca-step-head">
+      <span class="pca-step-number">{{ componentsStepNumber() }}</span>Select components
+    </div>
+    <div class="pca-column-source-vars">
+      @for (choice of availableComponents(); track choice.component_id) {
+      <button type="button" class="pca-column-source-var"
+              [class.is-selected]="selectedComponents().includes(choice.component_id)"
+              [attr.aria-pressed]="selectedComponents().includes(choice.component_id)"
+              (click)="toggleComponent(choice.component_id)">
+        <i class="fas" [class.fa-check]="selectedComponents().includes(choice.component_id)" [class.fa-plus]="!selectedComponents().includes(choice.component_id)" aria-hidden="true"></i>
+        {{ choice.component_id }}
+        @if (choice.explained_variance_ratio !== undefined) {
+        <span class="pca-column-source-var-meta">{{ varianceLabel(choice.explained_variance_ratio) }}</span>
+        }
+      </button>
+      }
+    </div>
+  </div>
+
+  <div class="pca-step">
+    <div class="pca-step-head">
+      <span class="pca-step-number">{{ componentsStepNumber() + 1 }}</span>Name the new columns
+    </div>
+    <div class="pca-column-source-field">
+      <label for="pca-column-source-prefix">Name prefix</label>
+      <input id="pca-column-source-prefix" type="text"
+             [ngModel]="prefix()" (ngModelChange)="setPrefix($event)"
+             placeholder="e.g. pca" />
+    </div>
+    @for (componentId of selectedComponents(); track componentId) {
+    <div class="pca-column-source-field">
+      <label [attr.for]="'pca-column-name-' + componentId">{{ componentId }}</label>
+      <input [id]="'pca-column-name-' + componentId" type="text"
+             [ngModel]="columnNameFor(componentId)"
+             (ngModelChange)="setColumnName(componentId, $event)"
+             [placeholder]="'e.g. ' + prefix() + '_' + componentId.toLowerCase()" />
+    </div>
+    }
+  </div>
+
+  @if (error()) {
+  <p class="pca-column-source-error">{{ error() }}</p>
+  }
+
+  <button type="button" class="pca-column-source-apply"
+          [disabled]="!canApply() || applying()"
+          (click)="apply()">
+    <i class="fas fa-check" aria-hidden="true"></i>
+    Add component columns
+  </button>
+  } @else if (error()) {
+  <p class="pca-column-source-error">{{ error() }}</p>
+  }
+  }
+</section>

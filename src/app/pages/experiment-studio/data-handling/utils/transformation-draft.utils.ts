@@ -1,28 +1,44 @@
+import { CreatorName, newStepId } from '../../../../core/transformation-steps.utils';
 import { CategoryFilter, TransformationColumnDraft } from '../data-handling.models';
 
-let transformationDraftSeq = 0;
+/** What the type chooser and the card headers say about each column creator. */
+export const CREATOR_CHOOSER_COPY: Record<CreatorName, { icon: string; title: string; subtitle: string }> = {
+  categorical_column_creator: {
+    icon: 'fas fa-tags',
+    title: 'Nominal column from rules',
+    subtitle: 'Name categories and pick each one\'s records with a filter — e.g. MMSE below 24 → ‘impaired’',
+  },
+  kmeans_cluster_creator: {
+    icon: 'fas fa-diagram-project',
+    title: 'K-means cluster column',
+    subtitle: 'Group records by similarity and use the cluster as a nominal variable',
+  },
+  pca_column_creator: {
+    icon: 'fas fa-chart-line',
+    title: 'PCA component columns',
+    subtitle: 'Project numerical variables onto principal components',
+  },
+};
 
-/** Ids are unique per page load; they key the stage's cards and their template tracking. */
-export function nextTransformationDraftId(): number {
-  return ++transformationDraftSeq;
+/** A blank "Create new categorical column" card, open on its editor; its id is the store step id. */
+export function emptyTransformationDraft(id = newStepId()): TransformationColumnDraft {
+  return { id, code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
 }
 
-/** A blank "Create new categorical column" card with a fresh id, open on its editor. */
-export function emptyTransformationDraft(): TransformationColumnDraft {
-  return { id: nextTransformationDraftId(), code: '', defaultEnumeration: '', rules: [], open: true, openRuleIndex: null };
-}
-
-/** The exaflow config of one derived column (`filter_rules` strategy). */
+/**
+ * The exaflow config of one derived column (`filter_rules` strategy). Exaflow names the
+ * created column with `new_column_names`; the draft keeps `code` as the editable UI name only.
+ */
 export type TransformationColumnConfig = {
-  code: string;
+  new_column_names: string[];
   strategy: 'filter_rules';
   rules: Record<string, CategoryFilter>;
   default_enumeration?: string;
 };
 
-/** A card's chip: Applied, Duplicate name, Not applied or Not set. */
+/** A card's chip: Applied, Duplicate name, Column in use, Not applied or Not set. */
 export interface TransformationDraftStatus {
-  label: 'Applied' | 'Duplicate name' | 'Not applied' | 'Not set';
+  label: 'Applied' | 'Duplicate name' | 'Column in use' | 'Not applied' | 'Not set';
   tone: 'applied' | 'pending' | 'default';
 }
 
@@ -50,28 +66,10 @@ export function transformationConfigFor(draft: TransformationColumnDraft): Trans
     if (value && rule.filter) rules[value] = rule.filter;
   }
   if (!Object.keys(rules).length) return null;
-  const config: TransformationColumnConfig = { code, strategy: 'filter_rules', rules };
+  const config: TransformationColumnConfig = { new_column_names: [code], strategy: 'filter_rules', rules };
   const fallback = draft.defaultEnumeration.trim();
   if (fallback) config.default_enumeration = fallback;
   return config;
-}
-
-/**
- * Per-card chip: Applied only when every category is complete and the name is unique
- * among `all`. An unfinished row is omitted from the saved column, so it must not leave
- * the chip on Applied.
- */
-export function transformationDraftStatus(
-  draft: TransformationColumnDraft,
-  all: readonly TransformationColumnDraft[],
-): TransformationDraftStatus {
-  const code = draft.code.trim();
-  const isDuplicate = !!code && all.some((other) => other !== draft && other.code.trim() === code);
-  if (!hasUnfinishedCategory(draft) && transformationConfigFor(draft)) {
-    return isDuplicate ? { label: 'Duplicate name', tone: 'pending' } : { label: 'Applied', tone: 'applied' };
-  }
-  if (draftHasWork(draft) || isDuplicate) return { label: 'Not applied', tone: 'pending' };
-  return { label: 'Not set', tone: 'default' };
 }
 
 /** Two columns cannot share a name: exaflow errors when `code` already exists. */

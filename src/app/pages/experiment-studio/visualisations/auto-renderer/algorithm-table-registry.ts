@@ -137,8 +137,9 @@ export function formatTTestKey(key: string): string {
     se_diff: 'Std. Error of Difference',
     se_difference: 'Std. Error of Difference',
     std_err_diff: 'Std. Error of Difference',
-    ci_upper: '95% CI Upper',
-    ci_lower: '95% CI Lower',
+    // The level is (1 − alpha) of the run, which the table does not know.
+    ci_upper: 'CI Upper',
+    ci_lower: 'CI Lower',
     t_stat: 'T-statistic',
     p: 'p-value',
     p_value: 'p-value',
@@ -1035,18 +1036,18 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     if (!result) return [];
     const tables: TableSpec[] = [];
 
-    const eigenvalues = (result.eigenvalues ?? []).map(Number);
-    const total = eigenvalues.reduce((sum, value) => sum + value, 0);
-    if (eigenvalues.length) {
-      let cumulative = 0;
-      const percent = (value: number) => (total > 0 ? ((value / total) * 100).toFixed(1) : '');
+    const asPercent = (ratio: number) => `${(ratio * 100).toFixed(1)}%`;
+    const components = Array.isArray(result.components) ? result.components : [];
+    if (components.length) {
       tables.push({
         title: 'PCA Summary',
         columns: ['Component', 'Eigenvalue', 'Variance explained (%)', 'Cumulative (%)'],
-        rows: eigenvalues.map((value, i) => {
-          cumulative += value;
-          return [`PC${i + 1}`, formatDecimal(value), percent(value), percent(cumulative)];
-        }),
+        rows: components.map((component) => [
+          component.component_id,
+          formatDecimal(component.explained_variance),
+          asPercent(component.explained_variance_ratio),
+          asPercent(component.cumulative_explained_variance),
+        ]),
       });
     }
 
@@ -1054,7 +1055,13 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     const vectors = Array.isArray(result.eigenvectors) ? result.eigenvectors : [];
     const nVariables = vectors[0]?.length ?? 0;
     if (nVariables) {
-      const names: unknown[] = Array.isArray((result as any).variable_names) ? (result as any).variable_names : [];
+      // Caller-supplied labels (saved experiments) win over the result's raw codes.
+      const labels = (result as any).variable_names;
+      const names: unknown[] = Array.isArray(labels) && labels.length
+        ? labels
+        : Array.isArray(result.variables)
+          ? result.variables
+          : [];
       tables.push({
         title: 'Component weights',
         columns: ['Variable', ...vectors.map((_, i) => `PC${i + 1}`)],
@@ -1066,10 +1073,6 @@ export const AlgorithmTableRegistry: Record<string, TableBuilder> = {
     }
 
     return tables;
-  },
-
-  pca_with_transformation: (result: PCAResult) => {
-    return AlgorithmTableRegistry['pca'](result);
   },
 
   quartiles: (result: QuartilesResult) => {

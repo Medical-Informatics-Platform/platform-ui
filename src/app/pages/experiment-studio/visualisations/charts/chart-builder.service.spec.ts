@@ -4,14 +4,16 @@ import { ExperimentStudioService } from '../../../../services/experiment-studio.
 
 describe('ChartBuilderService', () => {
   const experimentServiceStub = {
-    algorithmAssignableVariables: () => [],
-    selectedFilters: () => [],
+    algorithmAssignableVariables: (): Array<{ code: string; label: string; name: string }> => [],
+    selectedFilters: (): Array<{ code: string; label: string; name: string }> => [],
     getDatasetLabelMap: () => ({ 'dataset-a': 'Dataset A' }),
   };
 
   let service: ChartBuilderService;
 
   beforeEach(() => {
+    experimentServiceStub.algorithmAssignableVariables = () => [];
+    experimentServiceStub.selectedFilters = () => [];
     TestBed.configureTestingModule({
       providers: [{ provide: ExperimentStudioService, useValue: experimentServiceStub }],
     });
@@ -43,6 +45,45 @@ describe('ChartBuilderService', () => {
     expect((charts[0] as any).title?.text).toBe('Component weights');
     expect((charts[1] as any).title?.text).toBe('Variance explained');
     expect((charts[1] as any).series[0].data).toEqual([66.7, 33.3]);
+  });
+
+  it('labels PCA heatmap variables from result.variables, not the studio selection', () => {
+    experimentServiceStub.algorithmAssignableVariables = () => [
+      { code: 'wrong1', label: 'Wrong One', name: 'Wrong One' },
+      { code: 'wrong2', label: 'Wrong Two', name: 'Wrong Two' },
+    ];
+    experimentServiceStub.selectedFilters = () => [
+      { code: 'age', label: 'Age', name: 'Age' },
+      { code: 'bmi', label: 'BMI', name: 'BMI' },
+    ];
+
+    const charts = service.getChartsForAlgorithm('pca', {
+      title: 'PCA Run 2026',
+      variables: ['age', 'bmi'],
+      eigenvectors: [
+        [0.7, 0.2],
+        [0.1, 0.9],
+      ],
+      eigenvalues: [1.8, 0.9],
+    });
+
+    expect((charts[0] as any).yAxis.data).toEqual(['Age', 'BMI']);
+    expect((charts[0] as any).yAxis.data).not.toContain('Wrong One');
+  });
+
+  it('keeps PCA heatmap labels a saved experiment supplies', () => {
+    const charts = service.getChartsForAlgorithm('pca', {
+      title: 'PCA Run 2026',
+      variables: ['age', 'bmi'],
+      variable_names: ['Age (years)', 'Body mass index'],
+      eigenvectors: [
+        [0.7, 0.2],
+        [0.1, 0.9],
+      ],
+      eigenvalues: [1.8, 0.9],
+    });
+
+    expect((charts[0] as any).yAxis.data).toEqual(['Age (years)', 'Body mass index']);
   });
 
   it('uses fallback title when result title is missing', () => {

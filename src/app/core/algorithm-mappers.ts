@@ -28,7 +28,6 @@ const CATEGORY_MAPPING: Record<string, string> = {
   "naive_bayes_gaussian": "Classification",
   "kmeans": "Clustering",
   "pca": "Dimensionality Reduction",
-  "pca_with_transformation": "Dimensionality Reduction",
   "linear_regression_cv": "Regression",
   "logistic_regression_cv": "Regression",
   "naive_bayes_gaussian_cv": "Classification",
@@ -281,7 +280,7 @@ export function mapSpecificationsToAlgorithmConfigs(
       buildDocumentationLabelMap(step.parameters ?? {}),
     ),
     parameters: step.parameters ?? {},
-    output: step.output ?? null,
+    outputs: step.outputs ?? null,
   }));
 
   const sharedInputdata = normalizeInputData({
@@ -636,7 +635,6 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
         }
       ];
     case 'pca':
-    case 'pca_with_transformation':
       return [
         { key: 'n_obs', label: 'Observations', type: 'number' },
         {
@@ -650,6 +648,22 @@ export function getOutputSchema(algorithmName: string): any[] | undefined {
           label: 'Eigenvectors',
           type: 'matrix',
           elementType: 'number'
+        },
+        {
+          key: 'variables',
+          label: 'Variables',
+          type: 'list',
+          elementType: 'string'
+        },
+        {
+          key: 'components',
+          label: 'Components',
+          type: 'table'
+        },
+        {
+          key: 'reusable_preprocessing',
+          label: 'Reusable preprocessing',
+          type: 'dict'
         }
       ];
     case 'pearson_correlation':
