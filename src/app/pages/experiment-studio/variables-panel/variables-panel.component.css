@@ -1,12 +1,3 @@
-/* ---------- SHELL  ---------- */
-
-
-/* ---------- TOP STRIP: selectors (model / datasets / search) ---------- */
-
-.selectors-row {
-  display: none;
-}
-
 /* ---------- MAIN LAYOUT: bubble + right column ---------- */
 
 .variables-main {
@@ -93,25 +84,16 @@
   padding: 0;
 }
 
-#histogram-graph,
-#dataset-selection {
+#histogram-graph {
   scroll-margin-top: 90px;
 }
 
 /* ---------- RESPONSIVE ---------- */
 
 @media (max-width: 1200px) {
-  .selectors-row {
-    flex-wrap: wrap;
-  }
-
   .visualization-parameters-row {
     grid-template-columns: 1fr;
     min-height: 0;
-  }
-
-  .variables-main {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .bubble-chart-section {
@@ -121,11 +103,6 @@
 }
 
 @media (max-width: 768px) {
-  .selectors-row {
-    gap: 10px;
-    padding: 6px 0 8px;
-  }
-
   .variables-main {
     gap: 12px;
     padding: 16px 0 0;

@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { ExperimentStudioService } from '../../../../services/experiment-studio.service';
 import { PdfExportService } from '../../../../services/pdf-export.service';
 import { CsvExportService } from '../../../../services/csv-export.service';
 import { RuntimeEnvService } from '../../../../services/runtime-env.service';
@@ -29,7 +28,6 @@ export class VariableDetailsPanelComponent {
   private readonly catalog = inject(VariableCatalogService);
   protected readonly histogram = inject(VariableHistogramService);
   protected readonly selection = inject(VariableSelectionService);
-  private readonly experimentStudioService = inject(ExperimentStudioService);
   private readonly pdfExportService = inject(PdfExportService);
   private readonly csvExportService = inject(CsvExportService);
   private readonly mipVersion = inject(RuntimeEnvService).mipVersion;
@@ -96,7 +94,7 @@ export class VariableDetailsPanelComponent {
         title: groupData ? 'Group Description' : 'Histogram',
         nodeLabel: String(node?.label ?? this.histogram.histogramData()?.variableName ?? ''),
         modelLabel: String(model?.label ?? model?.code ?? ''),
-        datasetLabels: this.experimentStudioService.selectedDatasets()
+        datasetLabels: this.catalog.selectedDatasets()
           .map((code) => this.catalog.datasetLabel(code))
           .filter((label) => !!label),
         description: String(node?.description ?? ''),

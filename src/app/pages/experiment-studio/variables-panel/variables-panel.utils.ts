@@ -52,7 +52,7 @@ function collectPath(current: D3HierarchyNode | null | undefined, code: string, 
 }
 
 function nodeLabel(node: D3HierarchyNode): string {
-  return String(node.label ?? (node as { name?: string }).name ?? node.code ?? '');
+  return String(node.label ?? node.code ?? '');
 }
 
 /**
@@ -80,21 +80,17 @@ export function buildGroupCensus(group: D3HierarchyNode, childGroups: D3Hierarch
   };
 }
 
-/** Histogram bin codes as labels: enumeration labels where one matches, the code otherwise. */
-export function labelHistogramBins(bins: readonly unknown[], enumerations?: readonly EnumerationLike[] | null): string[] {
-  if (!enumerations?.length) return bins.map(String);
-  const codeToLabel = new Map(
-    enumerations.map((entry) => [String(entry.code ?? entry.label ?? ''), entry.label ?? entry.name ?? String(entry.code ?? '')])
-  );
-  return bins.map((bin) => codeToLabel.get(String(bin)) || String(bin));
-}
-
 /** The label of one enumeration value, or null when the variable does not enumerate it. */
 export function enumerationLabel(value: unknown, enumerations?: readonly EnumerationLike[] | null): string | null {
   if (value === null || value === undefined || !enumerations?.length) return null;
   const match = enumerations.find((entry) => String(entry?.code ?? entry?.label ?? entry?.name ?? '') === String(value));
   if (!match) return null;
   return String(match.label ?? match.name ?? value);
+}
+
+/** Histogram bin codes as labels: enumeration labels where one matches, the code otherwise. */
+export function labelHistogramBins(bins: readonly unknown[], enumerations?: readonly EnumerationLike[] | null): string[] {
+  return bins.map((bin) => enumerationLabel(bin, enumerations) || String(bin));
 }
 
 /** True when the histogram response says the variable has too few records to chart. */

@@ -89,12 +89,11 @@ export class ModelBrowserComponent {
   }
 
   toggleSearch(): void {
-    this.searchExpanded.update((expanded) => {
-      if (!expanded) {
-        setTimeout(() => this.searchSection()?.nativeElement?.querySelector('input')?.focus(), 0);
-      }
-      return !expanded;
-    });
+    const opening = !this.searchExpanded();
+    this.searchExpanded.set(opening);
+    if (opening) {
+      setTimeout(() => this.searchSection()?.nativeElement.querySelector('input')?.focus(), 0);
+    }
   }
 
   /** A click outside a toolbar popover closes it. */
