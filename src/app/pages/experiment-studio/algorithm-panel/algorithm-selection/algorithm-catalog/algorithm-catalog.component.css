@@ -1,0 +1,352 @@
+@import '../../styles/sr-only.shared.css';
+@import '../../styles/step-kicker.shared.css';
+
+/* LEFT OF THE BOTTOM ROW: ALGORITHM CATALOG */
+/* The catalog title mirrors the pool's pane head so the two panes read as peers. */
+.catalog-title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-color);
+}
+
+.algorithm-match-empty {
+  margin: 0;
+  padding: 14px 12px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Search */
+.catalog-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The clear button overlays the field, so the field — not the row — is its containing
+   block; the filter chip sits beside the field instead of under it. */
+.catalog-search-field {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  /* Below this the chip drops to its own line rather than crushing the field: the
+     row wraps on this minimum plus the chip, so the field never shrinks under a
+     readable width when the catalog is narrow. */
+  min-width: 8rem;
+}
+
+.catalog-search-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px 34px 8px 12px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  background: var(--studio-card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.catalog-search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(127, 156, 232, 0.16);
+}
+
+.catalog-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.catalog-search-clear {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.catalog-search-clear:hover,
+.catalog-search-clear:focus-visible {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--text-main);
+}
+
+/* One status chip (All / Runnable) sits on the search row — see .pill-toggle below. */
+/* Method list. Category kicker: chevron first, then the group name (per the mock). */
+.algorithm-match-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.algorithm-match-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Category kicker doubles as the disclosure control for its tiles. */
+.algorithm-match-cat {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--primary-color);
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.algorithm-match-cat-name {
+  min-width: 0;
+}
+
+.algorithm-match-cat-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  order: -1; /* chevron sits before the label */
+  color: var(--primary-color);
+}
+
+/* Collapsed points right (›), expanded points down (⌄). */
+.algorithm-match-cat-meta::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.algorithm-match-cat[aria-expanded="true"] .algorithm-match-cat-meta::after {
+  transform: rotate(45deg);
+}
+
+.algorithm-match-cat:hover .algorithm-match-cat-meta,
+.algorithm-match-cat:focus-visible .algorithm-match-cat-meta {
+  color: var(--primary-color);
+}
+
+.algorithm-match-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Algorithm row: plain label with trailing role chips; no selected highlight —
+   the chosen method is named in the details and parameters bands below. */
+.algo-tile {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid transparent;
+  background: #ffffff;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.algo-tile:hover:not(.disabled-algo),
+.algo-tile:focus-visible:not(.disabled-algo) {
+  border-color: rgba(43, 51, 233, 0.22);
+  background: color-mix(in srgb, var(--primary-light) 10%, white);
+}
+
+/* Selected method: accent bar, primary border, and a subtle tint so the tile the
+   configuration column on the right refers to is unmistakable. */
+.algo-tile.selected:not(.disabled-algo) {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* The chevron points from the chosen tile into the configuration column, so the eye
+   lands on the details without scanning. Hidden until the tile is the selection. */
+.algo-tile-cue {
+  display: none;
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-top: 2px solid var(--primary-color);
+  border-right: 2px solid var(--primary-color);
+  transform: rotate(45deg);
+}
+
+.algo-tile.selected:not(.disabled-algo) .algo-tile-cue {
+  display: block;
+}
+
+.algo-tile.selected:not(.disabled-algo) .algo-label {
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.algo-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.algo-tile .algo-label {
+  min-width: 0;
+  color: var(--text-main);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Required-input chips: amber y (outcome), lavender x (predictor) */
+.algo-why {
+  display: block;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.algo-tile.disabled-algo {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--bg-neutral, #f8fafc) 55%, white);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.algo-tile.disabled-algo .algo-label {
+  color: var(--text-muted);
+}
+
+.algo-tile.disabled-algo:hover,
+.algo-tile.disabled-algo:focus-visible {
+  background: color-mix(in srgb, var(--text-muted) 8%, white);
+}
+
+/* A read-only preview selection of an unavailable method: same accent bar, muted. */
+.algo-tile.disabled-algo.selected {
+  border-color: rgba(100, 116, 139, 0.55);
+  background: color-mix(in srgb, var(--text-muted) 8%, white);
+  box-shadow: inset 3px 0 0 rgba(100, 116, 139, 0.55);
+}
+
+@media (max-width: 640px) {
+  .algo-why {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .algo-tile,
+  .algorithm-match-cat-meta::after {
+    transition: none;
+  }
+}
+
+/* =========================================================================
+   Algorithm panel review pass: step kickers, compact role band, catalog,
+   needs checklist, parameter layout, advanced grouping, option switches,
+   and the readiness bar.
+   ========================================================================= */
+.algorithm-step-kicker {
+  padding: 10px 14px 0;
+}
+
+.catalog-mode-tabs {
+  flex: 0 0 auto;
+}
+
+.catalog-mode-tabs button {
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+}
+
+.catalog-title.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.algorithm-match-cat-count {
+  margin-left: auto;
+  padding-left: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.algo-tile {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.algo-tile-top::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(71, 85, 105, 0.45);
+}
+
+.algo-tile.selected .algo-tile-top::before {
+  box-shadow: inset 0 0 0 3.5px var(--primary-color);
+}
+
+.algo-tile.disabled-algo .algo-tile-top::before {
+  box-shadow: inset 0 0 0 1.5px rgba(71, 85, 105, 0.25);
+}
+
+.algo-why {
+  font-size: 0.74rem;
+  color: #78350f;
+}

@@ -1,0 +1,331 @@
+@import '../styles/step-kicker.shared.css';
+
+.algorithm-roles-board__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+  background: var(--studio-card-header-bg, #f8fbff);
+}
+
+.algorithm-roles-board__title {
+  margin: 0 0 2px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  color: var(--text-main);
+}
+
+/* Live runnable/total counter — tabular so filtering never reflows the header. */
+.algorithm-count-badge {
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.algorithm-count-badge strong {
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.algorithm-count-badge span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* BOTTOM ROW: Algorithm catalog (left) · Algorithm configuration (right). The row
+   grows with its content (24rem floor) instead of being pinned to a short fixed
+   height, so the parameter selection expands and every parameter field is readable
+   in the normal flow — the window is the scroller rather than a nested inner scroll.
+   The assignment rails sit above the row in flow, so switching methods never moves
+   them out from under the pointer; only space below the row changes. */
+.algorithm-workspace {
+  display: grid;
+  grid-template-columns: minmax(300px, 20%) minmax(0, 80%); /* 20% catalog · 80% configuration */
+  min-width: 0;
+  min-height: 24rem;
+  height: auto;
+  overflow: hidden;
+}
+
+/* TOP BAND: Experiment pool across the full card width — the variable list on the left,
+   the stacked outcome and predictor rails beside it on the right — so the band only has
+   to be tall enough for the scrolling list. It is one shrinking grid track rather than a
+   stretched flex cross-size: that is what lets the band stop at its max-height and hand
+   the overflow to the list's own scroll, instead of clipping the hint out of the card. */
+.algorithm-pool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+}
+
+.algorithm-pool > app-algorithm-role-assignment {
+  min-width: 0;
+  min-height: 0;
+}
+
+.algorithm-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text-main);
+  box-sizing: border-box;
+  border-right: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+}
+
+/* RIGHT OF THE BOTTOM ROW: ALGORITHM CONFIGURATION — documentation and parameter
+   fields share one column that grows with its content, so a parameter-rich method
+   reveals its whole form instead of clipping it under a fixed-height inner scroll.
+   The board paints the frame: this column adds no border, tint, or shadow of its
+   own. */
+.algorithm-config-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* PARAMETERS — continue the configuration flow directly under the documentation;
+   the unified card paints the frame. */
+.algorithm-params {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 10px;
+  padding: 0 16px 16px;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--text-main);
+}
+
+.inspector-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.14));
+  background: var(--bg-neutral);
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+/* TOP OF THE CONFIGURATION COLUMN — one continuous Algorithm configuration section:
+   header, description, and documentation. It no longer pins: the column expands to
+   its content and the window scrolls, so a sticky head would hang over the scrolling
+   page and hide the parameter fields below it instead of helping them. */
+.algorithm-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: static;
+  background: var(--studio-card-bg);
+  color: var(--text-main);
+}
+
+.algorithm-details__header {
+  flex-direction: column;
+}
+
+.algorithm-details__heading {
+  flex-wrap: wrap;
+}
+
+/* Documentation */
+.documentation-panel {
+  margin: 0;
+}
+
+/* The native disclosure triangle is hidden, so the summary states its own affordance:
+   a chevron that turns with the state, driven by [open] on the <details> itself. */
+.documentation-summary {
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.documentation-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Same chevron geometry as the catalog groups: right when collapsed, down when open. */
+.documentation-chevron {
+  flex: 0 0 auto;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.documentation-panel[open] > .documentation-summary .documentation-chevron {
+  transform: rotate(45deg);
+}
+
+.documentation-content {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(20, 22, 31, 0.72);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.config-description {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+/* RESPONSIVE LAYOUT */
+@media (max-width: 960px) {
+  .algorithm-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+  /* Stacked: head, rails, list and hint sit in one column, so the band hugs that
+     taller content and the window scrolls rather than the band scrolling inside it. */
+  .algorithm-pool {
+    border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+  }
+  .algorithm-catalog {
+    border-right: 0;
+    border-bottom: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+    max-height: 24rem;
+    overflow: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .documentation-chevron {
+    transition: none;
+  }
+}
+
+.algorithm-roles-board__title {
+  font-size: 0.96rem;
+}
+
+.algorithm-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.algorithm-pool {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.algorithm-pool > app-algorithm-role-assignment {
+  overflow: visible;
+}
+
+/* Configuration head: number ring, real method label, category tag. */
+.algorithm-details {
+  padding: 14px 16px 8px;
+}
+
+.algorithm-details__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.algorithm-details__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.algorithm-details__title {
+  margin: 0;
+  min-width: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.inspector-tag {
+  flex: 0 0 auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.config-description {
+  max-width: 60ch;
+  margin-top: 6px;
+}
+
+/* Documentation is a quiet text link by default. */
+.documentation-panel {
+  margin-top: 2px;
+}
+
+.documentation-summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.documentation-summary:hover {
+  background: none;
+  text-decoration: underline;
+}
+
+.documentation-chevron {
+  display: none;
+}
+
+.documentation-panel[open] > .documentation-summary {
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.documentation-content {
+  margin-top: 6px;
+  padding-left: 0;
+  border-left: 0;
+}
+
+@media (max-width: 900px) {
+  .algorithm-details__header {
+    flex-wrap: wrap;
+  }
+  .algorithm-workspace {
+    grid-template-columns: 1fr;
+  }
+}

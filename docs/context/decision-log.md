@@ -215,3 +215,17 @@ Consequences: Breaking: this UI needs a backend with PR #34 and does not work ag
 Files affected: `src/app/services/experiment-studio.service.ts`, `src/app/services/experiment-studio.service.spec.ts`, `e2e/experiment-studio-api.ts`, `e2e/experiment-studio.flows.spec.ts`, `README.md`, `docs/context/*.md`, `docs/llm-wiki/indexes/backend-endpoints.md`.
 
 Date: 2026-10-15.
+
+### Decision: Algorithm panel split into selection and result sections
+
+Status: Accepted
+
+Context: `algorithm-panel.component.ts` had grown to 1,703 lines with 28 `any`, loose mutable fields (`lastUsedAlgorithm`, the outlier_report rule maps, `formKey`, the built-form signature, the category-collapse bookkeeping) and one 22.1 kB stylesheet over the 20 kB component budget. Data Handling had been split the same way (PR 56).
+
+Decision: `AlgorithmPanelComponent` (`app-algorithm-panel`) stays the studio's entry point with the same API (`canRun`, `runDisabledReason`, `onClickRunExp`, `setStudioSubstep`, `studioSubstepChange`, `onExportResult`, `onExportResultZip`) and provides four component-scoped services: `AlgorithmCatalogService` (search, Runnable/All, group collapse as a `linkedSignal`, availability text), `AlgorithmConfigFormService` (enriched schema, reactive form, cross-validation, positive_class, outlier_report rules as signals), `AlgorithmRunService` (run needs, `canRun`, the run, its error, PDF/ZIP export) and `AlgorithmStudioSubstepService`. Its template is a shell over `section[app-algorithm-selection]` (role assignment host, `aside[app-algorithm-catalog]`, details, `section[app-algorithm-parameters]` with `div[app-algorithm-config-field]`, `section[app-outlier-report-editor]`), the projected `div[app-experiment-result]` readiness bar with `ul[app-algorithm-run-requirements]`. Attribute selectors keep the DOM, the `data-guide` anchors, `#algo-search`, sessionStorage keys and request payloads unchanged; pure helpers live in `algorithm-panel/utils/` with specs and shared types in `algorithm-panel.models.ts`.
+
+Consequences: Every stylesheet is under budget (the panel's is 3.3 kB). The outlier_report editor is still separate from Data Handling's outlier step; sharing one editor is a follow-up once PR 56 lands. The catalog's availability tooltip (`showTooltip` had no caller) was removed with its position helper and `formatInputCountRange`. `algorithm-result/` is shared with the Execution step and the dashboard and is unchanged.
+
+Files affected: `src/app/pages/experiment-studio/algorithm-panel/**`, `docs/context/conventions.md`, `docs/context/module-index.md`, `docs/llm-wiki/03-feature-index.md`, `AGENTS.md`.
+
+Date: 2026-10-29.

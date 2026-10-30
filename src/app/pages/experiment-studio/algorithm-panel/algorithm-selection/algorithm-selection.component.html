@@ -1,0 +1,46 @@
+<header class="algorithm-roles-board__header">
+  <div>
+    <h5 class="algorithm-roles-board__title">Algorithm</h5>
+  </div>
+  <span class="algorithm-count-badge">{{ catalog.algoCounts().active }} of {{ catalog.algoCounts().all }} runnable</span>
+</header>
+
+<div class="algorithm-pool">
+  <app-algorithm-role-assignment></app-algorithm-role-assignment>
+</div>
+
+<div class="algorithm-workspace">
+  <aside app-algorithm-catalog class="algorithm-catalog" data-guide="algorithm-selection" aria-labelledby="catalog-title"></aside>
+
+  <div class="algorithm-config-column">
+    @if (selectedAlgorithm(); as algorithm) {
+    <section class="algorithm-details" aria-label="Algorithm configuration">
+      <div class="algorithm-details__header">
+        <div class="algorithm-details__heading">
+          <div class="step-kicker"><span class="step-kicker-n">3</span></div>
+          <h2 class="algorithm-details__title">{{ algorithm.label }}</h2>
+        </div>
+        @if (selectedAlgorithmCategory()) {
+        <span class="inspector-tag">{{ selectedAlgorithmCategory() }}</span>
+        }
+      </div>
+      @if (algorithm.description) {
+      <p class="config-description">{{ algorithm.description }}</p>
+      }
+      @if (selectedAlgorithmDocumentation()) {
+      <details class="documentation-panel">
+        <summary class="documentation-summary">
+          <span class="documentation-chevron" aria-hidden="true"></span>
+          <span class="documentation-label">How this method works</span>
+        </summary>
+        <div class="documentation-content">{{ selectedAlgorithmDocumentation() }}</div>
+      </details>
+      }
+    </section>
+    }
+
+    <section app-algorithm-parameters class="algorithm-params" data-guide="algorithm-settings" aria-label="Parameter selection"></section>
+  </div>
+</div>
+
+<ng-content />

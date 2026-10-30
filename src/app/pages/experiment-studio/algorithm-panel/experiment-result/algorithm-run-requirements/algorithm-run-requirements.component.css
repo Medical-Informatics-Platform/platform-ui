@@ -1,0 +1,27 @@
+@import '../../styles/sr-only.shared.css';
+
+:host(.algo-needs) li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.algo-needs-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #a06b10;
+  transform: translateY(2px);
+}
+
+:host(.algo-needs) li.is-met .algo-needs-mark {
+  background: var(--success);
+  box-shadow: none;
+}
+
+:host(.algo-needs) small {
+  flex-basis: 100%;
+  padding-left: 20px;
+  color: #78350f;
+}

@@ -65,16 +65,6 @@ export function resolveInputMaxCount(
 }
 
 
-export function formatInputCountRange(minCount: number, maxCount: number | null): string {
-  if (minCount === 1 && maxCount === 1) return 'exactly 1';
-  if (minCount === 0 && maxCount === 1) return '0-1';
-  if (minCount > 0 && maxCount !== null && minCount === maxCount) return `exactly ${minCount}`;
-  if (minCount > 0 && maxCount !== null) return `${minCount}-${maxCount}`;
-  if (minCount > 0) return `${minCount}+`;
-  if (maxCount !== null) return `0-${maxCount}`;
-  return 'optional';
-}
-
 export function applyFallbackInputCounts(inputdata: unknown, algorithmName: string): Record<string, unknown> {
   if (!inputdata || typeof inputdata !== 'object') return {};
   const next: Record<string, unknown> = { ...(inputdata as Record<string, unknown>) };

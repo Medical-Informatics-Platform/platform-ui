@@ -19,7 +19,9 @@ Start with:
 - `ExperimentStudioComponent` (step shell) and `StudioStepperComponent` (step rail)
 - `ExperimentStudioService` (selection, algorithm roles, run state)
 - `execution-panel/` for run status/results and
-  `algorithm-panel/algorithm-role-assignment/` for the y/x slots
+  `algorithm-panel/algorithm-role-assignment/` for the y/x slots; the rest of
+  `algorithm-panel/` is a shell over `algorithm-selection/` (catalog, parameters)
+  and `experiment-result/` (run needs, readiness bar, run and exports)
 - `shared/station-card`, `shared/station-action-bar`, `shared/station-list-row` for
   the cards and footers every Data review step reuses
 - relevant model under `src/app/models/`

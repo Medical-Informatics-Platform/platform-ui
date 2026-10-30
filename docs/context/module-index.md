@@ -42,7 +42,7 @@ Notes: Stored historical experiment payloads may depend on legacy algorithm keys
 
 ## `src/app/pages/experiment-studio`
 Purpose: Experiment composition workflow.
-Key files: `experiment-studio.component.*`, `variables-panel/*`, `statistic-analysis-panel/*` (including `pca-column-source` / `kmeans-cluster-source`), `algorithm-panel/*`, `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
+Key files: `experiment-studio.component.*`, `variables-panel/*`, `statistic-analysis-panel/*` (including `pca-column-source` / `kmeans-cluster-source`), `algorithm-panel/*` (thin shell; `algorithm-selection/` catalog, details, parameter form and outlier_report editor; `experiment-result/` run needs, readiness bar, run and exports; feature services `AlgorithmCatalogService`, `AlgorithmConfigFormService`, `AlgorithmRunService`, `AlgorithmStudioSubstepService` provided by the panel; `algorithm-result/` is shared and stays put), `execution-panel/*` (result view + docked setup summary), `stepper/*`, `shared/*`, `guide/*`.
 Used by: `/experiment-studio` route and dashboard edit flows.
 Rules: Keep page-specific UI here; use `ExperimentStudioService` for shared selection/run state. Transformation cards append to `appliedTransformations` in creation order; each creator step names outputs with `new_column_names`. Do not reintroduce `pca_with_transformation`.
 Tests: Component specs live near components; e2e covers PCA then K-means then logistic regression payload order in `e2e/experiment-studio.flows.spec.ts`.
