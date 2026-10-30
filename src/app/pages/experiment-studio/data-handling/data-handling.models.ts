@@ -1,5 +1,4 @@
 import { EChartsOption } from 'echarts';
-import { Subscription } from 'rxjs';
 import { VariableStats } from '../../../models/algorithm-results.model';
 import { BackendFilter, BackendRule } from '../../../models/filters.model';
 import { HistogramGroupSeries } from '../visualisations/histogram/histogram-data';
@@ -92,7 +91,8 @@ export interface SummaryView {
   histogramDataByVariable: Record<string, HistogramPreviewData>;
   histogramLoadingByVariable: Record<string, boolean>;
   histogramErrorByVariable: Record<string, string>;
-  histogramSubscriptionsByVariable: Record<string, Subscription>;
+  /** Cache keys whose request has answered (data or error); not repeated until the surface is rebuilt. */
+  histogramSettledByVariable: Record<string, boolean>;
   histogramRequestIdByVariable: Record<string, number>;
   histogramSplitByVariable: Record<string, string>;
   activeBoxPlotIndex: number;

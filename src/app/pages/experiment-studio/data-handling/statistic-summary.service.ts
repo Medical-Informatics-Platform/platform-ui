@@ -76,7 +76,7 @@ export class StatisticSummaryService {
       histogramDataByVariable: {},
       histogramLoadingByVariable: {},
       histogramErrorByVariable: {},
-      histogramSubscriptionsByVariable: {},
+      histogramSettledByVariable: {},
       histogramRequestIdByVariable: {},
       ...this.distributionState(featurewise, response),
     };

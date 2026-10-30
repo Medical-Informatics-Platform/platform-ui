@@ -16,7 +16,7 @@ export function emptySummaryView(isLoading: boolean): SummaryView {
     histogramDataByVariable: {},
     histogramLoadingByVariable: {},
     histogramErrorByVariable: {},
-    histogramSubscriptionsByVariable: {},
+    histogramSettledByVariable: {},
     histogramRequestIdByVariable: {},
     histogramSplitByVariable: {},
     activeBoxPlotIndex: 0,

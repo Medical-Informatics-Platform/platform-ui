@@ -40,6 +40,7 @@ import { emptySummaryView, selectionKey, statisticBlockKey } from './utils/summa
 import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
 import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
 import { StatisticSummaryService } from './statistic-summary.service';
+import { SummaryHistogramService } from './summary-histogram.service';
 import { enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
@@ -49,7 +50,6 @@ import { ExperimentStudioNavigationService } from '../../../services/experiment-
 import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
-import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
 import { pluralize } from '../../../core/result-label.utils';
 import { filterOperatorPhrase } from '../../../core/filter-logic.utils';
 import {
@@ -104,12 +104,7 @@ import {
 } from './data-handling.models';
 import { buildPreprocessingDocumentationHtml } from './utils/preprocessing-documentation.utils';
 import { OutlierBoundsView, outlierBoundsView, outlierDistributionNumbers } from './utils/outlier-bounds.utils';
-import {
-  HistogramPreviewVariable,
-  histogramFromDescribeCounts,
-  parseHistogramResponse,
-  withDefaultDropFor,
-} from './utils/histogram-preview.utils';
+import { HistogramPreviewVariable } from './utils/histogram-preview.utils';
 import { CREATOR_CHOOSER_COPY, firstFilterCondition, transformationConfigFor } from './utils/transformation-draft.utils';
 import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
 import { TransformationStatisticsService } from './transformation-station/transformation-statistics.service';
@@ -150,6 +145,7 @@ import {
     TransformationStatisticsService,
     PreprocessingStateService,
     StatisticSummaryService,
+    SummaryHistogramService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -178,6 +174,7 @@ export class DataHandlingComponent implements OnDestroy {
   readonly transformationStats = inject(TransformationStatisticsService);
   readonly preprocessingState = inject(PreprocessingStateService);
   readonly statisticSummary = inject(StatisticSummaryService);
+  private readonly summaryHistogram = inject(SummaryHistogramService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
@@ -346,7 +343,6 @@ export class DataHandlingComponent implements OnDestroy {
       this.preprocessingState.userApplied = false;
       this.processedDescribeSeq++;
       this.clearProcessedPreviewSubscription();
-      this.clearHistogramSubscriptions(this.processedSummary);
       this.processedSummary = emptySummaryView(false);
       this.processedSummaryKey = '';
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
@@ -906,6 +902,24 @@ export class DataHandlingComponent implements OnDestroy {
       pendingPreprocessingConfig: () => this.buildPreprocessingConfig(this.pendingPreprocessingRules),
       variableLabel: (code) => this.variableLabelForCode(code),
     };
+    this.summaryHistogram.ports = {
+      selectedBlock: (kind) => this.selectedStatisticBlock(kind),
+      target: (kind, block) => {
+        const code = this.variableCodeForBlock(block);
+        if (!code) return null;
+        return {
+          code,
+          split: this.histogramSplitValue(kind, block),
+          variable: () => this.histogramVariable(kind, block),
+          splitLabel: (groupingCode) =>
+            this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode,
+        };
+      },
+      pendingPreprocessing: () => this.buildPreprocessingConfig(this.pendingPreprocessingRules, this.currentPreprocessingCodeSet()),
+      rawPreviewFilter: () => this.rawPreviewFilter,
+      groupLabel: (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
+      changed: () => this.cdr.markForCheck(),
+    };
     effect(() => {
       const layout = getAnalysisGuideLayout(this.guideState.activeStepId());
       if (!layout) return;
@@ -968,9 +982,6 @@ export class DataHandlingComponent implements OnDestroy {
         this.sourceDescribeSeq++;
         this.clearProcessedPreviewSubscription();
         this.clearSourcePreviewSubscription();
-        this.clearHistogramSubscriptions(this.rawSummary);
-        this.clearHistogramSubscriptions(this.sourceSummary);
-        this.clearHistogramSubscriptions(this.processedSummary);
         this.rawSummary = emptySummaryView(false);
         this.processedSummary = emptySummaryView(false);
         this.sourceSummary = emptySummaryView(false);
@@ -1015,9 +1026,6 @@ export class DataHandlingComponent implements OnDestroy {
     this.destroyed.complete();
     this.clearProcessedPreviewSubscription();
     this.clearSourcePreviewSubscription();
-    this.clearHistogramSubscriptions(this.rawSummary);
-    this.clearHistogramSubscriptions(this.sourceSummary);
-    this.clearHistogramSubscriptions(this.processedSummary);
   }
 
   get pendingChangeCount(): number {
@@ -1236,7 +1244,7 @@ export class DataHandlingComponent implements OnDestroy {
     this.summaryExportMenuKind.set(null);
     if (tab === 'Histogram') {
       const block = this.selectedStatisticBlock(kind);
-      if (block) this.ensureHistogramForBlock(kind, block);
+      if (block) this.summaryHistogram.ensure(kind, block);
     }
     this.cdr.markForCheck();
   }
@@ -1264,7 +1272,7 @@ export class DataHandlingComponent implements OnDestroy {
     const summary = this.getSummary(kind);
     summary.selectedStatisticKey = statisticBlockKey(block);
     if (summary.activeTab === 'Histogram') {
-      this.ensureHistogramForBlock(kind, block);
+      this.summaryHistogram.ensure(kind, block);
     }
   }
 
@@ -1364,7 +1372,7 @@ export class DataHandlingComponent implements OnDestroy {
       ...summary.histogramSplitByVariable,
       [code]: split,
     };
-    this.ensureHistogramForBlock(kind, block);
+    this.summaryHistogram.ensure(kind, block);
     this.cdr.markForCheck();
   }
 
@@ -1484,8 +1492,7 @@ export class DataHandlingComponent implements OnDestroy {
 
     const requestedKey = this.sourceScopeKey;
     const requestSeq = ++this.sourceDescribeSeq;
-    this.clearHistogramSubscriptions(this.sourceSummary);
-    this.sourceSummary = { ...this.sourceSummary, isLoading: true };
+    this.sourceSummary = { ...this.sourceSummary, isLoading: true, histogramSettledByVariable: {} };
     this.cdr.markForCheck();
 
     // No filter payload, no preprocessing steps: the data exactly as selected.
@@ -1499,7 +1506,7 @@ export class DataHandlingComponent implements OnDestroy {
           this.clearSourcePreviewSubscription();
           this.sourceSummary = this.buildSummaryFromResponse(response, 'source');
           this.sourceSummaryKey = requestedKey;
-          this.refreshActiveHistogramPreview('source');
+          this.summaryHistogram.refreshActive('source');
           this.cdr.markForCheck();
         },
         error: (err) => {
@@ -2284,7 +2291,6 @@ export class DataHandlingComponent implements OnDestroy {
     if (nextKey === this.processedSummaryKey) return;
     const previous = this.processedSummary;
     const requestSeq = ++this.processedDescribeSeq;
-    this.clearHistogramSubscriptions(this.processedSummary);
     this.clearProcessedPreviewSubscription();
     this.processedSummaryKey = nextKey;
     this.processedSummary = {
@@ -2302,7 +2308,7 @@ export class DataHandlingComponent implements OnDestroy {
           if (requestSeq !== this.processedDescribeSeq) return;
           this.clearProcessedPreviewSubscription();
           this.processedSummary = this.buildSummaryFromResponse(response, 'processed');
-          this.refreshActiveHistogramPreview('processed');
+          this.summaryHistogram.refreshActive('processed');
           this.emitProgressState();
           this.cdr.markForCheck();
         },
@@ -2356,7 +2362,6 @@ export class DataHandlingComponent implements OnDestroy {
     const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
     const requestSeq = ++this.processedDescribeSeq;
     this.isApplyingPreprocessing = true;
-    this.clearHistogramSubscriptions(this.processedSummary);
     this.clearProcessedPreviewSubscription();
     this.processedSummary = emptySummaryView(true);
     // Claim the summary key up front so the navigate-to-preview fetch is
@@ -2389,7 +2394,7 @@ export class DataHandlingComponent implements OnDestroy {
           this.preprocessingState.userApplied = true;
           this.preprocessingStatus = this.pendingChangeCount > 0 ? 'pending' : 'applied';
           this.isApplyingPreprocessing = false;
-          this.refreshActiveHistogramPreview('processed');
+          this.summaryHistogram.refreshActive('processed');
           this.emitProgressState();
           // Apply saves and closes: fold the card (or, for Apply & Continue, the station),
           // and do not open the next one. The summary just computed stays reachable
@@ -2469,7 +2474,7 @@ export class DataHandlingComponent implements OnDestroy {
           this.rawSummary = this.buildSummaryFromResponse(response, 'raw');
           this.processedData = this.rawSummary.data;
           this.isLoading = false;
-          this.refreshActiveHistogramPreview('raw');
+          this.summaryHistogram.refreshActive('raw');
           this.cdr.markForCheck();
         },
         error: (err) => {
@@ -2614,14 +2619,6 @@ export class DataHandlingComponent implements OnDestroy {
     return this.statisticSummary.fromDescribeResponse(response, this.getSummary(kind), this.preprocessingVariables);
   }
 
-  private refreshActiveHistogramPreview(kind: SummaryKind): void {
-    const summary = this.getSummary(kind);
-    if (summary.activeTab !== 'Histogram') return;
-    const block = this.selectedStatisticBlock(kind);
-    if (!block) return;
-    this.ensureHistogramForBlock(kind, block);
-  }
-
   private buildProcessedSummaryKey(
     variableCodes: string[],
     preprocessing: PreprocessingConfig
@@ -2633,150 +2630,6 @@ export class DataHandlingComponent implements OnDestroy {
     });
   }
 
-  private ensureHistogramForBlock(kind: SummaryKind, block: PivotBlock): void {
-    const code = this.variableCodeForBlock(block);
-    if (!code) return;
-
-    const split = this.histogramSplitValue(kind, block);
-    const cacheKey = histogramCacheKey(code, split);
-    const summary = this.getSummary(kind);
-    if (summary.histogramSubscriptionsByVariable[cacheKey]) return;
-    if (summary.histogramLoadingByVariable[cacheKey]) return;
-    if (summary.histogramDataByVariable[cacheKey]) return;
-
-    if (!split) {
-      const fromDescribe = histogramFromDescribeCounts(summary.featurewiseRows, code, this.histogramVariable(kind, block));
-      if (fromDescribe) {
-        summary.histogramDataByVariable = {
-          ...summary.histogramDataByVariable,
-          [cacheKey]: fromDescribe,
-        };
-        summary.histogramErrorByVariable = {
-          ...summary.histogramErrorByVariable,
-          [cacheKey]: '',
-        };
-        this.cdr.markForCheck();
-        return;
-      }
-    }
-
-    summary.histogramLoadingByVariable = {
-      ...summary.histogramLoadingByVariable,
-      [cacheKey]: true,
-    };
-    summary.histogramErrorByVariable = {
-      ...summary.histogramErrorByVariable,
-      [cacheKey]: '',
-    };
-    this.cdr.markForCheck();
-
-    // `histogram_sql` cannot run without a missing-value strategy, so even the
-    // unprocessed surfaces send the default drop for the plotted variable and nothing
-    // else. The processed surface sends its pending rules — never the derived columns,
-    // which are this variable's output, not its input. Grouping variables are not given
-    // a drop strategy: that would remove rows from the overall total.
-    const preprocessingOverride = this.histogramPreprocessingFor(kind, code);
-
-    // Step 0 previews the unfiltered cohort, so its histogram must drop the
-    // filter too - otherwise the tab would show the filtered cohort under a
-    // "no filters applied" heading.
-    const requestSeq = (summary.histogramRequestIdByVariable[cacheKey] ?? 0) + 1;
-    summary.histogramRequestIdByVariable = {
-      ...summary.histogramRequestIdByVariable,
-      [cacheKey]: requestSeq,
-    };
-    // Step 0 describes the unfiltered source; a Cohort Filtering preview pins the raw
-    // histograms to the same unsaved cohort its table came from; the processed surface
-    // keeps the applied cohort (undefined = the stored rules).
-    const filterOverride = kind === 'source' ? null : kind === 'raw' ? this.rawPreviewFilter : undefined;
-    this.expStudioService
-      .getAlgorithmResults(
-        AlgorithmNames.HISTOGRAM,
-        [code],
-        null,
-        preprocessingOverride,
-        filterOverride,
-        split ? [split] : null,
-      )
-      .pipe(takeUntil(this.destroyed))
-      .subscribe({
-        next: (response) => {
-          const nextSummary = this.getSummary(kind);
-          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
-          const parsed = parseHistogramResponse({
-            response,
-            code,
-            variable: this.histogramVariable(kind, block),
-            kind,
-            groupingCode: split,
-            groupLabel: (groupingVar, groupingEnum) => this.groupingEnumLabel(groupingVar, groupingEnum),
-            datasets: this.expStudioService.selectedDatasets(),
-            splitLabel: (groupingCode) =>
-              this.histogramSplitOptions(block).find((option) => option.code === groupingCode)?.label ?? groupingCode,
-          });
-          if (parsed.data) {
-            nextSummary.histogramDataByVariable = {
-              ...nextSummary.histogramDataByVariable,
-              [cacheKey]: parsed.data,
-            };
-            nextSummary.histogramErrorByVariable = {
-              ...nextSummary.histogramErrorByVariable,
-              [cacheKey]: '',
-            };
-          } else {
-            nextSummary.histogramErrorByVariable = {
-              ...nextSummary.histogramErrorByVariable,
-              [cacheKey]: parsed.error,
-            };
-          }
-          nextSummary.histogramLoadingByVariable = {
-            ...nextSummary.histogramLoadingByVariable,
-            [cacheKey]: false,
-          };
-          nextSummary.histogramSubscriptionsByVariable = {
-            ...nextSummary.histogramSubscriptionsByVariable,
-            [cacheKey]: Subscription.EMPTY,
-          };
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          const nextSummary = this.getSummary(kind);
-          if (nextSummary.histogramRequestIdByVariable[cacheKey] !== requestSeq) return;
-          nextSummary.histogramLoadingByVariable = {
-            ...nextSummary.histogramLoadingByVariable,
-            [cacheKey]: false,
-          };
-          nextSummary.histogramErrorByVariable = {
-            ...nextSummary.histogramErrorByVariable,
-            [cacheKey]: 'Failed to load histogram preview.',
-          };
-          nextSummary.histogramSubscriptionsByVariable = {
-            ...nextSummary.histogramSubscriptionsByVariable,
-            [cacheKey]: Subscription.EMPTY,
-          };
-          this.cdr.markForCheck();
-        },
-      });
-  }
-
-  /**
-   * What one numerical histogram is plotted under. Raw and step 0 only ever add the
-   * default drop-NaN for the plotted variable: neither surface may show preprocessing
-   * or transformations it does not describe. The processed surface follows the pending
-   * editor state, and a variable those rules leave alone still gets the default drop,
-   * because a histogram without a handler is a failed request, not an unhandled cohort.
-   */
-  private histogramPreprocessingFor(kind: SummaryKind, code: string): PreprocessingConfig {
-    if (kind === 'processed') {
-      const pending = this.buildPreprocessingConfig(
-        this.pendingPreprocessingRules,
-        this.currentPreprocessingCodeSet(),
-      );
-      return withDefaultDropFor(pending, code);
-    }
-    return withDefaultDropFor(null, code);
-  }
-
   private clearProcessedPreviewSubscription(): void {
     this.processedPreviewSubscription?.unsubscribe();
     this.processedPreviewSubscription = null;
@@ -2785,11 +2638,6 @@ export class DataHandlingComponent implements OnDestroy {
   private clearSourcePreviewSubscription(): void {
     this.sourcePreviewSubscription?.unsubscribe();
     this.sourcePreviewSubscription = null;
-  }
-
-  private clearHistogramSubscriptions(summary: SummaryView): void {
-    Object.values(summary.histogramSubscriptionsByVariable).forEach((subscription) => subscription.unsubscribe());
-    summary.histogramSubscriptionsByVariable = {};
   }
 
   /** The plotted variable as a histogram preview describes it. */
