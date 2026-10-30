@@ -91,7 +91,6 @@ import {
   TransformationRule,
   TransformationColumnDraft,
   PipelineSubNode,
-  MetricKey,
   SummaryView,
   PivotBlock,
   VariableRow,
@@ -115,11 +114,28 @@ import { CREATOR_CHOOSER_COPY, firstFilterCondition, transformationConfigFor } f
 import { TransformationDraftsService } from './transformation-station/transformation-drafts.service';
 import { TransformationStatisticsService } from './transformation-station/transformation-statistics.service';
 import {
+  CategoryShare,
+  Coverage,
+  DatasetCoverage,
+  DistributionPoint,
+  PooledCoverage,
+  barWidth,
+  blockCoverage,
+  blockDistribution,
+  categoryShares,
+  coverageByDataset,
+  coveragePercent,
+  coverageSeverity,
+  coverageTitle,
+  metricGroupLabel,
+  missingShareNote,
+  pooledCoverage,
+} from './utils/summary-coverage.utils';
+import {
+  displayNumber,
   formatInteger,
   formatOutlierBound,
   formatOutlierPercentage,
-  formatPercent,
-  parseNumber,
 } from './utils/statistic-format.utils';
 
 @Component({
@@ -834,19 +850,6 @@ export class DataHandlingComponent implements OnDestroy {
   ];
   readonly outlierStrategies = OUTLIER_STRATEGIES;
   readonly outlierTails = OUTLIER_TAILS;
-
-  readonly metricLabel: Record<MetricKey, string> = {
-    num_dtps: 'Datapoints',
-    num_na: 'Missing',
-    num_total: 'Total',
-    mean: 'Mean',
-    std: 'Standard Deviation',
-    min: 'Min',
-    q1: 'Q1',
-    q2: 'Median',
-    q3: 'Q3',
-    max: 'Max',
-  };
 
   private selectionKey = '';
   /** Cohort half of `selectionKey`, so a preprocessing write can be ignored on its own. */
@@ -1736,57 +1739,26 @@ export class DataHandlingComponent implements OnDestroy {
     return this.rawSummary.data.find((block) => this.variableCodeForBlock(block) === variable.code) ?? null;
   }
 
-  coverageFor(variable: VariableRow): { total: number; missing: number; share: number } | null {
-    return this.blockCoverage(this.summaryBlockFor(variable));
+  coverageFor(variable: VariableRow): Coverage | null {
+    return blockCoverage(this.summaryBlockFor(variable));
   }
 
-  /** Block-based coverage. Both rails price a variable the same way, so the
-   *  lookup lives here and coverageFor() stays the variable-based entry. */
-  blockCoverage(block: PivotBlock | null | undefined): { total: number; missing: number; share: number } | null {
-    if (!block) return null;
-    const total = this.statisticMetricNumber(block, 'Total');
-    if (total <= 0) return null;
-    const missing = Math.min(this.statisticMissingValue(block), total);
-    return { total, missing, share: missing / total };
+  /** Both rails price a variable the same way; coverageFor() is the variable-based entry. */
+  blockCoverage(block: PivotBlock | null | undefined): Coverage | null {
+    return blockCoverage(block);
   }
 
-  /** Display form of a canonical pivot value: parse the stored string, then
-   *  locale-group it. Storage and CSV export use `formatNumber`, never this. */
   displayNumber(value: string | undefined | null): string {
-    if (value === null || value === undefined || value === '') return value ?? '';
-    const n = Number(String(value).replace(/,/g, ''));
-    if (!Number.isFinite(n)) return value;
-    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return displayNumber(value);
   }
 
   missingShareNote(block: PivotBlock, row: PivotBlock['rows'][number], dataset: string): string | null {
-    if (row.metric !== 'Missing') return null;
-    const parse = (metric: string) =>
-      Number((block.rows.find((item) => item.metric === metric)?.values[dataset] ?? '').replace(/,/g, ''));
-    const missing = parse('Missing');
-    const total = parse('Total');
-    if (!Number.isFinite(missing) || !Number.isFinite(total) || total <= 0) return null;
-    return this.coveragePercent({ share: Math.min(missing / total, 1) });
+    return missingShareNote(block, row, dataset);
   }
 
-  /** The rail's foot: coverage re-pooled over every variable currently shown.
-   *  Per-variable shares are not additive, so this sums the counts and divides
-   *  once — averaging 0.7% and 100% would state a number that describes no
-   *  dataset. Null when no shown block has statistics, so the foot disappears
-   *  rather than reporting 0%. */
-  selectionCoverage(kind: SummaryKind): { total: number; missing: number; share: number; variables: number } | null {
-    let total = 0;
-    let missing = 0;
-    let variables = 0;
-    for (const block of this.filteredStatisticBlocks(kind)) {
-      const coverage = this.blockCoverage(block);
-      if (!coverage) continue;
-      total += coverage.total;
-      missing += coverage.missing;
-      variables += 1;
-    }
-    if (variables === 0 || total <= 0) return null;
-    return { total, missing, share: Math.min(missing / total, 1), variables };
+  /** The rail's foot: coverage re-pooled over every variable currently shown. */
+  selectionCoverage(kind: SummaryKind): PooledCoverage | null {
+    return pooledCoverage(this.filteredStatisticBlocks(kind));
   }
 
   /** The pooled column is a rollup, not another dataset. Normalised through the
@@ -1796,33 +1768,20 @@ export class DataHandlingComponent implements OnDestroy {
     return this.datasetLabel(column) === this.datasetLabel('all datasets');
   }
 
-  private isCountMetric(metric: string | undefined): boolean {
-    return metric === 'Datapoints' || metric === 'Missing' || metric === 'Total';
-  }
-
-  /** Group heading rendered above rows[index], or null when the row continues
-   *  the group above it. A group starts where count-ness changes. */
   metricGroupLabel(rows: PivotBlock['rows'], index: number): string | null {
-    const here = this.isCountMetric(rows[index]?.metric);
-    if (index === 0 || this.isCountMetric(rows[index - 1]?.metric) !== here) {
-      return here ? 'Coverage' : 'Distribution';
-    }
-    return null;
+    return metricGroupLabel(rows, index);
   }
 
   coveragePercent(coverage: { share: number }): string {
-    return formatPercent(coverage.share * 100);
+    return coveragePercent(coverage);
   }
 
-  /** Bar length for a share scaled up so small shares stay visible (×1000: 5% is a half
-   *  bar), floored at 2% so a clean variable still shows the track. */
   barWidth(share: unknown, scale: number): number {
-    return Math.max(2, Math.min(100, (parseNumber(share) ?? 0) * scale));
+    return barWidth(share, scale);
   }
 
-  /** The full count belongs in its tooltip; the row only carries the share. */
   coverageTitle(coverage: { total: number; missing: number }): string {
-    return `${coverage.missing.toLocaleString()} of ${coverage.total.toLocaleString()} values missing`;
+    return coverageTitle(coverage);
   }
 
   /** An unpriced decision must say why it is unpriced, not render blank.
@@ -1833,52 +1792,16 @@ export class DataHandlingComponent implements OnDestroy {
       : 'No dataset statistics are available for this variable, so neither the distribution nor the row cost can be shown.';
   }
 
-  /** Three bands. At the old single 10% floor 30% and 100% rendered in the same
-   *  red, so across a rail of variables the colour ranked nothing. 10% keeps the
-   *  studio's existing "worth noticing" onset; 50% is where a variable stops
-   *  being usable. The exact figure always sits beside the colour. */
   coverageSeverity(coverage: { share: number }): 'none' | 'warning' | 'high' {
-    if (coverage.share >= 0.5) return 'high';
-    if (coverage.share >= 0.1) return 'warning';
-    return 'none';
+    return coverageSeverity(coverage);
   }
 
-  distributionFor(variable: VariableRow): Array<{ label: string; value: string }> {
-    const block = this.summaryBlockFor(variable);
-    if (!block) return [];
-    // A nominal block carries no quantile rows at all, so the lookups come back
-    // 'N/A'; those are absent data, not values, and must not render as a row of N/A.
-    return (['mean', 'std', 'min', 'q1', 'q2', 'q3', 'max'] as const)
-      .map((key) => ({
-        label: this.metricLabel[key],
-        value: this.displayNumber(this.statisticMetricText(block, this.metricLabel[key])),
-      }))
-      .filter((point) => point.value !== 'N/A');
+  distributionFor(variable: VariableRow): DistributionPoint[] {
+    return blockDistribution(this.summaryBlockFor(variable));
   }
 
-  /** Category frequencies. In the pivot these are the rows after the three
-   *  count metrics, so anything that is not a count metric is a category — but
-   *  only for a nominal block. A numeric block's remaining rows are Mean/Std/
-   *  Min/Q1/Q2/Q3/Max, which are not categories and were being relabelled. */
-  categoryCountsFor(variable: VariableRow, limit = 6): Array<{ label: string; value: string; share: number }> {
-    if (!this.isCategoricalVariable(variable)) return [];
-    const block = this.summaryBlockFor(variable);
-    if (!block) return [];
-    const base = new Set(['Datapoints', 'Missing', 'Total']);
-    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
-    const datapoints = Number((block.rows.find((row) => row.metric === 'Datapoints')?.values[dataset] ?? '').replace(/,/g, ''));
-    return block.rows
-      .filter((row) => !base.has(row.metric))
-      .map((row) => {
-        const value = row.values[dataset] ?? '';
-        const count = Number(value.replace(/,/g, ''));
-        return {
-          label: row.metric,
-          value: this.displayNumber(value || '0'),
-          share: Number.isFinite(count) && datapoints > 0 ? Math.min(count / datapoints, 1) : 0,
-        };
-      })
-      .slice(0, limit);
+  categoryCountsFor(variable: VariableRow, limit = 6): CategoryShare[] {
+    return this.isCategoricalVariable(variable) ? categoryShares(this.summaryBlockFor(variable), limit) : [];
   }
 
   /** The selected missing-value action restated in rows, so it can be judged. */
@@ -2009,28 +1932,9 @@ export class DataHandlingComponent implements OnDestroy {
       .find((point) => point.label.toLowerCase() === label.toLowerCase())?.value ?? '';
   }
 
-  /** Per-dataset coverage for the missing-values evidence tiles. Derives the same
-   *  Missing/Total rows the table uses, split by dataset, minus the rollup column. */
-  coverageByDataset(variable: VariableRow): Array<{ label: string; missing: number; total: number; share: number }> {
-    const block = this.summaryBlockFor(variable);
-    if (!block) return [];
-    const totalRow = block.rows.find((row) => row.metric === 'Total');
-    const missingRow = block.rows.find((row) => row.metric === 'Missing');
-    if (!totalRow || !missingRow) return [];
-    return block.columns
-      .filter((dataset) => !this.isRollupColumn(dataset))
-      .map((dataset) => {
-        const total = parseNumber(totalRow.values[dataset]) ?? 0;
-        if (total <= 0) return null;
-        const missing = Math.min(parseNumber(missingRow.values[dataset]) ?? 0, total);
-        return {
-          label: this.datasetLabel(dataset),
-          missing,
-          total,
-          share: missing / total,
-        };
-      })
-      .filter((tile): tile is { label: string; missing: number; total: number; share: number } => !!tile);
+  /** Per-dataset coverage for the missing-values evidence tiles, minus the rollup column. */
+  coverageByDataset(variable: VariableRow): DatasetCoverage[] {
+    return coverageByDataset(this.summaryBlockFor(variable), (code) => this.datasetLabel(code));
   }
 
   ruleFor(variable: VariableRow): PreprocessingRule {
@@ -3572,21 +3476,4 @@ export class DataHandlingComponent implements OnDestroy {
     const numericMetrics = new Set(['Mean', 'Standard Deviation', 'Minimum', 'Q1', 'Median', 'Q3', 'Maximum']);
     return block.rows.some((row) => numericMetrics.has(row.metric)) ? 'numeric' : 'nominal';
   }
-
-  private statisticMetricText(block: PivotBlock, metric: string): string {
-    const row = block.rows.find((item) => item.metric === metric);
-    if (!row) return 'N/A';
-    const dataset = block.columns.includes('all datasets') ? 'all datasets' : block.columns[0];
-    return row.values[dataset] ?? 'N/A';
-  }
-
-  private statisticMetricNumber(block: PivotBlock, metric: string): number {
-    const value = Number(this.statisticMetricText(block, metric).replace(/,/g, ''));
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  private statisticMissingValue(block: PivotBlock): number {
-    return Math.round(this.statisticMetricNumber(block, 'Missing'));
-  }
-
 }

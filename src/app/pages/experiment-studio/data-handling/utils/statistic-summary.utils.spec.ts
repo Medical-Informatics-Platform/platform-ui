@@ -4,6 +4,7 @@ import {
   categoryCounts,
   enumLabelMap,
   isCategoricalVariable,
+  isCountMetricLabel,
   pivotByDataset,
   pooledTotalRows,
   variableLabel,
@@ -32,6 +33,12 @@ describe('statistic-summary utils', () => {
     expect(isCategoricalVariable({ code: 'a', type: 'Nominal' })).toBe(true);
     expect(isCategoricalVariable({ code: 'a', type: 'real', enumerations: [{ code: '1' }] })).toBe(true);
     expect(isCategoricalVariable({ code: 'a', type: 'real' })).toBe(false);
+  });
+
+  it('recognises the three record-count rows by label', () => {
+    expect(['Datapoints', 'Missing', 'Total'].every(isCountMetricLabel)).toBe(true);
+    expect(isCountMetricLabel('Mean')).toBe(false);
+    expect(isCountMetricLabel(undefined)).toBe(false);
   });
 
   it('maps enumeration codes to labels', () => {

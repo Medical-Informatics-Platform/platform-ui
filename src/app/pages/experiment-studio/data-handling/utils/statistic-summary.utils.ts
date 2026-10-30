@@ -20,6 +20,11 @@ export const SUMMARY_METRICS: ReadonlyArray<{ key: MetricKey; label: string }> =
 const COUNT_METRICS: ReadonlySet<MetricKey> = new Set(['num_dtps', 'num_na', 'num_total']);
 const COUNT_ROWS = SUMMARY_METRICS.filter((metric) => COUNT_METRICS.has(metric.key));
 
+/** Whether a summary row is one of the record counts (Datapoints, Missing, Total) by its label. */
+export function isCountMetricLabel(label: string | undefined): boolean {
+  return COUNT_ROWS.some((metric) => metric.label === label);
+}
+
 type DescribeStats = NonNullable<VariableStats['data']>;
 type PivotRow = PivotBlock['rows'][number];
 

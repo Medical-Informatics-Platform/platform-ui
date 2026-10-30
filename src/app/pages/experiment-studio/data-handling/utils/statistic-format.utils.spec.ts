@@ -1,4 +1,5 @@
 import {
+  displayNumber,
   formatInteger,
   formatNumber,
   formatOutlierBound,
@@ -21,6 +22,15 @@ describe('statistic-format utils', () => {
     expect(formatNumber('1,234.5')).toBe('1234.50');
     expect(formatNumber('')).toBe('N/A');
     expect(formatNumber('abc')).toBe('abc');
+  });
+
+  it('groups a stored pivot value for display and leaves non-numbers alone', () => {
+    expect(displayNumber('1234.567')).toBe((1234.567).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+    expect(displayNumber('1,234')).toBe((1234).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+    expect(displayNumber('N/A')).toBe('N/A');
+    expect(displayNumber('')).toBe('');
+    expect(displayNumber(null)).toBe('');
+    expect(displayNumber(undefined)).toBe('');
   });
 
   it('formats integers, bounds and percentages with their own empty markers', () => {

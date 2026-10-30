@@ -15,6 +15,14 @@ export function formatNumber(value: unknown): string {
   return n.toFixed(2);
 }
 
+/** Display form of a canonical pivot value: parse the stored string, then locale-group it. Storage and CSV export use `formatNumber`, never this. */
+export function displayNumber(value: string | undefined | null): string {
+  if (value === null || value === undefined || value === '') return value ?? '';
+  const n = Number(String(value).replace(/,/g, ''));
+  if (!Number.isFinite(n)) return value;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
 /** Outlier preview bounds keep the old 6-decimal preview precision. */
 export function formatOutlierBound(value: unknown): string {
   if (value === null || value === undefined || value === '') return '-';
