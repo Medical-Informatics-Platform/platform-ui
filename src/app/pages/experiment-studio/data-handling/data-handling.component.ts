@@ -24,9 +24,6 @@ import {
   buildHistogramSplitOptions,
   histogramCacheKey,
 } from '../visualisations/histogram/histogram-data';
-import { PdfExportService } from '../../../services/pdf-export.service';
-import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { resolveDatasetDisplayLabel } from '../../../core/describe-result.utils';
 import { FilterConfigModalComponent } from '../shared/filter-config-modal/filter-config-modal.component';
 import { StationStatus } from '../shared/station-card/station-card.component';
 import { DATA_HANDLING } from './data-handling.context';
@@ -36,18 +33,18 @@ import { CohortFilterStationComponent } from './cohort-filter-station/cohort-fil
 import { SourceDataStationComponent } from './source-data-station/source-data-station.component';
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
-import { emptySummaryView, selectionKey, statisticBlockKey } from './utils/summary-view.utils';
+import { datasetDisplayLabel, emptySummaryView, selectionKey, statisticBlockKey, summaryKindLabel } from './utils/summary-view.utils';
 import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
 import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
 import { StatisticSummaryService } from './statistic-summary.service';
+import { SummaryExportService } from './summary-export.service';
 import { SummaryHistogramService } from './summary-histogram.service';
 import { enumLabelMap, isCategoricalVariable, pooledTotalRows, variableLabel } from './utils/statistic-summary.utils';
 import { PipelineTerminalComponent } from './pipeline-terminal/pipeline-terminal.component';
 import { BackendFilter } from '../../../models/filters.model';
 import { kmeansCreatorClusterChoices, kmeansCreatorVariables } from '../../../core/kmeans-cluster-source.utils';
-import { CsvExportService } from '../../../services/csv-export.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
-import { countFilterRules, formatFilterExpression } from '../../../core/filter-display.utils';
+import { countFilterRules } from '../../../core/filter-display.utils';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
 import { getAnalysisGuideLayout } from '../guide/experiment-studio-analysis-guide.util';
 import { pluralize } from '../../../core/result-label.utils';
@@ -146,6 +143,7 @@ import {
     PreprocessingStateService,
     StatisticSummaryService,
     SummaryHistogramService,
+    SummaryExportService,
   ],
   templateUrl: './data-handling.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
@@ -175,15 +173,12 @@ export class DataHandlingComponent implements OnDestroy {
   readonly preprocessingState = inject(PreprocessingStateService);
   readonly statisticSummary = inject(StatisticSummaryService);
   private readonly summaryHistogram = inject(SummaryHistogramService);
+  private readonly summaryExport = inject(SummaryExportService);
 
   expStudioService = inject(ExperimentStudioService);
   private readonly destroyed = new Subject<void>();
   private studioNavigation = inject(ExperimentStudioNavigationService);
-  private pdfExportService = inject(PdfExportService);
-  private csvExportService = inject(CsvExportService);
   private cdr = inject(ChangeDetectorRef);
-  private runtimeEnvService = inject(RuntimeEnvService);
-  readonly mipVersion = this.runtimeEnvService.mipVersion;
 
   get rawSummary(): SummaryView {
     return this.statisticSummary.raw;
@@ -271,7 +266,9 @@ export class DataHandlingComponent implements OnDestroy {
     raw: '',
     processed: '',
   };
-  isExporting = false;
+  get isExporting(): boolean {
+    return this.summaryExport.exporting();
+  }
   isLoading = true;
   readonly sectionOpen = signal<Record<SectionKey, boolean>>({
     source: false,
@@ -1519,9 +1516,8 @@ export class DataHandlingComponent implements OnDestroy {
       });
   }
 
-  /** Heading and aria text, so one summary template reads correctly for all three kinds. */
   summaryKindLabel(kind: SummaryKind): string {
-    return kind === 'source' ? 'Source data' : kind === 'raw' ? 'Raw data' : 'Processed data';
+    return summaryKindLabel(kind);
   }
 
   /** Anchor name for one slot of the shared summary template; see `SUMMARY_GUIDE_ANCHORS`. */
@@ -2511,9 +2507,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   datasetLabel(datasetCode: string): string {
-    if (!datasetCode) return datasetCode;
-    const map = this.expStudioService.getDatasetLabelMap();
-    return resolveDatasetDisplayLabel(String(datasetCode), map);
+    return datasetDisplayLabel(datasetCode, this.expStudioService.getDatasetLabelMap());
   }
 
   variableTypeLabel(variable: VariableRow): string {
@@ -2535,68 +2529,12 @@ export class DataHandlingComponent implements OnDestroy {
       .filter((item): item is EnumOption => !!item);
   }
 
-  async exportAllDescriptiveToPDF(kind: SummaryKind = 'raw'): Promise<void> {
-    this.isExporting = true;
-    this.cdr.markForCheck();
-    try {
-      const numericCharts = document.querySelectorAll(
-        `.hidden-charts-for-export.${kind}-export .numeric-charts-export app-chart-renderer`
-      ) as NodeListOf<HTMLElement>;
-
-      const nominalCharts = document.querySelectorAll(
-        `.hidden-charts-for-export.${kind}-export .nominal-charts-export app-chart-renderer`
-      ) as NodeListOf<HTMLElement>;
-
-      const dataModel = this.expStudioService.selectedDataModel();
-      const pathologyName = dataModel?.label || dataModel?.code || '';
-      const summary = this.getSummary(kind);
-
-      const labelMap = this.expStudioService.variableLabelMap();
-      const enumMaps = this.expStudioService.getCategoricalEnumMaps();
-      const filterLogic = this.expStudioService.filterLogic();
-      await this.pdfExportService.exportDescriptiveStatisticsPdf({
-        title: this.summaryKindLabel(kind),
-        pathologyName,
-        context: [
-          ['Datasets', this.expStudioService.selectedDatasets().map((code) => this.datasetLabel(code))],
-          // Source data is the selection before any cohort rule or preprocessing.
-          ['Filters', kind !== 'source' && filterLogic ? formatFilterExpression(filterLogic, { labelMap, enumMaps }) : null],
-          ['Preprocessing', kind === 'processed'
-            ? this.expStudioService.formatPreprocessingConfig(this.expStudioService.getAppliedDescriptivePreprocessing(), labelMap, enumMaps).split('\n')
-            : null],
-        ],
-        variables: this.pivotBlocksWithDatasetLabels(summary.data),
-        charts: numericCharts,
-        nonNominalVariables: summary.nonNominalVariables,
-        nominalCharts,
-        nominalVariables: summary.nominalVariables,
-        mipVersion: this.mipVersion,
-      });
-    } catch (err) {
-      console.error('PDF export failed:', err);
-    } finally {
-      this.isExporting = false;
-      this.cdr.markForCheck();
-    }
+  exportAllDescriptiveToPDF(kind: SummaryKind = 'raw'): Promise<void> {
+    return this.summaryExport.toPdf(kind, this.getSummary(kind));
   }
 
   exportSummaryToCSV(kind: SummaryKind): void {
-    const summary = this.getSummary(kind);
-    if (!summary.data.length) return;
-
-    const rows = summary.data.flatMap((variable) =>
-      variable.rows.flatMap((row) =>
-        variable.columns.map((dataset) => ({
-          Variable: variable.name,
-          Metric: row.metric,
-          Dataset: this.datasetLabel(dataset),
-          Value: row.values[dataset] ?? '',
-        }))
-      )
-    );
-
-    const filename = `${kind}_data_summary.csv`;
-    this.csvExportService.exportToCsv(rows, ['Variable', 'Metric', 'Dataset', 'Value'], filename);
+    this.summaryExport.toCsv(kind, this.getSummary(kind));
   }
 
   /** Every kind with a summary surface, in pipeline order. */
@@ -3298,22 +3236,6 @@ export class DataHandlingComponent implements OnDestroy {
   private variableCodeForBlock(block: PivotBlock): string | null {
     if (block.code) return block.code;
     return this.variableForBlock(block)?.code ?? null;
-  }
-
-  private pivotBlocksWithDatasetLabels(blocks: PivotBlock[]): PivotBlock[] {
-    return blocks.map((block) => {
-      const labeledColumns = block.columns.map((code) => this.datasetLabel(code));
-      return {
-        ...block,
-        columns: labeledColumns,
-        rows: block.rows.map((row) => ({
-          metric: row.metric,
-          values: Object.fromEntries(
-            block.columns.map((code, index) => [labeledColumns[index], row.values[code]])
-          ),
-        })),
-      };
-    });
   }
 
   private statisticBlockType(kind: SummaryKind, block: PivotBlock): StatisticVariableType {
