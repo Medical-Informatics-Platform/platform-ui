@@ -34,6 +34,7 @@ import { SourceDataStationComponent } from './source-data-station/source-data-st
 import { SectionAnchorDirective, SectionAnchors } from './section-anchors';
 import { RuleBuilder, RuleBuilderRegistry } from './transformation/rule-builder-registry';
 import { datasetDisplayLabel, emptySummaryView, selectionKey, statisticBlockKey, summaryKindLabel } from './utils/summary-view.utils';
+import { CLOSED_SECTIONS, StageStep, isStepShown, sectionLayout } from './utils/section-layout.utils';
 import { cloneMissingRules, defaultMissingRule, emptyMissingRule, groupPreprocessingVariables, serializeMissingRule } from './utils/preprocessing-state.utils';
 import { PreprocessingStateService } from './preprocessing-station/preprocessing-state.service';
 import { StatisticSummaryService } from './statistic-summary.service';
@@ -270,14 +271,7 @@ export class DataHandlingComponent implements OnDestroy {
     return this.summaryExport.exporting();
   }
   isLoading = true;
-  readonly sectionOpen = signal<Record<SectionKey, boolean>>({
-    source: false,
-    raw: false,
-    setup: false,
-    filters: false,
-    processed: false,
-    transformation: false,
-  });
+  readonly sectionOpen = signal<Record<SectionKey, boolean>>({ ...CLOSED_SECTIONS });
   readonly summaryExpanded = signal<{ filters: boolean; setup: boolean }>({
     filters: false,
     setup: false,
@@ -289,14 +283,14 @@ export class DataHandlingComponent implements OnDestroy {
     transformation: true,
   };
 
-  readonly addedSteps = signal<Record<'filters' | 'setup' | 'transformation', boolean>>({
+  readonly addedSteps = signal<Record<StageStep, boolean>>({
     filters: false,
     setup: false,
     transformation: false,
   });
   readonly showUnappliedChangesWarning = signal(false);
 
-  isStepAdded(step: 'filters' | 'setup' | 'transformation'): boolean {
+  isStepAdded(step: StageStep): boolean {
     if (this.addedSteps()[step]) return true;
     if (step === 'filters') return this.filterRuleCount() > 0;
     if (step === 'transformation') {
@@ -316,14 +310,14 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   /** Opening a stage is a read: it shows the editor, it never writes the request. */
-  addStep(step: 'filters' | 'setup' | 'transformation'): void {
+  addStep(step: StageStep): void {
     this.addedSteps.update((s) => ({ ...s, [step]: true }));
     if (step === 'setup') this.ensureDefaultRulesForCurrentSelection();
     this.goToSection(step);
     this.cdr.markForCheck();
   }
 
-  removeStep(step: 'filters' | 'setup' | 'transformation'): void {
+  removeStep(step: StageStep): void {
     this.addedSteps.update((s) => ({ ...s, [step]: false }));
     if (step === 'filters') {
       this.rawPreviewFilter = undefined;
@@ -361,16 +355,16 @@ export class DataHandlingComponent implements OnDestroy {
       return;
     }
     this.removeStep('filters');
-    this.requestSectionScroll('filters');
+    this.sectionAnchors.requestScroll('filters');
   }
 
   /** Folds the stage's editor and preview; nothing is removed or discarded. */
-  collapseStep(step: 'filters' | 'setup' | 'transformation'): void {
+  collapseStep(step: StageStep): void {
     if (step === 'filters') return this.foldFilterStation();
     if (step === 'setup') return this.foldPreprocessingStation();
     this.sectionOpen.update((open) => ({ ...open, transformation: false }));
     this.cdr.markForCheck();
-    this.requestSectionScroll('transformation');
+    this.sectionAnchors.requestScroll('transformation');
   }
 
   /** A click anywhere on a step's header toggles it, except on the header's own buttons
@@ -390,19 +384,15 @@ export class DataHandlingComponent implements OnDestroy {
 
   /** A step outside the pipeline is never open, whatever its section flag says. */
   isStepOpen(step: PipelineStep): boolean {
-    const open = this.sectionOpen();
-    if (step === 'source') return open.source;
-    if (!this.isStepAdded(step)) return false;
-    if (step === 'filters') return open.filters || open.raw;
-    if (step === 'setup') return open.setup || open.processed;
-    return open.transformation;
+    if (step !== 'source' && !this.isStepAdded(step)) return false;
+    return isStepShown(step, this.sectionOpen());
   }
 
   /** Apply saved the rules; fold the editor. Preview data is what opens the tables. */
   private foldFilterStation(): void {
     this.sectionOpen.update((open) => ({ ...open, filters: false, raw: false }));
     this.cdr.markForCheck();
-    this.requestSectionScroll('filters');
+    this.sectionAnchors.requestScroll('filters');
   }
 
   /**
@@ -888,9 +878,7 @@ export class DataHandlingComponent implements OnDestroy {
   /** Supersedes in-flight processed/source describes so a late response cannot win. */
   private processedDescribeSeq = 0;
   private sourceDescribeSeq = 0;
-  private scrollRequestId = 0;
   private continueAfterApply = false;
-  private readonly scrollSectionRequest = signal<{ section: SectionKey; requestId: number } | null>(null);
   private readonly guideState = inject(ExperimentStudioGuideStateService);
 
   constructor() {
@@ -1002,19 +990,6 @@ export class DataHandlingComponent implements OnDestroy {
       // untracked: the snapshot refreshes with the selection, but sectionOpen must
       // not become a dependency of this effect or every section switch refetches raw.
       if (untracked(this.sectionOpen).source) this.ensureSourceSummary();
-    });
-
-    effect(() => {
-      const request = this.scrollSectionRequest();
-      if (!request) return;
-
-      setTimeout(() => {
-        if (this.scrollSectionRequest()?.requestId !== request.requestId) return;
-        this.scrollSectionIntoView(request.section);
-        if (this.scrollSectionRequest()?.requestId === request.requestId) {
-          this.scrollSectionRequest.set(null);
-        }
-      });
     });
   }
 
@@ -1389,31 +1364,11 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   goToSection(section: SectionKey): void {
-    const filtersStation = section === 'filters' || section === 'raw';
-    const setupStation = section === 'setup' || section === 'processed';
-    const previewFilters = section === 'raw';
-    const previewSetup = section === 'processed';
-    if (filtersStation) {
-      this.addedSteps.update((s) => ({ ...s, filters: true }));
-    }
-    if (setupStation) {
-      this.addedSteps.update((s) => ({ ...s, setup: true }));
-    }
-    if (section === 'transformation') {
-      this.addedSteps.update((s) => ({ ...s, transformation: true }));
-    }
-    this.summaryExpanded.set({
-      filters: previewFilters,
-      setup: previewSetup,
-    });
-    this.sectionOpen.set({
-      source: section === 'source',
-      filters: filtersStation && !previewFilters,
-      raw: previewFilters,
-      setup: setupStation && !previewSetup,
-      processed: previewSetup,
-      transformation: section === 'transformation',
-    });
+    const layout = sectionLayout(section);
+    const addsStep = layout.addsStep;
+    if (addsStep) this.addedSteps.update((s) => ({ ...s, [addsStep]: true }));
+    this.summaryExpanded.set(layout.summaryExpanded);
+    this.sectionOpen.set(layout.sectionOpen);
     if (section === 'raw') {
       // The Raw summary must show the cohort it claims to: the stored rules, or the
       // unsaved ones a Cohort Filtering preview pinned to it.
@@ -1426,16 +1381,7 @@ export class DataHandlingComponent implements OnDestroy {
       this.fetchProcessedPreview();
     }
     this.cdr.markForCheck();
-    this.requestSectionScroll(section);
-  }
-
-  /**
-   * Scrolling is a request, not a call: the section is measured only after the template
-   * has reacted to whatever just opened or closed. Shared by goToSection and the stations'
-   * Close action, which folds an editor away and must not leave the viewport stranded.
-   */
-  private requestSectionScroll(section: SectionKey): void {
-    this.scrollSectionRequest.set({ section, requestId: ++this.scrollRequestId });
+    this.sectionAnchors.requestScroll(section);
   }
 
   /**
@@ -1536,14 +1482,7 @@ export class DataHandlingComponent implements OnDestroy {
   }
 
   collapseAllWorkflowSections(): void {
-    this.sectionOpen.set({
-      source: false,
-      raw: false,
-      setup: false,
-      filters: false,
-      processed: false,
-      transformation: false,
-    });
+    this.sectionOpen.set({ ...CLOSED_SECTIONS });
     this.cdr.markForCheck();
   }
 
@@ -2238,7 +2177,7 @@ export class DataHandlingComponent implements OnDestroy {
   private foldPreprocessingStation(): void {
     this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     this.cdr.markForCheck();
-    this.requestSectionScroll('setup');
+    this.sectionAnchors.requestScroll('setup');
   }
 
   /**
@@ -2542,15 +2481,6 @@ export class DataHandlingComponent implements OnDestroy {
 
   getSummary(kind: SummaryKind): SummaryView {
     return this.statisticSummary.get(kind);
-  }
-
-  private scrollSectionIntoView(section: SectionKey): void {
-    const element = this.sectionAnchors.get(section)?.nativeElement;
-    if (!element) return;
-
-    requestAnimationFrame(() => {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
   }
 
   private buildSummaryFromResponse(response: unknown, kind: SummaryKind): SummaryView {
