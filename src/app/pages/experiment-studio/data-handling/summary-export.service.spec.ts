@@ -71,9 +71,12 @@ describe('SummaryExportService', () => {
     function mountCharts(kind: string, numeric: number, nominal: number) {
       const host = document.createElement('div');
       host.className = `hidden-charts-for-export ${kind}-export`;
-      host.innerHTML =
-        `<div class="numeric-charts-export">${'<app-chart-renderer></app-chart-renderer>'.repeat(numeric)}</div>` +
-        `<div class="nominal-charts-export">${'<app-chart-renderer></app-chart-renderer>'.repeat(nominal)}</div>`;
+      for (const [container, count] of [['numeric-charts-export', numeric], ['nominal-charts-export', nominal]] as const) {
+        const group = document.createElement('div');
+        group.className = container;
+        for (let i = 0; i < count; i++) group.appendChild(document.createElement('app-chart-renderer'));
+        host.appendChild(group);
+      }
       document.body.appendChild(host);
     }
 
