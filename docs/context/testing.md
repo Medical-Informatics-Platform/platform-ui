@@ -68,13 +68,17 @@ npm run e2e -- -g "save shows"           # tests whose name matches
 - `experiment-studio.flows.spec.ts`: studio flows, preprocessing and filter payloads, histogram and describe previews, run and save lifecycle, result rendering. Includes an ordered-transformation flow (PCA columns → K-means on those outputs → `logistic_regression`) that asserts preprocessing step order and `inputdata.variables`.
 - `dashboard.spec.ts`: rename, share, delete (with rollback), compare, duplicate.
 - `access.spec.ts`: Keycloak redirect, terms acceptance, notebook route on and off.
-- `refactored-panels.spec.ts`: what the split panels own that the studio flows do not reach: variables-panel browser views, details tabs and histogram export menu; algorithm catalog search, groups, blocked reasons and run requirements; result ZIP and PDF exports.
 - `fixtures.ts`: the `test` every spec imports. It installs the mock (`api`), and fails the test if the app called a `/services` endpoint the mock does not answer.
 - `experiment-studio-api.ts`: the mock and its data. Linear regression, `describe`, `histogram`, and `pca` answers follow the shapes Exaflow returns (PCA includes `variables`, `components`, and `reusable_preprocessing`). Preprocessing specs expose creators with the `outputs` shape (`pca_column_creator`, `categorical_column_creator`, `kmeans_cluster_creator`). `api.requests` holds every request body, so tests check the payload the studio sent, not only the labels it shows. A test overrides one endpoint with its own `page.route`, which runs before the mock.
 - `studio.ts`: shared page steps (open the studio, add variables, apply preprocessing, add PCA/K-means columns, run, save).
 
 ### Live flows (real platform)
-`e2e-live/` holds the same kind of flows with no mocking, against a running platform (UI + platform-backend + Exaflow with the demo data models), by default the local stack from `.local-dev/start-all.sh` on `:4200`. They cover the variables panel (data models, browser views, Exaflow histograms and splits, the pool), Data Handling (describe preview, cohort filter, missing values and outlier capping, a nominal rule column, PCA columns and K-means on them feeding a real logistic regression) and the algorithm panel (catalog, groups, search, blocked reasons, parameter validation, a real linear regression with ZIP and PDF export, and an Exaflow engine error). CI does not run them.
+`e2e-live/journeys.live.spec.ts` holds end-to-end user journeys through the whole studio (Data Exploration → Data Handling → Algorithm → Execution Results) with no mocking, against a running platform (UI + platform-backend + Exaflow with the demo data models), by default the local stack from `.local-dev/start-all.sh` on `:4200`. CI does not run them.
+
+- Journey 1: study context and datasets, browser views, search, details and Exaflow histogram (split by Gender), variables → describe preview, cohort filter, mean imputation, outlier capping, a nominal rule column, PCA columns, K-means on the PCA outputs → catalog (groups, blocked reasons, search) → logistic regression with its required positive class → result, and the run request's ordered preprocessing.
+- Journey 2: variables and a histogram CSV export → default handling → linear regression (runnable count, documentation, cross-validation folds validation) → result → CSV ZIP and PDF export → Edit parameters.
+- Journey 3: datasets no worker holds stay selected → empty histogram in Data Exploration and the Exaflow error on the run.
+- Journey 4: after Data Handling and a ready algorithm, go back, swap a variable, and check Data Handling and the roles follow; run on the new set.
 
 ```bash
 npx playwright test -c playwright.live.config.ts                                       # against :4200
