@@ -4723,11 +4723,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.onTransformationChange();
   }
 
+  /** Cohort rows in a describe summary. Exaflow nulls a variable on datasets where it has
+   *  too few values, so one variable's pooled num_total only covers the datasets it survived
+   *  on; every surviving record of a dataset carries that dataset's full row count. */
   private getSummaryTotalRows(summary: SummaryView): number | null {
-    const all = (summary.featurewiseRows ?? []).find((item: any) => item.dataset === 'all datasets');
-    if (!all) return null;
-    const total = Number(all.data?.num_total);
-    return Number.isFinite(total) ? total : null;
+    const perDataset = new Map<string, number>();
+    const pooled: number[] = [];
+    for (const row of (summary.featurewiseRows ?? []) as Array<{ dataset?: string; data?: { num_total?: unknown } | null }>) {
+      const total = Number(row.data?.num_total);
+      if (row.data?.num_total == null || !Number.isFinite(total)) continue;
+      if (row.dataset === 'all datasets') pooled.push(total);
+      else if (row.dataset !== undefined && !perDataset.has(row.dataset)) perDataset.set(row.dataset, total);
+    }
+    if (perDataset.size > 0) return [...perDataset.values()].reduce((sum, total) => sum + total, 0);
+    return pooled.length > 0 ? Math.max(...pooled) : null;
   }
 
   get cohortRetention(): { raw: number; processed: number; dropped: number; percentage: number } | null {

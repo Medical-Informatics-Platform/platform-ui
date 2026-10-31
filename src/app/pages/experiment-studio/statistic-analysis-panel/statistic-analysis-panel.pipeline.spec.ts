@@ -287,6 +287,54 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(terminal.querySelector('.unapplied-warning-card')).toBeTruthy();
     });
 
+    it('counts cohort rows per dataset when a variable is suppressed on some datasets', () => {
+        // Exaflow describe nulls a variable on datasets where it has too few values, so each
+        // variable's "all datasets" num_total only sums the datasets it survived on. Every
+        // surviving record of a dataset carries that dataset's full row count.
+        const record = (variable: string, dataset: string, numTotal: number | null) => ({
+            variable,
+            dataset,
+            data: numTotal === null ? null : { num_total: numTotal },
+        });
+        component.rawSummary = {
+            ...component.rawSummary,
+            featurewiseRows: [
+                record('age', 'all datasets', 100),
+                record('mmse', 'all datasets', 150),
+                record('gender', 'all datasets', 230),
+                record('age', 'ds1', 100), record('mmse', 'ds1', 100), record('gender', 'ds1', 100),
+                record('age', 'ds2', null), record('mmse', 'ds2', 50), record('gender', 'ds2', 50),
+                record('age', 'ds3', null), record('mmse', 'ds3', null), record('gender', 'ds3', 80),
+            ],
+        } as any;
+        component.processedSummary = {
+            ...component.processedSummary,
+            featurewiseRows: [
+                record('age', 'all datasets', 230),
+                record('age', 'ds1', 100), record('age', 'ds2', 50), record('age', 'ds3', 80),
+            ],
+        } as any;
+
+        expect(component.cohortRetention).toEqual({ raw: 230, processed: 230, dropped: 0, percentage: 100 });
+    });
+
+    it('falls back to the largest pooled total when only pooled rows are present', () => {
+        component.rawSummary = {
+            ...component.rawSummary,
+            featurewiseRows: [
+                { variable: 'age', dataset: 'all datasets', data: { num_total: 100 } },
+                { variable: 'gender', dataset: 'all datasets', data: { num_total: 230 } },
+            ],
+        } as any;
+        component.processedSummary = {
+            ...component.processedSummary,
+            featurewiseRows: [{ variable: 'age', dataset: 'all datasets', data: { num_total: 75 } }],
+        } as any;
+
+        expect(component.cohortRetention?.raw).toBe(230);
+        expect(component.cohortRetention?.processed).toBe(75);
+    });
+
     it('shows the default NA-removal sub-node before any customization', () => {
         const nodes = component.appliedPreprocessingSubNodes;
 
