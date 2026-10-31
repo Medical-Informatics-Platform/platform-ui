@@ -1,0 +1,130 @@
+/* Shared by the Data Handling panel and its section components: Data tables, the statistics table frame, inline row errors and disabled buttons.
+   Imported at the top of each user's stylesheet (the panel imports it from the sheet
+   these rules came from), so every component renders them identically. */
+
+.row-error {
+  margin-top: 5px;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.table-wrapper {
+  padding: 10px 12px 12px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--studio-card-header-bg);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 9px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--studio-card-header-border);
+  box-shadow: none;
+}
+
+.data-table td {
+  text-align: center;
+  padding: 9px 14px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 6%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table tbody tr:hover {
+  background-color: rgba(43, 51, 233, 0.03);
+  transition: background-color 0.2s ease;
+}
+
+.data-table td:first-child {
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: left;
+  padding-left: 16px;
+}
+
+/* The wrapper owns the card edge; the .data-table frame drew a second box inside it. */
+.statistics-table-wrapper {
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .search-inline {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .data-table th,
+  .data-table td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+
+.table-input,
+.table-select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 34px;
+  border: 1px solid rgba(43, 51, 233, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.8rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.table-input:focus-visible,
+.table-select:focus-visible {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  background: var(--card-bg);
+}
+
+.table-input:disabled,
+.table-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.table-input:disabled,
+.table-select:disabled {
+  background: color-mix(in srgb, var(--text-muted) 6%, white 94%);
+  border-color: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 74%, white 26%);
+}

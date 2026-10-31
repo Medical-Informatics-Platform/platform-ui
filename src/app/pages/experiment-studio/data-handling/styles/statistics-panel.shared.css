@@ -1,0 +1,17 @@
+/* Shared by the Data Handling panel and its section components: The statistics panel frame and its code chip.
+   Imported at the top of each user's stylesheet (the panel imports it from the sheet
+   these rules came from), so every component renders them identically. */
+
+.statistics-panel-code {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(43, 51, 233, 0.06);
+  color: var(--primary-dark);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.statistics-panel {
+  padding: 16px 20px 20px;
+}

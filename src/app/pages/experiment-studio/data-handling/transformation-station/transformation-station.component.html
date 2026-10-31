@@ -1,0 +1,328 @@
+<!-- One derived column's category counts: shown inside its card in place of the editor. -->
+<ng-template #transformationStats let-code>
+  <div class="transformation-statistics">
+    @if (stats.loading()) {
+    <div class="studio-skeleton-line"></div>
+    <div class="studio-skeleton-line short"></div>
+    } @else if (stats.error() && stats.forColumn(code).length === 0) {
+    <div class="glass-feedback glass-feedback-warning">
+      {{ stats.error() }}
+    </div>
+    } @else if (stats.forColumn(code).length === 0) {
+    <div class="empty-state-block compact-empty">
+      <i class="fa fa-bar-chart"></i>
+      <p>No counts for this column yet.</p>
+      <span>Run the report and name the column, then preview again.</span>
+    </div>
+    } @else {
+    @if (stats.error()) {
+    <div class="glass-feedback glass-feedback-warning">
+      {{ stats.error() }}
+    </div>
+    } @else if (stats.showsRuleColumnCounts()) {
+    <div class="glass-feedback">
+      Category counts from a describe run with your applied transformation.
+    </div>
+    }
+    @for (block of stats.forColumn(code); track block.code) {
+    @if (stats.countChart(block); as chart) {
+    <div class="transformation-count-chart">
+      <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
+    </div>
+    }
+    @if (stats.kmeansColumnView(block.code); as column) {
+    <div class="transformation-stats-block transformation-create">
+      <h4 class="transformation-stats-title">Nominal column · {{ column.code }}</h4>
+      <p class="transformation-stats-lead">{{ column.lead }}</p>
+      <div class="transformation-rules">
+        <div class="transformation-rule-head">
+          <span></span>
+          <span>Value</span>
+          <span>Rule</span>
+          <span>Records</span>
+          <span></span>
+        </div>
+        <div class="transformation-rules-list">
+          @for (row of block.rows; track row.value; let rowIndex = $index) {
+          <div class="transformation-rule-row">
+            <span class="transformation-rule-number">{{ rowIndex + 1 }}</span>
+            <span class="transformation-rule-value transformation-rule-value--fixed">{{ row.value }}</span>
+            <span class="transformation-rule-summary">{{ column.rules[row.value] || 'Nearest cluster' }}</span>
+            <span class="transformation-rule-record-count">{{ row.count === null ? '—' : row.count }}</span>
+            <span></span>
+          </div>
+          }
+        </div>
+        <p class="transformation-rules-foot">{{ column.foot }}</p>
+      </div>
+    </div>
+    } @else {
+    <div class="transformation-stats-block">
+      <h4 class="transformation-stats-heading"><code>{{ block.code }}</code></h4>
+      <table class="transformation-stats-table">
+        <thead>
+          <tr><th>Category</th><th>Count</th></tr>
+        </thead>
+        <tbody>
+          @for (row of block.rows; track row.value) {
+          <tr>
+            <td>{{ row.value }}</td>
+            <td>{{ row.count === null ? '—' : row.count }}</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+    }
+    }
+  </div>
+</ng-template>
+<header class="pipeline-node-header" (click)="dh.onStepHeaderClick('transformation', $event)">
+  <div class="pipeline-node-header-left">
+    <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
+    <div class="pipeline-node-title-group">
+      <span class="pipeline-node-kicker">Step 4 · Optional</span>
+      <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="dh.isStepOpen('transformation')" (click)="dh.toggleStep('transformation')">Data transformations</button></h3>
+      <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
+    </div>
+  </div>
+  <div class="pipeline-node-header-right">
+    <span class="pipeline-status-badge" [class.applied]="dh.transformationStatusLabel === 'Applied'" [class.optional]="dh.transformationStatusLabel !== 'Applied'">
+      {{ dh.transformationBadgeLabel }}
+    </span>
+    @if (dh.isStepAdded('transformation')) {
+    <button
+      type="button"
+      class="btn-remove-step-node"
+      title="Remove transformations from pipeline"
+      (click)="dh.removeStep('transformation')">
+      <i class="fas fa-trash-can" aria-hidden="true"></i>
+      <span>Remove Step</span>
+    </button>
+    }
+    <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="dh.isStepOpen('transformation')" aria-hidden="true"></i>
+  </div>
+</header>
+
+<!-- Collapsed overview: the derived columns the pipeline will create. -->
+@if (!dh.sectionOpen().transformation) {
+<div class="pipeline-subnodes-tree" role="list" aria-label="Data transformation steps">
+  @for (node of dh.appliedTransformationSubNodes; track node.id) {
+  <div class="pipeline-subnode-item" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.jumpToSubNode('transformation', node.id)" title="Open this transformation">
+      <i [class]="node.icon" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">{{ node.title }}</span>
+        <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+      </span>
+      <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+      <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+    </button>
+  </div>
+  }
+  <div class="pipeline-subnode-item is-ghost" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.addTransformationSubNode()" title="Add and open a derived column">
+      <i class="fas fa-tag" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">Add derived column</span>
+        <span class="pipeline-subnode-subtitle">Create another nominal or numeric feature</span>
+      </span>
+      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+    </button>
+  </div>
+</div>
+}
+
+@if (dh.isStepAdded('transformation')) {
+<div class="pipeline-node-body">
+  @if (dh.sectionOpen().transformation) {
+  <details app-how-to-strip [guide]="dh.howTo.transformation"></details>
+  }
+  <div class="workflow-section-body" [class.open]="dh.sectionOpen().transformation">
+    <div class="preprocessing-shell">
+    <!-- The stage's own vertical graph: one node per derived column, in run order, joined by
+         the pipeline connector, ending in the type chooser. -->
+    <div class="transformation-graph">
+      @for (step of drafts.cards(); track step.id) {
+      @let status = drafts.stepStatus(step);
+      <div class="transformation-card-wrap" [attr.data-step-id]="step.id">
+      @if (!drafts.isCreatorAvailable(step.name)) {
+      <app-station-card
+        collapsible
+        [icon]="creatorCopy[step.name].icon"
+        [title]="drafts.stepTitle(step)"
+        description="This column creator is not available on this deployment."
+        [statusLabel]="status.label"
+        [status]="status.tone"
+        [open]="drafts.isCardOpen(step.id)"
+        (openChange)="dh.toggleCardOpen(step.id, $event)">
+        <ng-container ngProjectAs="[stationAction]" [ngTemplateOutlet]="removeColumn" [ngTemplateOutletContext]="{ $implicit: step.id }"></ng-container>
+        <p class="glass-feedback glass-feedback-warning">Not available on this deployment</p>
+      </app-station-card>
+      } @else if (step.name === 'categorical_column_creator') {
+      @if (drafts.draftFor(step.id); as draft) {
+      @let newWork = drafts.hasNewWork(draft);
+      <app-station-card
+        collapsible
+        icon="fas fa-square-plus"
+        [title]="drafts.stepTitle(step)"
+        description="Each record gets the first category whose rule it matches."
+        [statusLabel]="status.label"
+        [status]="status.tone"
+        [open]="draft.open"
+        (openChange)="dh.toggleTransformationDraft(draft)">
+        <ng-container ngProjectAs="[stationAction]" [ngTemplateOutlet]="removeColumn" [ngTemplateOutletContext]="{ $implicit: step.id }"></ng-container>
+        @if (stats.countsDraftId() === draft.id && (stats.loading() || stats.error())) {
+        <div class="transformation-statistics">
+          @if (stats.loading()) {
+          <div class="studio-skeleton-line"></div>
+          <div class="studio-skeleton-line short"></div>
+          } @else {
+          <div class="glass-feedback glass-feedback-warning">{{ stats.error() }}</div>
+          }
+        </div>
+        }
+        @for (block of stats.forColumn(draft.code); track block.code) {
+        @if (stats.countChart(block); as chart) {
+        <div class="transformation-count-chart">
+          <app-histogram [data]="chart" [config]="{ color: '#2b33e9', orientation: 'horizontal' }"></app-histogram>
+        </div>
+        }
+        }
+        <!-- Numbered like the stage's "How to use" strip: name, categories, preview + apply.
+             Hidden, never destroyed, while previewing: its rule builders keep their state. -->
+        <div app-categorical-column-card [draft]="draft" class="transformation-create">
+        </div>
+        <app-station-action-bar
+          stationFooter
+          flush
+          [statusText]="newWork ? 'Not applied — finish the column to add it to the run.' : ''"
+          [tone]="status.tone"
+          [applyLabel]="newWork ? 'Apply' : 'Close'"
+          [applyIcon]="newWork ? 'fas fa-check' : 'fas fa-times'"
+          [applyVariant]="newWork ? 'primary' : 'quiet'"
+          (apply)="dh.commitTransformationDraft(draft)"
+        ></app-station-action-bar>
+      </app-station-card>
+      }
+      } @else if (step.name === 'kmeans_cluster_creator') {
+      @let outputs = outputNames(step);
+      <app-station-card
+        collapsible
+        icon="fas fa-diagram-project"
+        [title]="drafts.stepTitle(step)"
+        description="Group records by similarity, then use the cluster as a nominal variable."
+        [statusLabel]="status.label"
+        [status]="status.tone"
+        [open]="drafts.isCardOpen(step.id)"
+        (openChange)="dh.toggleCardOpen(step.id, $event)">
+        <ng-container ngProjectAs="[stationAction]" [ngTemplateOutlet]="removeColumn" [ngTemplateOutletContext]="{ $implicit: step.id }"></ng-container>
+        @if (!outputs.length) {
+        <details app-how-to-strip [guide]="dh.howTo.kmeans"></details>
+        }
+        @if (dh.previewDraftId === step.id) {
+        <ng-container [ngTemplateOutlet]="transformationStats" [ngTemplateOutletContext]="{ $implicit: outputs[0] ?? '' }"></ng-container>
+        }
+        <app-kmeans-cluster-source
+          [stepId]="step.id"
+          [columnNameError]="columnNameError"
+          [canRemove]="drafts.canRemove(step.id)"
+          [removeTooltip]="drafts.removeTooltip(step.id)"
+          [class.is-previewing]="dh.previewDraftId === step.id"
+          (runRequested)="dh.previewTransformationCard(step.id)"
+        />
+        @if (outputs.length) {
+        <app-station-action-bar
+          stationFooter
+          flush
+          tone="applied"
+          [previewLabel]="dh.previewDraftId === step.id ? 'Back to column' : 'Preview cluster counts'"
+          applyLabel="Close"
+          applyIcon="fas fa-times"
+          applyVariant="quiet"
+          (preview)="dh.toggleTransformationPreview()"
+          (apply)="dh.closeTransformationPreview(); dh.toggleCardOpen(step.id, false)"
+        ></app-station-action-bar>
+        }
+      </app-station-card>
+      } @else if (step.name === 'pca_column_creator') {
+      @let outputs = outputNames(step);
+      <app-station-card
+        collapsible
+        icon="fas fa-chart-line"
+        [title]="drafts.stepTitle(step)"
+        description="Project numerical variables onto principal components."
+        [statusLabel]="status.label"
+        [status]="status.tone"
+        [open]="drafts.isCardOpen(step.id)"
+        (openChange)="dh.toggleCardOpen(step.id, $event)">
+        <ng-container ngProjectAs="[stationAction]" [ngTemplateOutlet]="removeColumn" [ngTemplateOutletContext]="{ $implicit: step.id }"></ng-container>
+        @if (!outputs.length) {
+        <details app-how-to-strip [guide]="dh.howTo.pca"></details>
+        }
+        <app-pca-column-source
+          [stepId]="step.id"
+          [columnNameError]="columnNameError"
+          [canRemove]="drafts.canRemove(step.id)"
+          [removeTooltip]="drafts.removeTooltip(step.id)"
+        />
+        @if (outputs.length) {
+        <app-station-action-bar
+          stationFooter
+          flush
+          tone="applied"
+          applyLabel="Close"
+          applyIcon="fas fa-times"
+          applyVariant="quiet"
+          (apply)="dh.toggleCardOpen(step.id, false)"
+        ></app-station-action-bar>
+        }
+      </app-station-card>
+      }
+      </div>
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+      }
+      <div class="transformation-chooser">
+        @if (dh.transformationChooserOnly) {
+        <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
+        }
+        <div role="list" aria-label="Kinds of derived column">
+          @for (kind of drafts.availableCreators(); track kind) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <button type="button" class="pipeline-subnode-content" (click)="dh.chooseTransformation(kind)">
+              <i [class]="creatorCopy[kind].icon" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">{{ creatorCopy[kind].title }}</span>
+                <span class="pipeline-subnode-subtitle">{{ creatorCopy[kind].subtitle }}</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+}
+
+<!-- The remove button every card projects next to its status chip. -->
+<ng-template #removeColumn let-stepId>
+  <button
+    type="button"
+    class="btn-remove-step-node"
+    stationAction
+    [disabled]="!drafts.canRemove(stepId)"
+    [title]="drafts.removeTooltip(stepId)"
+    (click)="dh.removeTransformationDraft(stepId)">
+    <i class="fas fa-trash-can" aria-hidden="true"></i>
+    <span>Remove column</span>
+  </button>
+</ng-template>

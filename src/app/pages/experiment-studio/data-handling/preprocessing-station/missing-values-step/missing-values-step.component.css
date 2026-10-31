@@ -1,0 +1,227 @@
+/* The missing-values step's own styles (action choices, coverage tiles, the frequency
+   list), in the step's cascade order. */
+
+@import '../../styles/statistics-panel.shared.css';
+@import '../../styles/search-and-empty-states.shared.css';
+@import '../../styles/tables.shared.css';
+@import '../../styles/preprocessing-step.shared.css';
+
+/* The panel's 1px icon nudge (`.stats-panel-shell i`), repeated for this template. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* The winsorizer carries four controls, so it needs the wider editor column. */
+
+.preprocessing-header-coverage {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.preprocessing-evidence-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preprocessing-stat-grid {
+  display: grid;
+  gap: 8px 14px;
+  margin: 0;
+}
+
+.preprocessing-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Filled coverage meter — an outline-only gauge would not encode the value.
+   --success is only 2.07:1 against this track, so a 0%-missing row renders an
+   empty track (which is the correct reading) rather than a pale green nub. */
+.preprocessing-meter {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
+  overflow: hidden;
+}
+
+.preprocessing-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* Keep a non-zero share visible even when it is tiny. */
+.preprocessing-evidence[data-severity='warning'] .preprocessing-meter-fill,
+.preprocessing-evidence[data-severity='high'] .preprocessing-meter-fill {
+  min-width: 6px;
+}
+
+.preprocessing-evidence[data-severity='warning'] .preprocessing-meter-fill {
+  /* --accent-color alone is 1.9:1 on the track; deepened with the brand's own
+     filter brown so the fill clears 3:1 without inventing a new hex. */
+  background: color-mix(in srgb, var(--accent-color) 42%, var(--filter-color));
+}
+
+.preprocessing-evidence[data-severity='high'] .preprocessing-meter-fill {
+  background: var(--danger);
+}
+
+.preprocessing-evidence-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.preprocessing-evidence-wide {
+  grid-column: 1 / -1;
+}
+
+.preprocessing-frequency-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preprocessing-frequency {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(48px, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.preprocessing-frequency-label {
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preprocessing-frequency-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
+  overflow: hidden;
+}
+
+.preprocessing-frequency-bar {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.preprocessing-frequency-value {
+  color: var(--text-main);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .preprocessing-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* 2×2 so each card's effect sentence stays readable. */
+.missing-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Missing-values choice cards (replaces the action select). */
+.missing-choice-grid legend {
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.missing-choice {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 10px 34px;
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+  cursor: pointer;
+}
+
+.missing-choice:hover {
+  background: #f7f8fe;
+}
+
+.missing-choice.is-selected {
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  box-shadow: inset 0 0 0 1.5px var(--primary-color);
+}
+
+.missing-choice.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.missing-choice input[type='radio'] {
+  position: absolute;
+  left: 12px;
+  top: 13px;
+}
+
+.missing-choice-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.missing-choice-effect {
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+/* Per-dataset coverage tiles. */
+.coverage-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.coverage-tile {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+}
+
+.coverage-tile-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.76rem;
+}
+
+.coverage-tile-head strong {
+  font-weight: 700;
+}
+
+.coverage-tile-head span {
+  color: var(--text-muted);
+}

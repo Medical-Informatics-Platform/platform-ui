@@ -1,0 +1,196 @@
+/* The preprocessing step's slice of the Data Handling stylesheets, in the panel's
+   cascade order. Shared chrome and controls come from ../styles/. */
+
+@import '../styles/pipeline-node.shared.css';
+@import '../styles/search-and-empty-states.shared.css';
+@import '../styles/tables.shared.css';
+
+/* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
+   scoped to the panel's own template, so it is repeated here for this one. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* The panel's `.pipeline-node .workflow-section-body`, for this step's bodies. */
+:host(.pipeline-node) .workflow-section-body {
+  padding-inline: 16px;
+}
+
+.btn-add-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  border: 1px solid rgba(127, 156, 232, 0.38);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background var(--motion-exit) var(--ease-standard),
+    border-color var(--motion-exit) var(--ease-standard),
+    color var(--motion-exit) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.btn-add-step i {
+  font-size: 0.76rem;
+  color: var(--primary-color);
+}
+
+.btn-add-step:hover {
+  background: rgba(43, 51, 233, 0.06);
+  border-color: rgba(43, 51, 233, 0.45);
+  color: var(--primary-color);
+  transform: none;
+  box-shadow: none;
+}
+
+.pipeline-subnode-impact {
+  margin-left: auto;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Add-on action: the button is the dashed target itself (full width), so the
+   hover elevation lands on the thing the user is about to click. */
+.btn-add-dashed {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--primary-color) 2.5%, white);
+  border: 1.5px dashed color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border-radius: var(--radius-md, 8px);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-add-dashed:hover {
+  background: color-mix(in srgb, var(--primary-color) 7%, white);
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(43, 51, 233, 0.08);
+}
+
+.btn-add-dashed:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.btn-add-dashed i {
+  font-size: 0.78rem;
+}
+
+/* Documentation: the algorithm configuration panel's disclosure, copied. A plain
+   label with a CSS chevron that turns, and the text carried by a left rule instead of
+   a card. The prefix stays because these styles are component-scoped, so this file
+   cannot reach the algorithm panel's classes. */
+.preprocessing-documentation-panel {
+  margin: 0 0 14px;
+  padding: 0 8px;
+}
+
+/* "How this works" lives in the station header's action slot; the body is the
+   same documentation panel, toggled by the header link. */
+.preprocessing-doc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.preprocessing-doc-toggle i {
+  color: var(--primary-color);
+  font-size: 0.72rem;
+}
+
+.preprocessing-doc-toggle:hover {
+  color: var(--primary-color);
+}
+
+.preprocessing-doc-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.preprocessing-documentation-content {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.5rem;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--primary-color) 26%, white);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(20, 22, 31, 0.72);
+  overflow-wrap: anywhere;
+}
+
+.longitudinal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.visit-controls,
+.visit-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.visit-controls {
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.visit-controls label {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.visit-controls label span {
+  min-width: 48px;
+}
+
+.longitudinal-error {
+  margin: -4px 0 10px;
+}
+
+@media (max-width: 768px) {
+  .longitudinal-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 768px) {
+  .visit-controls {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
