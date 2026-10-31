@@ -29,6 +29,38 @@ describe('CsvExportService', () => {
     );
   });
 
+  it('exports numeric histograms, whose bins are the n+1 edges of n counts, as ranges', () => {
+    const service = new CsvExportService();
+    let saved: { content: string; name: string } | null = null;
+    vi.spyOn(service, 'downloadCsv').mockImplementation((content, name) => {
+      saved = { content, name };
+    });
+
+    service.exportHistogramCsv(
+      {
+        bins: ['36', '38', '40', '42'],
+        counts: [5, null, 7],
+        groups: [{ key: 'a', label: 'Dataset A', counts: [2, null, 7] }],
+      },
+      'Exact age'
+    );
+
+    expect(saved!.name).toBe('Exact_age_distribution.csv');
+    expect(saved!.content).toBe(
+      'Bin,Count,Dataset A,Not shown (missing or < privacy threshold)\r\n36–38,5,2,3\r\n38–40,,,0\r\n40–42,7,7,0'
+    );
+  });
+
+  it('still refuses bins that are neither categories nor edges of the counts', () => {
+    const service = new CsvExportService();
+    const download = vi.spyOn(service, 'downloadCsv').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    service.exportHistogramCsv({ bins: ['0', '10', '20', '30'], counts: [1] }, 'Age');
+
+    expect(download).not.toHaveBeenCalled();
+  });
+
   it('zips one CSV per table, the raw result and a README describing the setup', async () => {
     const service = new CsvExportService();
     let saved: { blob: Blob; name: string } | null = null;

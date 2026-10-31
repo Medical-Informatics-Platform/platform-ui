@@ -41,21 +41,26 @@ export class CsvExportService {
     data: { bins: string[]; counts: Array<number | null>; groups?: HistogramGroupSeries[] },
     variableName: string
   ): void {
-    if (!data.bins || !data.counts || data.bins.length !== data.counts.length) {
+    // Nominal histograms send one bin per count; numeric ones send the n+1 bin edges.
+    const binsAreEdges = data.bins?.length === (data.counts?.length ?? 0) + 1;
+    if (!data.bins || !data.counts || (data.bins.length !== data.counts.length && !binsAreEdges)) {
       console.warn('Invalid data for CSV export');
       return;
     }
+    const labels = binsAreEdges
+      ? data.counts.map((_, index) => `${data.bins[index]}–${data.bins[index + 1]}`)
+      : data.bins;
     const groups = data.groups ?? [];
     const residuals = data.counts.map((total, index) => residualCount(total, groups, index));
     const hasResidual = groups.length > 0 && residuals.some((count) => count > 0);
     const columns = [
-      'Category',
+      binsAreEdges ? 'Bin' : 'Category',
       'Count',
       ...groups.map((group) => group.label),
       ...(hasResidual ? [HISTOGRAM_RESIDUAL_LABEL] : []),
     ];
-    const rows = data.bins.map((bin, index) => [
-      bin,
+    const rows = labels.map((label, index) => [
+      label,
       data.counts[index],
       ...groups.map((group) => group.counts[index] ?? ''),
       ...(hasResidual ? [residuals[index]] : []),
