@@ -1,3 +1,4 @@
+import { D3HierarchyNode } from '../../../../models/data-model.interface';
 import {
   Component,
   ElementRef,
@@ -36,7 +37,7 @@ import {
 export class SearchBarComponent implements OnChanges {
   private eRef = inject(ElementRef);
 
-  readonly dataModelHierarchy = input<any>();
+  readonly dataModelHierarchy = input<D3HierarchyNode | null>(null);
   /** Variable results listed grayed out that cannot be picked for the current datasets. */
   readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly searchResultSelected = output<MetadataSearchResult>();
@@ -240,7 +241,7 @@ export class SearchBarComponent implements OnChanges {
     }, 0);
   }
 
-  private rebuildIndex(hierarchy: any): void {
+  private rebuildIndex(hierarchy: D3HierarchyNode | null): void {
     if (!hierarchy) {
       this.metadataIndex = null;
       this.variableTypes = [];
