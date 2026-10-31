@@ -16,6 +16,16 @@ export function findDataModelByCodeVersion(
   );
 }
 
+/** Same pathology: equal code and version (versions compare as strings). */
+export function isSameDataModel(
+  a: Pick<DataModel, 'code' | 'version'> | null | undefined,
+  b: Pick<DataModel, 'code' | 'version'> | null | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.code === b.code && String(a.version) === String(b.version);
+}
+
 /**
  * Build an enum-map (variable code -> { enumCode -> label }) from a converted
  * D3 hierarchy's variables. Variables without enumerations or without a code

@@ -236,3 +236,17 @@ Consequences: Each extraction was checked against master with a local DOM + comp
 Files affected: `src/app/pages/experiment-studio/data-handling/**`, `src/app/pages/experiment-studio/experiment-studio.component.*`, `AGENTS.md`, `docs/context/module-index.md`, `docs/context/conventions.md`, `docs/context/risk-register.md`, `docs/context/decision-log.md`.
 
 Date: 2026-10-23.
+
+### Decision: Split the variables panel into a shell, two children and panel-scoped services
+
+Status: Accepted
+
+Context: `variables-panel.component.*` had grown to about 2,400 lines across TS, HTML and CSS. One component loaded data models, built the hierarchy, picked datasets, ran the histogram preview, tracked the selection and drove the toolbar, the three metadata browsers, the details tabs and the export menu, mostly through loose mutable fields and `any`.
+
+Decision: `VariablesPanelComponent` keeps its selector and is now layout only. It provides three services scoped to the panel. `VariableCatalogService` holds data models, the hierarchy and datasets. `VariableHistogramService` holds the histogram and group census, the split and the messages. `VariableSelectionService` holds the selected node, the highlight, the details tab, the pool toggle and pathology changes. The left card is `ModelBrowserComponent` (`section[app-model-browser]`). The right card is `VariableDetailsPanelComponent` (`section[app-variable-details-panel]`). Both use attribute selectors, so the DOM, ids, `data-guide` anchors and e2e selectors are unchanged. Pure tree and histogram helpers live in `variables-panel.utils.ts`. Shared types live in `variables-panel.models.ts`. `isSameDataModel` moved to `core/data-model.utils.ts`.
+
+Consequences: Behaviour, payloads and storage keys (`metadata_browser_mode`) are unchanged. Host-element CSS (`.bubble-chart-section`, `.panel-block`, `.histogram-panel`, `#histogram-graph`) stays in the shell sheet so emulated encapsulation still matches it. Each card's own rules moved with it. New panel features belong in the service that owns the state, not in the shell.
+
+Files affected: `src/app/pages/experiment-studio/variables-panel/**`, `src/app/core/data-model.utils.ts`, `src/app/pages/experiment-studio/variables-panel/data-model-selector/data-model-selector.component.ts`, `docs/context/module-index.md`.
+
+Date: 2026-10-29.

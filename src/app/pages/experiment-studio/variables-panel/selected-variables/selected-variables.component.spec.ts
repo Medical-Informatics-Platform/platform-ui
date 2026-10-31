@@ -111,7 +111,7 @@ describe('SelectedVariablesComponent', () => {
     const fixture = TestBed.createComponent(SelectedVariablesComponent);
     fixture.detectChanges();
 
-    fixture.componentInstance.removeItem({ code: 'age_value' });
+    fixture.componentInstance.removeItem({ code: 'age_value', label: 'Age' });
 
     expect(experimentStudioService.setVariables).toHaveBeenCalledWith([
       { code: 'sex_value', label: 'Sex', type: 'string' },
