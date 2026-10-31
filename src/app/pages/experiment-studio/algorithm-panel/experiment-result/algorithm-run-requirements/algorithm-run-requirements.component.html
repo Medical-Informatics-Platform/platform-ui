@@ -1,0 +1,15 @@
+<li class="algorithm-requirements-heading sr-only">Complete before running</li>
+@for (need of run.algorithmNeeds(); track need.key) {
+<li class="algorithm-requirement-item" [class.is-met]="need.met">
+  <span class="algo-needs-mark" aria-hidden="true"></span>
+  <span>{{ need.title }}</span>
+  @for (message of need.messages; track message) {
+  <small>{{ message }}</small>
+  }
+  @if (need.action) {
+  <button type="button" class="algorithm-requirement-action" (click)="resolveRunRequirement(need.action)">
+    {{ need.action.actionLabel }}
+  </button>
+  }
+</li>
+}

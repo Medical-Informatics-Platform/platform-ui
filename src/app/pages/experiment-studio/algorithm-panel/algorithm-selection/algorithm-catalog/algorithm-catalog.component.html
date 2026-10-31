@@ -1,0 +1,83 @@
+<div class="step-kicker algorithm-step-kicker"><span class="step-kicker-n">2</span> Method</div>
+<h2 class="catalog-title sr-only" id="catalog-title">Algorithm catalog</h2>
+
+<div class="catalog-search">
+  <div class="catalog-search-field">
+    <label class="sr-only" for="algo-search">Search algorithms</label>
+    <input
+      id="algo-search"
+      class="catalog-search-input"
+      type="search"
+      placeholder="Search methods…"
+      autocomplete="off"
+      [value]="catalog.algoSearchQuery()"
+      (input)="onSearchInput($event)"
+    />
+    @if (catalog.searchActive()) {
+    <button
+      type="button"
+      class="catalog-search-clear"
+      (click)="catalog.clearSearch()"
+      aria-label="Clear algorithm search"
+    >&times;</button>
+    }
+  </div>
+  <div class="modal-tabs catalog-mode-tabs" role="group" aria-label="Method filter">
+    <button type="button" [class.active]="catalog.showOnlyActive()" [attr.aria-pressed]="catalog.showOnlyActive()"
+            (click)="catalog.showOnlyActive() || catalog.toggleActiveOnly()">
+      Runnable {{ catalog.algoCounts().active }}
+    </button>
+    <button type="button" [class.active]="!catalog.showOnlyActive()" [attr.aria-pressed]="!catalog.showOnlyActive()"
+            (click)="!catalog.showOnlyActive() || catalog.toggleActiveOnly()">
+      All {{ catalog.algoCounts().all }}
+    </button>
+  </div>
+</div>
+
+@if (catalog.hasAnyVisibleAlgorithms()) {
+<div class="algorithm-match-rows">
+  @for (category of catalog.filteredAlgorithmCategories(); track category.name) {
+  <div class="algorithm-match-row">
+    <button
+      type="button"
+      class="algorithm-match-cat"
+      [attr.aria-expanded]="catalog.isCategoryOpen(category.name) || catalog.searchActive()"
+      (click)="catalog.toggleCategory(category.name)"
+    >
+      <span class="algorithm-match-cat-name">{{ category.name }}</span>
+      <span class="algorithm-match-cat-count">{{ categoryRunnableCount(category) }} runnable</span>
+      <span class="algorithm-match-cat-meta" aria-hidden="true"></span>
+    </button>
+    @if (catalog.isCategoryOpen(category.name) || catalog.searchActive()) {
+    <div class="algorithm-match-tiles">
+      @for (algorithm of category.algorithms; track algorithm.name) {
+      <button
+        type="button"
+        class="algo-tile"
+        [class.disabled-algo]="algorithm.isDisabled"
+        [class.selected]="algorithm.name === selectedAlgorithm()?.name"
+        [attr.aria-disabled]="algorithm.isDisabled"
+        (click)="onAlgorithmClick(algorithm)"
+        [title]="algorithm.description || algorithm.label"
+      >
+        <span class="algo-tile-top">
+          <span class="algo-label">{{ algorithm.label }}</span>
+          <span class="algo-tile-cue" aria-hidden="true"></span>
+        </span>
+        @if (algorithm.isDisabled) {
+        <span class="algo-why">{{ catalog.algorithmUnavailableReason(algorithm) }}</span>
+        }
+      </button>
+      }
+    </div>
+    }
+  </div>
+  }
+</div>
+} @else if (catalog.searchActive()) {
+<p class="algorithm-match-empty">No methods match “{{ catalog.algoSearchQuery() }}”.</p>
+} @else if (catalog.showOnlyActive()) {
+<p class="algorithm-match-empty">No runnable methods for this assignment. Switch to All to see why.</p>
+} @else {
+<p class="algorithm-match-empty">No methods in the catalog.</p>
+}

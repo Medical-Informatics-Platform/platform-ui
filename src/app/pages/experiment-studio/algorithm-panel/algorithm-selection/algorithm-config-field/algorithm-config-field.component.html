@@ -1,0 +1,93 @@
+@let field = this.field();
+@let control = form.configForm().get(field.key);
+<label>
+  {{ form.fieldLabel(field) }}
+  @if (!field.required && !form.isCrossValidationField(field)) {
+  <span class="optional-tag">optional</span>
+  }
+</label>
+
+@if (field.desc) {
+<p class="config-field-desc">{{ field.desc }}</p>
+}
+
+@if (field.enumType === 'input_var_names' && field.type === 'select' && (!field.options || !field.options.length)) {
+<p class="config-field-hint">
+  @if (field.enumSource?.includes('x')) {
+  Select covariates first. This parameter must be one of the variables in x.
+  } @else if (field.enumSource?.includes('y')) {
+  Select a variable first. This parameter must be one of the variables in y.
+  } @else {
+  Select the required variables before choosing this parameter.
+  }
+</p>
+}
+
+@if (field.key === 'positive_class' && !form.selectedEventVarCode()) {
+<p class="config-field-hint">Select an event indicator variable first.</p>
+}
+
+@if (field.key === 'positive_class' && form.selectedEventVarCode() && form.positiveClassOptions().length) {
+<p class="config-field-hint">
+  Select the event level mapped to 1; all other levels are mapped to 0.
+</p>
+}
+
+@if (field.key === 'positive_class' && form.selectedEventVarCode() && !form.positiveClassOptions().length) {
+<p class="config-field-hint">
+  This event variable has no catalog categories. Enter the value treated as event=1 (for example 0 or 1).
+</p>
+}
+
+@if (field.type === 'number') {
+<input type="number" [formControlName]="field.key" class="config-input" [min]="field.min ?? null" [max]="field.max ?? null"
+  [step]="allowsDecimal(field) ? 'any' : 1" [placeholder]="
+      field.default !== undefined ? field.default : 'Enter value...'
+    " />
+
+} @else if (field.type === 'select') {
+<select [formControlName]="field.key" class="config-select">
+  <option [ngValue]="null" [disabled]="field.required">
+    {{ field.required ? '-- Select --' : 'None (optional)' }}
+  </option>
+
+  @for (opt of field.options; track opt) {
+  <option [ngValue]="form.bindOptionValue(opt)">
+    {{ optionLabel(opt) }}
+  </option>
+  }
+</select>
+} @else if (field.type === 'multi-select') {
+<div class="chip-picker" role="group" [attr.aria-label]="form.fieldLabel(field)">
+  @for (opt of field.options; track opt) {
+  <button type="button" class="chip-picker-option"
+    [class.active]="form.isMultiSelectOptionSelected(field.key, opt)"
+    (click)="form.toggleMultiSelectOption(field.key, opt)">
+    {{ optionLabel(opt) }}
+  </button>
+  }
+</div>
+} @else if (field.type === 'checkbox') {
+<label class="checkbox-wrapper">
+  <input type="checkbox" [formControlName]="field.key" />
+  <span>Enable</span>
+</label>
+} @else {
+<input type="text" [formControlName]="field.key" class="config-input" placeholder="Enter value..." />
+}
+
+@if (control?.invalid && control?.touched) {
+<div class="validation-message config-error">
+  @if (control?.hasError('required')) {
+  <small>This field is required.</small>
+  } @if (control?.hasError('min')) {
+  <small>Value too small.</small>
+  } @if (control?.hasError('max')) {
+  <small>Value too large.</small>
+  } @if (control?.hasError('pattern')) {
+  <small>Invalid value.</small>
+  } @if (control?.hasError('invalidOption')) {
+  <small>Select a value from the list.</small>
+  }
+</div>
+}

@@ -1,0 +1,270 @@
+@import '../../styles/config-placeholder.shared.css';
+@import '../../styles/sr-only.shared.css';
+@import '../../styles/step-kicker.shared.css';
+
+.algorithm-params__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.algorithm-params__empty {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  border-radius: var(--radius-md, 8px);
+}
+
+.algorithm-params__empty-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.35;
+}
+
+.algorithm-params__empty-text {
+  margin: 0;
+  max-width: 30rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* Run requirements */
+.config-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-field {
+  flex-direction: column;
+}
+
+/* Fields are divided by a hairline rather than framed: the parameters read as one
+   form, and the card already paints the only container. */
+.config-field + .config-field {
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  padding-top: 10px;
+}
+
+/* Outlier report table */
+.outlier-report-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* Shared fieldset host: the unified card paints the frame, not the fieldset. */
+.algorithm-readonly-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+/* Needs checklist */
+.algo-needs {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-neutral);
+  font-size: 0.8rem;
+}
+
+.algo-needs-all-met {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--success) 10%, white);
+  color: #065f46;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Parameters */
+.algorithm-params__title {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: var(--letter-spacing-config);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Parameter rows: label beside control, sentence case, optional tag. */
+.config-field {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 360px);
+  gap: 2px 16px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+/* Advanced fields stay behind a disclosure, closed by default. */
+.config-advanced {
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  margin-top: 4px;
+}
+
+.config-advanced__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.config-advanced__summary::-webkit-details-marker {
+  display: none;
+}
+
+.config-advanced__chevron {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+}
+
+.config-advanced[open] > .config-advanced__summary .config-advanced__chevron {
+  transform: rotate(45deg);
+}
+
+.config-advanced__body {
+  padding-bottom: 6px;
+}
+
+/* Option rows: cross-validation uses the studio switch. */
+.config-option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+}
+
+/* Settings that belong to the switch above sit under it, inset to read as its children. */
+.config-option-detail {
+  margin: -4px 0 8px;
+  padding-left: 14px;
+  border-left: 2px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+}
+
+.config-option-detail .config-field {
+  grid-template-columns: 206px minmax(0, 360px);
+  padding: 4px 0;
+}
+
+.config-option-row.is-locked {
+  opacity: 0.86;
+}
+
+.config-option-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.config-option-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.config-option-hint {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch.is-locked {
+  cursor: not-allowed;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 75%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 22%, white);
+  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  top: 2.5px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18), inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+  transition: transform 0.22s var(--ease-standard, ease), box-shadow 0.22s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--primary-color);
+  border-color: rgba(43, 51, 233, 0.24);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  cursor: not-allowed;
+}
+
+/* Empty state under the ③ kicker, without the dashed frame. */
+.algorithm-params__empty {
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .config-field,
+  .config-option-detail .config-field {
+    grid-template-columns: 1fr;
+  }
+}

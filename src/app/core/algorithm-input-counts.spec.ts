@@ -1,6 +1,5 @@
 import {
   applyFallbackInputCounts,
-  formatInputCountRange,
   readInputCount,
   resolveInputMaxCount,
   resolveInputMinCount,
@@ -29,8 +28,5 @@ describe('algorithm input counts', () => {
 
     expect(resolveInputMaxCount(y, 'y', 'glmm_binary')).toBe(1);
     expect(resolveInputMinCount(x, 'x', 'glmm_binary')).toBe(2);
-    expect(formatInputCountRange(1, 1)).toBe('exactly 1');
-    expect(formatInputCountRange(2, null)).toBe('2+');
-    expect(formatInputCountRange(2, 2)).toBe('exactly 2');
   });
 });
