@@ -1,0 +1,52 @@
+/* Shared controls and result surfaces of the Data review step: the toggle
+   switch, the federated-data note, the descriptive/data tables, the statistics
+   browser, the chart-export-only containers, the transformation station and the
+   responsive overrides for all three files.
+   Second split of data-handling.component.css (see
+   data-handling.preprocessing.css for the reason and the cascade
+   order). This file is LAST in the styleUrl array, which is why the responsive
+   overrides live here. */
+
+@import './styles/tables.shared.css';
+
+/* Rules below are prefixed with .statistics-table-wrapper so they outrank the
+   --numeric overrides above: emulated encapsulation adds one attribute per
+   compound selector, so a shorter selector loses regardless of order. */
+
+.hidden-charts-for-export {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 900px;
+  height: auto;
+  opacity: 1;
+  pointer-events: none;
+  background: var(--card-bg);
+}
+
+.hidden-charts-for-export app-chart-renderer {
+  width: 800px;
+  height: 500px;
+  display: block;
+}
+
+.pdf-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  font-size: 1.2rem;
+  color: #333;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    border-radius: var(--radius-lg, 12px);
+  }
+
+}

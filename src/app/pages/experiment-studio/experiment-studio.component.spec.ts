@@ -210,7 +210,7 @@ describe('ExperimentStudioComponent view switching', () => {
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
-    (component as any).statisticPanel = signal({ goToSection, sectionOpen });
+    (component as any).dataHandling = signal({ goToSection, sectionOpen });
 
     component.activateGuideTarget('Analysis', 'analysis-filtering');
     expect(goToSection).toHaveBeenCalledWith('filters');
@@ -233,14 +233,14 @@ describe('ExperimentStudioComponent view switching', () => {
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
-    const statisticPanel = { goToSection, sectionOpen };
-    (component as any).statisticPanel = signal(statisticPanel);
+    const dataHandling = { goToSection, sectionOpen };
+    (component as any).dataHandling = signal(dataHandling);
     vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     component.goToDescriptiveStep('setup');
 
     expect(component.activeSection()).toBe('variables-top');
-    expect(statisticPanel.goToSection).not.toHaveBeenCalled();
+    expect(dataHandling.goToSection).not.toHaveBeenCalled();
     expect(router.navigate).not.toHaveBeenCalled();
   });
 
@@ -249,8 +249,8 @@ describe('ExperimentStudioComponent view switching', () => {
     const sectionOpen = signal<Record<string, boolean>>({
       raw: false, setup: false, filters: false, processed: false, transformation: false,
     });
-    const statisticPanel = { goToSection, sectionOpen };
-    (component as any).statisticPanel = signal(statisticPanel);
+    const dataHandling = { goToSection, sectionOpen };
+    (component as any).dataHandling = signal(dataHandling);
     vi.spyOn(router, 'navigate').mockReturnValue(Promise.resolve(true));
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback): number => {
       queueMicrotask(() => callback(0));
@@ -267,7 +267,7 @@ describe('ExperimentStudioComponent view switching', () => {
     expect(component.activeSection()).toBe('statistics-section');
     await Promise.resolve();
     await Promise.resolve();
-    expect(statisticPanel.goToSection).toHaveBeenCalledWith('processed');
+    expect(dataHandling.goToSection).toHaveBeenCalledWith('processed');
   });
 
   describe('stepper navigation service state publication', () => {

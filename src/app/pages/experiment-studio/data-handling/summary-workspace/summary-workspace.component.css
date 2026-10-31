@@ -1,0 +1,421 @@
+/* The summary workspace's slice of the Data Handling stylesheets, in the panel's
+   cascade order (component, preprocessing, results). Rules both render (panel
+   heading, search and empty states, tables) come from the shared partials in
+   ../styles/, which the panel imports too; the rest moved here from the panel. */
+
+@import '../styles/statistics-panel.shared.css';
+@import '../styles/search-and-empty-states.shared.css';
+@import '../styles/tables.shared.css';
+
+/* The panel nudges every icon 1px down (`.stats-panel-shell i`); the rule is
+   scoped to the panel's own template, so it is repeated here for this one. */
+:host-context(.stats-panel-shell) i {
+  transform: translateY(1px);
+}
+
+/* One toolbar row over the results pane: variable identity on the left, the
+   Table / Charts / Histogram tray and one Export menu on the right. */
+.summary-detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--studio-card-header-border);
+}
+
+.summary-detail-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.histogram-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.histogram-split select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto;
+  min-height: 34px;
+  max-width: 180px;
+  padding: 0 34px 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background-color: var(--card-bg);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
+    linear-gradient(135deg, var(--primary-color) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 600;
+}
+
+.histogram-split select:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Beside the .modal-tabs tray, Export takes the tray's geometry (34px pill,
+   1px inset edge, 0.78rem type) and reads like its active pill. */
+.summary-detail-actions .studio-export-btn {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px var(--border-color), var(--shadow-sm);
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+.summary-detail-actions .studio-export-btn:hover:not(:disabled),
+.summary-detail-actions .studio-export-btn[aria-expanded="true"]:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 35%, transparent), var(--shadow-sm);
+}
+
+.statistics-panel-heading h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 1rem;
+}
+
+.summary-export-group {
+  position: relative;
+  display: inline-flex;
+}
+
+.summary-export-group .summary-export-caret {
+  font-size: 0.58rem;
+  transition: transform 0.18s ease;
+}
+
+.summary-export-group .summary-export-caret.open {
+  transform: rotate(180deg);
+}
+
+/* Every workspace sits in a pipeline node's section and inherits the node's frame;
+   strip the inner card chrome so only one border is visible. */
+:host-context(.pipeline-node) .statistics-workspace {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.station-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.station-preview-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 auto;
+  padding: 8px 16px;
+  border: 1px solid rgba(127, 156, 232, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.station-preview-toggle.station-preview-close {
+  margin-left: auto;
+}
+
+.station-preview-toggle i {
+  font-size: 0.76rem;
+  color: var(--primary-color);
+  line-height: 1;
+}
+
+.station-preview-toggle:hover:not(:disabled) {
+  background: rgba(43, 51, 233, 0.06);
+  border-color: rgba(43, 51, 233, 0.45);
+  color: var(--primary-color);
+}
+
+.station-preview-toggle:disabled {
+  color: var(--primary-color);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.station-preview-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Cohort-retention strip above Close and the processed summary workspace. */
+.cohort-retention-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background: color-mix(in srgb, var(--primary-color) 5%, white);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+}
+
+.cohort-retention-strip i {
+  color: var(--primary-color);
+  font-size: 0.9rem;
+}
+
+/* The overlay switch changes only the results pane, so it lives inside that pane
+   instead of above the card, where it read as a toolbar for the variable rail.
+   The column keeps it outside the pane's scroller, so it holds in place while a
+   long metrics table scrolls under it, and it owns the switch's spacing: padding
+   on .summary-tabs would override the .modal-tabs padding and stretch the pill's
+   own background and border past the labels. */
+.summary-detail-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.summary-detail-column .statistics-panel {
+  flex: 1 1 auto;
+}
+
+/* Centered because it is the pane's own view control: the pane is much wider than
+   the pill, and hugging one gutter left it stranded above the heading. Centering
+   the pill itself, not a row, keeps its capsule sized to the labels. */
+.summary-tabs {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+@media (max-width: 768px) {
+  .summary-detail-column {
+    padding-top: 12px;
+  }
+}
+
+/* A quiet callout: secondary text with an accent edge, the same edge the
+   statistics table uses for its section bands. */
+.federated-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 9px 14px 9px 12px;
+  background: color-mix(in srgb, var(--primary-color) 4%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border-left: 3px solid var(--primary-color);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.federated-info-note strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Icon height matches one line of text, so it centres on the first line
+   when the note wraps instead of floating between the two. */
+.federated-info-note i {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.metric-cell {
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: left;
+  padding-left: 16px;
+}
+
+.statistics-table th:not(:first-child),
+.statistics-table td:not(:first-child) {
+  text-align: right;
+}
+
+.statistics-table td:not(:first-child) {
+  color: var(--text-main);
+  /* Twelve rows of semibold digits emphasise nothing. Values read at 400 so the
+     pooled column and the metric labels are what carry weight. */
+  font-weight: 400;
+}
+
+/* The rollup is the column a reader is scanning for; it keeps the emphasis the
+   per-dataset columns just gave up. :not() keeps it above the rule above. */
+.statistics-table td.statistics-col-rollup:not(:first-child) {
+  font-weight: 700;
+}
+
+/* Targets .metric-cell, not td:first-child: the group heading row is a
+   colspan first child too, and a :first-child rule outranks the group's own
+   700 and flattens COVERAGE / DISTRIBUTION into the row labels. */
+.statistics-table td.metric-cell {
+  font-weight: 500;
+}
+
+/* The global rule for this row loses to .data-table td:first-child (the group
+   row is a colspan first child), so 700 was declared here and never applied.
+   Declared in this file so it actually wins. */
+.statistics-table tr.statistics-metric-group td {
+  font-weight: 700;
+}
+
+.statistics-table-wrapper.statistics-table-wrapper--numeric {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.statistics-table-wrapper--numeric .statistics-table th {
+  padding: 7px 12px;
+  line-height: 1.2;
+}
+
+.statistics-table-wrapper--numeric .statistics-table td {
+  padding: 9px 12px;
+  line-height: 1.25;
+}
+
+.statistics-table-wrapper--numeric .statistics-table td:first-child,
+.statistics-table-wrapper--numeric .metric-cell {
+  padding-left: 14px;
+  white-space: nowrap;
+}
+
+.statistics-table-wrapper--numeric .metric-cell:hover {
+  padding-left: 11px;
+}
+
+.statistics-table-wrapper .statistics-table {
+  border: 0;
+  border-radius: 0;
+}
+
+/* Explicit tints, not --studio-card-header-bg: the studio sets that token to
+   white, which flattened the header and section rows into the body. */
+.statistics-table-wrapper .statistics-table th {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 14%, transparent);
+  color: var(--primary-dark);
+  letter-spacing: 0.06em;
+}
+
+.statistics-table-wrapper .statistics-table th:first-child {
+  text-align: left;
+  padding-left: 16px;
+  color: var(--text-muted);
+}
+
+/* Section bands: tinted, with an accent edge, so COVERAGE / DISTRIBUTION read
+   as headings and not as two more rows. */
+.statistics-table-wrapper .statistics-table tr.statistics-metric-group td {
+  padding: 7px 16px;
+  background: color-mix(in srgb, var(--primary-color) 3%, var(--card-bg));
+  border-top: 1px solid color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--primary-color);
+  color: var(--primary-color);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statistics-table-wrapper .statistics-table tbody tr.statistics-metric-group:first-child td {
+  border-top: 0;
+}
+
+.statistics-table-wrapper .statistics-table td.metric-cell {
+  padding-left: 16px;
+  color: var(--text-main);
+}
+
+/* Faint banding keeps a row's value lined up with its label across wide tables. */
+.statistics-table-wrapper .statistics-table tbody tr:not(.statistics-metric-group):nth-child(even) td {
+  background: var(--bg-neutral);
+}
+
+/* The rollup column is a band of its own: tinted top to bottom, blue edge. */
+.statistics-table-wrapper .statistics-table th.statistics-col-rollup {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  border-left: 2px solid color-mix(in srgb, var(--primary-color) 30%, var(--card-bg));
+}
+
+.statistics-table-wrapper .statistics-table td.statistics-col-rollup,
+.statistics-table-wrapper .statistics-table tbody tr:not(.statistics-metric-group):nth-child(even) td.statistics-col-rollup {
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--card-bg));
+  border-left: 2px solid color-mix(in srgb, var(--primary-color) 30%, var(--card-bg));
+  color: var(--primary-dark);
+}
+
+/* Cells carry their own background (sticky first column, banding, rollup
+   tint), so the hover tint goes on the cells or it only shows in some columns. */
+.statistics-table-wrapper .statistics-table tbody tr:not(.statistics-metric-group):hover td {
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+}
+
+.statistics-table-wrapper .statistics-table tbody tr:not(.statistics-metric-group):hover td.statistics-col-rollup {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+}
+
+.statistics-table-wrapper .statistics-cell-note {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 7%, transparent);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.chart-container {
+  width: 100%;
+  max-width: none;
+  min-height: 360px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.04);
+}

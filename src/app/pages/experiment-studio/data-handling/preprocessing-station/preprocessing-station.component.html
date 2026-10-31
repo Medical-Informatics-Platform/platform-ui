@@ -1,0 +1,289 @@
+<!-- One preprocessing card's own footer: Discard · Preview processed data · Apply/Close,
+     all scoped to that card's pending edits. -->
+<ng-template #prepFooter let-step>
+  @if (dh.preprocessingApplyError[step]) {
+  <div class="glass-feedback glass-feedback-warning" role="alert">{{ dh.preprocessingApplyError[step] }}</div>
+  }
+  <app-station-action-bar
+    flush
+    [pendingCount]="dh.stepPendingCount(step)"
+    [statusText]="dh.stepPendingCount(step) ? 'change not applied yet — the run still uses your last applied rules.' : ''"
+    [tone]="dh.stepPendingCount(step) ? 'pending' : 'applied'"
+    resetLabel="Discard"
+    previewLabel="Preview processed data"
+    [applyLabel]="dh.stepApplyLabel(step)"
+    [applyIcon]="dh.stepPendingCount(step) ? 'fas fa-check' : 'fas fa-times'"
+    [applyVariant]="dh.stepPendingCount(step) ? 'primary' : 'quiet'"
+    [resetDisabled]="!dh.stepPendingCount(step) || dh.isApplyingPreprocessing"
+    [applyDisabled]="dh.isApplyingPreprocessing"
+    (reset)="dh.resetChanges(step)"
+    (preview)="dh.previewProcessedData(step)"
+    (apply)="dh.commitOrCloseStep(step)"
+  ></app-station-action-bar>
+</ng-template>
+
+<header class="pipeline-node-header" (click)="dh.onStepHeaderClick('setup', $event)">
+  <div class="pipeline-node-header-left">
+    <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
+    <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 3 · Always on</span>
+      <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="dh.isStepOpen('setup')" (click)="dh.toggleStep('setup')">Preprocessing</button></h3>
+      <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
+    </div>
+  </div>
+  <div class="pipeline-node-header-right">
+    @if (dh.recordsOut.processed !== null) {
+    <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ dh.recordsOut.processed!.toLocaleString() }}@if (dh.recordsOut.filtered !== null) { <span>of {{ dh.recordsOut.filtered!.toLocaleString() }}</span>}</span></span>
+    }
+    <span
+      class="pipeline-status-badge"
+      [class.applied]="dh.preprocessingBadgeTone === 'applied'"
+      [class.pending]="dh.preprocessingBadgeTone === 'pending'"
+      [class.default]="dh.preprocessingBadgeTone === 'default'"
+    >
+      {{ dh.preprocessingStatusLabel }}
+    </span>
+    @if (dh.isStepAdded('setup')) {
+    <button
+      type="button"
+      class="btn-remove-step-node"
+      title="Remove customization and revert to default NaN removal"
+      (click)="dh.removeStep('setup')">
+      <i class="fas fa-rotate-left" aria-hidden="true"></i>
+      <span>Revert to Default (Drop NaN)</span>
+    </button>
+    } @else {
+    <button type="button" class="btn-add-step" (click)="dh.addStep('setup')">
+      <i class="fas fa-sliders" aria-hidden="true"></i>
+      <span>Customize rules</span>
+    </button>
+    }
+    <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="dh.isStepOpen('setup')" aria-hidden="true"></i>
+  </div>
+</header>
+
+<!-- Collapsed overview: the rail of every sub-step the pipeline will run, followed
+     by the dashed rows that create the ones it does not hold yet. -->
+@if (!dh.sectionOpen().setup && !dh.sectionOpen().processed) {
+<div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
+  <p class="pipeline-subnodes-caption">Everything below runs in this order. Click a step to edit it; dashed rows add optional steps.</p>
+  @for (node of dh.appliedPreprocessingSubNodes; track node.id) {
+  <div class="pipeline-subnode-item" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.jumpToSubNode('setup', node.id)" title="Open this preprocessing stage">
+      <i [class]="node.icon" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">{{ node.title }}</span>
+        <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+      </span>
+      @if (node.impact) {
+      <span class="pipeline-subnode-impact">{{ node.impact }}</span>
+      }
+      <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+      <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+    </button>
+  </div>
+  }
+  <!-- Dashed rail rows: a sub-step the stage can still create, so a stage grows
+       without being expanded first. Each row is the whole add flow and the station
+       it opens is already narrowed to the matching sub-step. A row disappears only
+       once the rail itself holds the step, never because an editor was opened. -->
+  @if (!dh.outlierSubNodeApplied) {
+  <div class="pipeline-subnode-item is-ghost" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.addPreprocessingSubNode('outlier')" title="Add and open this step">
+      <i class="fas fa-line-chart" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">Add outlier clipping</span>
+        <span class="pipeline-subnode-subtitle">Cap extreme values so a few outliers don’t skew results — numerical variables only</span>
+      </span>
+      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+    </button>
+  </div>
+  }
+  @if (dh.isLongitudinalModel && !dh.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+  <div class="pipeline-subnode-item is-ghost" role="listitem">
+    <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+    <button type="button" class="pipeline-subnode-content" (click)="dh.addPreprocessingSubNode('longitudinal')" title="Add and open this step">
+      <i class="fas fa-code-compare" aria-hidden="true"></i>
+      <span class="pipeline-subnode-text">
+        <span class="pipeline-subnode-title">Add longitudinal comparison</span>
+        <span class="pipeline-subnode-subtitle">Compare two visits per variable (required for two-visit pathologies)</span>
+      </span>
+      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+    </button>
+  </div>
+  }
+</div>
+}
+
+<!-- The editor exists only once the stage is opened: while the request still holds
+     the untouched default, the rail above is the whole card. -->
+@if (dh.isStepAdded('setup')) {
+<div class="pipeline-node-body">
+  @if (dh.sectionOpen().setup) {
+  <details app-how-to-strip [guide]="dh.howTo.setup"></details>
+  }
+  <div class="workflow-section-body" [class.open]="dh.sectionOpen().setup">
+    <div class="preprocessing-shell">
+    <app-station-card
+      collapsible
+      icon="fas fa-eraser"
+      title="Missing Values"
+      description="Choose what happens to missing values, one variable at a time."
+      [statusLabel]="dh.missingPreprocessingStatusLabel"
+      [status]="dh.statusTone(dh.missingPreprocessingStatusLabel, dh.hasPendingMissingChanges)"
+      [open]="dh.preprocessingStepOpen.missing"
+      (openChange)="dh.togglePreprocessingStep('missing')">
+      @if (dh.preprocessingStepDocumentation('missing_values_handler')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().missing"
+        (click)="dh.togglePreprocessingDoc('missing')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('missing_values_handler') && dh.preprocessingDocOpen().missing) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('missing_values_handler')"></div>
+      </div>
+      }
+
+      @if (dh.preprocessingVariables.length > 0) {
+      <section app-missing-values-step class="statistics-workspace preprocessing-workspace">
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No variables selected.</p>
+        <span>Select variables before configuring preprocessing.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'missing' }"></ng-container>
+  </app-station-card>
+
+  @if (!dh.showOutliersSection) {
+  <button type="button" class="btn-add-dashed" (click)="dh.enableOutlierHandling()">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+    <span>Add outlier handling — cap extreme values (optional)</span>
+  </button>
+  } @else {
+  <app-station-card
+    collapsible
+    icon="fas fa-line-chart"
+    title="Outlier Handling"
+    description="Caps extreme values per variable with a winsorizer."
+    [statusLabel]="dh.outlierPreprocessingStatusLabel"
+    [status]="dh.statusTone(dh.outlierPreprocessingStatusLabel, dh.hasPendingOutlierChanges)"
+    [open]="dh.preprocessingStepOpen.outlier"
+    (openChange)="dh.togglePreprocessingStep('outlier')">
+    <!-- Projected next to the status chip: one header, not a second strip glued on top. -->
+    <button type="button" class="btn-remove-step-node" stationAction (click)="dh.removeOutlierHandling()">
+      <i class="fas fa-trash-can" aria-hidden="true"></i>
+      <span>Remove Step</span>
+    </button>
+      @if (dh.preprocessingStepDocumentation('outlier_winsorizer')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().outlier"
+        (click)="dh.togglePreprocessingDoc('outlier')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('outlier_winsorizer') && dh.preprocessingDocOpen().outlier) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('outlier_winsorizer')"></div>
+      </div>
+      }
+
+      @if (dh.outlierPreprocessingVariables.length > 0) {
+      <section app-outlier-step class="statistics-workspace preprocessing-workspace outlier-preprocessing-workspace">
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No numerical variables selected.</p>
+        <span>Outlier handling is available for selected numerical variables.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'outlier' }"></ng-container>
+  </app-station-card>
+  }
+
+  @if (dh.isLongitudinalModel) {
+  <app-station-card
+    collapsible
+    icon="fas fa-calendar"
+    title="Longitudinal Transformation"
+    description="Required for longitudinal pathologies: compare two visits per variable."
+    [statusLabel]="dh.longitudinalPreprocessingStatusLabel"
+    [status]="dh.statusTone(dh.longitudinalPreprocessingStatusLabel, dh.pendingLongitudinalChangeCount > 0)"
+    [open]="dh.preprocessingStepOpen.longitudinal"
+    (openChange)="dh.togglePreprocessingStep('longitudinal')">
+      @if (dh.preprocessingStepDocumentation('longitudinal_transformer')) {
+      <button stationAction type="button" class="preprocessing-doc-toggle"
+        [attr.aria-expanded]="dh.preprocessingDocOpen().longitudinal"
+        (click)="dh.togglePreprocessingDoc('longitudinal')">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        <span>How this works</span>
+      </button>
+      }
+      @if (dh.preprocessingStepDocumentation('longitudinal_transformer') && dh.preprocessingDocOpen().longitudinal) {
+      <div class="preprocessing-documentation-panel is-open">
+        <div class="preprocessing-documentation-content" [innerHTML]="dh.formatPreprocessingDocumentationHtml('longitudinal_transformer')"></div>
+      </div>
+      }
+
+      <div class="longitudinal-controls">
+        <div class="visit-controls">
+          <label>
+            <span>Visit 1</span>
+            <select class="table-select" [ngModel]="dh.longitudinalVisit1" (ngModelChange)="dh.onLongitudinalVisitChange('visit1', $event)">
+              <option value="">Select visit</option>
+              @for (visit of dh.visitOptions; track visit.code) {
+              <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            <span>Visit 2</span>
+            <select class="table-select" [ngModel]="dh.longitudinalVisit2" (ngModelChange)="dh.onLongitudinalVisitChange('visit2', $event)">
+              <option value="">Select visit</option>
+              @for (visit of dh.visitOptions; track visit.code) {
+              <option [ngValue]="visit.code">{{ visit.label || visit.code }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </div>
+      @if (dh.preprocessingValidationErrors['__longitudinal__']) {
+      <div class="row-error longitudinal-error">{{ dh.preprocessingValidationErrors['__longitudinal__'] }}</div>
+      }
+
+      @if (dh.preprocessingVariables.length > 0) {
+      <section app-longitudinal-step class="statistics-workspace preprocessing-workspace">
+      </section>
+      } @else {
+      <div class="empty-state-block compact-empty">
+        <i class="fa fa-table"></i>
+        <p>No variables selected.</p>
+        <span>Select variables before configuring longitudinal transformation.</span>
+      </div>
+      }
+    <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'longitudinal' }"></ng-container>
+  </app-station-card>
+  }
+
+  </div>
+  </div>
+  <div [dhSectionAnchor]="'processed'" class="workflow-section" data-guide="analysis-processed-summary">
+    <div
+      class="workflow-section-body"
+      app-summary-workspace
+      [class.open]="dh.sectionOpen().processed"
+      kind="processed"
+      [summary]="dh.processedSummary"
+      emptyHint="Select variables and datasets to load the processed data summary."></div>
+  </div>
+</div>
+}

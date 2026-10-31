@@ -1,0 +1,55 @@
+<aside
+  app-prep-variable-rail
+  class="statistics-browser preprocessing-browser"
+  aria-label="Longitudinal preprocessing variables"
+  step="longitudinal"
+  searchLabel="Search longitudinal preprocessing variables"
+  [groupStates]="false"
+  emptyHint="Clear the search field to show selected variables.">
+  <ng-template prepRailSlot="lead" let-variable>
+    <small>{{ dh.variableTypeLabel(variable) }}</small>
+  </ng-template>
+</aside>
+
+<div class="statistics-panel preprocessing-detail-panel">
+  @if (dh.selectedPrepVariable('longitudinal'); as variable) {
+  @let state = dh.prepVariableStateLabel('longitudinal', variable);
+  <div class="statistics-panel-header">
+    <div>
+      <span class="statistics-panel-kicker">{{ dh.variableTypeLabel(variable) }} variable</span>
+      <h4>{{ dh.variableLabel(variable) }}</h4>
+    </div>
+    <span
+      class="preprocessing-state-chip"
+      [class.state-pending]="dh.prepVariableHasPendingChange('longitudinal', variable)"
+      [class.state-applied]="state === 'Applied'"
+    >
+      {{ state }}
+    </span>
+  </div>
+
+  <div class="preprocessing-detail-section">
+    <div class="preprocessing-detail-heading">
+      <i class="fa fa-calendar" aria-hidden="true"></i>
+      <span>Longitudinal strategy</span>
+    </div>
+    <label class="preprocessing-control">
+      <span>Strategy for {{ dh.variableLabel(variable) }}</span>
+      <select class="table-select" [ngModel]="dh.longitudinalStrategyFor(variable)" (ngModelChange)="dh.onLongitudinalStrategyChange(variable, $event)">
+        @for (strategy of dh.longitudinalStrategies; track strategy.value) {
+        <option [ngValue]="strategy.value" [disabled]="dh.isLongitudinalStrategyDisabled(variable, strategy.value)">{{ strategy.label }}</option>
+        }
+      </select>
+    </label>
+    @if (dh.preprocessingValidationErrors[variable.code]) {
+    <div class="row-error">{{ dh.preprocessingValidationErrors[variable.code] }}</div>
+    }
+  </div>
+  } @else {
+  <div class="empty-state-block compact-empty">
+    <i class="fa fa-search"></i>
+    <p>No variables match the current search.</p>
+    <span>Clear the search field to choose a longitudinal strategy variable.</span>
+  </div>
+  }
+</div>
