@@ -1,0 +1,70 @@
+<div class="outlier-editor-header">
+  <div>
+    <h6>Per-variable Outlier Rules</h6>
+  </div>
+  <span class="outlier-count">{{ form.outlierReportVariables().length }} numerical</span>
+</div>
+
+@if (form.outlierReportVariables().length > 0) {
+<div class="outlier-table-wrapper">
+  <table class="outlier-table">
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Enabled</th>
+        <th>Strategy</th>
+        <th>Tail</th>
+        <th>Fold</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (variable of form.outlierReportVariables(); track variable.code) {
+      <tr>
+        <td>
+          <span class="outlier-variable-label">{{ variableLabel(variable) }}</span>
+          <small>{{ variable.code }}</small>
+        </td>
+        <td>
+          <label class="checkbox-wrapper outlier-enable">
+            <input #enabledBox type="checkbox" [checked]="form.outlierReportRuleFor(variable).enabled"
+              (change)="form.onOutlierReportEnabledChange(variable, enabledBox.checked)"
+              [attr.aria-label]="'Enable ' + variableLabel(variable)" />
+          </label>
+        </td>
+        <td>
+          <select class="config-select compact-select" [ngModel]="form.outlierReportRuleFor(variable).strategy"
+            (ngModelChange)="form.onOutlierReportStrategyChange(variable, $event)">
+            @for (strategy of outlierStrategies; track strategy.value) {
+            <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+            }
+          </select>
+        </td>
+        <td>
+          <select class="config-select compact-select" [ngModel]="form.outlierReportRuleFor(variable).tail"
+            (ngModelChange)="form.onOutlierReportTailChange(variable, $event)">
+            @for (tail of outlierTails; track tail.value) {
+            <option [ngValue]="tail.value">{{ tail.label }}</option>
+            }
+          </select>
+        </td>
+        <td>
+          <input class="config-input compact-input" type="number" step="any"
+            [ngModel]="form.outlierReportRuleFor(variable).fold"
+            (ngModelChange)="form.onOutlierReportFoldChange(variable, $event)"
+            [class.input-error]="form.outlierReportRuleError(variable)" />
+          @if (form.outlierReportRuleError(variable)) {
+          <div class="validation-message config-error">{{ form.outlierReportRuleError(variable) }}</div>
+          }
+        </td>
+      </tr>
+      }
+    </tbody>
+  </table>
+</div>
+} @else {
+<div class="config-placeholder config-placeholder--minimal">
+  <div class="config-placeholder-content">
+    <h6>No numerical variables selected</h6>
+  </div>
+</div>
+}
