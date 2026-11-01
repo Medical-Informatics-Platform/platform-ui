@@ -3,6 +3,8 @@ name: Publish images
 on:
   release:
     types: [published]
+  push:
+    branches: [staging]
 
 env:
   HARBOR_REGISTRY: docker-registry.ebrains.eu
@@ -60,6 +62,14 @@ jobs:
           images: |
             hbpmip/platform-ui
             ${{ env.HARBOR_REGISTRY }}/medical-informatics-platform/platform-ui
+          # Release runs keep metadata-action's default tags (the release tag
+          # plus latest). Pushes to staging publish only staging-<short-sha>.
+          tags: |
+            type=schedule
+            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/staging' }}
+            type=ref,event=tag
+            type=ref,event=pr
+            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/staging' }}
 
       - name: Load PLATFORM-UI service cached image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 #v6.1.0
