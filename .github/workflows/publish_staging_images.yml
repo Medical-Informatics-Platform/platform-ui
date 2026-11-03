@@ -2,7 +2,7 @@ name: Publish staging images
 
 on:
   push:
-    branches: [staging-a, staging-b]
+    branches: [staging-b, staging-c]
   workflow_dispatch:
 
 concurrency: staging-${{ github.ref_name }}
@@ -83,7 +83,7 @@ jobs:
   bump:
     name: Bump staging image tag in mip
     needs: build
-    uses: Medical-Informatics-Platform/mip/.github/workflows/bump-staging-image.yml@chore/bump-staging-workflow
+    uses: Medical-Informatics-Platform/mip/.github/workflows/bump-staging-image.yml@0eff4dd7667262adf39284c7585f2b8ee75dd034 # mip PR #33 (chore/bump-staging-workflow); switch to @master once merged
     permissions:
       contents: read
     with:
