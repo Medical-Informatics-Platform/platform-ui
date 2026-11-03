@@ -37,7 +37,7 @@ describe('AlgorithmRulesService', () => {
     expect(service.evaluateAlgorithmAvailability(algo, { y: [], x: [] }).summary)
       .toBe('Outcome needs at least 1 (none assigned).');
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'continuous' } as any],
       x: [],
     })).toBe(true);
   });
@@ -49,8 +49,8 @@ describe('AlgorithmRulesService', () => {
 
     const available = service.isAlgorithmAvailable(algo, {
       y: [
-        { code: 'v1', label: 'var1', type: 'real' } as any,
-        { code: 'v2', label: 'var2', type: 'real' } as any,
+        { code: 'v1', label: 'var1', type: 'continuous' } as any,
+        { code: 'v2', label: 'var2', type: 'continuous' } as any,
       ],
       x: [],
     });
@@ -64,12 +64,12 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'text' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
       x: [],
     })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'continuous' } as any],
       x: [],
     })).toBe(true);
   });
@@ -80,7 +80,22 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'nominal' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
+      x: [],
+    })).toBe(true);
+  });
+
+  it('rejects a free-text CDE (categorical without enumerations) but not a derived column', () => {
+    const algo = buildAlgo({
+      y: { label: 'y', desc: '', types: ['text'], required: true, max_count: 1 },
+    });
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'subjectid', label: 'Subject', type: 'nominal' } as any],
+      x: [],
+    })).toBe(false);
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'derived', label: 'Derived', type: 'nominal', enumerations: [], isCreatedColumn: true } as any],
       x: [],
     })).toBe(true);
   });
@@ -95,8 +110,8 @@ describe('AlgorithmRulesService', () => {
     } as AlgorithmConfig;
 
     const availableWithOneCovariate = service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'age', label: 'Age', type: 'real' } as any],
-      x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
+      y: [{ code: 'age', label: 'Age', type: 'continuous' } as any],
+      x: [{ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
     });
 
     expect(availableWithOneCovariate).toBe(true);
@@ -113,10 +128,10 @@ describe('AlgorithmRulesService', () => {
 
     const result = service.evaluateAlgorithmAvailability(algo, {
       y: [
-        { code: 'age', label: 'Age', type: 'real' } as any,
-        { code: 'bmi', label: 'BMI', type: 'real' } as any,
+        { code: 'age', label: 'Age', type: 'continuous' } as any,
+        { code: 'bmi', label: 'BMI', type: 'continuous' } as any,
       ],
-      x: [{ code: 'sex', label: 'Sex', type: 'text' } as any],
+      x: [{ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
     });
 
     expect(result.available).toBe(false);
@@ -135,7 +150,7 @@ describe('AlgorithmRulesService', () => {
     });
 
     const result = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'continuous' } as any],
       x: [],
     });
 
@@ -149,14 +164,14 @@ describe('AlgorithmRulesService', () => {
     });
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'real' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'continuous' } as any],
       x: [],
     })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [
-        { code: 'v1', label: 'var1', type: 'real' } as any,
-        { code: 'v2', label: 'var2', type: 'real' } as any,
+        { code: 'v1', label: 'var1', type: 'continuous' } as any,
+        { code: 'v2', label: 'var2', type: 'continuous' } as any,
       ],
       x: [],
     })).toBe(true);
@@ -172,8 +187,8 @@ describe('AlgorithmRulesService', () => {
     } as AlgorithmConfig;
 
     const unavailable = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'outcome', label: 'Outcome', type: 'int', stattype: 'nominal' } as any],
-      x: [{ code: 'age', label: 'Age', type: 'real', stattype: 'numerical' } as any],
+      y: [{ code: 'outcome', label: 'Outcome', type: 'binary', stattype: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
+      x: [{ code: 'age', label: 'Age', type: 'continuous', stattype: 'numerical' } as any],
     });
 
     expect(unavailable.available).toBe(false);
@@ -196,15 +211,15 @@ describe('AlgorithmRulesService', () => {
 
     expect(service.isAlgorithmAvailable(algo, {
       y: [
-        { code: 'age', label: 'Age', type: 'real' } as any,
-        { code: 'age', label: 'Age', type: 'real' } as any,
+        { code: 'age', label: 'Age', type: 'continuous' } as any,
+        { code: 'age', label: 'Age', type: 'continuous' } as any,
       ],
       x: [],
     })).toBe(false);
 
     expect(service.isAlgorithmAvailable(algo, {
-      y: [{ code: 'age', label: 'Age', type: 'real' } as any],
-      x: [{ code: 'age', label: 'Age', type: 'real' } as any],
+      y: [{ code: 'age', label: 'Age', type: 'continuous' } as any],
+      x: [{ code: 'age', label: 'Age', type: 'continuous' } as any],
     })).toBe(false);
   });
 
@@ -214,7 +229,7 @@ describe('AlgorithmRulesService', () => {
     });
 
     const result = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'text', stattype: 'ordinal' } as any],
+      y: [{ code: 'v1', label: 'var1', type: 'nominal', stattype: 'ordinal', enumerations: [{ code: 'a', label: 'A' }] } as any],
       x: [],
     });
 
@@ -246,8 +261,8 @@ describe('AlgorithmRulesService', () => {
     const result = service.evaluateAlgorithmAvailability(algo, {
       y: [],
       x: [
-        { code: 'v1', label: 'var1', type: 'real' } as any,
-        { code: 'v2', label: 'var2', type: 'real' } as any,
+        { code: 'v1', label: 'var1', type: 'continuous' } as any,
+        { code: 'v2', label: 'var2', type: 'continuous' } as any,
       ],
     });
 
