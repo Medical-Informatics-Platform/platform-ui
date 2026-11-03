@@ -472,7 +472,7 @@ export function createHistogram(
   const formatBin = (bin: string): string => {
     const num = parseFloat(bin);
     if (isNaN(num)) return bin;
-    if (data.variableType === 'integer' || Number.isInteger(num)) {
+    if (data.variableType === 'discrete' || Number.isInteger(num)) {
       return d3.format(',')(Math.round(num));
     }
     return formatNumber(num);

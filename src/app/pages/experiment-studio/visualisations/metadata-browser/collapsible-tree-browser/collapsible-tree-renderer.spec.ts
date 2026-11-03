@@ -25,7 +25,7 @@ describe('collapsible tree renderer helpers', () => {
               {
                 label: 'Glucose',
                 code: 'glucose',
-                type: 'real',
+                type: 'continuous',
               },
             ],
           },
@@ -57,7 +57,7 @@ describe('collapsible tree renderer helpers', () => {
     const root = d3.hierarchy(cloneNode(model), (node) => node.children) as any;
     initializeCollapse(root);
 
-    const target = findHierarchyNode(root, { label: 'Glucose', code: 'glucose', type: 'real' });
+    const target = findHierarchyNode(root, { label: 'Glucose', code: 'glucose', type: 'continuous' });
 
     expect(target?.data.label).toBe('Glucose');
   });
@@ -74,7 +74,7 @@ describe('collapsible tree renderer helpers', () => {
             {
               label: 'Arterial',
               code: 'arterial',
-              children: [{ label: 'MAP', code: 'map', type: 'real' }],
+              children: [{ label: 'MAP', code: 'map', type: 'continuous' }],
             },
           ],
         },
@@ -85,7 +85,7 @@ describe('collapsible tree renderer helpers', () => {
             {
               label: 'Arterial',
               code: 'arterial',
-              children: [{ label: 'DBP', code: 'dbp', type: 'real' }],
+              children: [{ label: 'DBP', code: 'dbp', type: 'continuous' }],
             },
           ],
         },
@@ -233,7 +233,7 @@ describe('collapsible tree unavailable variables', () => {
         code: 'demographics',
         children: [
           { label: 'Sex', code: 'sex', type: 'nominal' },
-          { label: 'Age', code: 'age', type: 'real' },
+          { label: 'Age', code: 'age', type: 'continuous' },
         ],
       },
     ],

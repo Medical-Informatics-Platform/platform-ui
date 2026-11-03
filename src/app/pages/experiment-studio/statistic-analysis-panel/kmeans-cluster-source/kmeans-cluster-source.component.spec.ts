@@ -272,7 +272,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('runs the K-means report in place and stores its reusable preprocessing', () => {
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     const reusablePreprocessing = reusable();
     studio.loadKMeansReport.mockReturnValue(of({
       result_type: 'privacy_safe_cluster_report',
@@ -307,7 +307,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('keeps catalog defaults until Parameters changes one', () => {
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     studio.backendAlgorithms.set({
       kmeans: {
         configSchema: [
@@ -350,7 +350,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('sizes each cluster share bar from the interval midpoint', () => {
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     studio.loadKMeansReport.mockReturnValue(of({
       result_type: 'privacy_safe_cluster_report',
       selected_k: 2,
