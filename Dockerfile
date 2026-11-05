@@ -37,10 +37,12 @@ ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     JUPYTER_SERVER=jupyterhub:8000 \
     JUPYTER_CONTEXT=notebook \
     GUIDE_COVARIATE=Sex \
-    GUIDE_VARIABLE=Age
+    GUIDE_VARIABLE=Age \
+    KEYCLOAK_ORIGIN=https://iam.ebrains.eu
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 COPY nginx-websocket-map.conf /etc/nginx/conf.d/00-websocket-map.conf
+COPY nginx-security-headers.conf /etc/nginx/security-headers.conf
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
