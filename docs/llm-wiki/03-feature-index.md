@@ -20,8 +20,8 @@ Start with:
 - `ExperimentStudioService` (selection, algorithm roles, run state)
 - `execution-panel/` for run status/results and
   `algorithm-panel/algorithm-role-assignment/` for the y/x slots
-- `shared/station-card`, `shared/station-action-bar`, `shared/station-list-row` for
-  the cards and footers every Data review step reuses
+- `shared/station-card`, `shared/station-action-bar` for the cards and footers
+  every Data review step reuses
 - relevant model under `src/app/models/`
 - `06-algorithm-mapping-index.md` for algorithm output/config tasks
 
