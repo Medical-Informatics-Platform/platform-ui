@@ -13,6 +13,20 @@ interface AuthState {
   user?: User | null;
 }
 
+/** The sign-out POST, carrying the value of the backend's XSRF-TOKEN cookie. */
+export function buildSignOutForm(cookies: string): HTMLFormElement {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/services/logout';
+  form.style.display = 'none';
+  const token = document.createElement('input');
+  token.type = 'hidden';
+  token.name = '_csrf';
+  token.value = decodeURIComponent(cookies.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/)?.[1] ?? '');
+  form.appendChild(token);
+  return form;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -77,8 +91,10 @@ export class AuthService {
     localStorage.removeItem(this.redirectUrlKey);
     this.authStateSignal.set({ status: 'unauthenticated' });
 
-    // Use a full-page redirect so the backend/IdP can clear SSO cookies.
-    window.location.href = '/services/logout';
+    // A full-page POST so the backend/IdP can clear SSO cookies. The backend wants its CSRF token on sign-out.
+    const form = buildSignOutForm(document.cookie);
+    document.body.appendChild(form);
+    form.submit();
   }
 
   isLoggedIn(): boolean {
