@@ -2,7 +2,7 @@ server {
     listen 80;
     server_tokens off;
 
-    set $content_security_policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ${KEYCLOAK_ORIGIN}; frame-src 'self'";
+    set $content_security_policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ${KEYCLOAK_ORIGIN}; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'";
 
     # Serve Angular app
     root /usr/share/nginx/html;
