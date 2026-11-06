@@ -115,7 +115,7 @@ export class HeaderComponent {
   }
 
   signOut(): void {
-    // The menu goes first: logout is a hard redirect, so the surface should not sit open
+    // The menu goes first: logout is a full-page navigation, so the surface should not sit open
     // through the unload — and it stays closed if logout ever stops being one.
     this.closeAccountMenu({ restoreFocus: false });
     this.authService.logout();

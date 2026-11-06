@@ -1,7 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpXsrfTokenExtractor } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, tap, filter } from 'rxjs/operators';
 import { User } from '../models/user.interface';
@@ -13,8 +13,8 @@ interface AuthState {
   user?: User | null;
 }
 
-/** The sign-out POST, carrying the value of the backend's XSRF-TOKEN cookie. */
-export function buildSignOutForm(cookies: string): HTMLFormElement {
+/** The sign-out POST, carrying the backend's CSRF token. */
+export function buildSignOutForm(csrfToken: string): HTMLFormElement {
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = '/services/logout';
@@ -22,7 +22,7 @@ export function buildSignOutForm(cookies: string): HTMLFormElement {
   const token = document.createElement('input');
   token.type = 'hidden';
   token.name = '_csrf';
-  token.value = decodeURIComponent(cookies.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/)?.[1] ?? '');
+  token.value = csrfToken;
   form.appendChild(token);
   return form;
 }
@@ -33,6 +33,7 @@ export function buildSignOutForm(cookies: string): HTMLFormElement {
 export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
+  private xsrfTokens = inject(HttpXsrfTokenExtractor);
   private readonly redirectUrlKey = 'redirect_url';
 
   private readonly authStateSignal = signal<AuthState>({ status: 'checking' });
@@ -91,8 +92,15 @@ export class AuthService {
     localStorage.removeItem(this.redirectUrlKey);
     this.authStateSignal.set({ status: 'unauthenticated' });
 
+    // No cookie means the session is already gone (e.g. signed out in another tab). The POST would only get a 403 page.
+    const csrfToken = this.xsrfTokens.getToken();
+    if (!csrfToken) {
+      this.login();
+      return;
+    }
+
     // A full-page POST so the backend/IdP can clear SSO cookies. The backend wants its CSRF token on sign-out.
-    const form = buildSignOutForm(document.cookie);
+    const form = buildSignOutForm(csrfToken);
     document.body.appendChild(form);
     form.submit();
   }
