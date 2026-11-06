@@ -60,7 +60,7 @@ Run:
 docker run -e PLATFORM_BACKEND_SERVER=platform-backend-service:8080 -e PLATFORM_BACKEND_CONTEXT=services -p 80:80 fl-platform
 ```
 
-Runtime env values are written to `assets/env.js` by `docker-entrypoint.sh`.
+Runtime env values are written to `assets/env.js` by `docker-entrypoint.sh`. For `KEYCLOAK_ORIGIN`, which goes into the nginx Content-Security-Policy instead, see the README's Docker section.
 
 ## Output and Runtime Budget Guardrails
 

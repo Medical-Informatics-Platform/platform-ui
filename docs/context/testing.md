@@ -52,6 +52,7 @@ There is no separate QA checklist file; the list below is it. Walk the affected 
 - Visualization registries/renderers.
 - Histogram and descriptive statistics rendering.
 - Dashboard detail or compare views.
+- Anything loading a new resource type or origin: the Content-Security-Policy exists only in the nginx image, so `ng serve` and the e2e flows never see it. Check the console on the built image.
 
 ## Backend Tests
 Not applicable in this frontend repository. Backend behavior must be validated in the backend repository or against a deployed/local backend.

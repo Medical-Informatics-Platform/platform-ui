@@ -11,7 +11,7 @@ side and `hub-http.ts` carries the Hub XSRF header.
 |---|---|---|---|
 | auth | GET | `/services/activeUser` | session check behind `AuthGuard` |
 | auth | GET | `/services/oauth2/authorization/keycloak` | full-page login redirect, `frontend_redirect` |
-| auth | GET | `/services/logout` | full-page logout redirect |
+| auth | POST | `/services/logout` | full-page sign-out form with `_csrf` |
 | terms | POST | `/services/activeUser/agreeNDA` | acceptance from `/terms`; the text itself is the static `assets/tos.md` |
 | catalog | GET | `/services/data-models` | models, datasets, variables |
 | specifications | GET | `/services/specifications/inputdata` | input DTO |
