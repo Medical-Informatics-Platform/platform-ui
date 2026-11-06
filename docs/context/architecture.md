@@ -51,7 +51,7 @@ flowchart TD
 ## Authentication and Terms
 - `AuthService` checks the current session with `GET /services/activeUser`.
 - Login redirects to `/services/oauth2/authorization/keycloak?frontend_redirect=...`.
-- Logout hard-redirects to `/services/logout`.
+- Logout is a full-page `POST /services/logout` carrying the `XSRF-TOKEN` cookie value as `_csrf`. Without that cookie it goes to login.
 - Auth redirect state is stored in localStorage with `redirect_url`.
 - `TermsGuard` routes users to `/terms` when `user.agreeNDA` is false.
 - `TermsService` stores the intended terms destination in localStorage with `tos_redirect_url`.

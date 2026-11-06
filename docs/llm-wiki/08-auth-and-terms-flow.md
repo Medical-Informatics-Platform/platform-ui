@@ -14,7 +14,7 @@ Use for login, logout, active user, route protection, terms, and onboarding.
 
 - `GET /services/activeUser`
 - `/services/oauth2/authorization/keycloak?frontend_redirect=<target>`
-- `/services/logout`
+- `POST /services/logout` (full-page form with `_csrf`)
 
 ## Guard Matrix
 

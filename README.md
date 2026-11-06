@@ -43,7 +43,7 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 ## Auth Flow
 - Routes are guarded (`AuthGuard` in `src/app/guards/auth.guard.ts`).
 - Login redirects to `/services/oauth2/authorization/keycloak?frontend_redirect=<current or target>`.
-- Logout calls `/services/logout` then returns to dashboard.
+- Logout is a full-page `POST /services/logout` carrying the `XSRF-TOKEN` cookie value as `_csrf`. Without that cookie the session is already gone, and it goes to login instead.
 
 ## Project Structure
 - `src/main.ts` – bootstraps app with router, HTTP client, credentials interceptor, ECharts.
@@ -56,7 +56,7 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 - `src/app/pages/account-page/` – basic profile view.
 - `src/app/pages/shared/` – header/footer/spinner utilities.
 - `src/styles.css` – global styles; assets in `src/assets/`.
-- `Dockerfile` / `nginx.conf.template` – container build and runtime proxy (`PLATFORM_BACKEND_SERVER`, `PLATFORM_BACKEND_CONTEXT` envs).
+- `Dockerfile` / `nginx.conf.template` – container build and runtime proxy (`PLATFORM_BACKEND_SERVER`, `PLATFORM_BACKEND_CONTEXT`, `KEYCLOAK_ORIGIN` envs).
 
 
 
@@ -70,6 +70,8 @@ docker run \
   -p 80:80 fl-platform
 ```
 Nginx always proxies `/${PLATFORM_BACKEND_CONTEXT}/` to the backend.
+
+`KEYCLOAK_ORIGIN` (default `https://iam.ebrains.eu`) is the Keycloak origin the Content-Security-Policy allows. It must equal the origin of the issuer returned by `GET /services/auth-config`. If they differ, the browser blocks the account page's token request and any Keycloak redirect inside the notebook iframe. Nothing warns at startup; the violation only shows in the browser console.
 
 ## Testing
 - Unit: `npm test` (Vitest, headless Chromium).
