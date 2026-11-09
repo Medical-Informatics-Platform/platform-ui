@@ -41,6 +41,9 @@ export async function cliTokenSignInUrl(config: AuthConfig, redirectUri: string)
     client_id: config.clientId,
     response_type: 'code',
     scope: 'openid offline_access',
+    // Re-ask for the password even when the browser has a live SSO session, so a
+    // borrowed or stolen laptop cannot mint a token from the open session.
+    prompt: 'login',
     redirect_uri: redirectUri,
     state: pending.state,
     code_challenge: await codeChallenge(pending.verifier),

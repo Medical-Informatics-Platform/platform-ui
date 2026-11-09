@@ -26,6 +26,7 @@ describe('cli-token', () => {
     expect(url.searchParams.get('client_id')).toBe('mip-cli-handson');
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('scope')).toBe('openid offline_access');
+    expect(url.searchParams.get('prompt')).toBe('login');
     expect(url.searchParams.get('redirect_uri')).toBe(redirectUri);
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);

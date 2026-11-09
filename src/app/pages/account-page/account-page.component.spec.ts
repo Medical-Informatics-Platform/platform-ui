@@ -81,6 +81,7 @@ describe('AccountPageComponent', () => {
     const url = new URL(redirect.mock.calls[0][0]);
     expect(url.origin + url.pathname).toBe('https://idp.example/realms/MIP/protocol/openid-connect/auth');
     expect(url.searchParams.get('client_id')).toBe('mip-cli');
+    expect(url.searchParams.get('prompt')).toBe('login');
     expect(url.searchParams.get('redirect_uri')).toBe(`${window.location.origin}/account`);
   });
 
