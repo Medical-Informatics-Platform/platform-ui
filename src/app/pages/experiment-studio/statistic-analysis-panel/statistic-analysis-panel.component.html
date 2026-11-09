@@ -695,6 +695,32 @@
             </button>
           </div>
           }
+          @if (!transformSubNodeApplied) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('transform')" title="Add and open this step">
+              <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add variable transforms</span>
+                <span class="pipeline-subnode-subtitle">Reshape skewed values — log, square root, Yeo-Johnson or quantile — numerical variables only</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+          @if (!scalerSubNodeApplied) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('scaler')" title="Add and open this step">
+              <i class="fas fa-ruler-horizontal" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add variable scaling</span>
+                <span class="pipeline-subnode-subtitle">Bring numerical variables to a comparable range — standard, robust, min-max or max absolute</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
           @if (isLongitudinalModel && !expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
@@ -1278,6 +1304,307 @@
               </div>
               }
             <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'outlier' }"></ng-container>
+          </app-station-card>
+          }
+
+          @if (!transformSubNodeApplied) {
+          <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('transform')">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Add variable transforms — log, sqrt, Yeo-Johnson or quantile (optional)</span>
+          </button>
+          } @else {
+          <app-station-card
+            collapsible
+            icon="fas fa-arrow-up-right-dots"
+            title="Variable Transforms"
+            description="Reshape values per variable with a monotone or rank transform."
+            [statusLabel]="transformPreprocessingStatusLabel"
+            [status]="statusTone(transformPreprocessingStatusLabel, hasPendingTransformChanges)"
+            [open]="preprocessingStepOpen.transform"
+            (openChange)="togglePreprocessingStep('transform')">
+            <button type="button" class="btn-remove-step-node" stationAction (click)="removePreprocessingSubNode('transform')">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
+            </button>
+            @if (preprocessingStepDocumentation('variable_transformer')) {
+            <button stationAction type="button" class="preprocessing-doc-toggle"
+              [attr.aria-expanded]="preprocessingDocOpen().transform"
+              (click)="togglePreprocessingDoc('transform')">
+              <i class="fas fa-book-open" aria-hidden="true"></i>
+              <span>How this works</span>
+            </button>
+            }
+            @if (preprocessingStepDocumentation('variable_transformer') && preprocessingDocOpen().transform) {
+            <div class="preprocessing-documentation-panel is-open">
+              <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('variable_transformer')"></div>
+            </div>
+            }
+
+            @if (outlierPreprocessingVariables.length > 0) {
+            <section class="statistics-workspace preprocessing-workspace">
+              <aside class="statistics-browser preprocessing-browser" aria-label="Transform variables">
+                <div class="statistics-browser-header">
+                  <span>Variables · transform</span>
+                  <small>{{ filteredPrepVariables('transform').length }} shown</small>
+                  <div class="batch-menu">
+                    <button type="button" class="studio-export-btn batch-menu-trigger"
+                      [attr.aria-expanded]="batchMenuOpen() === 'transform'"
+                      (click)="toggleBatchMenu('transform')">
+                      <i class="fas fa-bolt" aria-hidden="true"></i>
+                      Set all
+                    </button>
+                    @if (batchMenuOpen() === 'transform') {
+                    <div class="batch-menu-list" role="menu">
+                      @for (strategy of transformStrategies; track strategy.value) {
+                      <button type="button" role="menuitem" (click)="applyBatchTransformStrategy(strategy.value)">Set all numerical to {{ strategy.label }}</button>
+                      }
+                      <button type="button" role="menuitem" (click)="removePreprocessingSubNode('transform')">Remove all transforms</button>
+                    </div>
+                    }
+                  </div>
+                </div>
+                <div class="search-inline chart-search">
+                  <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+                  <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search transform variables" [(ngModel)]="prepSearch.transform" />
+                </div>
+
+                @for (group of prepGroups('transform'); track group.key) {
+                <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
+                  <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+                  @for (variable of group.variables; track variable.code) {
+                  <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPrepVariableSelected('transform', variable)" (click)="selectPrepVariable('transform', variable)">
+                    <span>{{ variableLabel(variable) }}</span>
+                    <span class="statistics-variable-meta">
+                      <small>{{ variableTypeLabel(variable) }}</small>
+                      <span
+                        class="preprocessing-state-mini"
+                        [class.state-pending]="prepVariableHasPendingChange('transform', variable)"
+                        [class.state-applied]="prepVariableStateLabel('transform', variable) === 'Applied'"
+                      >
+                        {{ prepVariableStateLabel('transform', variable) }}
+                      </span>
+                    </span>
+                    <span class="prep-rail-action" [attr.data-state]="transformStrategyFor(variable) ? (prepVariableHasPendingChange('transform', variable) ? 'pending' : 'set') : 'off'">
+                      {{ transformStrategyFor(variable) ? transformStrategyLabel(transformStrategyFor(variable)!) : 'No transform' }}{{ prepVariableHasPendingChange('transform', variable) ? ' · not applied' : '' }}
+                    </span>
+                  </button>
+                  }
+                </div>
+                }
+                @if (prepGroups('transform').length === 0) {
+                <div class="empty-state-block compact-empty">
+                  <i class="fa fa-search"></i>
+                  <p>No variables match the current search.</p>
+                  <span>Clear the search field to show selected numerical variables.</span>
+                </div>
+                }
+              </aside>
+
+              <div class="statistics-panel preprocessing-detail-panel">
+                @if (selectedPrepVariable('transform'); as variable) {
+                <div class="statistics-panel-header">
+                  <div>
+                    <span class="statistics-panel-kicker">Numerical variable</span>
+                    <h4>{{ variableLabel(variable) }}</h4>
+                  </div>
+                  <span
+                    class="preprocessing-state-chip"
+                    [class.state-pending]="prepVariableHasPendingChange('transform', variable)"
+                    [class.state-applied]="prepVariableStateLabel('transform', variable) === 'Applied'"
+                  >
+                    {{ prepVariableStateLabel('transform', variable) }}
+                  </span>
+                </div>
+                <div class="preprocessing-detail-section">
+                  <div class="preprocessing-detail-heading">
+                    <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
+                    <span>Transform</span>
+                  </div>
+                  <label class="preprocessing-control">
+                    <span>Transform for {{ variableLabel(variable) }}</span>
+                    <select class="table-select" [ngModel]="transformStrategyFor(variable)" (ngModelChange)="onTransformStrategyChange(variable, $event)">
+                      <option [ngValue]="null">No transform</option>
+                      @for (strategy of transformStrategies; track strategy.value) {
+                      <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  @if (transformStrategyFor(variable); as strategy) {
+                  <p class="preprocessing-consequence">{{ transformDomainWarning(variable, strategy) }}</p>
+                  }
+                </div>
+                } @else {
+                <div class="empty-state-block compact-empty">
+                  <i class="fa fa-search"></i>
+                  <p>No variables match the current search.</p>
+                  <span>Clear the search field to choose a transform variable.</span>
+                </div>
+                }
+              </div>
+            </section>
+            } @else {
+            <div class="empty-state-block compact-empty">
+              <i class="fa fa-table"></i>
+              <p>No numerical variables selected.</p>
+              <span>Select numerical variables before configuring transforms.</span>
+            </div>
+            }
+            <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'transform' }"></ng-container>
+          </app-station-card>
+          }
+
+          @if (!scalerSubNodeApplied) {
+          <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('scaler')">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Add variable scaling — standard, robust, min-max or max absolute (optional)</span>
+          </button>
+          } @else {
+          <app-station-card
+            collapsible
+            icon="fas fa-ruler-horizontal"
+            title="Variable Scaling"
+            description="Bring numerical variables to a comparable range."
+            [statusLabel]="scalerPreprocessingStatusLabel"
+            [status]="statusTone(scalerPreprocessingStatusLabel, hasPendingScalerChanges)"
+            [open]="preprocessingStepOpen.scaler"
+            (openChange)="togglePreprocessingStep('scaler')">
+            <button type="button" class="btn-remove-step-node" stationAction (click)="removePreprocessingSubNode('scaler')">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
+            </button>
+            @if (preprocessingStepDocumentation('variable_scaler')) {
+            <button stationAction type="button" class="preprocessing-doc-toggle"
+              [attr.aria-expanded]="preprocessingDocOpen().scaler"
+              (click)="togglePreprocessingDoc('scaler')">
+              <i class="fas fa-book-open" aria-hidden="true"></i>
+              <span>How this works</span>
+            </button>
+            }
+            @if (preprocessingStepDocumentation('variable_scaler') && preprocessingDocOpen().scaler) {
+            <div class="preprocessing-documentation-panel is-open">
+              <div class="preprocessing-documentation-content" [innerHTML]="formatPreprocessingDocumentationHtml('variable_scaler')"></div>
+            </div>
+            }
+
+            @if (outlierPreprocessingVariables.length > 0) {
+            <section class="statistics-workspace preprocessing-workspace">
+              <aside class="statistics-browser preprocessing-browser" aria-label="Scaling variables">
+                <div class="statistics-browser-header">
+                  <span>Variables · scaling</span>
+                  <small>{{ filteredPrepVariables('scaler').length }} shown</small>
+                  <div class="batch-menu">
+                    <button type="button" class="studio-export-btn batch-menu-trigger"
+                      [attr.aria-expanded]="batchMenuOpen() === 'scaler'"
+                      (click)="toggleBatchMenu('scaler')">
+                      <i class="fas fa-bolt" aria-hidden="true"></i>
+                      Set all
+                    </button>
+                    @if (batchMenuOpen() === 'scaler') {
+                    <div class="batch-menu-list" role="menu">
+                      @for (strategy of scalerStrategies; track strategy.value) {
+                      <button type="button" role="menuitem" (click)="applyBatchScalerStrategy(strategy.value)">Set all numerical to {{ strategy.label }}</button>
+                      }
+                      <button type="button" role="menuitem" (click)="removePreprocessingSubNode('scaler')">Remove all scaling</button>
+                    </div>
+                    }
+                  </div>
+                </div>
+                <div class="search-inline chart-search">
+                  <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
+                  <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search scaling variables" [(ngModel)]="prepSearch.scaler" />
+                </div>
+
+                @for (group of prepGroups('scaler'); track group.key) {
+                <div class="statistics-variable-group preprocessing-variable-group" [attr.data-state]="group.key">
+                  <div class="statistics-variable-group-title">{{ group.title }} <span>{{ group.variables.length }}</span></div>
+                  @for (variable of group.variables; track variable.code) {
+                  <button type="button" class="statistics-variable-btn preprocessing-variable-btn" [class.active]="isPrepVariableSelected('scaler', variable)" (click)="selectPrepVariable('scaler', variable)">
+                    <span>{{ variableLabel(variable) }}</span>
+                    <span class="statistics-variable-meta">
+                      <small>{{ variableTypeLabel(variable) }}</small>
+                      <span
+                        class="preprocessing-state-mini"
+                        [class.state-pending]="prepVariableHasPendingChange('scaler', variable)"
+                        [class.state-applied]="prepVariableStateLabel('scaler', variable) === 'Applied'"
+                      >
+                        {{ prepVariableStateLabel('scaler', variable) }}
+                      </span>
+                    </span>
+                    <span class="prep-rail-action" [attr.data-state]="scalerStrategyFor(variable) ? (prepVariableHasPendingChange('scaler', variable) ? 'pending' : 'set') : 'off'">
+                      {{ scalerStrategyFor(variable) ? scalerStrategyLabel(scalerStrategyFor(variable)!) : 'No scaling' }}{{ prepVariableHasPendingChange('scaler', variable) ? ' · not applied' : '' }}
+                    </span>
+                  </button>
+                  }
+                </div>
+                }
+                @if (prepGroups('scaler').length === 0) {
+                <div class="empty-state-block compact-empty">
+                  <i class="fa fa-search"></i>
+                  <p>No variables match the current search.</p>
+                  <span>Clear the search field to show selected numerical variables.</span>
+                </div>
+                }
+              </aside>
+
+              <div class="statistics-panel preprocessing-detail-panel">
+                @if (selectedPrepVariable('scaler'); as variable) {
+                <div class="statistics-panel-header">
+                  <div>
+                    <span class="statistics-panel-kicker">Numerical variable</span>
+                    <h4>{{ variableLabel(variable) }}</h4>
+                  </div>
+                  <span
+                    class="preprocessing-state-chip"
+                    [class.state-pending]="prepVariableHasPendingChange('scaler', variable)"
+                    [class.state-applied]="prepVariableStateLabel('scaler', variable) === 'Applied'"
+                  >
+                    {{ prepVariableStateLabel('scaler', variable) }}
+                  </span>
+                </div>
+                <div class="preprocessing-detail-section">
+                  <div class="preprocessing-detail-heading">
+                    <i class="fas fa-ruler-horizontal" aria-hidden="true"></i>
+                    <span>Scaling</span>
+                  </div>
+                  <label class="preprocessing-control">
+                    <span>Scaler for {{ variableLabel(variable) }}</span>
+                    <select class="table-select" [ngModel]="scalerStrategyFor(variable)" (ngModelChange)="onScalerStrategyChange(variable, $event)">
+                      <option [ngValue]="null">No scaling</option>
+                      @for (strategy of scalerStrategies; track strategy.value) {
+                      <option [ngValue]="strategy.value">{{ strategy.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  @if (scalerStrategyFor(variable) === 'minmax') {
+                  <div class="visit-controls">
+                    <label>
+                      <span>Feature range min</span>
+                      <input class="table-input" type="number" [ngModel]="pendingScalerFeatureRange[0]" (ngModelChange)="onScalerFeatureRangeChange('low', $event)" placeholder="0" />
+                    </label>
+                    <label>
+                      <span>Feature range max</span>
+                      <input class="table-input" type="number" [ngModel]="pendingScalerFeatureRange[1]" (ngModelChange)="onScalerFeatureRangeChange('high', $event)" placeholder="1" />
+                    </label>
+                  </div>
+                  }
+                </div>
+                } @else {
+                <div class="empty-state-block compact-empty">
+                  <i class="fa fa-search"></i>
+                  <p>No variables match the current search.</p>
+                  <span>Clear the search field to choose a scaling variable.</span>
+                </div>
+                }
+              </div>
+            </section>
+            } @else {
+            <div class="empty-state-block compact-empty">
+              <i class="fa fa-table"></i>
+              <p>No numerical variables selected.</p>
+              <span>Select numerical variables before configuring scaling.</span>
+            </div>
+            }
+            <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'scaler' }"></ng-container>
           </app-station-card>
           }
 

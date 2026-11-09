@@ -338,10 +338,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeNull();
         const rows = railRows(pipelineCard('analysis-preprocessing'));
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add outlier clipping')]);
+        const outlierGhost = rows.ghost.find((row) => row.textContent?.includes('Add outlier clipping'));
+        expect(outlierGhost).toBeTruthy();
 
         mockExpService.setAppliedDescriptivePreprocessing.mockClear();
-        (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        (outlierGhost!.querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().setup).toBe(true);
@@ -350,7 +351,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStepOpen.missing).toBe(false);
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeTruthy();
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
-        expect(railRows(pipelineCard('analysis-preprocessing')).ghost).toEqual([]);
+        expect(railRows(pipelineCard('analysis-preprocessing')).ghost.some((row) => row.textContent?.includes('Add outlier clipping'))).toBe(false);
     });
 
     /**
@@ -363,7 +364,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
 
         const rail = railRows(pipelineCard('analysis-preprocessing'));
-        (rail.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        const outlierGhost = rail.ghost.find((row) => row.textContent?.includes('Add outlier clipping'))!;
+        (outlierGhost.querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
         expect(component.pendingChangeCount).toBe(0);
@@ -381,9 +383,10 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         fixture.detectChanges();
         const rows = railRows(pipelineCard('analysis-preprocessing'));
         expect(rows.live.length).toBe(1);
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add outlier clipping')]);
+        expect(rows.ghost.some((row) => row.textContent?.includes('Add outlier clipping'))).toBe(true);
 
-        (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        const outlierRow = rows.ghost.find((row) => row.textContent?.includes('Add outlier clipping'))!;
+        (outlierRow.querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
         expect(component.sectionOpen().setup).toBe(true);
         expect(component.preprocessingStepOpen.outlier).toBe(true);
@@ -440,6 +443,48 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(nodes[1].subtitle).toContain('IQR');
         expect(component.appliedPreprocessingCount).toBe(2);
         expect(component.preprocessingStatusLabel).toBe('2 steps applied ✓');
+    });
+
+    it('lists the transform and scaler sub-nodes between outlier and longitudinal', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        seedAppliedConfig({
+            missing_values_handler: { strategies: { age: 'drop' } },
+            variable_transformer: { strategies: { age: 'log1p' } },
+            variable_scaler: { strategies: { age: 'standard' } },
+        });
+        fixture.detectChanges();
+
+        const nodes = component.appliedPreprocessingSubNodes;
+        expect(nodes.map((n) => n.id)).toEqual(['missing', 'transform', 'scaler']);
+        expect(nodes[1].subtitle).toContain('log(1 + x)');
+        expect(nodes[2].subtitle).toContain('Standard');
+    });
+
+    it('offers transform and scaler ghost rows while they hold no strategies', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+
+        const card = pipelineCard('analysis-preprocessing');
+        const { ghost } = railRows(card);
+        const texts = ghost.map((row) => row.textContent ?? '');
+        expect(texts.some((t) => t.includes('Add variable transforms'))).toBe(true);
+        expect(texts.some((t) => t.includes('Add variable scaling'))).toBe(true);
+    });
+
+    it('restores the transform and scaler editors from a persisted config', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        seedAppliedConfig({
+            variable_transformer: { strategies: { age: 'yeo_johnson' } },
+            variable_scaler: { strategies: { age: 'minmax' }, feature_range: [-1, 1] },
+        });
+        fixture.detectChanges();
+
+        expect(component.isStepAdded('setup')).toBe(true);
+        expect(component.appliedTransformStrategies).toEqual({ age: 'yeo_johnson' });
+        expect(component.pendingTransformStrategies).toEqual({ age: 'yeo_johnson' });
+        expect(component.appliedScalerStrategies).toEqual({ age: 'minmax' });
+        expect(component.appliedScalerFeatureRange).toEqual([-1, 1]);
+        expect(component.pendingScalerFeatureRange).toEqual(['-1', '1']);
     });
 
     it('surfaces the applied derived column as a transformation sub-node', () => {
