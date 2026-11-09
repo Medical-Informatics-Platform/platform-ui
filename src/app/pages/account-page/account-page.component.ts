@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal, WritableSignal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -14,7 +14,7 @@ import { AuthConfig, cliTokenSignInUrl, finishCliTokenSignIn, isSignInReturn } f
   styleUrl: './account-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AccountPageComponent {
+export class AccountPageComponent implements OnDestroy {
   public authService = inject(AuthService);
   private location = inject(Location);
   private http = inject(HttpClient);
@@ -49,6 +49,11 @@ export class AccountPageComponent {
         .catch((err: Error) => this.tokenError.set(err.message))
         .finally(() => this.creatingToken.set(false));
     }
+  }
+
+  ngOnDestroy(): void {
+    // Drop the shown token right away; the signal is only ever held until the page is left.
+    this.cliToken.set('');
   }
 
   async createToken(): Promise<void> {

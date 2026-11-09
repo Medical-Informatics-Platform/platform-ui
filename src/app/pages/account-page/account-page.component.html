@@ -64,6 +64,13 @@
           <div class="remote-options">
             <div class="remote-option">
               <h4>No browser on that machine</h4>
+              <p class="remote-note">
+                This token works like your password for up to 180 days. Keep it only in
+                <code>mip login --token</code>; never put it in notebooks, <code>.env</code> files,
+                repositories or chat. Lost it or your computer?
+                <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
+                   rel="noopener">See and remove computers signed in to MIP</a>.
+              </p>
               <button class="create-token-btn" type="button" (click)="createToken()" [disabled]="creatingToken()">
                 <i class="fas fa-key"></i>
                 <span>{{ creatingToken() ? 'Creating…' : 'Create access token' }}</span>
@@ -83,8 +90,11 @@
                 </div>
                 <span class="copy-status" aria-live="polite">{{ tokenCopyStatus() }}</span>
                 <p class="remote-note">
-                  Treat it like a password: it gives your full MIP data access for up to 6 months, until
-                  it goes unused for 30 days, or until you run <code>mip logout</code>.
+                  This token works like your password for up to 180 days. Keep it only in
+                  <code>mip login --token</code>; never put it in notebooks, <code>.env</code> files,
+                  repositories or chat. Lost it or your computer?
+                  <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
+                     rel="noopener">See and remove computers signed in to MIP</a>.
                 </p>
               }
               <p class="remote-text">
