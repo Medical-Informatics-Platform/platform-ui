@@ -1,3 +1,11 @@
+# The backend needs the real request scheme (DPoP `htu` checks and secure cookies).
+# TLS ends at the ingress, so nginx itself sees http and `$scheme` would lie; pass the
+# ingress-provided value through and fall back to $scheme only when it is absent.
+map $http_x_forwarded_proto $mip_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
 server {
     listen 80;
     server_tokens off;
@@ -14,6 +22,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $mip_forwarded_proto;
     }
 
     # Angular shell route for the notebook page (must not proxy to JupyterHub).
