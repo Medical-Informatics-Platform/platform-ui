@@ -695,7 +695,7 @@
             </button>
           </div>
           }
-          @if (!transformSubNodeApplied) {
+          @if (!transformSubNodeApplied && transformStepAvailable) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
             <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('transform')" title="Add and open this step">
@@ -708,7 +708,7 @@
             </button>
           </div>
           }
-          @if (!scalerSubNodeApplied) {
+          @if (!scalerSubNodeApplied && scalerStepAvailable) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
             <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('scaler')" title="Add and open this step">
@@ -1307,12 +1307,12 @@
           </app-station-card>
           }
 
-          @if (!transformSubNodeApplied) {
+          @if (!transformSubNodeApplied && transformStepAvailable) {
           <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('transform')">
             <i class="fas fa-plus" aria-hidden="true"></i>
             <span>Add variable transforms — log, sqrt, Yeo-Johnson or quantile (optional)</span>
           </button>
-          } @else {
+          } @else if (transformSubNodeApplied) {
           <app-station-card
             collapsible
             icon="fas fa-arrow-up-right-dots"
@@ -1453,12 +1453,12 @@
           </app-station-card>
           }
 
-          @if (!scalerSubNodeApplied) {
+          @if (!scalerSubNodeApplied && scalerStepAvailable) {
           <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('scaler')">
             <i class="fas fa-plus" aria-hidden="true"></i>
             <span>Add variable scaling — standard, robust, min-max or max absolute (optional)</span>
           </button>
-          } @else {
+          } @else if (scalerSubNodeApplied) {
           <app-station-card
             collapsible
             icon="fas fa-ruler-horizontal"

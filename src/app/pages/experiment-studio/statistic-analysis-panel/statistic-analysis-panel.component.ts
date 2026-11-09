@@ -968,6 +968,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Collapsed rail node for the per-variable transform step, when it holds a strategy. */
   private transformSubNode(config: Record<string, unknown>): PipelineSubNode | null {
+    if (!this.transformStepAvailable) return null;
     const holder = config['variable_transformer'] as { strategies?: Record<string, unknown> } | undefined;
     const strategies = Object.entries(holder?.strategies ?? {});
     if (!strategies.length) return null;
@@ -987,6 +988,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Collapsed rail node for the per-variable scaling step, when it holds a strategy. */
   private scalerSubNode(config: Record<string, unknown>): PipelineSubNode | null {
+    if (!this.scalerStepAvailable) return null;
     const holder = config['variable_scaler'] as { strategies?: Record<string, unknown> } | undefined;
     const strategies = Object.entries(holder?.strategies ?? {});
     if (!strategies.length) return null;
@@ -1025,23 +1027,38 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       : `This transform ${domain}. Lowest observed value is ${minText}.`;
   }
 
+  /**
+   * Spec gate for the transform/scaler stations, mirroring the creators: before the
+   * catalog loads the availability is unknown (optimistically shown); once it loads
+   * without the step, the station is unavailable and its request step is dropped.
+   */
+  get transformStepAvailable(): boolean {
+    return !this.expStudioService.catalogLoaded() || this.expStudioService.hasPreprocessingSpec('variable_transformer');
+  }
+
+  get scalerStepAvailable(): boolean {
+    return !this.expStudioService.catalogLoaded() || this.expStudioService.hasPreprocessingSpec('variable_scaler');
+  }
+
   get transformSubNodeApplied(): boolean {
-    return this.appliedPreprocessingSubNodes.some((node) => node.id === 'transform');
+    return this.transformStepAvailable
+      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'transform');
   }
 
   get scalerSubNodeApplied(): boolean {
-    return this.appliedPreprocessingSubNodes.some((node) => node.id === 'scaler');
+    return this.scalerStepAvailable
+      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'scaler');
   }
 
   get transformPreprocessingStatusLabel(): string {
-    if (!this.outlierPreprocessingVariables.length) return 'Not available';
+    if (!this.transformStepAvailable || !this.outlierPreprocessingVariables.length) return 'Not available';
     if (this.hasPendingTransformChanges) return `${pluralize(this.pendingTransformChangeCount, 'change')} · not applied`;
     if (Object.keys(this.appliedTransformStrategies).length) return 'Applied';
     return 'Optional';
   }
 
   get scalerPreprocessingStatusLabel(): string {
-    if (!this.outlierPreprocessingVariables.length) return 'Not available';
+    if (!this.scalerStepAvailable || !this.outlierPreprocessingVariables.length) return 'Not available';
     if (this.hasPendingScalerChanges) return `${pluralize(this.pendingScalerChangeCount, 'change')} · not applied`;
     if (Object.keys(this.appliedScalerStrategies).length) return 'Applied';
     return 'Optional';

@@ -199,6 +199,16 @@ describe('ExperimentStudioService', () => {
     released: true,
   };
 
+  const mockAlgorithmSpecs = [
+    toAlgorithmSpec(mockRawAlgo),
+    toAlgorithmSpec(mockHistogramAlgo),
+    toAlgorithmSpec(mockDescribeAlgo),
+    toAlgorithmSpec(mockOutlierReportAlgo),
+    toAlgorithmSpec(mockLinearSvmAlgo),
+    toAlgorithmSpec(mockKmeansAlgo),
+    toAlgorithmSpec(mockPcaAlgo),
+  ];
+
   beforeEach(() => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
@@ -210,15 +220,7 @@ describe('ExperimentStudioService', () => {
     httpMock = TestBed.inject(HttpTestingController);
 
     flushSpecifications(
-      [
-        toAlgorithmSpec(mockRawAlgo),
-        toAlgorithmSpec(mockHistogramAlgo),
-        toAlgorithmSpec(mockDescribeAlgo),
-        toAlgorithmSpec(mockOutlierReportAlgo),
-        toAlgorithmSpec(mockLinearSvmAlgo),
-        toAlgorithmSpec(mockKmeansAlgo),
-        toAlgorithmSpec(mockPcaAlgo),
-      ],
+      mockAlgorithmSpecs,
       [
         {
           name: 'categorical_column_creator',
@@ -280,6 +282,22 @@ describe('ExperimentStudioService', () => {
               },
             ],
           },
+        },
+        // The proposal names from the federated preprocessing spec; the gating test
+        // covers the case where the catalog ships without them.
+        {
+          name: 'variable_transformer',
+          label: 'Variable Transformer',
+          desc: '',
+          parameters: {},
+          outputs: null,
+        },
+        {
+          name: 'variable_scaler',
+          label: 'Variable Scaler',
+          desc: '',
+          parameters: {},
+          outputs: null,
         },
       ],
     );
@@ -935,14 +953,54 @@ describe('ExperimentStudioService', () => {
     const summary = service.formatPreprocessingConfig({
       missing_values_handler: { strategies: { age: 'drop' } },
       variable_transformer: { strategies: { age: 'log1p', bmi: 'quantile_uniform' } },
-      variable_scaler: { strategies: { age: 'standard' }, feature_range: [0, 1] },
+      variable_scaler: { strategies: { age: 'standard', bmi: 'minmax' }, feature_range: [0, 1] },
     }, { age: 'Age', bmi: 'BMI' });
 
     expect(summary).toBe(
       'Missing values: Age: remove rows\n'
       + 'Variable transforms: Age: log(1 + x), BMI: quantile to uniform\n'
-      + 'Variable scaling [0, 1]: Age: standard scaling'
+      + 'Variable scaling: Age: standard scaling, BMI: min-max scaling [0, 1]'
     );
+  });
+
+  it('drops transform and scaler steps the loaded catalog does not list', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: { strategies: { age: 'drop' } },
+      variable_transformer: { strategies: { age: 'log1p' } },
+      variable_scaler: { strategies: { age: 'standard' } },
+    };
+
+    // Simulate a deployment whose catalog ships without the new steps: reload the
+    // specifications with a reduced preprocessing catalog.
+    service.loadBackendAlgorithms().subscribe();
+    httpMock.expectOne('/services/specifications/inputdata').flush(mockInputdataSpec);
+    httpMock.expectOne('/services/specifications/preprocessing').flush([]);
+    httpMock.expectOne('/services/specifications/algorithms').flush(mockAlgorithmSpecs);
+
+    service.setAppliedDescriptivePreprocessing(applied);
+    const body = service.buildRequestBody('mock_algo', ['age']);
+
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: { strategies: { age: 'drop' } },
+    }));
+  });
+
+  it('drops the scaler step when filtering leaves no strategy, not just feature_range', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      variable_scaler: { strategies: { bmi: 'standard' }, feature_range: [0, 1] },
+    };
+
+    const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
+
+    // The lone step-level `feature_range` must not keep the step in the request; the
+    // histogram fallback then supplies its usual drop default.
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: { strategies: { age: 'drop' } },
+    }));
   });
 
   it('emits applied transform and scaler singleton steps in rail order', () => {
