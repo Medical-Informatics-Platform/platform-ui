@@ -90,9 +90,8 @@
                 </div>
                 <span class="copy-status" aria-live="polite">{{ tokenCopyStatus() }}</span>
                 <p class="remote-note">
-                  This token works like your password for up to 180 days. Keep it only in
-                  <code>mip login --token</code>; never put it in notebooks, <code>.env</code> files,
-                  repositories or chat. Lost it or your computer?
+                  It lasts up to 180 days, or until it is unused for 30 days, or until you run
+                  <code>mip logout</code>. Lost it or your computer?
                   <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
                      rel="noopener">See and remove computers signed in to MIP</a>.
                 </p>
@@ -118,7 +117,7 @@
           <pre><code>import mip
 client = mip.Client.from_env()</code></pre>
           <p class="remote-note">
-            Each sign-in lasts at most 6 months, and ends after 30 days without use. To end it sooner,
+            Each sign-in lasts at most 180 days, and ends after 30 days without use. To end it sooner,
             run <code>mip logout</code> on that computer. Without that computer, remove
             "MIP command line" under Applications in your
             <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
