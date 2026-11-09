@@ -3172,7 +3172,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   isMissingActionDisabled(variable: VariableRow, action: MissingAction): boolean {
     if (action === 'mean' || action === 'median') return !this.isNumericVariable(variable);
-    // The vocabulary comes from the CDE on the worker side, so most_frequent needs one.
+    // Exaflow's most_frequent fills with each worker's local mode (no category list is
+    // sent), so it only makes sense on categorical variables.
     if (action === 'most_frequent') return !this.isCategoricalVariable(variable);
     return false;
   }
