@@ -1417,6 +1417,26 @@ export class ExperimentStudioService {
       if (next) filtered[OUTLIER_WINSORIZER] = next;
     }
 
+    const transform = preprocessing['variable_transformer'];
+    if (transform && typeof transform === 'object' && !Array.isArray(transform)) {
+      const next = this.filterPreprocessingStepRecordMaps(
+        transform as Record<string, unknown>,
+        allowed,
+        ['strategies']
+      );
+      if (next) filtered['variable_transformer'] = next;
+    }
+
+    const scaler = preprocessing['variable_scaler'];
+    if (scaler && typeof scaler === 'object' && !Array.isArray(scaler)) {
+      const next = this.filterPreprocessingStepRecordMaps(
+        scaler as Record<string, unknown>,
+        allowed,
+        ['strategies']
+      );
+      if (next) filtered['variable_scaler'] = next;
+    }
+
     const longitudinal = preprocessing['longitudinal_transformer'];
     if (longitudinal && typeof longitudinal === 'object' && !Array.isArray(longitudinal)) {
       const longitudinalRecord = longitudinal as Record<string, unknown>;
@@ -1548,6 +1568,32 @@ export class ExperimentStudioService {
       entries.push({ label: 'Outlier winsorizer', value: labels.join('; '), lines: labels });
     }
 
+    const transform = preprocessing['variable_transformer'] as {
+      strategies?: Record<string, unknown>;
+    } | undefined;
+    const transformEntries = Object.entries(transform?.strategies ?? {});
+    if (transformEntries.length) {
+      const labels = transformEntries.map(([code, strategy]) =>
+        `${this.preprocessingVariableLabel(code, labelMap)}: ${this.transformStrategyLabel(String(strategy))}`
+      );
+      entries.push({ label: 'Variable transforms', value: labels.join(', '), lines: labels });
+    }
+
+    const scaler = preprocessing['variable_scaler'] as {
+      strategies?: Record<string, unknown>;
+      feature_range?: unknown;
+    } | undefined;
+    const scalerEntries = Object.entries(scaler?.strategies ?? {});
+    if (scalerEntries.length) {
+      const range = Array.isArray(scaler?.feature_range) && scaler!.feature_range.length === 2
+        ? ` [${scaler!.feature_range.join(', ')}]`
+        : '';
+      const labels = scalerEntries.map(([code, strategy]) =>
+        `${this.preprocessingVariableLabel(code, labelMap)}: ${this.scalerStrategyLabel(String(strategy))}`
+      );
+      entries.push({ label: `Variable scaling${range}`, value: labels.join(', '), lines: labels });
+    }
+
     const longitudinal = preprocessing['longitudinal_transformer'] as Record<string, unknown> | undefined;
     if (longitudinal) {
       const visit1 = longitudinal['visit1'];
@@ -1565,7 +1611,13 @@ export class ExperimentStudioService {
       entries.push({ label: 'Longitudinal transformation', value: `${strategySummary}${visitLabel}` });
     }
 
-    const knownKeys = new Set([MISSING_VALUES_HANDLER, OUTLIER_WINSORIZER, 'longitudinal_transformer']);
+    const knownKeys = new Set([
+      MISSING_VALUES_HANDLER,
+      OUTLIER_WINSORIZER,
+      'longitudinal_transformer',
+      'variable_transformer',
+      'variable_scaler',
+    ]);
     Object.keys(preprocessing)
       .filter((key) => !knownKeys.has(key))
       .forEach((key) => {
@@ -1634,6 +1686,40 @@ export class ExperimentStudioService {
     return labelMap[code] ?? code;
   }
 
+  transformStrategyLabel(strategy: string): string {
+    switch (strategy) {
+      case 'log1p':
+        return 'log(1 + x)';
+      case 'sqrt':
+        return 'square root';
+      case 'asinh':
+        return 'inverse hyperbolic sine';
+      case 'yeo_johnson':
+        return 'Yeo-Johnson';
+      case 'quantile_uniform':
+        return 'quantile to uniform';
+      case 'quantile_normal':
+        return 'quantile to normal';
+      default:
+        return strategy.replace(/_/g, ' ');
+    }
+  }
+
+  scalerStrategyLabel(strategy: string): string {
+    switch (strategy) {
+      case 'standard':
+        return 'standard scaling';
+      case 'robust':
+        return 'robust scaling';
+      case 'minmax':
+        return 'min-max scaling';
+      case 'maxabs':
+        return 'max absolute scaling';
+      default:
+        return strategy.replace(/_/g, ' ');
+    }
+  }
+
   private humanizePreprocessingValue(value: string): string {
     switch (value) {
       case 'drop':
@@ -1642,6 +1728,8 @@ export class ExperimentStudioService {
         return 'mean imputation';
       case 'median':
         return 'median imputation';
+      case 'most_frequent':
+        return 'most frequent imputation';
       case 'constant':
         return 'constant value';
       default:

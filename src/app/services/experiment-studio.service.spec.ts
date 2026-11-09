@@ -921,6 +921,64 @@ describe('ExperimentStudioService', () => {
     );
   });
 
+  it('summarizes most frequent imputation in plain language', () => {
+    const summary = service.formatPreprocessingConfig({
+      missing_values_handler: {
+        strategies: { gender: 'most_frequent', age: 'mean' },
+      },
+    }, { gender: 'Gender', age: 'Age' });
+
+    expect(summary).toBe('Missing values: Gender: most frequent imputation, Age: mean imputation');
+  });
+
+  it('summarizes transform and scaler steps with variable labels', () => {
+    const summary = service.formatPreprocessingConfig({
+      missing_values_handler: { strategies: { age: 'drop' } },
+      variable_transformer: { strategies: { age: 'log1p', bmi: 'quantile_uniform' } },
+      variable_scaler: { strategies: { age: 'standard' }, feature_range: [0, 1] },
+    }, { age: 'Age', bmi: 'BMI' });
+
+    expect(summary).toBe(
+      'Missing values: Age: remove rows\n'
+      + 'Variable transforms: Age: log(1 + x), BMI: quantile to uniform\n'
+      + 'Variable scaling [0, 1]: Age: standard scaling'
+    );
+  });
+
+  it('emits applied transform and scaler singleton steps in rail order', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      missing_values_handler: { strategies: { age: 'drop' } },
+      outlier_winsorizer: { strategies: { age: 'iqr' }, tails: { age: 'both' }, folds: { age: 1.5 } },
+      variable_transformer: { strategies: { age: 'yeo_johnson' } },
+      variable_scaler: { strategies: { age: 'standard' } },
+    };
+
+    service.setAppliedDescriptivePreprocessing(applied);
+    const body = service.buildRequestBody('mock_algo', ['age']);
+
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+  });
+
+  it('filters transform and scaler strategies to the histogram y variables', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      variable_transformer: { strategies: { age: 'log1p', bmi: 'sqrt' } },
+      variable_scaler: { strategies: { age: 'standard', bmi: 'maxabs' }, feature_range: [0, 1] },
+    };
+
+    const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
+
+    // An override without a missing-values step carries no drop default: the filtered
+    // config is forwarded as stored, matching the outlier-only override behavior.
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      variable_transformer: { strategies: { age: 'log1p' } },
+      variable_scaler: { strategies: { age: 'standard' }, feature_range: [0, 1] },
+    }));
+  });
+
   it('loads outlier report previews with outlier parameters and upstream missing preprocessing', () => new Promise<void>((done) => {
     service.selectedDataModel.set(mockDataModel);
     service.setVariables([
