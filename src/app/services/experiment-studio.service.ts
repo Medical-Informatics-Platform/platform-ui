@@ -63,6 +63,13 @@ const APPLIED_DESCRIPTIVE_PREPROCESSING = '__applied_descriptive_preprocessing__
 /** Session-storage key for the ordered column-creating transformation steps. */
 const APPLIED_TRANSFORMATIONS = '__applied_transformations__';
 
+/**
+ * Singleton steps gated on the preprocessing catalog: once the catalog has loaded without
+ * them, the deployment cannot run them, so they are hidden in the UI and dropped from every
+ * request (exaflow rejects unknown steps with `Transformer '<name>' does not exist.`).
+ */
+const GATED_SINGLETON_STEPS = new Set(['variable_transformer', 'variable_scaler']);
+
 /** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
 const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
   AlgorithmNames.HISTOGRAM,
@@ -996,6 +1003,14 @@ export class ExperimentStudioService {
     );
   }
 
+  /**
+   * A gated singleton step is runnable only once the catalog loaded and still lists it —
+   * before that, empty specs mean "unknown", matching how creators are gated.
+   */
+  private singletonStepRunnable(name: string): boolean {
+    return !this.preprocessingCatalogLoaded() || !!this.preprocessingSpecs()[name];
+  }
+
   private preprocessingConfigToSteps(
     config: PreprocessingConfig | null | undefined,
   ): AnalysisPreprocessingStep[] | null {
@@ -1004,6 +1019,9 @@ export class ExperimentStudioService {
     // one ordered step per entry; the engine accepts repeated steps with the same name.
     const steps: AnalysisPreprocessingStep[] = [];
     for (const [name, parameters] of Object.entries(config)) {
+      // A gated step the deployment cannot run is dropped from every request,
+      // the same gate the column-creating creators go through.
+      if (GATED_SINGLETON_STEPS.has(name) && !this.singletonStepRunnable(name)) continue;
       if (Array.isArray(parameters)) {
         for (const item of parameters) {
           if (item && typeof item === 'object') {
@@ -1434,7 +1452,11 @@ export class ExperimentStudioService {
         allowed,
         ['strategies']
       );
-      if (next) filtered['variable_scaler'] = next;
+      // A step whose strategies were all filtered out is dropped entirely: a lone
+      // step-level parameter such as `feature_range` must not keep it in the request.
+      if (next && Object.keys((next['strategies'] as Record<string, unknown>) ?? {}).length > 0) {
+        filtered['variable_scaler'] = next;
+      }
     }
 
     const longitudinal = preprocessing['longitudinal_transformer'];
@@ -1585,13 +1607,15 @@ export class ExperimentStudioService {
     } | undefined;
     const scalerEntries = Object.entries(scaler?.strategies ?? {});
     if (scalerEntries.length) {
-      const range = Array.isArray(scaler?.feature_range) && scaler!.feature_range.length === 2
-        ? ` [${scaler!.feature_range.join(', ')}]`
+      // `feature_range` belongs to minmax only, so it rides on that strategy's lines.
+      const rawRange = Array.isArray(scaler?.feature_range) && scaler!.feature_range.length === 2
+        ? `[${scaler!.feature_range.join(', ')}]`
         : '';
-      const labels = scalerEntries.map(([code, strategy]) =>
-        `${this.preprocessingVariableLabel(code, labelMap)}: ${this.scalerStrategyLabel(String(strategy))}`
-      );
-      entries.push({ label: `Variable scaling${range}`, value: labels.join(', '), lines: labels });
+      const labels = scalerEntries.map(([code, strategy]) => {
+        const rangeText = String(strategy) === 'minmax' && rawRange ? ` ${rawRange}` : '';
+        return `${this.preprocessingVariableLabel(code, labelMap)}: ${this.scalerStrategyLabel(String(strategy))}${rangeText}`;
+      });
+      entries.push({ label: 'Variable scaling', value: labels.join(', '), lines: labels });
     }
 
     const longitudinal = preprocessing['longitudinal_transformer'] as Record<string, unknown> | undefined;

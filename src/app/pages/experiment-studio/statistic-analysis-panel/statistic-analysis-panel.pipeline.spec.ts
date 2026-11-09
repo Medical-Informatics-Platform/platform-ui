@@ -114,7 +114,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'kmeans_cluster_creator',
         ]);
         mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
-            ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
+            ['categorical_column_creator', 'kmeans_cluster_creator', 'variable_transformer', 'variable_scaler'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
         mockExpService.transformationDependents.mockReturnValue([]);
@@ -485,6 +485,27 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.appliedScalerStrategies).toEqual({ age: 'minmax' });
         expect(component.appliedScalerFeatureRange).toEqual([-1, 1]);
         expect(component.pendingScalerFeatureRange).toEqual(['-1', '1']);
+    });
+
+    it('hides the transform and scaler stations when the catalog lacks them', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        seedAppliedConfig({
+            variable_transformer: { strategies: { age: 'log1p' } },
+            variable_scaler: { strategies: { age: 'standard' } },
+        });
+        mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
+            ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name));
+        fixture.detectChanges();
+
+        // No rail node and no ghost row: the deployment cannot run the step, so the
+        // UI must not offer it even though a persisted config still carries it.
+        expect(component.appliedPreprocessingSubNodes.map((n) => n.id)).toEqual(['missing']);
+        const card = pipelineCard('analysis-preprocessing');
+        const { ghost } = railRows(card);
+        expect(ghost.some((row) => row.textContent?.includes('Add variable transforms'))).toBe(false);
+        expect(ghost.some((row) => row.textContent?.includes('Add variable scaling'))).toBe(false);
+        expect(card.textContent).not.toContain('Variable Transforms');
+        expect(card.textContent).not.toContain('Variable Scaling');
     });
 
     it('surfaces the applied derived column as a transformation sub-node', () => {
