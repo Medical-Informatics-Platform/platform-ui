@@ -115,7 +115,28 @@ export function chiSquarePValue(x: number, df: number): number {
 /** A raw snake_case code (a created column such as stroke_territory_cohort, or a level such as
  *  cluster_2) reads as words; labelled names pass through unchanged. */
 export function readable(code: string): string {
-  if (!/^[a-z0-9]+(_[a-z0-9]+)+$/.test(code)) return code;
+  if (!isRawSnakeCode(code)) return code;
   const words = code.replace(/_/g, ' ').replace(/^kmeans\b/, 'K-means');
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Same strings as `^[a-z0-9]+(_[a-z0-9]+)+$`, scanned once so a long label cannot backtrack. */
+function isRawSnakeCode(code: string): boolean {
+  let i = 0;
+  if (!isSnakeWordChar(code, i)) return false;
+  while (isSnakeWordChar(code, i)) i += 1;
+  if (i >= code.length) return false;
+  while (i < code.length) {
+    if (code.charCodeAt(i) !== 95) return false;
+    i += 1;
+    if (!isSnakeWordChar(code, i)) return false;
+    while (isSnakeWordChar(code, i)) i += 1;
+  }
+  return true;
+}
+
+function isSnakeWordChar(code: string, index: number): boolean {
+  if (index >= code.length) return false;
+  const char = code.charCodeAt(index);
+  return (char >= 48 && char <= 57) || (char >= 97 && char <= 122);
 }
