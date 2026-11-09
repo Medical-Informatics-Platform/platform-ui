@@ -62,12 +62,48 @@ describe('AccountPageComponent', () => {
     expect(el.querySelector('.token-value')).toBeNull();
   });
 
-  it('links to the Keycloak account page to end every computer\'s sign-in', () => {
-    const link = (render().nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.account-link')!;
+  it('links to the Keycloak applications page wherever it offers to remove computers', () => {
+    const links = (render().nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('.account-link');
 
-    expect(link.getAttribute('href')).toBe('https://idp.example/realms/MIP/account/applications');
-    expect(link.target).toBe('_blank');
-    expect(link.rel).toBe('noopener');
+    expect(links.length).toBeGreaterThanOrEqual(2);
+    links.forEach((link) => {
+      expect(link.getAttribute('href')).toBe('https://idp.example/realms/MIP/account/applications');
+      expect(link.target).toBe('_blank');
+      expect(link.rel).toBe('noopener');
+    });
+  });
+
+  it('warns above the button that the token is a 180-day password kept only in mip login --token', () => {
+    const el: HTMLElement = render().nativeElement;
+
+    const guide = el.querySelector('.create-token-btn')!.previousElementSibling!;
+    expect(guide.textContent).toContain('180 days');
+    expect(guide.textContent).toContain('mip login --token');
+  });
+
+  it('states next to the shown token how it ends, instead of repeating the warning', () => {
+    const fixture = render();
+    fixture.componentInstance.cliToken.set('offline-token');
+    fixture.detectChanges();
+
+    const note = (fixture.nativeElement as HTMLElement).querySelector('.token-value')!.closest('.snippet')!
+      .nextElementSibling!.nextElementSibling!;
+    expect(note.tagName).toBe('P');
+    expect(note.textContent).toContain('180 days');
+    expect(note.textContent).toContain('30 days');
+    expect(note.textContent).toContain('mip logout');
+    expect(note.textContent).toContain('See and remove computers signed in to MIP');
+    expect(note.textContent).not.toContain('works like your password');
+  });
+
+  it('clears the shown token when the page is left', () => {
+    const fixture = render();
+    fixture.componentInstance.cliToken.set('offline-token');
+    fixture.detectChanges();
+
+    fixture.destroy();
+
+    expect(fixture.componentInstance.cliToken()).toBe('');
   });
 
   it('starts the token sign-in at Keycloak as the public client', async () => {
