@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/app/.angular/cache \
 # Step 2: Use Nginx to serve the Angular app
 FROM nginx:alpine-slim@sha256:858c48843bd53b3f72487a2156071c63954b8e3de4882aeb11efcd92717dd261
 RUN apk upgrade --no-cache \
-    && apk add --no-cache gettext-envsubst
+    && apk add --no-cache gettext-envsubst=1.0-r0
 ENV PLATFORM_BACKEND_SERVER=platform-backend-service:8080 \
     PLATFORM_BACKEND_CONTEXT=services \
     NOTEBOOK_ENABLED=0 \
@@ -50,6 +50,7 @@ COPY --from=build /app/dist/fl-platform/browser /usr/share/nginx/html
 RUN chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d /var/cache/nginx \
      && install -o nginx -g nginx -m 0644 /dev/null /var/run/nginx.pid
 
-USER nginx
+# 101 is the nginx user created by the official alpine image.
+USER 101
 EXPOSE 80
 CMD ["/docker-entrypoint.sh"]
