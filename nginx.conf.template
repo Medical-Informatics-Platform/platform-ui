@@ -2,8 +2,10 @@
 # TLS ends at the ingress, so nginx itself sees http and `$scheme` would lie; pass the
 # ingress-provided value through and fall back to $scheme only when it is absent.
 map $http_x_forwarded_proto $mip_forwarded_proto {
-    default $http_x_forwarded_proto;
-    ''      $scheme;
+    # Only a real https claim counts; normalises HTTPS and chains like 'https,http'.
+    # Anything else (spoofed or absent) falls back to the container's own $scheme.
+    ~*^https https;
+    default   $scheme;
 }
 
 server {
