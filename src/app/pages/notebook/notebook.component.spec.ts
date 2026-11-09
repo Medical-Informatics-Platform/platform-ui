@@ -63,6 +63,11 @@ describe('NotebookComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    // The Hub-login redirect navigates via window.location and would pull the Vitest
+    // browser iframe away from the harness ("Cannot connect to the iframe"), killing
+    // the whole run when CI timing lets a wait exhaust. Throttle it for every test —
+    // none of them expects the redirect; they expect ready or a spawn error.
+    sessionStorage.setItem('mip_notebook_hub_login_redirect_ts', String(Date.now()));
     (window as Window & { __env?: Record<string, string> }).__env = {
       JUPYTER_CONTEXT_PATH: '/notebook',
     };
