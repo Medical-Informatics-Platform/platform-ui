@@ -713,7 +713,8 @@ export class ExperimentStudioService {
   upsertTransformation(step: TransformationStep): boolean {
     const current = this.appliedTransformationsSignal();
     const index = current.findIndex((existing) => existing.id === step.id);
-    if (index !== -1 && JSON.stringify(current[index]) === JSON.stringify(step)) return true;
+    const existing = index === -1 ? undefined : current[index];
+    if (existing !== undefined && JSON.stringify(existing) === JSON.stringify(step)) return true;
     if (index !== -1 && this.outputsInUse(step.id, stepOutputNames(step)).length) return false;
     // Replace in place to keep request-order/dependency guarantees; append only when new.
     const next = index === -1
@@ -2037,7 +2038,7 @@ export class ExperimentStudioService {
         map((resp) => this.normalizeTransientResponse(resp)),
       );
     } catch (error) {
-      console.error(`${algorithmName} report is not available:`, error);
+      console.error('%s report is not available:', algorithmName, error);
       return null;
     }
   }
