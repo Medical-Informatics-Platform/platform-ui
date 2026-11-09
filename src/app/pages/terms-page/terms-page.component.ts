@@ -96,7 +96,7 @@ export class TermsPageComponent implements OnInit {
         return;
       }
       const text = this.formatInline(paragraph.join(' '));
-      html.push(`<p>${text}</p>`);
+      html.push('<p>' + text + '</p>');
       paragraph = [];
     };
 
@@ -142,14 +142,14 @@ export class TermsPageComponent implements OnInit {
       if (trimmed && next && /^=+$/.test(next)) {
         flushParagraph();
         closeLists();
-        html.push(`<h1>${this.formatInline(trimmed)}</h1>`);
+        html.push('<h1>' + this.formatInline(trimmed) + '</h1>');
         i += 1;
         continue;
       }
       if (trimmed && next && /^-+$/.test(next)) {
         flushParagraph();
         closeLists();
-        html.push(`<h2>${this.formatInline(trimmed)}</h2>`);
+        html.push('<h2>' + this.formatInline(trimmed) + '</h2>');
         i += 1;
         continue;
       }
@@ -177,13 +177,13 @@ export class TermsPageComponent implements OnInit {
           }
         }
         closeOpenItemAtDepth(depth);
-        html.push(`<li>${this.formatInline(content)}`);
+        html.push('<li>' + this.formatInline(content));
         listStack[depth - 1].openItem = true;
         continue;
       }
 
       if (listStack.length > 0 && /^\s{4,}/.test(line)) {
-        html.push(`<p>${this.formatInline(trimmed)}</p>`);
+        html.push('<p>' + this.formatInline(trimmed) + '</p>');
         continue;
       }
 

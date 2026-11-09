@@ -1,4 +1,4 @@
-import { chiSquarePValue, formatPValue, formatRatio, ratioDigits } from '../result-format';
+import { chiSquarePValue, formatPValue, formatRatio, ratioDigits, readable } from '../result-format';
 import { buildRegressionView } from './regression-view';
 
 describe('result-format', () => {
@@ -10,6 +10,24 @@ describe('result-format', () => {
     expect(chiSquarePValue(0.5, 4)).toBeCloseTo(Math.exp(-0.25) * 1.25, 10);
     expect(chiSquarePValue(10948.8, 7)).toBe(0);
     expect(chiSquarePValue(0, 3)).toBe(1);
+  });
+
+  it('turns raw snake_case codes into words and leaves other labels unchanged', () => {
+    expect(readable('stroke_territory_cohort')).toBe('Stroke territory cohort');
+    expect(readable('cluster_2')).toBe('Cluster 2');
+    expect(readable('kmeans_labels')).toBe('K-means labels');
+    expect(readable('a_b_c')).toBe('A b c');
+    expect(readable('Age')).toBe('Age');
+    expect(readable('a')).toBe('a');
+    expect(readable('')).toBe('');
+    expect(readable('a_')).toBe('a_');
+    expect(readable('_ab')).toBe('_ab');
+    expect(readable('a__b')).toBe('a__b');
+    expect(readable('A_b')).toBe('A_b');
+    expect(readable('already labelled')).toBe('already labelled');
+    const long = 'a'.repeat(20000);
+    expect(readable(long)).toBe(long);
+    expect(readable('a_' + 'b'.repeat(100) + '_c9')).toBe('A ' + 'b'.repeat(100) + ' c9');
   });
 
   it('formats p-values APA style and ratios at 3 significant digits', () => {

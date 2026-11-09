@@ -169,16 +169,16 @@ export function buildBoxPlotChart(result: any): EChartsOption[] {
   const showPooled = !!pooled && hasBox(pooled);
 
   const tooltipRow = (name: string, value: number | null) =>
-    `<div style="display:flex;justify-content:space-between;gap:20px">` +
-    `<span style="color:${AXIS}">${name}</span><b>${fmt(value)}</b></div>`;
+    '<div style="display:flex;justify-content:space-between;gap:20px">' +
+    '<span style="color:' + AXIS + '">' + escapeHtml(name) + '</span><b>' + escapeHtml(fmt(value)) + '</b></div>';
   const tooltipFor = (s: BoxStats, title: string, quartileNote = '') =>
-    `<div style="font-weight:700;margin-bottom:6px">${escapeHtml(title)}</div>` +
+    '<div style="font-weight:700;margin-bottom:6px">' + escapeHtml(title) + '</div>' +
     tooltipRow('Max', s.max) +
-    tooltipRow(`Q3${quartileNote}`, s.q3) +
-    tooltipRow(`Median${quartileNote}`, s.median) +
-    tooltipRow(`Q1${quartileNote}`, s.q1) +
+    tooltipRow('Q3' + quartileNote, s.q3) +
+    tooltipRow('Median' + quartileNote, s.median) +
+    tooltipRow('Q1' + quartileNote, s.q1) +
     tooltipRow('Min', s.min) +
-    `<div style="border-top:1px solid ${SPLIT};margin:6px 0"></div>` +
+    '<div style="border-top:1px solid ' + SPLIT + ';margin:6px 0"></div>' +
     tooltipRow('Mean', s.mean) +
     tooltipRow('Std. deviation', s.std);
 

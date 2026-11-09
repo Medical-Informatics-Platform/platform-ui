@@ -107,11 +107,11 @@ export function buildGroupedBarChart(
             },
             formatter: (params: any) => {
                 const dataset = params[0]?.axisValue ?? '';
-                let html = `<b>${escapeHtml(dataset)}</b><br/>`;
+                let html = '<b>' + escapeHtml(dataset) + '</b><br/>';
                 for (const p of params) {
                     const pct = p.data?.value ?? p.value;
                     const cnt = p.data?.count ?? 0;
-                    html += `${p.marker} ${escapeHtml(p.seriesName)}: ${pct}% (n=${cnt})<br/>`;
+                    html += p.marker + ' ' + escapeHtml(p.seriesName) + ': ' + pct + '% (n=' + cnt + ')<br/>';
                 }
                 return html;
             },

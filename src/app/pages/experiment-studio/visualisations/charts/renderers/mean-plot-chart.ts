@@ -110,14 +110,15 @@ function intervalPlot(data: IntervalPoint[], labels: IntervalLabels, height = 38
         if (p.seriesType === 'scatter') {
           const group = p.name ?? (Array.isArray(p.value) ? p.value[0] : '');
           const mean = Array.isArray(p.value) ? p.value[1] : meanMap[group];
-          return `${escapeHtml(group)}<br/>${labels.value}: <b>${fmt(mean)}</b>`;
+          return escapeHtml(group) + '<br/>' + escapeHtml(labels.value) + ': <b>' + escapeHtml(fmt(mean)) + '</b>';
         }
         if (p.seriesType === 'custom' && Array.isArray(p.value)) {
           const group = p.value[4];
           const low = p.value[1];
           const high = p.value[2];
           const mean = meanMap[group];
-          return `${escapeHtml(group)}<br/>${labels.value}: <b>${fmt(mean)}</b><br/>${labels.intervalShort}: <b>${fmt(low)} – ${fmt(high)}</b>`;
+          return escapeHtml(group) + '<br/>' + escapeHtml(labels.value) + ': <b>' + escapeHtml(fmt(mean)) + '</b><br/>' +
+            escapeHtml(labels.intervalShort) + ': <b>' + escapeHtml(fmt(low)) + ' – ' + escapeHtml(fmt(high)) + '</b>';
         }
         return '';
       }

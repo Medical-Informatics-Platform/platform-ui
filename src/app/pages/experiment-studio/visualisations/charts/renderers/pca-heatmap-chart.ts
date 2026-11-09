@@ -75,7 +75,7 @@ export function buildPCAHeatmapChart(result: any): EChartsOption[] {
       position: 'top',
       formatter: (params: any) => {
         const [component, variable, val] = params.value;
-        return `${componentLabels[component]}<br/>${escapeHtml(variableNames[variable])}: <b>${val.toFixed(3)}</b>`;
+        return escapeHtml(componentLabels[component]) + '<br/>' + escapeHtml(variableNames[variable]) + ': <b>' + val.toFixed(3) + '</b>';
       },
     },
     grid: {

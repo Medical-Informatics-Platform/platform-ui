@@ -84,7 +84,7 @@ export function buildMatrixChart(result: any): EChartsOption[] {
         const [j, i, r] = params.value;
         const row = rows[i];
         const col = cols[j];
-        const lines = [`${escapeHtml(row)} × ${escapeHtml(col)}`, `r = <b>${r.toFixed(3)}</b>`];
+        const lines = [escapeHtml(row) + ' × ' + escapeHtml(col), 'r = <b>' + r.toFixed(3) + '</b>'];
         const lower = cell(ciLower, row, col);
         const upper = cell(ciUpper, row, col);
         if (lower !== null && upper !== null) lines.push(`95% CI ${lower.toFixed(3)} to ${upper.toFixed(3)}`);
