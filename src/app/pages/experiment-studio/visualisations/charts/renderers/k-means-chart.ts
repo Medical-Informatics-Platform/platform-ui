@@ -79,8 +79,9 @@ function buildKMeans2DChart(
         trigger: 'item',
         formatter: (p: any) => {
           const size = sizeTexts[p.seriesIndex];
-          return `${escapeHtml(names[p.seriesIndex])}<br/>${escapeHtml(variables[0])}: <b>${p.value[0].toFixed(2)}</b><br/>${escapeHtml(variables[1])}: <b>${p.value[1].toFixed(2)}</b>` +
-            (size === null ? '' : `<br/>${escapeHtml(size)} rows`);
+          return escapeHtml(names[p.seriesIndex]) + '<br/>' + escapeHtml(variables[0]) + ': <b>' + p.value[0].toFixed(2) + '</b><br/>' +
+            escapeHtml(variables[1]) + ': <b>' + p.value[1].toFixed(2) + '</b>' +
+            (size === null ? '' : '<br/>' + escapeHtml(size) + ' rows');
         },
       },
       grid: { top: 64, left: 24, right: 32, bottom: 48, containLabel: true },
