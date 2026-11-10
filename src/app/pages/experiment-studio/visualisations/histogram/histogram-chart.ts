@@ -10,10 +10,12 @@ import {
   HISTOGRAM_SOFT_EDGE,
   HistogramChartData,
   HistogramGroupSeries,
+  isNominalHistogramNode,
   histogramSeriesColor,
   histogramSeriesEdgeColor,
   residualCount,
 } from './histogram-data';
+import { createGroupedCategoryChart } from './grouped-category-chart';
 
 export type { HistogramChartData, HistogramGroupSeries } from './histogram-data';
 
@@ -160,7 +162,7 @@ function formatNumber(d: any): string {
 }
 
 /** 1,621 → 1.6k on a bar, but counts under 1,000 stay exact. */
-function formatBarCount(count: number): string {
+export function formatBarCount(count: number): string {
   return count >= 1000 ? d3.format('.2~s')(count) : String(count);
 }
 
@@ -416,6 +418,13 @@ export function createHistogram(
     clipNullEdges?: boolean;
   } = {}
 ): void {
+  // A nominal variable split by another category has no meaningful stack: draw
+  // one side-by-side cluster of bars per group instead.
+  if (data.groups?.length && isNominalHistogramNode({ type: data.variableType })) {
+    createGroupedCategoryChart(data, container);
+    return;
+  }
+
   if (config.orientation === 'horizontal') {
     createHorizontalBarChart(data, container, config);
     return;
