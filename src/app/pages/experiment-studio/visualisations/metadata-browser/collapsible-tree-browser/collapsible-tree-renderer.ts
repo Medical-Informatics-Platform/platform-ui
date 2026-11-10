@@ -22,7 +22,7 @@ export interface CollapsibleTreeRenderer {
 }
 
 interface CollapsibleTreeOptions extends CollapsibleTreeSelectionOptions {
-  /** Variables drawn grayed out that ignore clicks, double-clicks and Enter/Space. */
+  /** Variables missing from some selected dataset: drawn amber, clickable to view, never added. */
   unavailableVariables?: UnavailableVariablesMap;
   onNodeClick: (node: D3HierarchyNode) => void;
   onNodeDoubleClick: (node: D3HierarchyNode) => void;
@@ -64,7 +64,7 @@ export function createCollapsibleTree(
   let unavailableVariables = options.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
   const unavailableIn = (node: TreeDatum): readonly string[] =>
     isVariable(node) ? unavailableDatasetsFor(unavailableVariables, node.data) : [];
-  const isUnavailable = (node: TreeDatum): boolean => unavailableIn(node).length > 0;
+  const isPartial = (node: TreeDatum): boolean => unavailableIn(node).length > 0;
   let highlightedCode = codeOf(options.highlightNode);
   let highlightedPath = pathOf(options.highlightNode);
   let bounds = measureContainer(container);
@@ -142,7 +142,7 @@ export function createCollapsibleTree(
       })
       .on('dblclick', (event, node) => {
         event.stopPropagation();
-        if (isVariable(node) && !isUnavailable(node)) {
+        if (isVariable(node) && !isPartial(node)) {
           options.onNodeDoubleClick(node.data);
         }
       })
@@ -191,7 +191,6 @@ export function createCollapsibleTree(
 
     nodeMerge
       .attr('class', (node) => nodeClass(node))
-      .attr('aria-disabled', (node) => (isUnavailable(node) ? 'true' : null))
       .attr('aria-expanded', (node) => hasChildren(node) ? String(!!node.children) : null)
       .transition()
       .duration(duration)
@@ -233,7 +232,6 @@ export function createCollapsibleTree(
   };
 
   const handleNodeClick = (node: TreeDatum): void => {
-    if (isUnavailable(node)) return;
     let shouldCenterAfterUpdate = false;
     let didExpand = false;
     if (!isVariable(node) && hasChildren(node)) {
@@ -266,8 +264,7 @@ export function createCollapsibleTree(
   const refreshNodeClasses = (): void => {
     nodeLayer
       .selectAll<SVGGElement, TreeDatum>('g.collapsible-node')
-      .attr('class', (node) => nodeClass(node))
-      .attr('aria-disabled', (node) => (isUnavailable(node) ? 'true' : null));
+      .attr('class', (node) => nodeClass(node));
   };
 
   const fitView = (): void => {
@@ -394,7 +391,7 @@ export function createCollapsibleTree(
       classes.push('highlighted');
     }
     if (code && selectedVariables.has(code)) classes.push('selected-variable');
-    if (isUnavailable(node)) classes.push('unavailable-variable');
+    if (isPartial(node)) classes.push('partial-variable');
     return classes.join(' ');
   }
 }
