@@ -500,6 +500,16 @@
   padding: 16px 20px 18px;
 }
 
+/* The shared .statistics-workspace card clips at min(72vh, 760px), so the grid
+   row just grows until the card hides the coverage tiles in a short window.
+   The detail pane carries the same cap, and its own overflow-y: auto scrolls
+   instead. */
+.preprocessing-workspace .preprocessing-detail-panel {
+  box-sizing: border-box;
+  max-height: min(72vh, 760px);
+  overflow-y: auto;
+}
+
 /* The winsorizer carries four controls, so it needs the wider editor column. */
 .outlier-preprocessing-workspace .preprocessing-detail-panel {
   grid-template-columns: minmax(260px, 560px) minmax(0, 1fr);
