@@ -23,7 +23,7 @@ import {
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { isVariableUnavailable } from '../../../core/variable-availability.utils';
+import { isVariableUnavailable, unavailableDatasetsFor } from '../../../core/variable-availability.utils';
 import {
   describeClippedNullEdges,
   formatClippedNullEdgesNote,
@@ -152,12 +152,12 @@ export class VariablesPanelComponent implements OnDestroy {
   });
   contextOpen = signal(false);
   searchExpanded = signal(false);
-  /** Variables missing from a selected dataset: grayed out in every view and never selected. */
+  /** Variables missing from a selected dataset: viewable everywhere, but never added to the experiment. */
   readonly unavailableVariables = this.experimentStudioService.unavailableVariables;
   /** Datasets lacking the plotted variable: the note under the chart; such a variable is view-only. */
-  readonly plottedVariableMissingIn = computed((): readonly string[] => {
-    throw new Error('not implemented');
-  });
+  readonly plottedVariableMissingIn = computed((): readonly string[] =>
+    unavailableDatasetsFor(this.unavailableVariables(), this.plottedVariable())
+  );
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
@@ -218,7 +218,6 @@ export class VariablesPanelComponent implements OnDestroy {
     const index = normalizeMetadataTree(this.d3Data);
     const selection = selectionFromSearchResult(index, result);
     const node = selection.originalNode;
-    if (this.isUnavailable(node)) return;
     this.highlightNode = { ...node, path: result.path };
     this.onSelectedNodeChange(node);
     this.searchExpanded.set(false);
@@ -244,17 +243,16 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   onBubbleNodeSelected(node: any): void {
-    if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
   }
 
   onMetadataBrowserNodeSelected(node: any): void {
-    if (this.isUnavailable(node)) return;
     this.highlightNode = node;
     this.onSelectedNodeChange(node);
   }
 
   onNodeDoubleClicked(node: any): void {
+    // Adding stays blocked for partially available variables; exploring them is allowed.
     if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();

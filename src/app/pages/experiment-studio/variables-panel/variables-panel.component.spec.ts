@@ -8,6 +8,10 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { VariablesPanelComponent } from './variables-panel.component';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import {
+  normalizeMetadataTree,
+  searchMetadataIndex,
+} from '../visualisations/metadata-browser/metadata-browser-normalizer';
 describe('VariablesPanelComponent bubble selection', () => {
   let experimentStudioService: {
     selectedDataModel: ReturnType<typeof signal<any>>;
@@ -132,20 +136,43 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
   });
 
-  it('ignores clicks, double clicks and search picks on an unavailable variable', () => {
+  it('selects a clicked or searched unavailable variable but never adds it', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     const node = { code: 'age_value', label: 'Age', type: 'real' };
+    component.d3Data = {
+      code: 'root',
+      label: 'Root',
+      children: [{ code: 'demo', label: 'Demographics', children: [node] }],
+    };
     const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
 
     component.onBubbleNodeSelected(node);
+    const [searched] = searchMetadataIndex(normalizeMetadataTree(component.d3Data), 'age');
+    component.onSearchSelected(searched);
     component.onMetadataBrowserNodeSelected(node);
-    component.onNodeDoubleClicked(node);
+    expect(selectSpy).toHaveBeenCalledWith(node);
+    expect(selectSpy).toHaveBeenCalledTimes(3);
+    expect(component.highlightNode).toBe(node);
 
-    expect(selectSpy).not.toHaveBeenCalled();
-    expect(component.highlightNode).toBeNull();
+    component.onNodeDoubleClicked(node);
+    expect(selectSpy).toHaveBeenCalledTimes(3);
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+  });
+
+  it('reports the selected datasets that lack the plotted variable', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A', 'Dataset B']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    expect(component.plottedVariableMissingIn()).toEqual([]);
+
+    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'real' });
+    expect(component.plottedVariableMissingIn()).toEqual(['Dataset A', 'Dataset B']);
+
+    // Groups have nothing to plot, so they never read as partially available.
+    component.plottedVariable.set({ code: 'demo', label: 'Demographics', children: [{ code: 'age_value' }] });
+    expect(component.plottedVariableMissingIn()).toEqual([]);
   });
 
   it('adds only the available variables of a group', () => {

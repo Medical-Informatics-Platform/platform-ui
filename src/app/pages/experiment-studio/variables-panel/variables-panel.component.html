@@ -138,6 +138,14 @@
                 </app-bubble-chart>
                 }
               }
+              @if (plottedVariableMissingIn().length) {
+              <p class="partial-availability-note" role="note">
+                <span class="partial-availability-swatch" aria-hidden="true"></span>
+                <strong>{{ plottedVariable()?.label ?? plottedVariable()?.code }}</strong> is missing in
+                {{ plottedVariableMissingIn().join(', ') }}. You can explore it, but it cannot be added to the experiment
+                while these datasets are selected.
+              </p>
+              }
             </div>
           </div>
           }
