@@ -1899,8 +1899,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.getSummary(kind).histogramErrorByVariable[this.histogramLookupKey(kind, block, code)] ?? '';
   }
 
-  canSplitSummaryHistogram(kind: SummaryKind, block: PivotBlock): boolean {
-    return this.selectedSummaryChartType(kind, block) === 'numeric';
+  canSplitSummaryHistogram(_kind: SummaryKind, block: PivotBlock): boolean {
+    // Numeric and nominal blocks both split; only an unresolvable block has no split.
+    return !!this.variableCodeForBlock(block);
   }
 
   histogramSplitOptions(block: PivotBlock): HistogramSplitOption[] {
@@ -4070,9 +4071,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         ...(response as Record<string, unknown>),
         result: {
           ...((response as { result?: Record<string, unknown> })?.result ?? {}),
-          featurewise: featurewise.filter(
-            (row: any) => row.variable === v.code && row.dataset !== 'all datasets'
-          ),
+          // The pooled "all datasets" row stays in: buildBoxPlotChart draws it
+          // as the pooled box next to the per-dataset ones.
+          featurewise: featurewise.filter((row: any) => row.variable === v.code),
           dataset_labels: datasetLabels,
         },
       };

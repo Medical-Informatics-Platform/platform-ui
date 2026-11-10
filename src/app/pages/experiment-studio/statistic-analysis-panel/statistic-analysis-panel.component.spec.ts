@@ -2159,7 +2159,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.histogramSplitOptions(block).find((option) => option.code === 'dataset')?.disabled).toBe(false);
     });
 
-    it('hides histogram split controls for nominal variables', () => {
+    it('offers histogram split controls for nominal variables', () => {
         const aspiration = {
             code: 'aspiration',
             label: 'Aspiration',
@@ -2182,7 +2182,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.setSummaryTab('raw', 'Histogram');
         const block = component.selectedStatisticBlock('raw')!;
 
-        expect(component.canSplitSummaryHistogram('raw', block)).toBe(false);
+        expect(component.canSplitSummaryHistogram('raw', block)).toBe(true);
         expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
     });
 

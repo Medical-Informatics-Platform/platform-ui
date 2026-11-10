@@ -35,6 +35,7 @@ import {
   HistogramSplitOption,
   buildHistogramSplitOptions,
   buildStackedHistogramSeries,
+  canSplitHistogramNode,
   extractHistogramItems,
   isNominalHistogramNode,
 } from '../visualisations/histogram/histogram-data';
@@ -117,10 +118,7 @@ export class VariablesPanelComponent implements OnDestroy {
       unavailableVariables: this.experimentStudioService.unavailableVariables(),
     })
   );
-  readonly canSplitHistogram = computed(() => {
-    const node = this.plottedVariable();
-    return !!node && !node.children?.length && !isNominalHistogramNode(node);
-  });
+  readonly canSplitHistogram = computed(() => canSplitHistogramNode(this.plottedVariable()));
   readonly histogramPrivacyTrimNote = computed(() => {
     const data = this.histogramData();
     if (!data?.bins?.length || isNominalHistogramNode(this.plottedVariable())) {

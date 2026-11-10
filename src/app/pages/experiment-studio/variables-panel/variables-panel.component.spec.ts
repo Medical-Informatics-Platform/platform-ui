@@ -518,7 +518,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.activeDetailsTab()).toBe('histogram');
   });
 
-  it('offers Dataset plus selected nominal variables as splits and hides them for nominal plots', () => {
+  it('offers Dataset plus selected nominal variables as splits, including for nominal plots', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     experimentStudioService.selectedVariables.set([
@@ -531,7 +531,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.histogramSplitOptions().map((option) => option.code)).toEqual(['dataset', 'sex']);
 
     component.onSelectedNodeChange({ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] });
-    expect(component.canSplitHistogram()).toBe(false);
+    expect(component.canSplitHistogram()).toBe(true);
   });
 
   it('offers an unavailable split grayed out and disabled, and keeps an active one', () => {
