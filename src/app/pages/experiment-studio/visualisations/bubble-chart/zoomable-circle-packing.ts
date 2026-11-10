@@ -6,6 +6,9 @@ import {
   unavailableVariableTooltip,
 } from '../../../../core/variable-availability.utils';
 
+/** Leaves missing in at least one selected dataset: amber, still selectable. */
+export const PARTIAL_AVAILABILITY_FILL = '#fbd38d';
+
 /** Unavailable leaves: grayed out and inert, see variable-availability.utils. */
 const UNAVAILABLE_FILL = '#cbd5e1';
 const UNAVAILABLE_FILL_OPACITY = 0.6;

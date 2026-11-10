@@ -23,7 +23,7 @@ import {
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { isVariableUnavailable } from '../../../core/variable-availability.utils';
+import { isVariableUnavailable, PartialVariableNote } from '../../../core/variable-availability.utils';
 import {
   describeClippedNullEdges,
   formatClippedNullEdgesNote,
@@ -156,6 +156,10 @@ export class VariablesPanelComponent implements OnDestroy {
   searchExpanded = signal(false);
   /** Variables missing from a selected dataset: grayed out in every view and never selected. */
   readonly unavailableVariables = this.experimentStudioService.unavailableVariables;
+  /** Selected variables missing in some selected dataset, listed under the chart. */
+  readonly partialSelectedVariables = computed((): PartialVariableNote[] => {
+    throw new Error('not implemented');
+  });
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
   activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
