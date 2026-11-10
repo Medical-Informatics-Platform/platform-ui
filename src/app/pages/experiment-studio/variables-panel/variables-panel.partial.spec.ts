@@ -71,7 +71,7 @@ describe('VariablesPanelComponent partially available variables', () => {
     localStorage.removeItem('metadata_browser_mode');
   });
 
-  it('selects and adds a variable missing in one selected dataset', () => {
+  it('shows a variable missing in one selected dataset but does not add it', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['CLM CHUV']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
@@ -87,34 +87,24 @@ describe('VariablesPanelComponent partially available variables', () => {
     expect(component.highlightNode).toEqual(node);
 
     component.onNodeDoubleClicked(node);
-    expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledWith(node);
+    component.toggleSelectedNodeInPool();
+    component.addVariableFromBubble();
+    expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+    expect(component.selectionToggleDisabled()).toBe(true);
   });
 
-  it('adds every variable of a group, partially available ones included', () => {
-    experimentStudioService.unavailableVariables.set(new Map([['sex_value', ['CLM CHUV']]]));
+  it('names the datasets lacking the plotted variable for the note under the chart', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['CLM CHUV', 'Dataset B']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
-    const age = { code: 'age_value', label: 'Age', type: 'real' };
-    const sex = { code: 'sex_value', label: 'Sex', type: 'string' };
-    component.selectedNode = { code: 'demo', label: 'Demographics', children: [age, sex] };
 
-    expect(component.selectionToggleDisabled()).toBe(false);
-    component.toggleSelectedNodeInPool();
+    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'real' });
+    expect(component.plottedVariableMissingIn()).toEqual(['CLM CHUV', 'Dataset B']);
 
-    expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledTimes(2);
-    expect(experimentStudioService.addVariableAndEnrich).toHaveBeenCalledWith(sex);
-  });
+    component.plottedVariable.set({ code: 'sex_value', label: 'Sex', type: 'nominal' });
+    expect(component.plottedVariableMissingIn()).toEqual([]);
 
-  it('lists the selected variables missing in some dataset for the note under the chart', () => {
-    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['CLM CHUV']]]));
-    experimentStudioService.selectedVariables.set([
-      { code: 'age_value', label: 'Age', type: 'real' },
-      { code: 'sex_value', label: 'Sex', type: 'nominal' },
-    ]);
-    const fixture = TestBed.createComponent(VariablesPanelComponent);
-
-    expect(fixture.componentInstance.partialSelectedVariables()).toEqual([
-      { code: 'age_value', label: 'Age', datasets: ['CLM CHUV'] },
-    ]);
+    component.plottedVariable.set(null);
+    expect(component.plottedVariableMissingIn()).toEqual([]);
   });
 });

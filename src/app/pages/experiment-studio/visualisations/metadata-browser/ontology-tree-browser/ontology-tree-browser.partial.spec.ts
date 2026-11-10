@@ -51,7 +51,7 @@ describe('OntologyTreeBrowserComponent partially available variables', () => {
     });
   });
 
-  it('marks a variable missing in some dataset, names the datasets, and keeps it selectable', () => {
+  it('marks a variable missing in some dataset, names the datasets, shows it on click but never adds it', () => {
     const fixture = TestBed.createComponent(OntologyTreeBrowserComponent);
     const component = fixture.componentInstance;
     fixture.componentRef.setInput('data', model);
@@ -70,12 +70,13 @@ describe('OntologyTreeBrowserComponent partially available variables', () => {
     expect(row.classList).toContain('partial');
     expect(row.getAttribute('aria-disabled')).toBeNull();
     expect(row.getAttribute('title')).toBe('Sex\nNot available in: Dataset A, Dataset B');
-    expect(row.querySelector('.row-add')).not.toBeNull();
+    expect(row.querySelector('.row-add')).toBeNull();
     expect(row.querySelector('.row-partial')?.textContent?.trim()).toBe('Missing in 2 datasets');
 
     row.click();
     row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     expect(emitted.map((node) => node.code)).toContain('sex');
-    expect(opened.map((node) => node.code)).toEqual(['sex']);
+    expect(component.selectedVariableId()).not.toBeNull();
+    expect(opened).toEqual([]);
   });
 });

@@ -55,7 +55,7 @@ describe('createZoomableCirclePacking partially available variables', () => {
     expect(circleFor('age_value').getAttribute('fill')).not.toBe(PARTIAL_AVAILABILITY_FILL);
   });
 
-  it('keeps the leaf selectable', () => {
+  it('lets a click show the variable but never adds it on double click', () => {
     const sex = circleFor('sex');
     expect(sex.getAttribute('aria-disabled')).toBeNull();
     expect(sex.style.cursor).toBe('pointer');
@@ -64,7 +64,7 @@ describe('createZoomableCirclePacking partially available variables', () => {
     sex.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 
     expect(onClick).toHaveBeenCalled();
-    expect(onDoubleClick).toHaveBeenCalled();
+    expect(onDoubleClick).not.toHaveBeenCalled();
   });
 
   it('still names the datasets that lack it in the tooltip', () => {

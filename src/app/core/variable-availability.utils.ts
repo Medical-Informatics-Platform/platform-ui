@@ -119,24 +119,3 @@ export function collectVariableCodes(model: Pick<DataModel, 'variables' | 'group
   visit(model?.groups);
   return codes;
 }
-
-/** A selected variable that some selected datasets lack: shown in a note under the chart. */
-export interface PartialVariableNote {
-  code: string;
-  label: string;
-  /** Labels of the selected datasets that do not contain the variable. */
-  datasets: readonly string[];
-}
-
-/**
- * The selected variables that are missing in at least one selected dataset, in selection
- * order, each once; label falls back to name, then code.
- */
-export function partialVariableNotes(
-  variables: ReadonlyArray<{ code?: unknown; label?: unknown; name?: unknown }> | null | undefined,
-  map: UnavailableVariablesMap | null | undefined
-): PartialVariableNote[] {
-  void variables;
-  void map;
-  throw new Error('not implemented');
-}

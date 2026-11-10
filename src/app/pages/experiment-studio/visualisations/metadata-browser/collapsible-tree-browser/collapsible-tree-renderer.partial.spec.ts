@@ -20,7 +20,7 @@ describe('collapsible tree partially available variables', () => {
   const nodeFor = (container: HTMLElement, label: string): SVGGElement =>
     Array.from(container.querySelectorAll<SVGGElement>('g.collapsible-node'))
       .find((node) => node.querySelector('.node-label')?.textContent === label)!;
-  it('marks variables missing in some dataset, keeps them clickable and lists the datasets on hover', () => {
+  it('marks variables missing in some dataset, shows them on click, never adds them, lists the datasets on hover', () => {
     const container = createContainer();
     const onNodeClick = vi.fn();
     const onNodeDoubleClick = vi.fn();
@@ -39,7 +39,7 @@ describe('collapsible tree partially available variables', () => {
     sex.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     sex.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     expect(onNodeClick).toHaveBeenCalled();
-    expect(onNodeDoubleClick).toHaveBeenCalled();
+    expect(onNodeDoubleClick).not.toHaveBeenCalled();
 
     sex.dispatchEvent(new MouseEvent('mouseenter'));
     expect(document.querySelector('.collapsible-tree-tooltip')?.textContent).toContain('Not available in: Dataset B');

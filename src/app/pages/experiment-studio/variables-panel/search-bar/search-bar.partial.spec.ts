@@ -59,7 +59,7 @@ describe('SearchBarComponent partially available variables', () => {
     return { fixture, component };
   }
 
-  it('marks a result missing in some dataset, explains why, and still lets the user pick it', () => {
+  it('marks a result missing in some dataset, explains why, and still lets the user pick it to view', () => {
     const { fixture, component } = setupComponent();
     fixture.componentRef.setInput('unavailableVariables', new Map([['gender', ['Dataset B']]]));
     const selected: MetadataSearchResult[] = [];
