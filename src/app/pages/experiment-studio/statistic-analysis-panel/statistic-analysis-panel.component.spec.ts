@@ -2368,6 +2368,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(draft.code).toBe('mrs_good_outcome');
         expect(draft.defaultEnumeration).toBe('unknown');
         expect(draft.rules).toEqual([{ value: 'good', filter }]);
+        // A stored column hydrates folded, with no rule editor open: the user opens
+        // the card, a hydration re-run must not pop it back up over the stage.
+        expect(draft.open).toBe(false);
+        expect(draft.openRuleIndex).toBeNull();
         expect(component.transformationStatusLabel).toBe('Applied');
         expect(component.cards().map((step) => step.parameters)).toEqual([transformation]);
     });
@@ -3096,6 +3100,54 @@ describe('StatisticAnalysisPanelComponent', () => {
 
             expect(component.pendingOutlierRules['age']?.enabled).toBe(true);
             expect(component.pendingOutlierRules['sex']).toBeUndefined();
+        });
+    });
+
+    describe('federated preprocessing stations', () => {
+        it('offers most_frequent only to nominal variables', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            const sex = { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'm', label: 'M' }] };
+
+            expect(component.isMissingActionDisabled(sex, 'most_frequent')).toBe(false);
+            expect(component.isMissingActionDisabled(age, 'most_frequent')).toBe(true);
+            // mean/median keep their numerical-only gate.
+            expect(component.isMissingActionDisabled(sex, 'mean')).toBe(true);
+            expect(component.isMissingActionDisabled(age, 'mean')).toBe(false);
+        });
+
+        it('hides the transform and scaler stations when the catalog lacks them', () => {
+            // beforeEach mocks catalogLoaded() true and hasPreprocessingSpec without the new names.
+            expect(component.transformStepAvailable).toBe(false);
+            expect(component.scalerStepAvailable).toBe(false);
+            expect(component.transformSubNodeApplied).toBe(false);
+        });
+
+        it('shows the transform and scaler stations once the catalog lists them', () => {
+            mockExpService.hasPreprocessingSpec.mockImplementation((name: string) =>
+                ['categorical_column_creator', 'kmeans_cluster_creator', 'variable_transformer', 'variable_scaler'].includes(name));
+
+            expect(component.transformStepAvailable).toBe(true);
+            expect(component.scalerStepAvailable).toBe(true);
+        });
+
+        it('keeps the transform strategy on the pending state until applied', () => {
+            const age = { code: 'age', label: 'Age', type: 'real' };
+            (mockExpService.selectedVariables as any).set([age]);
+            component.pendingTransformStrategies = {};
+            component.appliedTransformStrategies = {};
+
+            component.onTransformStrategyChange(age, 'log1p');
+            expect(component.hasPendingTransformChanges).toBe(true);
+            expect(component.transformStrategyFor(age)).toBe('log1p');
+
+            // Commit is what the card Apply runs.
+            (component as any).prepStepOps['transform'].commit();
+            expect(component.appliedTransformStrategies).toEqual({ age: 'log1p' });
+            expect(component.hasPendingTransformChanges).toBe(false);
+
+            // Reverting to no transform is a pending change until applied.
+            component.onTransformStrategyChange(age, null);
+            expect(component.hasPendingTransformChanges).toBe(true);
         });
     });
 
