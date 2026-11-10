@@ -299,7 +299,8 @@ describe('FilterConfigModalComponent block builder', () => {
 
     const nested = fixture.nativeElement.querySelector('.filter-block-group:not(.is-root)') as HTMLElement;
     expect(nested).toBeTruthy();
-    expect(nested.textContent).toContain('Group · match');
+    // The nested scope label is exactly 'Group' now that the all/any tray is gone.
+    expect(nested.querySelector('.scope-text')?.textContent?.trim()).toBe('Group');
     expect(nested.querySelector('.empty-filter-group')).toBeTruthy();
   });
 
