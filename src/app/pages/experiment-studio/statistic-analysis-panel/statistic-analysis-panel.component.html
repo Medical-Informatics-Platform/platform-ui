@@ -4,7 +4,7 @@
       <header class="pipeline-canvas-header">
         <div class="pipeline-header-title-group">
           <h2>Data Handling Pipeline</h2>
-          <p>Get your records ready for analysis. Stages run top to bottom — Raw data is a read-only preview, Preprocessing always runs, and Filtering and Transformations are optional.</p>
+          <p>Get your records ready for analysis. Stages run top to bottom — Raw data is a read-only preview, Preprocessing fixes gaps and extreme values in place and always runs, and Filtering and Data transformations are optional.</p>
         </div>
       </header>
 
@@ -622,7 +622,7 @@
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 3 · Always on</span>
               <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('setup')" (click)="toggleStep('setup')">Preprocessing</button></h3>
-              <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
+              <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers. Every variable keeps its meaning and range.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
@@ -695,44 +695,20 @@
             </button>
           </div>
           }
-          @if (!transformSubNodeApplied && transformStepAvailable) {
+          @for (spec of genericStepsOf('preprocessing'); track spec.name) {
+          @if (!isGenericStepApplied(spec.name)) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('transform')" title="Add and open this step">
-              <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
+            <button type="button" class="pipeline-subnode-content" (click)="addGenericStep(spec.name)" title="Add and open this step">
+              <i class="fas fa-sliders" aria-hidden="true"></i>
               <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add variable transforms</span>
-                <span class="pipeline-subnode-subtitle">Reshape skewed values — log, square root, Yeo-Johnson or quantile — numerical variables only</span>
+                <span class="pipeline-subnode-title">Add {{ spec.label }}</span>
+                <span class="pipeline-subnode-subtitle">{{ spec.desc }}</span>
               </span>
               <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
             </button>
           </div>
           }
-          @if (!scalerSubNodeApplied && scalerStepAvailable) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('scaler')" title="Add and open this step">
-              <i class="fas fa-ruler-horizontal" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add variable scaling</span>
-                <span class="pipeline-subnode-subtitle">Bring numerical variables to a comparable range — standard, robust, min-max or max absolute</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-          }
-          @if (isLongitudinalModel && !expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('longitudinal')" title="Add and open this step">
-              <i class="fas fa-code-compare" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add longitudinal comparison</span>
-                <span class="pipeline-subnode-subtitle">Compare two visits per variable (required for two-visit pathologies)</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
           }
         </div>
         }
@@ -1307,8 +1283,167 @@
           </app-station-card>
           }
 
+          @for (spec of genericStepsOf('preprocessing'); track spec.name) {
+          <app-generic-data-transformation-step
+            [spec]="spec"
+            [variables]="genericStepVariables(spec.name)"
+            [applied]="appliedGenericParameters(spec.name)"
+            [open]="genericStepOpen()[spec.name] ?? false"
+            [busy]="isApplyingPreprocessing"
+            (openChange)="setGenericStepOpen(spec.name, $event)"
+            (applyStep)="applyGenericStep(spec.name, $event)"
+            (removeStep)="removeGenericStep(spec.name)"></app-generic-data-transformation-step>
+          }
+
+          </div>
+          </div>
+          <div #processedSection class="workflow-section" data-guide="analysis-processed-summary">
+            <div class="workflow-section-body" [class.open]="sectionOpen().processed">
+              <ng-template
+                [ngTemplateOutlet]="summaryWorkspace"
+                [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, emptyHint: 'Select variables and datasets to load the processed data summary.' }"></ng-template>
+            </div>
+          </div>
+        </div>
+        }
+    </section>
+
+      <!-- CONNECTOR 2 -> 3 -->
+      <div class="pipeline-connector" aria-hidden="true">
+        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('setup')"></div>
+        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
+      </div>
+
+      <!-- NODE 3: DATA TRANSFORMATIONS -->
+      <section
+        #transformationSection
+        class="pipeline-node preprocessing-section"
+        [class.is-compact]="!sectionOpen().transformation"
+        data-guide="analysis-transformation"
+      >
+        <header class="pipeline-node-header" (click)="onStepHeaderClick('transformation', $event)">
+          <div class="pipeline-node-header-left">
+            <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
+            <div class="pipeline-node-title-group">
+<span class="pipeline-node-kicker">Step 4 · Optional</span>
+              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('transformation')" (click)="toggleStep('transformation')">Data transformations</button></h3>
+              <span class="pipeline-node-subtitle">Create new variables or change what a variable means — for example, group MMSE scores into ‘impaired’ and ‘normal’, or put values on a common scale.</span>
+            </div>
+          </div>
+          <div class="pipeline-node-header-right">
+            <span class="pipeline-status-badge" [class.applied]="transformationStatusLabel === 'Applied'" [class.optional]="transformationStatusLabel !== 'Applied'">
+              {{ transformationBadgeLabel }}
+            </span>
+            @if (isStepAdded('transformation')) {
+            <button
+              type="button"
+              class="btn-remove-step-node"
+              title="Remove transformations from pipeline"
+              (click)="removeStep('transformation')">
+              <i class="fas fa-trash-can" aria-hidden="true"></i>
+              <span>Remove Step</span>
+            </button>
+            }
+            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('transformation')" aria-hidden="true"></i>
+          </div>
+        </header>
+
+        <!-- Collapsed overview: the derived columns the pipeline will create. -->
+        @if (!sectionOpen().transformation) {
+        <div class="pipeline-subnodes-tree" role="list" aria-label="Data transformation steps">
+          @for (node of appliedTransformationSubNodes; track node.id) {
+          <div class="pipeline-subnode-item" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="jumpToSubNode('transformation', node.id)" title="Open this transformation">
+              <i [class]="node.icon" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">{{ node.title }}</span>
+                <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
+              </span>
+              <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
+              <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+            </button>
+          </div>
+          }
           @if (!transformSubNodeApplied && transformStepAvailable) {
-          <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('transform')">
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('transform')" title="Add and open this step">
+              <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add variable transforms</span>
+                <span class="pipeline-subnode-subtitle">Reshape skewed values — log, square root, Yeo-Johnson or quantile — numerical variables only</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+          @if (!scalerSubNodeApplied && scalerStepAvailable) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('scaler')" title="Add and open this step">
+              <i class="fas fa-ruler-horizontal" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add variable scaling</span>
+                <span class="pipeline-subnode-subtitle">Bring numerical variables to a comparable range — standard, robust, min-max or max absolute</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+          @for (spec of genericStepsOf('transformation'); track spec.name) {
+          @if (!isGenericStepApplied(spec.name)) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addGenericStep(spec.name)" title="Add and open this step">
+              <i class="fas fa-code-branch" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add {{ spec.label }}</span>
+                <span class="pipeline-subnode-subtitle">{{ spec.desc }}</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+          }
+          @if (isLongitudinalModel && !expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('longitudinal')" title="Add and open this step">
+              <i class="fas fa-code-compare" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add longitudinal comparison</span>
+                <span class="pipeline-subnode-subtitle">Compare two visits per variable (required for two-visit pathologies)</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+          }
+          <div class="pipeline-subnode-item is-ghost" role="listitem">
+            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
+            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode()" title="Add and open a derived column">
+              <i class="fas fa-tag" aria-hidden="true"></i>
+              <span class="pipeline-subnode-text">
+                <span class="pipeline-subnode-title">Add derived column</span>
+                <span class="pipeline-subnode-subtitle">Create another nominal or numeric feature</span>
+              </span>
+              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        }
+
+        @if (isStepAdded('transformation')) {
+        <div class="pipeline-node-body">
+          @if (sectionOpen().transformation) {
+          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.transformation }"></ng-container>
+          }
+          <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
+            <div class="preprocessing-shell">
+            <!-- Stations that change a variable's meaning or add columns for the whole selection;
+                 they run before the ordered derived columns below. -->
+          @if (!transformSubNodeApplied && transformStepAvailable) {
+          <button type="button" class="btn-add-dashed" (click)="addTransformationSubNode('transform')">
             <i class="fas fa-plus" aria-hidden="true"></i>
             <span>Add variable transforms — log, sqrt, Yeo-Johnson or quantile (optional)</span>
           </button>
@@ -1454,7 +1589,7 @@
           }
 
           @if (!scalerSubNodeApplied && scalerStepAvailable) {
-          <button type="button" class="btn-add-dashed" (click)="addPreprocessingSubNode('scaler')">
+          <button type="button" class="btn-add-dashed" (click)="addTransformationSubNode('scaler')">
             <i class="fas fa-plus" aria-hidden="true"></i>
             <span>Add variable scaling — standard, robust, min-max or max absolute (optional)</span>
           </button>
@@ -1660,14 +1795,14 @@
 
               @if (preprocessingVariables.length > 0) {
               <section class="statistics-workspace preprocessing-workspace">
-                <aside class="statistics-browser preprocessing-browser" aria-label="Longitudinal preprocessing variables">
+                <aside class="statistics-browser preprocessing-browser" aria-label="Longitudinal variables">
                   <div class="statistics-browser-header">
                     <span>Variables</span>
                     <small>{{ filteredPrepVariables('longitudinal').length }} shown</small>
                   </div>
                   <div class="search-inline chart-search">
                     <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
-                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal preprocessing variables" [(ngModel)]="prepSearch.longitudinal" />
+                    <input class="preprocessing-search" type="search" placeholder="Search variables..." aria-label="Search longitudinal variables" [(ngModel)]="prepSearch.longitudinal" />
                   </div>
 
                   @for (group of prepGroups('longitudinal'); track group.key) {
@@ -1752,97 +1887,19 @@
           </app-station-card>
           }
 
-          </div>
-          </div>
-          <div #processedSection class="workflow-section" data-guide="analysis-processed-summary">
-            <div class="workflow-section-body" [class.open]="sectionOpen().processed">
-              <ng-template
-                [ngTemplateOutlet]="summaryWorkspace"
-                [ngTemplateOutletContext]="{ kind: 'processed', summary: processedSummary, emptyHint: 'Select variables and datasets to load the processed data summary.' }"></ng-template>
-            </div>
-          </div>
-        </div>
-        }
-    </section>
-
-      <!-- CONNECTOR 2 -> 3 -->
-      <div class="pipeline-connector" aria-hidden="true">
-        <div class="pipeline-connector-line" [class.is-active]="isStepAdded('setup')"></div>
-        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
-      </div>
-
-      <!-- NODE 3: DATA TRANSFORMATIONS -->
-      <section
-        #transformationSection
-        class="pipeline-node preprocessing-section"
-        [class.is-compact]="!sectionOpen().transformation"
-        data-guide="analysis-transformation"
-      >
-        <header class="pipeline-node-header" (click)="onStepHeaderClick('transformation', $event)">
-          <div class="pipeline-node-header-left">
-            <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 4 · Optional</span>
-              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('transformation')" (click)="toggleStep('transformation')">Data transformations</button></h3>
-              <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
-            </div>
-          </div>
-          <div class="pipeline-node-header-right">
-            <span class="pipeline-status-badge" [class.applied]="transformationStatusLabel === 'Applied'" [class.optional]="transformationStatusLabel !== 'Applied'">
-              {{ transformationBadgeLabel }}
-            </span>
-            @if (isStepAdded('transformation')) {
-            <button
-              type="button"
-              class="btn-remove-step-node"
-              title="Remove transformations from pipeline"
-              (click)="removeStep('transformation')">
-              <i class="fas fa-trash-can" aria-hidden="true"></i>
-              <span>Remove Step</span>
-            </button>
-            }
-            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('transformation')" aria-hidden="true"></i>
-          </div>
-        </header>
-
-        <!-- Collapsed overview: the derived columns the pipeline will create. -->
-        @if (!sectionOpen().transformation) {
-        <div class="pipeline-subnodes-tree" role="list" aria-label="Data transformation steps">
-          @for (node of appliedTransformationSubNodes; track node.id) {
-          <div class="pipeline-subnode-item" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="jumpToSubNode('transformation', node.id)" title="Open this transformation">
-              <i [class]="node.icon" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">{{ node.title }}</span>
-                <span class="pipeline-subnode-subtitle">{{ node.subtitle }}</span>
-              </span>
-              <span class="pipeline-subnode-status" [attr.data-tone]="node.statusTone">{{ node.statusLabel }}</span>
-              <span class="pipeline-subnode-cta">Edit <i class="fas fa-chevron-right" aria-hidden="true"></i></span>
-            </button>
-          </div>
+          @for (spec of genericStepsOf('transformation'); track spec.name) {
+          <app-generic-data-transformation-step
+            [spec]="spec"
+            [variables]="genericStepVariables(spec.name)"
+            [applied]="appliedGenericParameters(spec.name)"
+            [open]="genericStepOpen()[spec.name] ?? false"
+            [busy]="isApplyingPreprocessing"
+            (openChange)="setGenericStepOpen(spec.name, $event)"
+            (applyStep)="applyGenericStep(spec.name, $event)"
+            (removeStep)="removeGenericStep(spec.name)"></app-generic-data-transformation-step>
           }
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode()" title="Add and open a derived column">
-              <i class="fas fa-tag" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add derived column</span>
-                <span class="pipeline-subnode-subtitle">Create another nominal or numeric feature</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-        </div>
-        }
 
-        @if (isStepAdded('transformation')) {
-        <div class="pipeline-node-body">
-          @if (sectionOpen().transformation) {
-          <ng-container [ngTemplateOutlet]="howToStrip" [ngTemplateOutletContext]="{ $implicit: howTo.transformation }"></ng-container>
-          }
-          <div class="workflow-section-body" [class.open]="sectionOpen().transformation">
-            <div class="preprocessing-shell">
+
             <!-- The stage's own vertical graph: one node per derived column, joined by the
                  pipeline connector, ending in the type chooser. Unchosen blank drafts stay
                  off screen; they hold no rules, so the #ruleModal order is unaffected. -->
@@ -2186,6 +2243,9 @@
             }
             <span><strong>{{ preprocessingVariables.length }}</strong> variables · {{ expStudioService.selectedDatasets().length }} datasets</span>
             <span>{{ terminalPreprocessingLine }}</span>
+            @if (terminalTransformationLine) {
+            <span>{{ terminalTransformationLine }}</span>
+            }
           </div>
         </div>
         <button type="button" class="btn-finish-pipeline" (click)="finishDataHandling()">

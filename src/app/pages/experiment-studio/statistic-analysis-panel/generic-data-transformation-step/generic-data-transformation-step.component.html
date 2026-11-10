@@ -1,0 +1,172 @@
+@if (!shown()) {
+<button type="button" class="btn-add-dashed" [attr.data-step]="spec().name" (click)="add()">
+  <i class="fas fa-plus" aria-hidden="true"></i>
+  <span>Add {{ spec().label }} — {{ spec().desc }} (optional)</span>
+</button>
+} @else {
+<app-station-card
+  collapsible
+  [icon]="icon()"
+  [title]="spec().label"
+  [description]="spec().desc"
+  [statusLabel]="statusLabel()"
+  [status]="statusTone()"
+  [open]="open()"
+  (openChange)="toggle()">
+  @if (isApplied()) {
+  <button type="button" class="btn-remove-step-node" stationAction (click)="remove()">
+    <i class="fas fa-trash-can" aria-hidden="true"></i>
+    <span>Remove Step</span>
+  </button>
+  }
+  @if (spec().documentation) {
+  <button type="button" class="doc-toggle" stationAction [attr.aria-expanded]="docOpen()" (click)="toggleDoc()">
+    <i class="fas fa-book-open" aria-hidden="true"></i>
+    <span>How this works</span>
+  </button>
+  }
+  @if (spec().documentation && docOpen()) {
+  <div class="doc-panel">{{ spec().documentation }}</div>
+  }
+  @if (note()) {
+  <p class="step-note">{{ note() }}</p>
+  }
+
+  @if (blockedFields().length) {
+  <div class="step-feedback" role="alert">
+    This step needs {{ blockedFields()[0].label.toLowerCase() }}, which cannot be edited here yet. It is not sent with the run.
+  </div>
+  } @else {
+  <div class="step-form">
+    @for (field of fields(); track field.key) {
+    @switch (field.kind) {
+    @case ('enum') {
+    <label class="step-control">
+      <span>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</span>
+      <select class="step-select" [attr.data-param]="field.key" [ngModel]="scalar(field)" (ngModelChange)="setValue(field, $event)">
+        @if (!field.required) {
+        <option value="">Not set</option>
+        }
+        @for (option of field.options; track option) {
+        <option [value]="option">{{ optionLabel(option) }}</option>
+        }
+      </select>
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    @case ('bool') {
+    <label class="step-check">
+      <input type="checkbox" [attr.data-param]="field.key" [ngModel]="flag(field)" (ngModelChange)="setValue(field, $event)" />
+      <span>{{ field.label }}</span>
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    @case ('int') {
+    <label class="step-control">
+      <span>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</span>
+      <input class="step-input" type="number" step="1" [attr.min]="field.min" [attr.max]="field.max" [attr.data-param]="field.key"
+        [ngModel]="scalar(field)" (ngModelChange)="setValue(field, $event)" />
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    @case ('real') {
+    <label class="step-control">
+      <span>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</span>
+      <input class="step-input" type="number" step="any" [attr.min]="field.min" [attr.max]="field.max" [attr.data-param]="field.key"
+        [ngModel]="scalar(field)" (ngModelChange)="setValue(field, $event)" />
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    @case ('list') {
+    <label class="step-control">
+      <span>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</span>
+      <input class="step-input" type="text" placeholder="Comma separated" [attr.data-param]="field.key"
+        [ngModel]="scalar(field)" (ngModelChange)="setValue(field, $event)" />
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    @case ('variables') {
+    <fieldset class="step-fieldset">
+      <legend>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</legend>
+      @if (field.description) {<small>{{ field.description }}</small>}
+      <div class="step-quick">
+        <button type="button" (click)="selectAllVariables(field)">Select all</button>
+        <button type="button" (click)="clearVariables(field)">Clear</button>
+      </div>
+      <div class="step-variable-list" [attr.data-param]="field.key">
+        @for (variable of variables(); track variable.code) {
+        <label class="step-check">
+          <input type="checkbox" [attr.data-variable]="variable.code" [ngModel]="isSelected(field, variable.code)" (ngModelChange)="toggleVariable(field, variable.code)" />
+          <span>{{ variableLabel(variable) }}</span>
+        </label>
+        }
+      </div>
+    </fieldset>
+    }
+    @case ('variable-map') {
+    <fieldset class="step-fieldset">
+      <legend>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</legend>
+      @if (field.description) {<small>{{ field.description }}</small>}
+      @if (field.itemKind === 'enum') {
+      <div class="step-quick">
+        @for (option of field.options; track option) {
+        <button type="button" (click)="setAllMapValues(field, option)">Set all to {{ optionLabel(option) }}</button>
+        }
+        <button type="button" (click)="setAllMapValues(field, '')">Clear all</button>
+      </div>
+      }
+      <div class="step-variable-list" [attr.data-param]="field.key">
+        @for (variable of variables(); track variable.code) {
+        <label class="step-row">
+          <span>{{ variableLabel(variable) }}</span>
+          @if (field.itemKind === 'enum') {
+          <select class="step-select" [attr.data-variable]="variable.code" [ngModel]="mapValue(field, variable.code)" (ngModelChange)="setMapValue(field, variable.code, $event)">
+            <option value="">Not set</option>
+            @for (option of field.options; track option) {
+            <option [value]="option">{{ optionLabel(option) }}</option>
+            }
+          </select>
+          } @else {
+          <input class="step-input" [type]="field.itemKind === 'text' ? 'text' : 'number'" step="any" [attr.data-variable]="variable.code"
+            [ngModel]="mapValue(field, variable.code)" (ngModelChange)="setMapValue(field, variable.code, $event)" />
+          }
+        </label>
+        }
+      </div>
+    </fieldset>
+    }
+    @default {
+    <label class="step-control">
+      <span>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</span>
+      <input class="step-input" type="text" [attr.data-param]="field.key" [ngModel]="scalar(field)" (ngModelChange)="setValue(field, $event)" />
+      @if (field.description) {<small>{{ field.description }}</small>}
+    </label>
+    }
+    }
+    @if (showErrors() && errors()[field.key]) {
+    <div class="step-error" role="alert">{{ errors()[field.key] }}</div>
+    }
+    }
+    @if (variables().length === 0) {
+    <div class="step-feedback">Select variables before configuring this step.</div>
+    }
+  </div>
+  }
+
+  <app-station-action-bar
+    ngProjectAs="[stationFooter]"
+    flush
+    [pendingCount]="pendingCount()"
+    [statusText]="pendingCount() ? 'change not applied yet — the run still uses your last applied step.' : ''"
+    [tone]="pendingCount() ? 'pending' : 'applied'"
+    resetLabel="Discard"
+    [applyLabel]="busy() ? 'Applying…' : pendingCount() ? 'Apply' : 'Close'"
+    [applyIcon]="pendingCount() ? 'fas fa-check' : 'fas fa-times'"
+    [applyVariant]="pendingCount() ? 'primary' : 'quiet'"
+    [resetDisabled]="!pendingCount() || busy()"
+    [applyDisabled]="busy() || (pendingCount() > 0 && blockedFields().length > 0)"
+    (reset)="discard()"
+    (apply)="commitOrClose()"
+  ></app-station-action-bar>
+</app-station-card>
+}

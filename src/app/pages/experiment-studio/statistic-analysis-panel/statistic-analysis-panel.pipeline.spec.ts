@@ -92,6 +92,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
+            'catalogStepSpec',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -117,6 +120,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             ['categorical_column_creator', 'kmeans_cluster_creator', 'variable_transformer', 'variable_scaler'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
+        mockExpService.catalogStepSpec.mockReturnValue(null);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
@@ -405,10 +411,15 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
 
         const rows = railRows(pipelineCard('analysis-transformation'));
         expect(rows.live.map((row) => row.textContent)).toEqual([expect.stringMatching('mrs_good_outcome')]);
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add derived column')]);
+        // Singleton transformation steps (transforms, scaling) are offered here too, ahead of the derived column.
+        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([
+            expect.stringMatching('Add variable transforms'),
+            expect.stringMatching('Add variable scaling'),
+            expect.stringMatching('Add derived column'),
+        ]);
 
         mockExpService.upsertTransformation.mockClear();
-        (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        (rows.ghost[2].querySelector('button') as HTMLButtonElement).click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().transformation).toBe(true);
@@ -445,7 +456,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStatusLabel).toBe('2 steps applied ✓');
     });
 
-    it('lists the transform and scaler sub-nodes between outlier and longitudinal', () => {
+    it('lists the transform and scaler sub-nodes on the data transformation stage, not on preprocessing', () => {
         (mockExpService.selectedVariables as any).set([age]);
         seedAppliedConfig({
             missing_values_handler: { strategies: { age: 'drop' } },
@@ -454,21 +465,72 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
         fixture.detectChanges();
 
-        const nodes = component.appliedPreprocessingSubNodes;
-        expect(nodes.map((n) => n.id)).toEqual(['missing', 'transform', 'scaler']);
-        expect(nodes[1].subtitle).toContain('log(1 + x)');
-        expect(nodes[2].subtitle).toContain('Standard');
+        // Both change what the variable means (range and scale), so they belong to Data transformation.
+        expect(component.appliedPreprocessingSubNodes.map((n) => n.id)).toEqual(['missing']);
+        const nodes = component.appliedTransformationSingletonNodes;
+        expect(nodes.map((n) => n.id)).toEqual(['transform', 'scaler']);
+        expect(nodes[0].subtitle).toContain('log(1 + x)');
+        expect(nodes[1].subtitle).toContain('Standard');
+        expect(component.appliedTransformationSubNodes.map((n) => n.id)).toEqual(['transform', 'scaler']);
     });
 
     it('offers transform and scaler ghost rows while they hold no strategies', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        const card = pipelineCard('analysis-preprocessing');
-        const { ghost } = railRows(card);
-        const texts = ghost.map((row) => row.textContent ?? '');
+        const texts = railRows(pipelineCard('analysis-transformation')).ghost.map((row) => row.textContent ?? '');
         expect(texts.some((t) => t.includes('Add variable transforms'))).toBe(true);
         expect(texts.some((t) => t.includes('Add variable scaling'))).toBe(true);
+        const preprocessingTexts = railRows(pipelineCard('analysis-preprocessing')).ghost.map((row) => row.textContent ?? '');
+        expect(preprocessingTexts.some((t) => t.includes('Add variable transforms'))).toBe(false);
+    });
+
+    describe('catalog steps without a dedicated station', () => {
+        const indicator = {
+            name: 'missing_indicator',
+            label: 'Missing Indicator',
+            desc: 'Add a column flagging missing values.',
+            parameters: {
+                variables: { label: 'Variables', desc: '', types: ['text'], required: true, multiple: true },
+                suffix: { label: 'Column suffix', desc: '', types: ['text'], required: false, default: '_missing' },
+            },
+        };
+
+        beforeEach(() => {
+            mockExpService.genericCatalogSteps.mockReturnValue([indicator] as never);
+            mockExpService.catalogStepSpec.mockImplementation(((name: string) =>
+                name === 'missing_indicator' ? indicator : null) as never);
+            (mockExpService.selectedVariables as any).set([age]);
+        });
+
+        it('offers a rail ghost row for each listed step', () => {
+            fixture.detectChanges();
+
+            // A missing indicator adds a column, so it is a data transformation.
+            const { ghost } = railRows(pipelineCard('analysis-transformation'));
+            expect(ghost.some((row) => (row.textContent ?? '').includes('Add Missing Indicator'))).toBe(true);
+            expect(railRows(pipelineCard('analysis-preprocessing')).ghost.some((row) => (row.textContent ?? '').includes('Add Missing Indicator'))).toBe(false);
+        });
+
+        it('offers an add row in the data transformation stage until the step is started', () => {
+            component.addStep('transformation');
+            fixture.detectChanges();
+
+            expect(fixture.nativeElement.querySelector('app-generic-data-transformation-step[data-step="missing_indicator"] .btn-add-dashed')).not.toBeNull();
+        });
+
+        it('restores an applied step as a rail node and an open-able station', () => {
+            seedAppliedConfig({ missing_indicator: { variables: ['age'], suffix: '_na' } });
+            fixture.detectChanges();
+            fixture.detectChanges();
+
+            const { live } = railRows(pipelineCard('analysis-transformation'));
+            expect(live.some((row) => (row.textContent ?? '').includes('Missing Indicator'))).toBe(true);
+            expect(component.isStepAdded('transformation')).toBe(true);
+            expect(component.isStepAdded('setup')).toBe(false);
+            expect(component.appliedGenericParameters('missing_indicator')).toEqual({ variables: ['age'], suffix: '_na' });
+            expect(fixture.nativeElement.querySelector('app-generic-data-transformation-step[data-step="missing_indicator"] app-station-card')).not.toBeNull();
+        });
     });
 
     it('restores the transform and scaler editors from a persisted config', () => {
@@ -479,12 +541,44 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
         fixture.detectChanges();
 
-        expect(component.isStepAdded('setup')).toBe(true);
+        expect(component.isStepAdded('transformation')).toBe(true);
+        expect(component.isStepAdded('setup')).toBe(false);
         expect(component.appliedTransformStrategies).toEqual({ age: 'yeo_johnson' });
         expect(component.pendingTransformStrategies).toEqual({ age: 'yeo_johnson' });
         expect(component.appliedScalerStrategies).toEqual({ age: 'minmax' });
         expect(component.appliedScalerFeatureRange).toEqual([-1, 1]);
         expect(component.pendingScalerFeatureRange).toEqual(['-1', '1']);
+    });
+
+    it('keeps the data transformation steps when the preprocessing stage is removed', () => {
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age, mmse]);
+        seedAppliedConfig({
+            missing_values_handler: { strategies: { age: 'drop' } },
+            variable_transformer: { strategies: { mmse: 'log1p' } },
+        });
+        fixture.detectChanges();
+
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+        component.removeStep('setup');
+        const afterPreprocessing = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+        expect(Object.keys(afterPreprocessing ?? {})).toEqual(['variable_transformer']);
+
+    });
+
+    it('keeps the preprocessing steps when the data transformation stage is removed', () => {
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age, mmse]);
+        seedAppliedConfig({
+            missing_values_handler: { strategies: { age: 'drop' } },
+            variable_transformer: { strategies: { mmse: 'log1p' } },
+        });
+        fixture.detectChanges();
+
+        component.removeStep('transformation');
+        const afterTransformation = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+        expect(Object.keys(afterTransformation ?? {})).toEqual(['missing_values_handler']);
+        expect(component.appliedTransformStrategies).toEqual({});
     });
 
     it('hides the transform and scaler stations when the catalog lacks them', () => {
@@ -500,7 +594,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // No rail node and no ghost row: the deployment cannot run the step, so the
         // UI must not offer it even though a persisted config still carries it.
         expect(component.appliedPreprocessingSubNodes.map((n) => n.id)).toEqual(['missing']);
-        const card = pipelineCard('analysis-preprocessing');
+        expect(component.appliedTransformationSingletonNodes).toEqual([]);
+        const card = pipelineCard('analysis-transformation');
         const { ghost } = railRows(card);
         expect(ghost.some((row) => row.textContent?.includes('Add variable transforms'))).toBe(false);
         expect(ghost.some((row) => row.textContent?.includes('Add variable scaling'))).toBe(false);
@@ -646,6 +741,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(overview.map((item) => item.textContent)).toEqual([
             expect.stringMatching('mrs_good_outcome'),
             expect.stringMatching('mrs_bad_outcome'),
+            expect.stringMatching('Add variable transforms'),
+            expect.stringMatching('Add variable scaling'),
             expect.stringMatching('Add derived column'),
         ]);
     });
@@ -662,11 +759,16 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.sectionOpen().setup).toBe(true);
         expect(component.preprocessingStepOpen.outlier).toBe(true);
         expect(component.preprocessingStepOpen.missing).toBe(false);
-        expect(component.preprocessingStepOpen.longitudinal).toBe(false);
 
         component.jumpToSubNode('transformation', 'transformation');
         expect(component.sectionOpen().transformation).toBe(true);
         expect(component.preprocessingStepOpen.transformation).toBe(true);
+
+        // A singleton transformation station opens alone, and not the derived-column graph.
+        component.jumpToSubNode('transformation', 'scaler');
+        expect(component.preprocessingStepOpen.scaler).toBe(true);
+        expect(component.preprocessingStepOpen.transform).toBe(false);
+        expect(component.preprocessingStepOpen.transformation).toBe(false);
     });
 
     it('opens step 0 as a read that adds no stage and writes no config', () => {
@@ -927,7 +1029,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
 
         it('counts pending preprocessing changes in the badge and apply label', () => {
-            const pending = vi.spyOn(component, 'pendingChangeCount', 'get').mockReturnValue(2);
+            const pending = vi.spyOn(component, 'pendingPreprocessingChangeCount', 'get').mockReturnValue(2);
             const missingPending = vi.spyOn(component, 'pendingMissingChangeCount', 'get').mockReturnValue(2);
 
             expect(component.preprocessingStatusLabel).toBe('In run · 2 changes not applied');
