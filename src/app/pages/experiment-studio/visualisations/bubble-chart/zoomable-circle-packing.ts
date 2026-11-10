@@ -6,21 +6,20 @@ import {
   unavailableVariableTooltip,
 } from '../../../../core/variable-availability.utils';
 
-/** Leaves missing in at least one selected dataset: amber, still selectable. */
+/**
+ * Partially available leaves (missing in some selected dataset, see variable-availability.utils):
+ * view only — clickable to plot, but never added to the experiment.
+ */
 export const PARTIAL_AVAILABILITY_FILL = '#fbd38d';
-
-/** Unavailable leaves: grayed out and inert, see variable-availability.utils. */
-const UNAVAILABLE_FILL = '#cbd5e1';
-const UNAVAILABLE_FILL_OPACITY = 0.6;
+/** Dashed outline keeps the "not everywhere available" signal without hiding the leaf. */
 const UNAVAILABLE_STROKE_DASH = '3 2';
-const UNAVAILABLE_LABEL_FILL = '#94a3b8';
 
 // helpers
 // Splits labels
 
 
 // Creates label + background rect
-function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false) {
+function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any) {
   group.selectAll('*').remove();
 
   const label = d.data.label || '';
@@ -51,7 +50,7 @@ function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: an
     .attr('text-anchor', 'middle')
     .style('font-size', `${fontSize}px`)
     .style('font-weight', '600')
-    .style('fill', unavailable ? UNAVAILABLE_LABEL_FILL : '#0f172a')
+    .style('fill', '#0f172a')
     .style('paint-order', 'stroke')
     .style('stroke', 'rgba(255,255,255,0.9)')
     .style('stroke-width', 2)
@@ -170,12 +169,10 @@ export function createZoomableCirclePacking(
   // unavailableDatasetsFor already skips groups: d.data.children is what d3 builds d.children from.
   const unavailableIn = (d: any): readonly string[] => unavailableDatasetsFor(unavailableVariables, d?.data);
   const isUnavailable = (d: any): boolean => unavailableIn(d).length > 0;
-  const leafFillOpacity = (d: any): number =>
-    d.children ? 0.6 : (isUnavailable(d) ? UNAVAILABLE_FILL_OPACITY : 1);
+  const leafFillOpacity = (d: any): number => (d.children ? 0.6 : 1);
+  // Every leaf is clickable to plot it; adding a partially available one stays blocked (dblclick).
   const applyAvailability = (selection: d3.Selection<any, any, any, any>): void => {
-    selection
-      .style('cursor', (d: any) => (isUnavailable(d) ? 'not-allowed' : 'pointer'))
-      .attr('aria-disabled', (d: any) => (isUnavailable(d) ? 'true' : null));
+    selection.style('cursor', 'pointer');
   };
 
   const bounds = container.getBoundingClientRect();
@@ -303,8 +300,9 @@ export function createZoomableCirclePacking(
       return groupColor(d.depth);
     }
 
+    // Partially available: view only.
     if (isUnavailable(d)) {
-      return UNAVAILABLE_FILL;
+      return PARTIAL_AVAILABILITY_FILL;
     }
 
     if (tutorialHighlightCode) {
@@ -335,7 +333,6 @@ export function createZoomableCirclePacking(
     .attr('stroke-dasharray', (d: any) => (isUnavailable(d) ? UNAVAILABLE_STROKE_DASH : null))
     .on('click', (event: MouseEvent, d: any) => {
       event.stopPropagation();
-      if (isUnavailable(d)) return;
       if (!d.children) {
         selectedDataNode = d;
         onNodeClick(d.data);
@@ -346,6 +343,7 @@ export function createZoomableCirclePacking(
     })
     .on('dblclick', (event: MouseEvent, d: any) => {
       event.stopPropagation();
+      // Double click adds: a partially available leaf never joins the experiment pool.
       if (!d.children && !isUnavailable(d)) {
         onNodeDoubleClick(d.data);
       }
@@ -398,7 +396,7 @@ export function createZoomableCirclePacking(
         const el = d3.select(this as SVGGElement);
         if (d.parent === focus && shouldShowLabel(d, k)) {
           el.style('display', 'inline').style('fill-opacity', 0.92);
-          createLabelGroup(el, d, isUnavailable(d));
+          createLabelGroup(el, d);
         } else el.style('display', 'none');
       });
   }
@@ -475,7 +473,7 @@ export function createZoomableCirclePacking(
       const el = d3.select(this as SVGGElement);
       if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
         el.style('display', 'inline').style('fill-opacity', 0.6);
-        createLabelGroup(el, nd, isUnavailable(nd));
+        createLabelGroup(el, nd);
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
@@ -563,7 +561,7 @@ export function createZoomableCirclePacking(
       node.call(applyAvailability);
       labelNodes.each(function (d: any) {
         const el = d3.select(this as SVGGElement);
-        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d));
+        if (el.style('display') !== 'none') createLabelGroup(el, d);
       });
     }
     groupColor = d3.scaleLinear<string>()
