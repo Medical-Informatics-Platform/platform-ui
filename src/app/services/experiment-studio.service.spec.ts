@@ -1107,6 +1107,20 @@ describe('ExperimentStudioService', () => {
     });
   });
 
+  it('drops the transformer step when filtering leaves no strategy, not just n_quantiles', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      variable_transformer: { strategies: { bmi: 'quantile_normal' }, n_quantiles: 21 },
+    };
+
+    const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
+
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: { strategies: { age: 'drop' } },
+    }));
+  });
+
   it('drops the scaler step when filtering leaves no strategy, not just feature_range', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);

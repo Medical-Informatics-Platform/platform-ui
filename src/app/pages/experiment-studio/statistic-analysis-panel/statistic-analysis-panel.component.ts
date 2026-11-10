@@ -372,6 +372,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** Full desired state per variable (null = no transform); hydration copies `applied` into it. */
   pendingTransformStrategies: Record<string, TransformStrategy | null> = {};
   appliedTransformStrategies: Record<string, TransformStrategy> = {};
+  /** `n_quantiles` of the quantile transforms, as the text input binds it; '' = engine default (100). */
+  pendingTransformNQuantiles = '';
+  appliedTransformNQuantiles: number | null = null;
   pendingScalerStrategies: Record<string, ScalerStrategy | null> = {};
   appliedScalerStrategies: Record<string, ScalerStrategy> = {};
   /** `feature_range` for minmax, as the two text inputs the editor binds; null = default. */
@@ -516,6 +519,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.appliedScalerStrategies = {};
     this.pendingScalerFeatureRange = ['', ''];
     this.appliedScalerFeatureRange = null;
+    this.pendingTransformNQuantiles = '';
+    this.appliedTransformNQuantiles = null;
     this.appliedLongitudinalEnabled = false;
     this.longitudinalVisit1 = '';
     this.longitudinalVisit2 = '';
@@ -657,6 +662,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (step === 'transform') {
       this.pendingTransformStrategies = {};
       this.appliedTransformStrategies = {};
+      this.pendingTransformNQuantiles = '';
+      this.appliedTransformNQuantiles = null;
     } else {
       this.pendingScalerStrategies = {};
       this.appliedScalerStrategies = {};
@@ -2872,12 +2879,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     },
     transform: {
       pending: () => this.pendingTransformChangeCount,
-      validate: () => ({}),
+      validate: (): Record<string, string> => (this.transformNQuantilesError ? { __n_quantiles__: this.transformNQuantilesError } : {}),
       commit: () => {
         this.appliedTransformStrategies = this.cleanStrategyMap(this.pendingTransformStrategies);
+        this.appliedTransformNQuantiles = this.parseNQuantiles(this.pendingTransformNQuantiles);
       },
       reset: () => {
         this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+        this.pendingTransformNQuantiles = this.appliedTransformNQuantiles === null ? '' : String(this.appliedTransformNQuantiles);
       },
     },
     scaler: {
@@ -3048,6 +3057,33 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.pendingScalerStrategies[variable.code] ?? null;
   }
 
+  onTransformNQuantilesChange(value: string): void {
+    this.pendingTransformNQuantiles = value === null || value === undefined ? '' : String(value);
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  /** True while a quantile transform is chosen: only then does `n_quantiles` matter. */
+  get transformUsesQuantiles(): boolean {
+    const codes = new Set(this.outlierPreprocessingVariables.map((variable) => variable.code));
+    return Object.entries(this.pendingTransformStrategies)
+      .some(([code, strategy]) => codes.has(code) && (strategy === 'quantile_uniform' || strategy === 'quantile_normal'));
+  }
+
+  /** Whole number >= 2, or null (empty = engine default). */
+  private parseNQuantiles(raw: string): number | null {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isInteger(n) && n >= 2 ? n : null;
+  }
+
+  get transformNQuantilesError(): string {
+    const text = String(this.pendingTransformNQuantiles ?? '').trim();
+    if (!text || !this.transformUsesQuantiles) return '';
+    return this.parseNQuantiles(text) === null ? 'Number of quantiles must be a whole number of at least 2.' : '';
+  }
+
   onScalerStrategyChange(variable: VariableRow, strategy: ScalerStrategy | null): void {
     this.pendingScalerStrategies = {
       ...this.pendingScalerStrategies,
@@ -3088,9 +3124,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const range = applied ? this.appliedScalerFeatureRange : this.parseFeatureRange(this.pendingScalerFeatureRange);
     const source = step === 'transform' ? transformStrategies : scalerStrategies;
     const codes = this.outlierPreprocessingVariables.map((v) => v.code);
+    const nQuantiles = applied ? this.appliedTransformNQuantiles : this.parseNQuantiles(this.pendingTransformNQuantiles);
     return JSON.stringify({
       strategies: Object.fromEntries(codes.sort().map((code) => [code, source[code] ?? null])),
       ...(step === 'scaler' ? { featureRange: range } : {}),
+      ...(step === 'transform' && Object.values(source).some((v) => v === 'quantile_uniform' || v === 'quantile_normal')
+        ? { nQuantiles }
+        : {}),
     });
   }
 
@@ -4781,7 +4821,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const strategies = Object.fromEntries(
       Object.entries(source).filter(([code]) => allowedCodes.has(code))
     );
-    return Object.keys(strategies).length ? { strategies } : null;
+    if (!Object.keys(strategies).length) return null;
+    // `n_quantiles` only matters to the quantile methods; without one it stays out of the request.
+    const nQuantiles = applied ? this.appliedTransformNQuantiles : this.parseNQuantiles(this.pendingTransformNQuantiles);
+    const usesQuantiles = Object.values(strategies).some((strategy) => strategy === 'quantile_uniform' || strategy === 'quantile_normal');
+    return usesQuantiles && nQuantiles !== null ? { strategies, n_quantiles: nQuantiles } : { strategies };
   }
 
   private buildScalerPreprocessingConfig(
@@ -5042,6 +5086,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     };
     this.appliedTransformStrategies = hydrateStrategies('variable_transformer', this.isTransformStrategy);
     this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+    const transformHolder = preprocessing['variable_transformer'] as { n_quantiles?: unknown } | undefined;
+    const storedQuantiles = Number(transformHolder?.n_quantiles);
+    this.appliedTransformNQuantiles = Number.isInteger(storedQuantiles) && storedQuantiles >= 2 ? storedQuantiles : null;
+    this.pendingTransformNQuantiles = this.appliedTransformNQuantiles === null ? '' : String(this.appliedTransformNQuantiles);
     this.appliedScalerStrategies = hydrateStrategies('variable_scaler', this.isScalerStrategy);
     this.pendingScalerStrategies = { ...this.appliedScalerStrategies };
     const scalerHolder = preprocessing['variable_scaler'] as { feature_range?: unknown } | undefined;

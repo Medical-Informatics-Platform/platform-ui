@@ -1508,7 +1508,10 @@ export class ExperimentStudioService {
         allowed,
         ['strategies']
       );
-      if (next) filtered['variable_transformer'] = next;
+      // Like the scaler: a lone step-level parameter (`n_quantiles`) must not keep the step alive.
+      if (next && Object.keys((next['strategies'] as Record<string, unknown>) ?? {}).length > 0) {
+        filtered['variable_transformer'] = next;
+      }
     }
 
     const scaler = preprocessing['variable_scaler'];
