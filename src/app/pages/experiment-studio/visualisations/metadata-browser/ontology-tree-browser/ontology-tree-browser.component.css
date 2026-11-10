@@ -115,34 +115,25 @@
   cursor: pointer;
 }
 
-/* Not present in every selected dataset: grayed out and inert (see variable-availability.utils). */
-.content-row.variable-row.unavailable {
-  cursor: not-allowed;
-  opacity: 0.6;
+/* Missing from some selected datasets: amber and clickable, never addable (see variable-availability.utils). */
+.content-row.variable-row.partial {
+  cursor: pointer;
+  border-left: 3px solid #f5b544;
+  background: #fff7e6;
 }
 
-.content-row.variable-row.unavailable:hover,
-.content-row.variable-row.unavailable:focus-visible {
-  background: rgba(148, 163, 184, 0.08);
+.content-row.variable-row.partial:hover,
+.content-row.variable-row.partial:focus-visible {
+  background: #ffedc2;
 }
 
-.content-row.variable-row.unavailable .row-label,
-.content-row.variable-row.unavailable .row-description {
-  color: var(--unavailable-text);
-}
-
-.content-row.variable-row.unavailable .type-badge {
-  background: #e2e8f0;
-  color: #64748b;
-}
-
-.row-unavailable {
+.row-partial {
   border-radius: 8px;
   padding: 2px 8px;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  background: #e2e8f0;
-  color: #64748b;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .tree-toggle {

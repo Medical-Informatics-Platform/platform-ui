@@ -37,7 +37,7 @@ export class SearchBarComponent implements OnChanges {
   private eRef = inject(ElementRef);
 
   readonly dataModelHierarchy = input<any>();
-  /** Variable results listed grayed out that cannot be picked for the current datasets. */
+  /** Variables missing from some selected dataset: pickable to view, never addable. */
   readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly searchResultSelected = output<MetadataSearchResult>();
 
@@ -175,7 +175,6 @@ export class SearchBarComponent implements OnChanges {
   }
 
   onItemClick(item: MetadataSearchResult): void {
-    if (this.isUnavailable(item)) return;
     this.searchQuery = item.label;
     this.hideSuggestions();
     this.searchResultSelected.emit(item);
@@ -208,7 +207,7 @@ export class SearchBarComponent implements OnChanges {
     return unavailable ? `${base}\n${unavailable}` : base;
   }
 
-  isUnavailable(item: MetadataSearchResult): boolean {
+  isPartial(item: MetadataSearchResult): boolean {
     return this.unavailableTooltip(item) !== '';
   }
 
