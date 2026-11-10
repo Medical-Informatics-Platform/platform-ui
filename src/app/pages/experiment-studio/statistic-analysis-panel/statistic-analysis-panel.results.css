@@ -682,15 +682,6 @@ button:disabled {
   cursor: pointer;
 }
 
-.transformation-rule-fallback {
-  background: var(--bg-neutral);
-}
-
-.transformation-rule-fallback .transformation-rule-value {
-  border-style: dashed;
-  color: var(--text-muted);
-}
-
 /* Ghost row inside the rules table, above the fallback: where the next category goes. */
 .transformation-add-category {
   display: flex;

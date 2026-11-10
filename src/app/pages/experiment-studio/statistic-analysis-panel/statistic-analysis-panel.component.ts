@@ -88,11 +88,11 @@ type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
 type SectionKey = 'source' | 'raw' | 'setup' | 'filters' | 'processed' | 'transformation';
 type PipelineStep = 'source' | 'filters' | 'setup' | 'transformation';
-type PrepStep = 'missing' | 'outlier' | 'longitudinal';
+type PrepStep = 'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler';
 type DistributionSubTab = 'Numeric' | 'Nominal';
 type StatisticVariableType = 'numeric' | 'nominal';
 type PreprocessingStatus = 'none' | 'pending' | 'applied';
-type PrepKind = 'missing' | 'outlier' | 'longitudinal';
+type PrepKind = 'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler';
 
 type SummaryAnchorKey = 'charts' | 'details' | 'export';
 
@@ -112,8 +112,11 @@ const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string
   processed: { charts: null, details: 'analysis-processed-details', export: null },
 };
 
-type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant';
+type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant' | 'most_frequent';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
+type TransformStrategy = 'log1p' | 'sqrt' | 'asinh' | 'yeo_johnson' | 'quantile_uniform' | 'quantile_normal';
+type ScalerStrategy = 'standard' | 'robust' | 'minmax' | 'maxabs';
+type TransformOrScalerStep = 'transform' | 'scaler';
 
 /**
  * The record-level rule behind one category. exaflow takes either a group of rules or a
@@ -140,6 +143,28 @@ interface TransformationColumnDraft {
   /** Picked from the type chooser (or restored from the store). */
   chosen?: boolean;
 }
+
+const TRANSFORM_STRATEGIES: Array<{ value: TransformStrategy; label: string }> = [
+  { value: 'log1p', label: 'log(1 + x)' },
+  { value: 'sqrt', label: 'Square root' },
+  { value: 'asinh', label: 'Inverse hyperbolic sine' },
+  { value: 'yeo_johnson', label: 'Yeo-Johnson' },
+  { value: 'quantile_uniform', label: 'Quantile → uniform' },
+  { value: 'quantile_normal', label: 'Quantile → normal' },
+];
+
+const SCALER_STRATEGIES: Array<{ value: ScalerStrategy; label: string }> = [
+  { value: 'standard', label: 'Standard (mean 0, std 1)' },
+  { value: 'robust', label: 'Robust (median/IQR)' },
+  { value: 'minmax', label: 'Min-max' },
+  { value: 'maxabs', label: 'Max absolute' },
+];
+
+/** Domain the two monotone transforms require; exaflow enforces with a 400 BadInputError. */
+const TRANSFORM_DOMAINS: Partial<Record<TransformStrategy, string>> = {
+  log1p: 'requires values greater than -1',
+  sqrt: 'requires values greater than or equal to 0',
+};
 
 const CREATOR_CHOOSER_COPY: Record<CreatorName, { icon: string; title: string; subtitle: string }> = {
   categorical_column_creator: {
@@ -332,6 +357,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   appliedLongitudinalVisit2 = '';
   pendingLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
   appliedLongitudinalStrategies: Record<string, LongitudinalStrategy> = {};
+  /** Full desired state per variable (null = no transform); hydration copies `applied` into it. */
+  pendingTransformStrategies: Record<string, TransformStrategy | null> = {};
+  appliedTransformStrategies: Record<string, TransformStrategy> = {};
+  pendingScalerStrategies: Record<string, ScalerStrategy | null> = {};
+  appliedScalerStrategies: Record<string, ScalerStrategy> = {};
+  /** `feature_range` for minmax, as the two text inputs the editor binds; null = default. */
+  pendingScalerFeatureRange: [string, string] = ['', ''];
+  appliedScalerFeatureRange: [number, number] | null = null;
   pendingOutlierRules: Record<string, OutlierRule> = {};
   appliedOutlierRules: Record<string, OutlierRule> = {};
   preprocessingStatus: PreprocessingStatus = 'none';
@@ -348,11 +381,15 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     missing: '',
     outlier: '',
     longitudinal: '',
+    transform: '',
+    scaler: '',
   };
   selectedPrepCode: Record<PrepKind, string | null> = {
     missing: null,
     outlier: null,
     longitudinal: null,
+    transform: null,
+    scaler: null,
   };
   // Record<string, ..>: the shared summary template indexes it with its own kind.
   statisticsSearch: Record<string, string> = {
@@ -374,10 +411,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     filters: false,
     setup: false,
   });
-  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal' | 'transformation', boolean> = {
+  preprocessingStepOpen: Record<'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler' | 'transformation', boolean> = {
     missing: true,
     outlier: true,
     longitudinal: true,
+    transform: true,
+    scaler: true,
     transformation: true,
   };
 
@@ -403,7 +442,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return !!(
       applied['missing_values_handler'] ||
       applied['outlier_winsorizer'] ||
-      applied['longitudinal_transformer']
+      applied['longitudinal_transformer'] ||
+      applied['variable_transformer'] ||
+      applied['variable_scaler']
     );
   }
 
@@ -427,6 +468,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.pendingOutlierRules = {};
       this.appliedOutlierRules = {};
       this.userEnabledOutliers.set(false);
+      this.pendingTransformStrategies = {};
+      this.appliedTransformStrategies = {};
+      this.pendingScalerStrategies = {};
+      this.appliedScalerStrategies = {};
+      this.pendingScalerFeatureRange = ['', ''];
+      this.appliedScalerFeatureRange = null;
       this.persistAppliedDescriptivePreprocessing(null);
       this.preprocessingStatus = 'none';
       this.userPreprocessingApplied = false;
@@ -562,10 +609,28 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       }
     }
     for (const code of Object.keys(this.appliedOutlierRules)) {
-      if (this.appliedOutlierRules[code]) {
-        this.appliedOutlierRules[code].enabled = false;
-      }
+      this.appliedOutlierRules[code] = { ...this.appliedOutlierRules[code], enabled: false };
     }
+    this.cdr.markForCheck();
+  }
+
+  /** Drop one transform/scaler sub-step entirely and persist the request config without it. */
+  removePreprocessingSubNode(step: 'transform' | 'scaler'): void {
+    if (step === 'transform') {
+      this.pendingTransformStrategies = {};
+      this.appliedTransformStrategies = {};
+    } else {
+      this.pendingScalerStrategies = {};
+      this.appliedScalerStrategies = {};
+      this.pendingScalerFeatureRange = ['', ''];
+      this.appliedScalerFeatureRange = null;
+    }
+    this.batchMenuOpen.set(null);
+    this.persistAppliedDescriptivePreprocessing(
+      this.buildPreprocessingConfig(this.appliedPreprocessingRules)
+    );
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
     this.cdr.markForCheck();
   }
 
@@ -641,6 +706,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         statusTone: this.hasPendingOutlierChanges ? 'pending' : 'applied',
       });
     }
+
+    const transformNode = this.transformSubNode(config);
+    if (transformNode) nodes.push(transformNode);
+    const scalerNode = this.scalerSubNode(config);
+    if (scalerNode) nodes.push(scalerNode);
 
     const longitudinal = config['longitudinal_transformer'] as
       | { visit1?: unknown; visit2?: unknown; strategies?: Record<string, unknown> }
@@ -733,7 +803,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.preprocessingStepOpen.transformation = true;
       return;
     }
-    for (const step of ['missing', 'outlier', 'longitudinal'] as const) {
+    for (const step of ['missing', 'outlier', 'transform', 'scaler', 'longitudinal'] as const) {
       this.preprocessingStepOpen[step] = step === subNode;
     }
     if (subNode === 'outlier') this.userEnabledOutliers.set(true);
@@ -741,7 +811,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   /** A dashed rail row adds and opens its sub-step in one click, writing nothing. */
-  addPreprocessingSubNode(subNode: 'outlier' | 'longitudinal'): void {
+  addPreprocessingSubNode(subNode: 'outlier' | 'longitudinal' | 'transform' | 'scaler'): void {
     if (!this.isStepAdded('setup')) this.addStep('setup');
     this.jumpToSubNode('setup', subNode);
   }
@@ -800,13 +870,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const name = this.resolveCreatorName(kind);
     const id = newStepId();
     this.expStudioService.upsertTransformation({ id, name, parameters: {} });
+    // The freshly chosen card is the only open one: everything already on the
+    // stage folds so the new editor is the single thing in focus.
+    for (const draft of this.transformationDrafts) draft.open = false;
     if (name === 'categorical_column_creator') {
       this.transformationDrafts = [
         ...this.transformationDrafts.filter((draft) => this.isDraftShown(draft)),
         { ...emptyTransformationDraft(id), chosen: true, open: true },
       ];
     }
-    this.cardOpenState.update((state) => ({ ...state, [id]: true }));
+    this.cardOpenState.update((state) => {
+      const next = { ...state };
+      for (const step of this.cards()) {
+        if (step.id !== id) next[step.id] = false;
+      }
+      next[id] = true;
+      return next;
+    });
     this.cdr.markForCheck();
   }
 
@@ -894,6 +974,104 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     }
     if (outputs.length) return `${copy.title} · ${outputs[0]}`;
     return copy.title;
+  }
+
+  /** Collapsed rail node for the per-variable transform step, when it holds a strategy. */
+  private transformSubNode(config: Record<string, unknown>): PipelineSubNode | null {
+    if (!this.transformStepAvailable) return null;
+    const holder = config['variable_transformer'] as { strategies?: Record<string, unknown> } | undefined;
+    const strategies = Object.entries(holder?.strategies ?? {});
+    if (!strategies.length) return null;
+    const summary = strategies.slice(0, 3).map(([code, strategy]) => {
+      const variable = this.preprocessingVariables.find((v) => v.code === code);
+      return `${variable ? this.variableLabel(variable) : code}: ${this.transformStrategyLabel(String(strategy))}`;
+    });
+    return {
+      id: 'transform',
+      icon: 'fas fa-arrow-up-right-dots',
+      title: 'Variable Transforms',
+      subtitle: `Transforms applied to ${strategies.length} ${strategies.length === 1 ? 'variable' : 'variables'} (${summary.join(', ')}${strategies.length > 3 ? ', …' : ''})`,
+      statusLabel: 'Applied',
+      statusTone: this.hasPendingTransformChanges ? 'pending' : 'applied',
+    };
+  }
+
+  /** Collapsed rail node for the per-variable scaling step, when it holds a strategy. */
+  private scalerSubNode(config: Record<string, unknown>): PipelineSubNode | null {
+    if (!this.scalerStepAvailable) return null;
+    const holder = config['variable_scaler'] as { strategies?: Record<string, unknown> } | undefined;
+    const strategies = Object.entries(holder?.strategies ?? {});
+    if (!strategies.length) return null;
+    const summary = strategies.slice(0, 3).map(([code, strategy]) => {
+      const variable = this.preprocessingVariables.find((v) => v.code === code);
+      return `${variable ? this.variableLabel(variable) : code}: ${this.scalerStrategyLabel(String(strategy))}`;
+    });
+    return {
+      id: 'scaler',
+      icon: 'fas fa-ruler-horizontal',
+      title: 'Variable Scaling',
+      subtitle: `Scaling applied to ${strategies.length} ${strategies.length === 1 ? 'variable' : 'variables'} (${summary.join(', ')}${strategies.length > 3 ? ', …' : ''})`,
+      statusLabel: 'Applied',
+      statusTone: this.hasPendingScalerChanges ? 'pending' : 'applied',
+    };
+  }
+
+  transformStrategyLabel(strategy: string): string {
+    return this.transformStrategies.find((item) => item.value === strategy)?.label ?? strategy.replace(/_/g, ' ');
+  }
+
+  scalerStrategyLabel(strategy: string): string {
+    return this.scalerStrategies.find((item) => item.value === strategy)?.label ?? strategy.replace(/_/g, ' ');
+  }
+
+  /** Domain note for the selected transform: the observed minimum when the describe has it. */
+  transformDomainWarning(variable: VariableRow, strategy: TransformStrategy | null): string {
+    const domain = strategy ? TRANSFORM_DOMAINS[strategy] : undefined;
+    if (!domain) return '';
+    const minText = this.distributionFor(variable).find((point) => point.label === 'Min')?.value;
+    const min = minText !== undefined ? parseNumber(minText) : null;
+    const violates = strategy === 'log1p' ? (min !== null && min <= -1) : strategy === 'sqrt' ? (min !== null && min < 0) : false;
+    if (min === null) return `This transform ${domain}.`;
+    return violates
+      ? `This transform ${domain}. Lowest observed value is ${minText} — exaflow will reject the run.`
+      : `This transform ${domain}. Lowest observed value is ${minText}.`;
+  }
+
+  /**
+   * Spec gate for the transform/scaler stations, mirroring the creators: before the
+   * catalog loads the availability is unknown (optimistically shown); once it loads
+   * without the step, the station is unavailable and its request step is dropped.
+   */
+  get transformStepAvailable(): boolean {
+    return !this.expStudioService.catalogLoaded() || this.expStudioService.hasPreprocessingSpec('variable_transformer');
+  }
+
+  get scalerStepAvailable(): boolean {
+    return !this.expStudioService.catalogLoaded() || this.expStudioService.hasPreprocessingSpec('variable_scaler');
+  }
+
+  get transformSubNodeApplied(): boolean {
+    return this.transformStepAvailable
+      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'transform');
+  }
+
+  get scalerSubNodeApplied(): boolean {
+    return this.scalerStepAvailable
+      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'scaler');
+  }
+
+  get transformPreprocessingStatusLabel(): string {
+    if (!this.transformStepAvailable || !this.outlierPreprocessingVariables.length) return 'Not available';
+    if (this.hasPendingTransformChanges) return `${pluralize(this.pendingTransformChangeCount, 'change')} · not applied`;
+    if (Object.keys(this.appliedTransformStrategies).length) return 'Applied';
+    return 'Optional';
+  }
+
+  get scalerPreprocessingStatusLabel(): string {
+    if (!this.scalerStepAvailable || !this.outlierPreprocessingVariables.length) return 'Not available';
+    if (this.hasPendingScalerChanges) return `${pluralize(this.pendingScalerChangeCount, 'change')} · not applied`;
+    if (Object.keys(this.appliedScalerStrategies).length) return 'Applied';
+    return 'Optional';
   }
 
   private missingValuesSubNode(config: Record<string, unknown>): PipelineSubNode {
@@ -1038,8 +1216,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     { value: 'drop', label: 'Remove rows' },
     { value: 'mean', label: 'Mean imputation' },
     { value: 'median', label: 'Median imputation' },
+    { value: 'most_frequent', label: 'Most frequent imputation' },
     { value: 'constant', label: 'Constant value' },
   ];
+
+  readonly transformStrategies = TRANSFORM_STRATEGIES;
+  readonly scalerStrategies = SCALER_STRATEGIES;
+  readonly transformDomains = TRANSFORM_DOMAINS;
 
   /** The card whose category counts replace its editor ('kmeans' = the cluster card). */
   previewDraftId: string | null = null;
@@ -1142,6 +1325,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
           missing: layout.preprocessingStep === 'missing',
           outlier: layout.preprocessingStep === 'outlier',
           longitudinal: layout.preprocessingStep === 'longitudinal',
+          transform: false,
+          scaler: false,
           transformation: false,
         };
       }
@@ -1238,7 +1423,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   get pendingChangeCount(): number {
-    return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount;
+    return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount
+      + this.pendingTransformChangeCount + this.pendingScalerChangeCount;
   }
 
   readonly filterRuleCount = computed(() =>
@@ -1387,7 +1573,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   filteredPrepVariables(kind: PrepKind): VariableRow[] {
     const query = this.prepSearch[kind].trim().toLowerCase();
-    const pool = kind === 'outlier' ? this.outlierPreprocessingVariables : this.preprocessingVariables;
+    const pool = kind === 'outlier' || kind === 'transform' || kind === 'scaler'
+      ? this.outlierPreprocessingVariables
+      : this.preprocessingVariables;
     if (!query) return pool;
     return pool.filter((variable) => {
       const label = this.variableLabel(variable).toLowerCase();
@@ -1496,6 +1684,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         const appliedStrategy = this.appliedLongitudinalStrategies[variable.code] ?? null;
         return pendingStrategy !== appliedStrategy || this.longitudinalVisitPairHasPendingChange;
       }
+      case 'transform':
+        return (this.pendingTransformStrategies[variable.code] ?? null) !== (this.appliedTransformStrategies[variable.code] ?? null);
+      case 'scaler':
+        return (this.pendingScalerStrategies[variable.code] ?? null) !== (this.appliedScalerStrategies[variable.code] ?? null);
       default: {
         const _exhaustive: never = kind;
         return _exhaustive;
@@ -1511,6 +1703,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         return this.hasAppliedOutlierPreprocessing(variable.code);
       case 'longitudinal':
         return this.hasAppliedLongitudinalPreprocessing(variable.code);
+      case 'transform':
+        return !!this.appliedTransformStrategies[variable.code];
+      case 'scaler':
+        return !!this.appliedScalerStrategies[variable.code];
       default: {
         const _exhaustive: never = kind;
         return _exhaustive;
@@ -1906,18 +2102,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
-  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal' | 'transformation'): void {
+  togglePreprocessingStep(step: 'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler' | 'transformation'): void {
     this.preprocessingStepOpen[step] = !this.preprocessingStepOpen[step];
   }
 
   /** "How this works" disclosures, moved from the body summary into the card header. */
-  readonly preprocessingDocOpen = signal<Record<'missing' | 'outlier' | 'longitudinal', boolean>>({
+  readonly preprocessingDocOpen = signal<Record<'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler', boolean>>({
     missing: false,
     outlier: false,
     longitudinal: false,
+    transform: false,
+    scaler: false,
   });
 
-  togglePreprocessingDoc(step: 'missing' | 'outlier' | 'longitudinal'): void {
+  togglePreprocessingDoc(step: 'missing' | 'outlier' | 'longitudinal' | 'transform' | 'scaler'): void {
     this.preprocessingDocOpen.update((open) => ({ ...open, [step]: !open[step] }));
     this.cdr.markForCheck();
   }
@@ -2128,8 +2326,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null;
   }
 
-  toggleTransformationDraft(draft: TransformationColumnDraft): void {
-    draft.open = !draft.open;
+  toggleTransformationDraft(draft: TransformationColumnDraft, open?: boolean): void {
+    draft.open = open ?? !draft.open;
     this.cdr.markForCheck();
   }
 
@@ -2470,7 +2668,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         this.appliedLongitudinalEnabled = this.isLongitudinalModel;
         this.appliedLongitudinalVisit1 = this.longitudinalVisit1;
         this.appliedLongitudinalVisit2 = this.longitudinalVisit2;
-        this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies };
+        this.appliedLongitudinalStrategies = { ...this.pendingLongitudinalStrategies } as Record<string, LongitudinalStrategy>;
       },
       reset: () => {
         this.longitudinalVisit1 = this.appliedLongitudinalVisit1;
@@ -2479,10 +2677,41 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         this.ensureLongitudinalDefaults();
       },
     },
+    transform: {
+      pending: () => this.pendingTransformChangeCount,
+      validate: () => ({}),
+      commit: () => {
+        this.appliedTransformStrategies = this.cleanStrategyMap(this.pendingTransformStrategies);
+      },
+      reset: () => {
+        this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+      },
+    },
+    scaler: {
+      pending: () => this.pendingScalerChangeCount,
+      validate: () => ({}),
+      commit: () => {
+        this.appliedScalerStrategies = this.cleanStrategyMap(this.pendingScalerStrategies);
+        this.appliedScalerFeatureRange = this.parseFeatureRange(this.pendingScalerFeatureRange);
+      },
+      reset: () => {
+        this.pendingScalerStrategies = { ...this.appliedScalerStrategies };
+        this.pendingScalerFeatureRange = this.appliedScalerFeatureRange
+          ? [String(this.appliedScalerFeatureRange[0]), String(this.appliedScalerFeatureRange[1])]
+          : ['', ''];
+      },
+    },
   };
 
+  /** Drop the null "no strategy" entries so the stored map holds configured codes only. */
+  private cleanStrategyMap<T>(map: Record<string, T | null>): Record<string, T> {
+    return Object.fromEntries(
+      Object.entries(map).filter(([, strategy]) => strategy !== null && strategy !== undefined)
+    ) as Record<string, T>;
+  }
+
   private stepsIn(scope: PrepStep | 'all'): PrepStep[] {
-    return scope === 'all' ? ['missing', 'outlier', 'longitudinal'] : [scope];
+    return scope === 'all' ? ['missing', 'outlier', 'transform', 'scaler', 'longitudinal'] : [scope];
   }
 
   /** Pending edits of one preprocessing card; the stage count sums these. */
@@ -2521,6 +2750,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       }
       case 'constant':
         return `Fills ${n} values with a value you set`;
+      case 'most_frequent':
+        return `Fills ${n} values with the most frequent category`;
       default:
         return '';
     }
@@ -2605,6 +2836,78 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     };
     this.updatePreprocessingStatus();
     this.emitProgressState();
+  }
+
+  transformStrategyFor(variable: VariableRow): TransformStrategy | null {
+    return this.pendingTransformStrategies[variable.code] ?? null;
+  }
+
+  onTransformStrategyChange(variable: VariableRow, strategy: TransformStrategy | null): void {
+    this.pendingTransformStrategies = {
+      ...this.pendingTransformStrategies,
+      [variable.code]: strategy,
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  scalerStrategyFor(variable: VariableRow): ScalerStrategy | null {
+    return this.pendingScalerStrategies[variable.code] ?? null;
+  }
+
+  onScalerStrategyChange(variable: VariableRow, strategy: ScalerStrategy | null): void {
+    this.pendingScalerStrategies = {
+      ...this.pendingScalerStrategies,
+      [variable.code]: strategy,
+    };
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  onScalerFeatureRangeChange(which: 'low' | 'high', value: string): void {
+    this.pendingScalerFeatureRange = which === 'low'
+      ? [value, this.pendingScalerFeatureRange[1]]
+      : [this.pendingScalerFeatureRange[0], value];
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  get hasPendingTransformChanges(): boolean {
+    return this.serializeTransformScalerState('transform', false) !== this.serializeTransformScalerState('transform', true);
+  }
+
+  get pendingTransformChangeCount(): number {
+    return this.hasPendingTransformChanges ? 1 : 0;
+  }
+
+  get hasPendingScalerChanges(): boolean {
+    return this.serializeTransformScalerState('scaler', false) !== this.serializeTransformScalerState('scaler', true);
+  }
+
+  get pendingScalerChangeCount(): number {
+    return this.hasPendingScalerChanges ? 1 : 0;
+  }
+
+  /** Serialized transform/scaler state over the current numerical variables (pending or applied). */
+  private serializeTransformScalerState(step: TransformOrScalerStep, applied: boolean): string {
+    const transformStrategies = applied ? this.appliedTransformStrategies : this.pendingTransformStrategies;
+    const scalerStrategies = applied ? this.appliedScalerStrategies : this.pendingScalerStrategies;
+    const range = applied ? this.appliedScalerFeatureRange : this.parseFeatureRange(this.pendingScalerFeatureRange);
+    const source = step === 'transform' ? transformStrategies : scalerStrategies;
+    const codes = this.outlierPreprocessingVariables.map((v) => v.code);
+    return JSON.stringify({
+      strategies: Object.fromEntries(codes.sort().map((code) => [code, source[code] ?? null])),
+      ...(step === 'scaler' ? { featureRange: range } : {}),
+    });
+  }
+
+  private parseFeatureRange(range: [string, string]): [number, number] | null {
+    const low = Number(String(range[0] ?? '').trim());
+    const high = Number(String(range[1] ?? '').trim());
+    return range[0].trim() !== '' && range[1].trim() !== ''
+      && Number.isFinite(low) && Number.isFinite(high) && low < high
+      ? [low, high]
+      : null;
   }
 
   outlierStrategyDisplay(strategy: OutlierStrategy): string {
@@ -2805,10 +3108,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.emitProgressState();
   }
 
-  batchMenuOpen = signal<'missing' | 'outlier' | null>(null);
+  batchMenuOpen = signal<'missing' | 'outlier' | 'transform' | 'scaler' | null>(null);
   summaryExportMenuKind = signal<SummaryKind | null>(null);
 
-  toggleBatchMenu(kind: 'missing' | 'outlier'): void {
+  toggleBatchMenu(kind: 'missing' | 'outlier' | 'transform' | 'scaler'): void {
     this.batchMenuOpen.update((open) => (open === kind ? null : kind));
     this.cdr.markForCheck();
   }
@@ -2846,6 +3149,19 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.cdr.markForCheck();
   }
 
+  /** Batch-set one transform/scaler strategy for every numerical variable. */
+  applyBatchTransformStrategy(strategy: TransformStrategy): void {
+    this.outlierPreprocessingVariables.forEach((variable) => this.onTransformStrategyChange(variable, strategy));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
+  applyBatchScalerStrategy(strategy: ScalerStrategy): void {
+    this.outlierPreprocessingVariables.forEach((variable) => this.onScalerStrategyChange(variable, strategy));
+    this.batchMenuOpen.set(null);
+    this.cdr.markForCheck();
+  }
+
   toggleAllOutliers(enabled: boolean): void {
     this.outlierPreprocessingVariables.forEach((variable) => this.onOutlierEnabledChange(variable, enabled));
     this.batchMenuOpen.set(null);
@@ -2865,7 +3181,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   isMissingActionDisabled(variable: VariableRow, action: MissingAction): boolean {
-    return (action === 'mean' || action === 'median') && !this.isNumericVariable(variable);
+    if (action === 'mean' || action === 'median') return !this.isNumericVariable(variable);
+    // Exaflow's most_frequent fills with each worker's local mode (no category list is
+    // sent), so it only makes sense on categorical variables.
+    if (action === 'most_frequent') return !this.isCategoricalVariable(variable);
+    return false;
   }
 
   isLongitudinalStrategyDisabled(variable: VariableRow, strategy: LongitudinalStrategy): boolean {
@@ -3866,6 +4186,10 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       ? this.pendingOutlierRules
       : this.mergeOutlierRulesForCurrentSelection({}, this.appliedOutlierRules));
     if (outlier) config['outlier_winsorizer'] = outlier;
+    const transform = this.buildTransformPreprocessingConfig(step === 'transform' ? false : true);
+    if (transform) config['variable_transformer'] = transform;
+    const scaler = this.buildScalerPreprocessingConfig(step === 'scaler' ? false : true);
+    if (scaler) config['variable_scaler'] = scaler;
     const longitudinal = this.buildLongitudinalPreprocessingConfig(step !== 'longitudinal');
     if (longitudinal) config['longitudinal_transformer'] = longitudinal;
     return Object.keys(config).length ? config : null;
@@ -3879,13 +4203,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const missingValuesHandler = this.buildMissingPreprocessingConfig(rules, allowedCodes);
     if (missingValuesHandler) config['missing_values_handler'] = missingValuesHandler;
 
+    const applied = rules === this.appliedPreprocessingRules;
     const outlier = this.buildOutlierPreprocessingConfig(
-      rules === this.appliedPreprocessingRules ? this.appliedOutlierRules : this.pendingOutlierRules,
+      applied ? this.appliedOutlierRules : this.pendingOutlierRules,
       allowedCodes
     );
     if (outlier) config['outlier_winsorizer'] = outlier;
 
-    const longitudinal = this.buildLongitudinalPreprocessingConfig(rules === this.appliedPreprocessingRules, allowedCodes);
+    // Request order mirrors the rail: impute, clip, transform, scale.
+    const transform = this.buildTransformPreprocessingConfig(applied, allowedCodes);
+    if (transform) config['variable_transformer'] = transform;
+    const scaler = this.buildScalerPreprocessingConfig(applied, allowedCodes);
+    if (scaler) config['variable_scaler'] = scaler;
+
+    const longitudinal = this.buildLongitudinalPreprocessingConfig(applied, allowedCodes);
     if (longitudinal) config['longitudinal_transformer'] = longitudinal;
 
     return Object.keys(config).length ? config : null;
@@ -4238,6 +4569,33 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return serialized ? { ...serialized } : null;
   }
 
+  /** Request parameters for the transform/scaler steps; null leaves the step out of the request. */
+  private buildTransformPreprocessingConfig(
+    applied: boolean,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    const source = applied ? this.appliedTransformStrategies : this.cleanStrategyMap(this.pendingTransformStrategies);
+    const strategies = Object.fromEntries(
+      Object.entries(source).filter(([code]) => allowedCodes.has(code))
+    );
+    return Object.keys(strategies).length ? { strategies } : null;
+  }
+
+  private buildScalerPreprocessingConfig(
+    applied: boolean,
+    allowedCodes = this.currentPreprocessingCodeSet()
+  ): Record<string, unknown> | null {
+    const source = applied ? this.appliedScalerStrategies : this.cleanStrategyMap(this.pendingScalerStrategies);
+    const strategies = Object.fromEntries(
+      Object.entries(source).filter(([code]) => allowedCodes.has(code))
+    );
+    if (!Object.keys(strategies).length) return null;
+    // `feature_range` is a minmax parameter; keep the request shape flat and permissive.
+    const range = applied ? this.appliedScalerFeatureRange : this.parseFeatureRange(this.pendingScalerFeatureRange);
+    const usesMinMax = Object.values(strategies).includes('minmax');
+    return range && usesMinMax ? { strategies, feature_range: range } : { strategies };
+  }
+
   private validatePendingRulesFor(scope: PrepStep | 'all'): Record<string, string> {
     return Object.assign({}, ...this.stepsIn(scope).map((step) => this.prepStepOps[step].validate()));
   }
@@ -4290,6 +4648,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       if (!variable) return;
       if ((rule.action === 'mean' || rule.action === 'median') && !this.isNumericVariable(variable)) {
         errors[rule.variableCode] = 'Mean and median imputation are only available for numeric variables.';
+      }
+      if (rule.action === 'most_frequent' && !this.isCategoricalVariable(variable)) {
+        errors[rule.variableCode] = 'Most frequent imputation is only available for nominal variables.';
       }
       if (rule.action === 'constant') {
         const value = String(rule.value ?? '').trim();
@@ -4463,21 +4824,59 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.pendingLongitudinalStrategies = { ...appliedStrategies };
     }
 
+    // Transform/scaler restore: the stored step names are the proposal from the federated
+    // preprocessing spec; unknown shapes hydrate to nothing so the stage stays usable.
+    const hydrateStrategies = <S extends string>(
+      step: 'variable_transformer' | 'variable_scaler',
+      isStrategy: (value: string) => value is S
+    ): Record<string, S> => {
+      const holder = preprocessing[step] as { strategies?: Record<string, unknown> } | undefined;
+      const strategies: Record<string, S> = {};
+      Object.entries(holder?.strategies ?? {}).forEach(([code, strategy]) => {
+        if (isStrategy(String(strategy))) strategies[code] = String(strategy) as S;
+      });
+      return strategies;
+    };
+    this.appliedTransformStrategies = hydrateStrategies('variable_transformer', this.isTransformStrategy);
+    this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+    this.appliedScalerStrategies = hydrateStrategies('variable_scaler', this.isScalerStrategy);
+    this.pendingScalerStrategies = { ...this.appliedScalerStrategies };
+    const scalerHolder = preprocessing['variable_scaler'] as { feature_range?: unknown } | undefined;
+    const rawRange = Array.isArray(scalerHolder?.feature_range) ? scalerHolder!.feature_range as unknown[] : [];
+    const low = Number(rawRange[0]);
+    const high = Number(rawRange[1]);
+    this.appliedScalerFeatureRange = rawRange.length === 2 && Number.isFinite(low) && Number.isFinite(high)
+      ? [low, high]
+      : null;
+    this.pendingScalerFeatureRange = this.appliedScalerFeatureRange
+      ? [String(this.appliedScalerFeatureRange[0]), String(this.appliedScalerFeatureRange[1])]
+      : ['', ''];
+
     this.hydrateAppliedTransformation();
   }
 
   /** One editable card per stored categorical step, keyed by the step id. */
   private hydrateAppliedTransformation(): void {
+    // Hydration re-runs on every applied-config write, so the fold state a user
+    // set must survive it: `open`/`openRuleIndex` are carried over by id. A card
+    // with no previous state (a stored column restored from the experiment) comes
+    // back folded instead of popping open over the stage.
+    const previous = new Map(this.transformationDrafts.map((draft) => [draft.id, draft]));
     this.transformationDrafts = this.cards()
       .filter((step) => step.name === 'categorical_column_creator')
-      .map((step) => ({
-        ...this.draftFromCreatorConfig(step.parameters as {
-          new_column_names?: unknown;
-          rules?: Record<string, CategoryFilter>;
-          default_enumeration?: unknown;
-        }, step.id),
-        chosen: true,
-      }));
+      .map((step) => {
+        const prior = previous.get(step.id);
+        return {
+          ...this.draftFromCreatorConfig(step.parameters as {
+            new_column_names?: unknown;
+            rules?: Record<string, CategoryFilter>;
+            default_enumeration?: unknown;
+          }, step.id),
+          open: prior ? prior.open : false,
+          openRuleIndex: prior ? prior.openRuleIndex ?? null : null,
+          chosen: true,
+        };
+      });
   }
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
@@ -4499,12 +4898,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         value,
         filter: filter ?? null,
       })),
-      open: true,
+      open: false,
     };
   }
 
   private isMissingAction(value: string): value is MissingAction {
-    return ['drop', 'mean', 'median', 'constant'].includes(value);
+    return ['drop', 'mean', 'median', 'constant', 'most_frequent'].includes(value);
+  }
+
+  private isTransformStrategy(value: string): value is TransformStrategy {
+    return ['log1p', 'sqrt', 'asinh', 'yeo_johnson', 'quantile_uniform', 'quantile_normal'].includes(value);
+  }
+
+  private isScalerStrategy(value: string): value is ScalerStrategy {
+    return ['standard', 'robust', 'minmax', 'maxabs'].includes(value);
   }
 
   private isLongitudinalStrategy(value: string): value is LongitudinalStrategy {
