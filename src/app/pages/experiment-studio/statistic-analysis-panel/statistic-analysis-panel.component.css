@@ -5,7 +5,12 @@
   );
 }
 
+/* The pipeline node cards read the studio card tokens, and the station cards
+   inside inherit them too; the defaults on :root are too faint for the Data
+   Handling steps, so the panel root re-points them. */
 .stats-panel-shell {
+  --studio-card-header-bg: #eef1fd;
+  --studio-card-border: rgba(43, 51, 233, 0.28);
   --panel-success-bg: #dfefe4;
   --panel-success-text: #166534;
   --panel-warning-text: color-mix(in srgb, var(--primary-color) 70%, var(--accent-color) 30%);
