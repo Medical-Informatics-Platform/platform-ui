@@ -10,7 +10,6 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { pluralize } from '../../../../../core/result-label.utils';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
@@ -22,6 +21,7 @@ import {
   NormalizedGroupNode,
   NormalizedVariableNode,
 } from '../metadata-browser.model';
+import { groupContentsLabel } from '../metadata-browser-labels';
 import {
   findGroupByNode,
   findVariableByNode,
@@ -124,7 +124,25 @@ export class OntologyTreeBrowserComponent {
   });
   readonly contentsPaneSubtitle = computed(() => {
     const group = this.selectedGroup();
-    return `${this.pluralize(group.directGroupCount, 'group')} · ${this.pluralize(group.totalVariableCount, 'variable')}`;
+    return groupContentsLabel(group.directGroupCount, group.totalVariableCount);
+  });
+  /** Count of pooled variables under each group (any descendant whose code is in the pool). */
+  readonly pooledCountByGroupId = computed(() => {
+    const index = this.index();
+    const poolCodes = new Set(
+      this.poolVariables()
+        .map((node) => String(node?.code ?? ''))
+        .filter((code) => code !== '')
+    );
+    const counts = new Map<string, number>();
+    for (const id of index.variableIds) {
+      const variable = index.variablesById[id];
+      if (!poolCodes.has(variable.code)) continue;
+      for (const groupId of variable.pathGroupIds) {
+        counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
+      }
+    }
+    return counts;
   });
 
   /** Variables of the selected group's nested groups (not its direct ones), capped at the limit. */
@@ -136,7 +154,7 @@ export class OntologyTreeBrowserComponent {
     throw new Error('not implemented');
   });
 
-  readonly pluralize = pluralize;
+  readonly groupContentsLabel = groupContentsLabel;
 
   constructor() {
     effect(() => {
@@ -284,14 +302,16 @@ export class OntologyTreeBrowserComponent {
 
   /** Variables of the group's whole subtree that are already in the experiment pool. */
   pooledCount(group: NormalizedGroupNode): number {
-    void group;
-    throw new Error('not implemented');
+    return this.pooledCountByGroupId().get(group.id) ?? 0;
   }
 
   /** Width (0-100) of the group's size bar: its variable count against the largest listed sibling. */
   shareOf(group: NormalizedGroupNode): number {
-    void group;
-    throw new Error('not implemented');
+    const max = this.selectedChildGroups().reduce(
+      (largest, child) => Math.max(largest, child.totalVariableCount),
+      0
+    );
+    return max === 0 ? 0 : Math.round((group.totalVariableCount / max) * 100);
   }
 
   treePadding(depth: number): number {
