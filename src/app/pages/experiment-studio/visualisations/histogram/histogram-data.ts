@@ -107,6 +107,20 @@ export function isNominalHistogramNode(
   return Array.isArray(node.enumerations) && node.enumerations.length > 0;
 }
 
+/** A plotted leaf variable can be split, numeric or categorical; groups and free text cannot. */
+export function canSplitHistogramNode(
+  node: {
+    code?: unknown;
+    type?: string | null;
+    children?: unknown[];
+  } | null | undefined
+): boolean {
+  if (!node) return false;
+  if (!String(node.code ?? '').trim()) return false;
+  if (Array.isArray(node.children) && node.children.length > 0) return false;
+  return String(node.type ?? '').toLowerCase() !== 'text';
+}
+
 export function buildHistogramSplitOptions(input: {
   plottedCode: string | null | undefined;
   selectedVariables: HistogramSplitVariable[];

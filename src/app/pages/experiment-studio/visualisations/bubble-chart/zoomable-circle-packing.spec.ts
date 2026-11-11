@@ -1,4 +1,4 @@
-import { createZoomableCirclePacking } from './zoomable-circle-packing';
+import { createZoomableCirclePacking, PARTIAL_AVAILABILITY_FILL } from './zoomable-circle-packing';
 
 describe('createZoomableCirclePacking', () => {
   let container: HTMLDivElement;
@@ -110,23 +110,26 @@ describe('createZoomableCirclePacking unavailable variables', () => {
     container.remove();
   });
 
-  it('grays an unavailable leaf, ignores its clicks and names the datasets in the tooltip', () => {
+  it('shows a partially available leaf in amber, keeps its clicks and names the datasets in the tooltip', () => {
     const sex = circleFor('sex');
-    expect(sex.getAttribute('fill')).toBe('#cbd5e1');
-    expect(sex.getAttribute('aria-disabled')).toBe('true');
-    expect(sex.style.cursor).toBe('not-allowed');
+    expect(sex.getAttribute('fill')).toBe(PARTIAL_AVAILABILITY_FILL);
+    expect(sex.getAttribute('fill-opacity')).toBe('1');
+    expect(sex.getAttribute('aria-disabled')).toBeNull();
+    expect(sex.style.cursor).toBe('pointer');
+    expect(sex.getAttribute('stroke-dasharray')).toBe('3 2');
     expect(circleFor('age_value').getAttribute('aria-disabled')).toBeNull();
 
     sex.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+
     sex.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(onClick).not.toHaveBeenCalled();
     expect(onDoubleClick).not.toHaveBeenCalled();
 
     sex.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     expect(document.querySelector('body > .tooltip')?.textContent).toContain('Not available in: Dataset A, Dataset B');
 
     circleFor('age_value').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledTimes(2);
   });
 
   it('restores a leaf when it becomes available again', () => new Promise<void>((done) => {

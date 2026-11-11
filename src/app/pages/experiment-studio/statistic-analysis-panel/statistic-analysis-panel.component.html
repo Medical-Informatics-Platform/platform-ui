@@ -4,7 +4,7 @@
       <header class="pipeline-canvas-header">
         <div class="pipeline-header-title-group">
           <h2>Data Handling Pipeline</h2>
-          <p>Get your records ready for analysis. Stages run top to bottom — Raw data is a read-only preview, Preprocessing always runs, and Filtering and Transformations are optional.</p>
+          <p>Get your selected data ready for analysis. Steps run top to bottom — first look at the descriptive statistics of your raw data, then filter (optional), preprocess, and transform (optional) as you want. Updated descriptive statistics are shown at each step when you click Preview.</p>
         </div>
       </header>
 
@@ -448,7 +448,7 @@
             <div class="pipeline-node-title-group">
 <span class="pipeline-node-kicker">Step 1</span>
               <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('source')" (click)="toggleStep('source')">Raw data</button></h3>
-              <span class="pipeline-node-subtitle">Look at your selected variables exactly as stored. Nothing is changed here.</span>
+              <span class="pipeline-node-subtitle">Look at the descriptive statistics of your unprocessed selected variables.</span>
             </div>
           </div>
           <div class="pipeline-node-header-right">
@@ -1881,7 +1881,7 @@
                 [statusLabel]="transformationDraftStatus(draft).label"
                 [status]="transformationDraftStatus(draft).tone"
                 [open]="draft.open"
-                (openChange)="toggleTransformationDraft(draft)">
+                (openChange)="toggleTransformationDraft(draft, $event)">
                 <button
                   type="button"
                   class="btn-remove-step-node"
@@ -1931,7 +1931,7 @@
                         @if (draft.openRuleIndex != null) {
                         Editing category {{ draft.openRuleIndex + 1 }} of {{ draft.rules.length }}
                         } @else {
-                        {{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }} + fallback
+                        {{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }}
                         }
                       </span>
                     </div>
@@ -1994,23 +1994,9 @@
                         <i class="fas fa-plus" aria-hidden="true"></i>
                         <span>{{ draft.rules.length ? 'Add category' : 'Add the first category, then define the rule that selects its records' }}</span>
                       </button>
-                      <div class="transformation-rule-row transformation-rule-fallback">
-                        <span class="transformation-rule-number">↳</span>
-                        <input
-                          type="text"
-                          [ngModel]="draft.defaultEnumeration"
-                          (ngModelChange)="draft.defaultEnumeration = $event; onTransformationInput()"
-                          placeholder="unknown"
-                          class="transformation-rule-value input"
-                        />
-                        <span class="transformation-rule-summary">Otherwise — records that match no rule</span>
-                        <span class="transformation-rule-record-count">{{ transformationCount(draft, draft.defaultEnumeration) }}</span>
-                        <span></span>
-                      </div>
                     </div>
                     <p class="transformation-rules-foot">
-                      Rules are checked top to bottom; the first match wins ·
-                      {{ draft.defaultEnumeration ? 'the fallback covers every other record' : 'records matching no rule get no value' }}
+                      Rules are checked top to bottom; the first match wins · records matching no rule get no value
                     </p>
                   </div>
                   </section>

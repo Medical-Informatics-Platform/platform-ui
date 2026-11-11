@@ -95,28 +95,22 @@
   stroke: var(--accent-color);
 }
 
-/* Not present in every selected dataset: grayed out and inert (see variable-availability.utils). */
-:host ::ng-deep .collapsible-node.unavailable-variable {
-  cursor: not-allowed;
-  opacity: var(--unavailable-opacity);
+/* Missing from some selected datasets: amber, clickable to view, never addable (see variable-availability.utils). */
+:host ::ng-deep .collapsible-node.partial-variable {
+  cursor: pointer;
 }
 
-:host ::ng-deep .collapsible-node.unavailable-variable .node-card,
-:host ::ng-deep .collapsible-node.unavailable-variable:hover .node-card,
-:host ::ng-deep .collapsible-node.unavailable-variable:focus-visible .node-card {
-  fill: var(--unavailable-fill);
-  stroke: var(--unavailable-border);
+:host ::ng-deep .collapsible-node.partial-variable .node-card,
+:host ::ng-deep .collapsible-node.partial-variable:hover .node-card,
+:host ::ng-deep .collapsible-node.partial-variable:focus-visible .node-card {
+  fill: #fff7e6;
+  stroke: #d99a00;
   stroke-width: 1px;
   stroke-dasharray: 4 3;
 }
 
-:host ::ng-deep .collapsible-node.unavailable-variable .node-anchor {
-  fill: var(--unavailable-border);
-}
-
-:host ::ng-deep .collapsible-node.unavailable-variable .node-label,
-:host ::ng-deep .collapsible-node.unavailable-variable .node-meta {
-  fill: var(--unavailable-text);
+:host ::ng-deep .collapsible-node.partial-variable .node-anchor {
+  fill: #fbd38d;
 }
 
 :host ::ng-deep .node-anchor {

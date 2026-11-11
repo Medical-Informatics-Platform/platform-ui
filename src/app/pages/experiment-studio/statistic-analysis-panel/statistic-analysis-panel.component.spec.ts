@@ -2159,7 +2159,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.histogramSplitOptions(block).find((option) => option.code === 'dataset')?.disabled).toBe(false);
     });
 
-    it('hides histogram split controls for nominal variables', () => {
+    it('offers histogram split controls for nominal variables', () => {
         const aspiration = {
             code: 'aspiration',
             label: 'Aspiration',
@@ -2182,7 +2182,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.setSummaryTab('raw', 'Histogram');
         const block = component.selectedStatisticBlock('raw')!;
 
-        expect(component.canSplitSummaryHistogram('raw', block)).toBe(false);
+        expect(component.canSplitSummaryHistogram('raw', block)).toBe(true);
         expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
     });
 
@@ -2368,6 +2368,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(draft.code).toBe('mrs_good_outcome');
         expect(draft.defaultEnumeration).toBe('unknown');
         expect(draft.rules).toEqual([{ value: 'good', filter }]);
+        // A stored column hydrates folded, with no rule editor open: the user opens
+        // the card, a hydration re-run must not pop it back up over the stage.
+        expect(draft.open).toBe(false);
+        expect(draft.openRuleIndex).toBeNull();
         expect(component.transformationStatusLabel).toBe('Applied');
         expect(component.cards().map((step) => step.parameters)).toEqual([transformation]);
     });

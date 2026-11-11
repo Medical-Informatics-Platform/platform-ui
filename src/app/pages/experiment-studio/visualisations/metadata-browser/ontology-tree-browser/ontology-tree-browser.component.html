@@ -63,8 +63,7 @@
         [title]="variableRowTitle(variable)"
         [class.selected]="isVariableSelected(variable.id)"
         [class.in-pool]="isVariableInPool(variable)"
-        [class.unavailable]="isVariableUnavailable(variable)"
-        [attr.aria-disabled]="isVariableUnavailable(variable) ? true : null"
+        [class.partial]="isVariablePartial(variable)"
         (click)="onVariableRowClick($event, variable)"
         (dblclick)="openVariable(variable)"
       >
@@ -75,8 +74,8 @@
           }
         </span>
         <span class="type-badge">{{ variable.type }}</span>
-        @if (isVariableUnavailable(variable)) {
-        <span class="row-unavailable">Unavailable</span>
+        @if (isVariablePartial(variable)) {
+        <span class="row-partial">Missing in {{ pluralize(partialDatasetCount(variable), 'dataset') }}</span>
         } @else {
         <span
           [class.row-add]="!isVariableInPool(variable)"

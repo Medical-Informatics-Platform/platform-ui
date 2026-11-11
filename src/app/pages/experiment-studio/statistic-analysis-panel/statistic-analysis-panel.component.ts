@@ -870,13 +870,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const name = this.resolveCreatorName(kind);
     const id = newStepId();
     this.expStudioService.upsertTransformation({ id, name, parameters: {} });
+    // The freshly chosen card is the only open one: everything already on the
+    // stage folds so the new editor is the single thing in focus.
+    for (const draft of this.transformationDrafts) draft.open = false;
     if (name === 'categorical_column_creator') {
       this.transformationDrafts = [
         ...this.transformationDrafts.filter((draft) => this.isDraftShown(draft)),
         { ...emptyTransformationDraft(id), chosen: true, open: true },
       ];
     }
-    this.cardOpenState.update((state) => ({ ...state, [id]: true }));
+    this.cardOpenState.update((state) => {
+      const next = { ...state };
+      for (const step of this.cards()) {
+        if (step.id !== id) next[step.id] = false;
+      }
+      next[id] = true;
+      return next;
+    });
     this.cdr.markForCheck();
   }
 
@@ -1889,8 +1899,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.getSummary(kind).histogramErrorByVariable[this.histogramLookupKey(kind, block, code)] ?? '';
   }
 
-  canSplitSummaryHistogram(kind: SummaryKind, block: PivotBlock): boolean {
-    return this.selectedSummaryChartType(kind, block) === 'numeric';
+  canSplitSummaryHistogram(_kind: SummaryKind, block: PivotBlock): boolean {
+    // Numeric and nominal blocks both split; only an unresolvable block has no split.
+    return !!this.variableCodeForBlock(block);
   }
 
   histogramSplitOptions(block: PivotBlock): HistogramSplitOption[] {
@@ -2316,8 +2327,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null;
   }
 
-  toggleTransformationDraft(draft: TransformationColumnDraft): void {
-    draft.open = !draft.open;
+  toggleTransformationDraft(draft: TransformationColumnDraft, open?: boolean): void {
+    draft.open = open ?? !draft.open;
     this.cdr.markForCheck();
   }
 
@@ -4060,9 +4071,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         ...(response as Record<string, unknown>),
         result: {
           ...((response as { result?: Record<string, unknown> })?.result ?? {}),
-          featurewise: featurewise.filter(
-            (row: any) => row.variable === v.code && row.dataset !== 'all datasets'
-          ),
+          // The pooled "all datasets" row stays in: buildBoxPlotChart draws it
+          // as the pooled box next to the per-dataset ones.
+          featurewise: featurewise.filter((row: any) => row.variable === v.code),
           dataset_labels: datasetLabels,
         },
       };
@@ -4847,16 +4858,26 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** One editable card per stored categorical step, keyed by the step id. */
   private hydrateAppliedTransformation(): void {
+    // Hydration re-runs on every applied-config write, so the fold state a user
+    // set must survive it: `open`/`openRuleIndex` are carried over by id. A card
+    // with no previous state (a stored column restored from the experiment) comes
+    // back folded instead of popping open over the stage.
+    const previous = new Map(this.transformationDrafts.map((draft) => [draft.id, draft]));
     this.transformationDrafts = this.cards()
       .filter((step) => step.name === 'categorical_column_creator')
-      .map((step) => ({
-        ...this.draftFromCreatorConfig(step.parameters as {
-          new_column_names?: unknown;
-          rules?: Record<string, CategoryFilter>;
-          default_enumeration?: unknown;
-        }, step.id),
-        chosen: true,
-      }));
+      .map((step) => {
+        const prior = previous.get(step.id);
+        return {
+          ...this.draftFromCreatorConfig(step.parameters as {
+            new_column_names?: unknown;
+            rules?: Record<string, CategoryFilter>;
+            default_enumeration?: unknown;
+          }, step.id),
+          open: prior ? prior.open : false,
+          openRuleIndex: prior ? prior.openRuleIndex ?? null : null,
+          chosen: true,
+        };
+      });
   }
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
@@ -4878,7 +4899,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         value,
         filter: filter ?? null,
       })),
-      open: true,
+      open: false,
     };
   }
 

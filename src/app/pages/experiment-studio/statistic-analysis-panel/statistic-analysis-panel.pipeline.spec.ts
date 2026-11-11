@@ -1009,7 +1009,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 .toEqual(['1', '2']);
 
             const ghost = section?.querySelector('.transformation-rules-list .transformation-add-category') as HTMLButtonElement | null;
-            expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBe(true);
+            // The "Otherwise" fallback row was removed (task 02); the ghost button is now the
+            // last element of the rules list and no fallback row may follow it.
+            expect(section?.querySelector('.transformation-rule-fallback')).toBeNull();
 
             const before = (component as any).transformationDrafts[0].rules.length as number;
             (ghost as HTMLButtonElement).click();

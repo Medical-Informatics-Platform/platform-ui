@@ -101,7 +101,8 @@
   color: inherit;
 }
 
-.scope-tray {
+/* Per-row AND/OR segmented control: joins a row (condition or group) to the one above it. */
+.connector-toggle {
   display: inline-flex;
   gap: 2px;
   padding: 3px;
@@ -110,7 +111,7 @@
   box-shadow: inset 0 0 0 1px var(--border-color);
 }
 
-.scope-tray button {
+.connector-toggle button {
   height: 26px;
   padding: 0 12px;
   border: 0;
@@ -123,15 +124,21 @@
   cursor: pointer;
 }
 
-.scope-tray button.active {
+.connector-toggle button.active {
   background: var(--card-bg);
   color: var(--primary-color);
   box-shadow: var(--shadow-sm);
 }
 
-.scope-tray button:focus-visible {
+.connector-toggle button:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* Leading flex child of the expanded row, in front of the condition fields. */
+.expanded-row .connector-toggle {
+  flex: 0 0 auto;
+  margin-right: 8px;
 }
 
 .filter-group-remove {

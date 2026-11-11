@@ -15,6 +15,7 @@ import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
   UnavailableVariablesMap,
+  unavailableDatasetsFor,
   unavailableTooltipFor,
 } from '../../../../../core/variable-availability.utils';
 import {
@@ -52,7 +53,7 @@ export class OntologyTreeBrowserComponent {
   readonly data = input<D3HierarchyNode | null>(null);
   readonly highlightNode = input<D3HierarchyNode | null>(null);
   readonly poolVariables = input<D3HierarchyNode[]>([]);
-  /** Variables shown grayed out that ignore clicks for the current datasets. */
+  /** Variables missing from some selected dataset: shown amber, viewable, never addable. */
   readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly selectedNodeChange = output<D3HierarchyNode>();
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
@@ -154,7 +155,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   openVariable(variable: NormalizedVariableNode): void {
-    if (this.isVariableUnavailable(variable)) return;
+    if (this.isVariablePartial(variable)) return;
     this.selectVariable(variable);
     this.nodeDoubleClicked.emit(variable.original);
   }
@@ -234,17 +235,23 @@ export class OntologyTreeBrowserComponent {
     });
   }
 
-  /** Row click selects; a click on the Add/Remove affordance also toggles the pool. */
+  /** Row click selects; a click on the Add/Remove affordance also toggles the pool.
+   *  A partially available variable is only viewed: it never toggles the pool. */
   onVariableRowClick(event: MouseEvent, variable: NormalizedVariableNode): void {
-    if (this.isVariableUnavailable(variable)) return;
     this.selectVariable(variable);
+    if (this.isVariablePartial(variable)) return;
     if ((event.target as HTMLElement).closest('.row-add, .row-remove')) {
       this.variablePoolToggle.emit(variable.original);
     }
   }
 
-  isVariableUnavailable(variable: NormalizedVariableNode): boolean {
+  isVariablePartial(variable: NormalizedVariableNode): boolean {
     return this.unavailableTooltip(variable) !== '';
+  }
+
+  /** Datasets lacking the variable, e.g. for the "Missing in N datasets" badge. */
+  partialDatasetCount(variable: NormalizedVariableNode): number {
+    return unavailableDatasetsFor(this.unavailableVariables(), { code: variable.code }).length;
   }
 
   /** "Not available in: …" for an unavailable variable, '' otherwise. */

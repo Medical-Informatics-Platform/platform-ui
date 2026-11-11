@@ -28,14 +28,7 @@
   <div class="filter-block-group" [class.is-root]="depth === 0" [class.is-nested]="depth > 0">
     <div class="filter-group-header">
       <div class="filter-group-scope">
-        <span class="scope-text">{{ depth === 0 ? 'Keep records that match' : 'Group · match' }}</span>
-        <div class="scope-tray" role="radiogroup" aria-label="Match">
-          <button type="button" role="radio" [attr.aria-checked]="groupCondition(group) === 'AND'"
-                  [class.active]="groupCondition(group) === 'AND'" (click)="setGroupCondition(group.id, 'AND')">all</button>
-          <button type="button" role="radio" [attr.aria-checked]="groupCondition(group) === 'OR'"
-                  [class.active]="groupCondition(group) === 'OR'" (click)="setGroupCondition(group.id, 'OR')">any</button>
-        </div>
-        <span class="scope-text">{{ depth === 0 ? 'of these conditions' : 'of these' }}</span>
+        <span class="scope-text">{{ depth === 0 ? 'Keep records that match' : 'Group' }}</span>
       </div>
 
       <div class="filter-group-actions">
@@ -73,7 +66,7 @@
               -->
               <details class="condition-row" [open]="activeBlockId() === block.id">
                 <summary class="compact-condition-row" (click)="toggleActiveBlock(block.id)">
-                  <span class="compact-join">{{ $first ? 'where' : (groupCondition(group) === 'AND' ? 'and' : 'or') }}</span>
+                  <span class="compact-join">{{ $first ? 'where' : (block.connector ?? 'AND') }}</span>
                   @let compactUnavailable = conditionUnavailableTooltip(block);
                   <span class="compact-variable"
                         [class.is-unavailable]="!!compactUnavailable"
@@ -110,6 +103,15 @@
                 </summary>
 
                 <div class="expanded-row">
+                  <!-- Per-row AND/OR toggle: joins this row to the one above it; the first row joins nothing. -->
+                  @if ($index > 0) {
+                  <div class="connector-toggle" role="radiogroup" aria-label="Combine with the previous condition">
+                    <button type="button" role="radio" [attr.aria-checked]="(block.connector ?? 'AND') === 'AND'"
+                            [class.active]="(block.connector ?? 'AND') === 'AND'" (click)="setConnector(block.id, 'AND')">AND</button>
+                    <button type="button" role="radio" [attr.aria-checked]="block.connector === 'OR'"
+                            [class.active]="block.connector === 'OR'" (click)="setConnector(block.id, 'OR')">OR</button>
+                  </div>
+                  }
                   <div class="expanded-row-fields">
                     <div class="condition-fields">
                         @let fieldUnavailable = conditionUnavailableTooltip(block);
@@ -225,6 +227,15 @@
                 </div>
               </details>
             } @else {
+              @if ($index > 0) {
+              <!-- Per-row AND/OR toggle: joins this group to the row above it; the first block joins nothing. -->
+              <div class="connector-toggle" role="radiogroup" aria-label="Combine with the previous condition">
+                <button type="button" role="radio" [attr.aria-checked]="(block.connector ?? 'AND') === 'AND'"
+                        [class.active]="(block.connector ?? 'AND') === 'AND'" (click)="setConnector(block.id, 'AND')">AND</button>
+                <button type="button" role="radio" [attr.aria-checked]="block.connector === 'OR'"
+                        [class.active]="block.connector === 'OR'" (click)="setConnector(block.id, 'OR')">OR</button>
+              </div>
+              }
               <ng-container
                 [ngTemplateOutlet]="groupTemplate"
                 [ngTemplateOutletContext]="{ group: block, depth: depth + 1, removable: true }">
