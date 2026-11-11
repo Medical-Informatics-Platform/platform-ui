@@ -257,6 +257,18 @@ export class OntologyTreeBrowserComponent {
     return unavailable ? `${variable.label}\n${unavailable}` : variable.label;
   }
 
+  /** Variables of the group's whole subtree that are already in the experiment pool. */
+  pooledCount(group: NormalizedGroupNode): number {
+    void group;
+    throw new Error('not implemented');
+  }
+
+  /** Width (0-100) of the group's size bar: its variable count against the largest listed sibling. */
+  shareOf(group: NormalizedGroupNode): number {
+    void group;
+    throw new Error('not implemented');
+  }
+
   treePadding(depth: number): number {
     return 10 + depth * 16;
   }
