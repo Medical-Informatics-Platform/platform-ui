@@ -1,4 +1,10 @@
 <div id="chart">
+  <nav class="map-trail" aria-label="Map location">
+    @for (crumb of focusPath(); track $index; let i = $index; let last = $last) {
+    <button type="button" class="map-trail-crumb" [disabled]="last"
+      [attr.aria-current]="last ? 'location' : null" (click)="zoomToTrailDepth(i)">{{ crumb.label }}</button>
+    }
+  </nav>
   <div class="chart-body">
     <div id="chart-canvas" #chartCanvas></div>
   </div>

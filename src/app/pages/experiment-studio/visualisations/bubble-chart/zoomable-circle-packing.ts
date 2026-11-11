@@ -94,7 +94,7 @@ export const DEFAULT_BUBBLE_COLORS: BubbleColorConfig = {
   variable: '#ffba08',     // MIP golden yellow
   covariate: '#bba66f',    // MIP tan/beige
   filter: '#483300',       // MIP dark brown
-  selected: '#3f6078',     // MIP steel blue
+  selected: '#2b33e9',     // MIP primary blue
   groupStart: '#c8d5f0',   // Light pale blue
   groupEnd: '#3340e8',     // Deep blue
 };
@@ -436,7 +436,7 @@ export function createZoomableCirclePacking(
       .attr('fill-opacity', (d: any) => leafFillOpacity(d))
       .attr('stroke', (d: any) => {
         if (isTutorialTarget(d)) return '#15803d';
-        if (d === selectedDataNode) return '#000';
+        if (d === selectedDataNode) return '#1b21a3';
         if (d.children) return 'rgba(0,0,0,0.08)';
         return 'rgba(0,0,0,0.12)';
       })
@@ -637,8 +637,13 @@ export function createZoomableCirclePacking(
       }
     },
     zoomToDepth: (depth: number) => {
-      void depth;
-      throw new Error('not implemented');
+      let target: any = focus;
+      while (target.depth > depth && target.parent) {
+        target = target.parent;
+      }
+      if (target !== focus) {
+        zoom(null, target);
+      }
     },
     destroy: () => {
       tooltip.remove();
