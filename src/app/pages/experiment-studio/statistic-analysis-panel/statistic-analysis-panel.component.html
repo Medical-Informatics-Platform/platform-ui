@@ -63,23 +63,31 @@
           @if (!summary.isLoading) {
           <section class="summary-workspace">
             @if (summary.data.length > 0) {
-            @if (filteredStatisticBlocks(kind).length > 0) {
             <section class="statistics-workspace">
               <aside class="statistics-browser" [attr.aria-label]="summaryKindLabel(kind) + ' summary variables'">
                 <div class="statistics-browser-header">
-                  <span>Variables</span>
-                  <small>{{ filteredStatisticBlocks(kind).length }} shown · missing</small>
+                  <span class="statistics-rail-count">{{ statisticsCountLabel(kind) }}</span>
+                  <button
+                    type="button"
+                    class="statistics-sort-btn"
+                    [attr.aria-pressed]="statisticsSort[kind] === 'missing'"
+                    [title]="statisticsSort[kind] === 'missing' ? 'Back to selection order' : 'Show the most missing first'"
+                    (click)="toggleStatisticsSort(kind)">
+                    Missing
+                    <i class="fas fa-arrow-down-wide-short" aria-hidden="true"></i>
+                  </button>
                 </div>
                 <div class="search-inline chart-search">
                   <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                   <input class="preprocessing-search" type="search" placeholder="Search variables..." [attr.aria-label]="'Search ' + summaryKindLabel(kind).toLowerCase() + ' summary variables'" [(ngModel)]="statisticsSearch[kind]" />
                 </div>
 
+                <div class="statistics-variable-list" (keydown)="onStatisticRailKeydown(kind, $event)">
                 @if (statisticBlocks(kind, 'numeric').length > 0) {
                 <div class="statistics-variable-group">
                   <div class="statistics-variable-group-title">Numerical <span>{{ statisticBlocks(kind, 'numeric').length }}</span></div>
                   @for (block of statisticBlocks(kind, 'numeric'); track block.code ?? block.name) {
-                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" (click)="selectStatisticBlock(kind, block)">
+                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" [attr.aria-current]="isStatisticBlockSelected(kind, block) ? 'true' : null" (click)="selectStatisticBlock(kind, block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
                       @if (blockCoverage(block); as coverage) {
@@ -100,7 +108,7 @@
                 <div class="statistics-variable-group">
                   <div class="statistics-variable-group-title">Categorical <span>{{ statisticBlocks(kind, 'nominal').length }}</span></div>
                   @for (block of statisticBlocks(kind, 'nominal'); track block.code ?? block.name) {
-                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" (click)="selectStatisticBlock(kind, block)">
+                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" [attr.aria-current]="isStatisticBlockSelected(kind, block) ? 'true' : null" (click)="selectStatisticBlock(kind, block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
                       @if (blockCoverage(block); as coverage) {
@@ -116,6 +124,8 @@
                   }
                 </div>
                 }
+                </div>
+                <p class="statistics-rail-hint">↑ ↓ move between variables</p>
                 @if (selectionCoverage(kind); as pooled) {
                 <div class="statistics-browser-foot">
                   <span class="statistics-browser-foot-label">All shown variables</span>
@@ -291,16 +301,15 @@
                   }
                   }
                 </div>
+                } @else {
+                <div class="empty-state-block compact-empty statistics-no-match">
+                  <i class="fa fa-search"></i>
+                  <p>No variable matches “{{ statisticsSearch[kind].trim() }}”.</p>
+                  <button type="button" class="panel-secondary-btn statistics-search-clear" (click)="clearStatisticsSearch(kind)">Clear search</button>
+                </div>
                 }
               </div>
             </section>
-            } @else {
-            <div class="empty-state-block compact-empty">
-              <i class="fa fa-search"></i>
-              <p>No variables match the current search.</p>
-              <span>Clear the search field to show all statistics.</span>
-            </div>
-            }
             }
             @else {
             <div class="empty-state-block">
