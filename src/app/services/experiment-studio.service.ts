@@ -37,6 +37,8 @@ import {
   kmeansCreatorVariables,
 } from '../core/kmeans-cluster-source.utils';
 import { resolvePreprocessingOutputs } from '../core/preprocessing-outputs.utils';
+import { STEPS_BEFORE_IMPUTATION, isGenericCatalogStep, summarizeStepParameters } from '../core/data-transformation-step-form.utils';
+import { stepColumnEffect } from '../core/data-transformation-step-columns.utils';
 import {
   CREATOR_NAMES,
   CreatorName,
@@ -69,6 +71,9 @@ const APPLIED_TRANSFORMATIONS = '__applied_transformations__';
  * request (exaflow rejects unknown steps with `Transformer '<name>' does not exist.`).
  */
 const GATED_SINGLETON_STEPS = new Set(['variable_transformer', 'variable_scaler']);
+
+/** Singleton steps every deployment runs; any other singleton is gated on the catalog. */
+const CORE_SINGLETON_STEPS = new Set([MISSING_VALUES_HANDLER, OUTLIER_WINSORIZER, 'longitudinal_transformer']);
 
 /** Quick-preview / diagnostic algorithms hidden from the experiment algorithm picker. */
 const ALGORITHM_PANEL_EXCLUDED = new Set<string>([
@@ -121,7 +126,9 @@ export class ExperimentStudioService {
    * belong in the variables-panel pool (real CDE nodes only).
    */
   readonly algorithmAssignableVariables = computed(() => {
-    const nodes = [...this.selectedVariables()];
+    // A step that drops its source variable (one-hot encoding) takes it out of the pool.
+    const dropped = this.genericStepEffects().dropped;
+    const nodes = this.selectedVariables().filter((variable) => !dropped.has(String(variable?.code)));
     const created = this.transformationColumnNodes();
     if (created.length) {
       const knownCodes = new Set(nodes.map((v) => v?.code));
@@ -428,7 +435,15 @@ export class ExperimentStudioService {
    * `resolvePreprocessingOutputs` (Task 1) when its spec outputs are available.
    */
   private transformationColumnNodes(): any[] {
-    const nodes: any[] = [];
+    const nodes: any[] = this.genericStepEffects().created.map((column) => ({
+      code: column.code,
+      label: column.label,
+      name: column.code,
+      // Indicator, flag and dummy columns are numerical 0/1 columns.
+      type: 'real',
+      enumerations: [],
+      isCreatedColumn: true,
+    }));
     for (const step of this.requestableTransformations()) {
       const spec = this.preprocessingSpecs()[step.name];
       const resolved = spec?.outputs
@@ -452,6 +467,30 @@ export class ExperimentStudioService {
       }
     }
     return nodes;
+  }
+
+  /**
+   * Columns the applied catalog-driven steps (missing indicator, outlier flags, one-hot encoder)
+   * add, and the source variables they drop, read from their applied parameters.
+   */
+  private genericStepEffects(): { created: Array<{ code: string; label: string }>; dropped: Set<string> } {
+    const applied = this.algorithmPreprocessingConfigurations()[APPLIED_DESCRIPTIVE_PREPROCESSING] ?? {};
+    const sources = new Map<string, any>(this.selectedVariablesSignal().map((variable) => [String(variable?.code), variable]));
+    const created: Array<{ code: string; label: string }> = [];
+    const dropped = new Set<string>();
+    for (const [name, parameters] of Object.entries(applied)) {
+      if (!isGenericCatalogStep(name) || !this.singletonStepRunnable(name)) continue;
+      if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) continue;
+      const effect = stepColumnEffect(name, parameters as Record<string, unknown>, sources);
+      created.push(...effect.created);
+      effect.dropped.forEach((code) => dropped.add(code));
+    }
+    return { created, dropped };
+  }
+
+  /** Source variables an applied step removes from the data (one-hot encoded originals). */
+  genericStepDroppedCodes(): string[] {
+    return [...this.genericStepEffects().dropped];
   }
 
   /**
@@ -753,6 +792,19 @@ export class ExperimentStudioService {
     return this.preprocessingCatalogLoaded();
   }
 
+  /**
+   * Catalog steps rendered by the generic schema-driven station: everything the engine lists
+   * that has neither a dedicated station nor a column-creator card, in catalog order.
+   */
+  genericCatalogSteps(): RawPreprocessingStep[] {
+    return Object.values(this.preprocessingSpecs()).filter((spec) => isGenericCatalogStep(spec.name));
+  }
+
+  /** Catalog specification of a pipeline step (endpoint `/specifications/preprocessing`), or null when the catalog does not list it. */
+  catalogStepSpec(name: string): RawPreprocessingStep | null {
+    return this.preprocessingSpecs()[name] ?? null;
+  }
+
   /** Creator names present in the preprocessing catalog, in CREATOR_NAMES order. */
   availableCreatorNames(): CreatorName[] {
     return [...CREATOR_NAMES].filter((name) => this.hasPreprocessingSpec(name));
@@ -1004,6 +1056,14 @@ export class ExperimentStudioService {
   }
 
   /**
+   * Gated: the transformer and scaler stations and every catalog step rendered by the generic
+   * station. Core steps and the column creators have their own availability checks.
+   */
+  private isGatedSingleton(name: string): boolean {
+    return GATED_SINGLETON_STEPS.has(name) || (!CORE_SINGLETON_STEPS.has(name) && isGenericCatalogStep(name));
+  }
+
+  /**
    * A gated singleton step is runnable only once the catalog loaded and still lists it —
    * before that, empty specs mean "unknown", matching how creators are gated.
    */
@@ -1018,10 +1078,14 @@ export class ExperimentStudioService {
     // An array value (e.g. several categorical_column_creator configs) expands to
     // one ordered step per entry; the engine accepts repeated steps with the same name.
     const steps: AnalysisPreprocessingStep[] = [];
-    for (const [name, parameters] of Object.entries(config)) {
+    // A missing indicator must see the values before any imputation or drop; the rest keep their order.
+    const entries = Object.entries(config).sort(
+      ([a], [b]) => Number(STEPS_BEFORE_IMPUTATION.has(b)) - Number(STEPS_BEFORE_IMPUTATION.has(a)),
+    );
+    for (const [name, parameters] of entries) {
       // A gated step the deployment cannot run is dropped from every request,
       // the same gate the column-creating creators go through.
-      if (GATED_SINGLETON_STEPS.has(name) && !this.singletonStepRunnable(name)) continue;
+      if (this.isGatedSingleton(name) && !this.singletonStepRunnable(name)) continue;
       if (Array.isArray(parameters)) {
         for (const item of parameters) {
           if (item && typeof item === 'object') {
@@ -1442,7 +1506,10 @@ export class ExperimentStudioService {
         allowed,
         ['strategies']
       );
-      if (next) filtered['variable_transformer'] = next;
+      // Like the scaler: a lone step-level parameter (`n_quantiles`) must not keep the step alive.
+      if (next && Object.keys((next['strategies'] as Record<string, unknown>) ?? {}).length > 0) {
+        filtered['variable_transformer'] = next;
+      }
     }
 
     const scaler = preprocessing['variable_scaler'];
@@ -1677,7 +1744,11 @@ export class ExperimentStudioService {
           entries.push({ label: 'Nominal column', value: lines.join('; ') || 'configured', lines });
           return;
         }
-        entries.push({ label: key.replace(/_/g, ' '), value: 'configured' });
+        const generic = creators.flatMap((step) => summarizeStepParameters(step, labelMap));
+        const stepLabel = this.preprocessingSpecs()[key]?.label || key.replace(/_/g, ' ');
+        entries.push(generic.length
+          ? { label: stepLabel, value: generic.join('; '), lines: generic }
+          : { label: stepLabel, value: 'configured' });
       });
 
     return entries;

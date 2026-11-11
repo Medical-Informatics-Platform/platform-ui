@@ -44,6 +44,8 @@ describe('StatisticAnalysisPanelComponent summary chart splits', () => {
             'hasPreprocessingSpec',
             'catalogLoaded',
             'stepOutputNames',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -92,6 +94,8 @@ describe('StatisticAnalysisPanelComponent summary chart splits', () => {
             ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {

@@ -55,15 +55,41 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         return (fixture.nativeElement as HTMLElement).querySelector(`[data-guide="${stage}"]`) as HTMLElement;
     }
 
-    /** The collapsed rail rows, split into what runs and what the rail offers to add. */
+    /**
+     * The collapsed rail rows: `live` is what runs, `ghost` is the dashed row that adds a step.
+     * A stage has one add row at most; it holds the add-step menu (see `railOptions`).
+     */
     function railRows(card: HTMLElement): { live: HTMLElement[]; ghost: HTMLElement[] } {
-        // Scoped to the rail: the opened Transformation stage keeps its own ghost rows in the
-        // type chooser, which is part of the stage graph rather than of the overview.
         const rows = Array.from(card.querySelectorAll('.pipeline-subnodes-tree .pipeline-subnode-item')) as HTMLElement[];
         return {
             live: rows.filter((row) => !row.classList.contains('is-ghost')),
             ghost: rows.filter((row) => row.classList.contains('is-ghost')),
         };
+    }
+
+    /** The add row of a collapsed stage's rail, or null when the stage has nothing left to add. */
+    function railTrigger(card: HTMLElement): HTMLButtonElement | null {
+        return card.querySelector('.pipeline-subnodes-tree app-step-picker .step-picker-trigger');
+    }
+
+    /** The steps the rail's add-step menu offers. Opens the menu first when it is closed. */
+    function railOptions(card: HTMLElement): HTMLButtonElement[] {
+        const trigger = railTrigger(card);
+        if (!trigger) return [];
+        if (trigger.getAttribute('aria-expanded') !== 'true') {
+            trigger.click();
+            fixture.detectChanges();
+        }
+        return Array.from(card.querySelectorAll('.pipeline-subnodes-tree app-step-picker .step-picker-option')) as HTMLButtonElement[];
+    }
+
+    /** Engine names of the steps the rail's add-step menu offers, in menu order. */
+    function railSteps(card: HTMLElement): (string | undefined)[] {
+        return railOptions(card).map((option) => option.dataset['step']);
+    }
+
+    function railOption(card: HTMLElement, step: string): HTMLButtonElement | undefined {
+        return railOptions(card).find((option) => option.dataset['step'] === step);
     }
 
     beforeEach(async () => {
@@ -92,6 +118,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
+            'catalogStepSpec',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -117,6 +146,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             ['categorical_column_creator', 'kmeans_cluster_creator', 'variable_transformer', 'variable_scaler'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
+        mockExpService.catalogStepSpec.mockReturnValue(null);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
@@ -329,20 +361,20 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
     });
 
     /**
-     * The dashed rail row is the whole add flow: it opens the station already narrowed to that
-     * sub-step, so a stage never has to be expanded just to reach a control.
+     * The rail's add row is the whole add flow: its menu opens the station already narrowed to
+     * that sub-step, so a stage never has to be expanded just to reach a control.
      */
     it('adds a preprocessing sub-step from the collapsed rail without writing the request', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeNull();
-        const rows = railRows(pipelineCard('analysis-preprocessing'));
-        const outlierGhost = rows.ghost.find((row) => row.textContent?.includes('Add outlier clipping'));
-        expect(outlierGhost).toBeTruthy();
+        const outlierOption = railOption(pipelineCard('analysis-preprocessing'), 'outlier_winsorizer');
+        expect(outlierOption).toBeTruthy();
+        expect(outlierOption!.textContent).toContain('Outlier Handling');
 
         mockExpService.setAppliedDescriptivePreprocessing.mockClear();
-        (outlierGhost!.querySelector('button') as HTMLButtonElement).click();
+        outlierOption!.click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().setup).toBe(true);
@@ -351,7 +383,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStepOpen.missing).toBe(false);
         expect(pipelineCard('analysis-preprocessing').querySelector('.pipeline-node-body')).toBeTruthy();
         expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
-        expect(railRows(pipelineCard('analysis-preprocessing')).ghost.some((row) => row.textContent?.includes('Add outlier clipping'))).toBe(false);
+        // The stage is open now, so its rail (and the rail's add row) is gone.
+        expect(railTrigger(pipelineCard('analysis-preprocessing'))).toBeNull();
     });
 
     /**
@@ -363,9 +396,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        const rail = railRows(pipelineCard('analysis-preprocessing'));
-        const outlierGhost = rail.ghost.find((row) => row.textContent?.includes('Add outlier clipping'))!;
-        (outlierGhost.querySelector('button') as HTMLButtonElement).click();
+        railOption(pipelineCard('analysis-preprocessing'), 'outlier_winsorizer')!.click();
         fixture.detectChanges();
 
         expect(component.pendingChangeCount).toBe(0);
@@ -381,18 +412,17 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // never consumed the one control that adds the step back.
         component.collapseStep('setup');
         fixture.detectChanges();
-        const rows = railRows(pipelineCard('analysis-preprocessing'));
-        expect(rows.live.length).toBe(1);
-        expect(rows.ghost.some((row) => row.textContent?.includes('Add outlier clipping'))).toBe(true);
+        expect(railRows(pipelineCard('analysis-preprocessing')).live.length).toBe(1);
+        const outlierOption = railOption(pipelineCard('analysis-preprocessing'), 'outlier_winsorizer');
+        expect(outlierOption).toBeTruthy();
 
-        const outlierRow = rows.ghost.find((row) => row.textContent?.includes('Add outlier clipping'))!;
-        (outlierRow.querySelector('button') as HTMLButtonElement).click();
+        outlierOption!.click();
         fixture.detectChanges();
         expect(component.sectionOpen().setup).toBe(true);
         expect(component.preprocessingStepOpen.outlier).toBe(true);
     });
 
-    it('opens the transformation stage from the collapsed rail without inventing a column', () => {
+    it('adds a column creator from the collapsed rail in one click', () => {
         seedAppliedConfig({
             categorical_column_creator: [{
                 new_column_names: ['mrs_good_outcome'],
@@ -403,29 +433,28 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        const rows = railRows(pipelineCard('analysis-transformation'));
-        expect(rows.live.map((row) => row.textContent)).toEqual([expect.stringMatching('mrs_good_outcome')]);
-        expect(rows.ghost.map((row) => row.textContent?.trim())).toEqual([expect.stringMatching('Add derived column')]);
+        const card = () => pipelineCard('analysis-transformation');
+        expect(railRows(card()).live.map((row) => row.textContent)).toEqual([expect.stringMatching('mrs_good_outcome')]);
 
+        // Opening the menu is a read: it lists the steps and creates nothing.
         mockExpService.upsertTransformation.mockClear();
-        (rows.ghost[0].querySelector('button') as HTMLButtonElement).click();
+        expect(railSteps(card())).toEqual([
+            'variable_transformer',
+            'variable_scaler',
+            'categorical_column_creator',
+            'kmeans_cluster_creator',
+        ]);
+        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+        expect(component.sectionOpen().transformation).toBe(false);
+
+        // The creators sit in the menu themselves: no second chooser between the rail and the card.
+        railOption(card(), 'kmeans_cluster_creator')!.click();
         fixture.detectChanges();
 
         expect(component.sectionOpen().transformation).toBe(true);
-        // The dashed row only opens the stage now: the graph holds the stored column, and the
-        // stage's own blank draft stays off screen until a type is chosen.
-        const graphCards = () => (fixture.nativeElement as HTMLElement)
-            .querySelectorAll('[data-guide="analysis-transformation"] .transformation-graph app-station-card');
-        const blankCards = () => component.transformationDrafts.filter((draft) => !draft.code.trim() && !draft.rules.length).length;
-        expect(graphCards().length).toBe(1);
-        expect(blankCards()).toBe(0);
-
-        component.addTransformationSubNode();
-        fixture.detectChanges();
-        expect(component.transformationDrafts.length).toBe(1);
-        expect(graphCards().length).toBe(1);
-        expect(blankCards()).toBe(0);
-        expect(mockExpService.upsertTransformation).not.toHaveBeenCalled();
+        expect(mockExpService.upsertTransformation).toHaveBeenCalledTimes(1);
+        expect(component.cards().map((step) => step.name)).toEqual(['categorical_column_creator', 'kmeans_cluster_creator']);
+        expect(card().querySelectorAll('.transformation-graph app-station-card').length).toBe(2);
     });
 
     it('lists one sub-node per applied preprocessing step with its summary', () => {
@@ -445,7 +474,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.preprocessingStatusLabel).toBe('2 steps applied ✓');
     });
 
-    it('lists the transform and scaler sub-nodes between outlier and longitudinal', () => {
+    it('lists the transform and scaler sub-nodes on the data transformation stage, not on preprocessing', () => {
         (mockExpService.selectedVariables as any).set([age]);
         seedAppliedConfig({
             missing_values_handler: { strategies: { age: 'drop' } },
@@ -454,21 +483,88 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
         fixture.detectChanges();
 
-        const nodes = component.appliedPreprocessingSubNodes;
-        expect(nodes.map((n) => n.id)).toEqual(['missing', 'transform', 'scaler']);
-        expect(nodes[1].subtitle).toContain('log(1 + x)');
-        expect(nodes[2].subtitle).toContain('Standard');
+        // Both change what the variable means (range and scale), so they belong to Data transformation.
+        expect(component.appliedPreprocessingSubNodes.map((n) => n.id)).toEqual(['missing']);
+        const nodes = component.appliedTransformationSingletonNodes;
+        expect(nodes.map((n) => n.id)).toEqual(['transform', 'scaler']);
+        expect(nodes[0].subtitle).toContain('log(1 + x)');
+        expect(nodes[1].subtitle).toContain('Standard');
+        expect(component.appliedTransformationSubNodes.map((n) => n.id)).toEqual(['transform', 'scaler']);
     });
 
-    it('offers transform and scaler ghost rows while they hold no strategies', () => {
+    it('offers transforms and scaling in the transformation menu while they hold no strategies', () => {
         (mockExpService.selectedVariables as any).set([age]);
         fixture.detectChanges();
 
-        const card = pipelineCard('analysis-preprocessing');
-        const { ghost } = railRows(card);
-        const texts = ghost.map((row) => row.textContent ?? '');
-        expect(texts.some((t) => t.includes('Add variable transforms'))).toBe(true);
-        expect(texts.some((t) => t.includes('Add variable scaling'))).toBe(true);
+        const steps = railSteps(pipelineCard('analysis-transformation'));
+        expect(steps).toContain('variable_transformer');
+        expect(steps).toContain('variable_scaler');
+        expect(railSteps(pipelineCard('analysis-preprocessing'))).not.toContain('variable_transformer');
+    });
+
+    describe('catalog steps without a dedicated station', () => {
+        const indicator = {
+            name: 'missing_indicator',
+            label: 'Missing Indicator',
+            desc: 'Add a column flagging missing values.',
+            parameters: {
+                variables: { label: 'Variables', desc: '', types: ['text'], required: true, multiple: true },
+                suffix: { label: 'Column suffix', desc: '', types: ['text'], required: false, default: '_missing' },
+            },
+        };
+
+        beforeEach(() => {
+            mockExpService.genericCatalogSteps.mockReturnValue([indicator] as never);
+            mockExpService.catalogStepSpec.mockImplementation(((name: string) =>
+                name === 'missing_indicator' ? indicator : null) as never);
+            (mockExpService.selectedVariables as any).set([age]);
+        });
+
+        it('offers each listed step in the menu of the stage it belongs to', () => {
+            fixture.detectChanges();
+
+            // A missing indicator adds a column, so it is a data transformation.
+            const option = railOption(pipelineCard('analysis-transformation'), 'missing_indicator');
+            expect(option?.textContent).toContain('Missing Indicator');
+            expect(option?.textContent).toContain('Add a column flagging missing values.');
+            expect(railSteps(pipelineCard('analysis-preprocessing'))).not.toContain('missing_indicator');
+        });
+
+        it('opens the station of a listed step from the rail menu without writing the request', () => {
+            fixture.detectChanges();
+            mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+
+            railOption(pipelineCard('analysis-transformation'), 'missing_indicator')!.click();
+            fixture.detectChanges();
+
+            expect(component.sectionOpen().transformation).toBe(true);
+            expect(component.genericStepOpen()['missing_indicator']).toBe(true);
+            expect(fixture.nativeElement.querySelector('app-generic-data-transformation-step[data-step="missing_indicator"] app-station-card')).not.toBeNull();
+            expect(mockExpService.setAppliedDescriptivePreprocessing).not.toHaveBeenCalled();
+        });
+
+        it('draws an applied step as a rail node with its own icon and drops it from the menu', () => {
+            seedAppliedConfig({ missing_indicator: { variables: ['age'], suffix: '_na' } });
+            fixture.detectChanges();
+            fixture.detectChanges();
+
+            const node = component.appliedTransformationSubNodes.find((candidate) => candidate.id === 'step:missing_indicator');
+            expect(node?.icon).toBe('fas fa-flag');
+            expect(railSteps(pipelineCard('analysis-transformation'))).not.toContain('missing_indicator');
+        });
+
+        it('restores an applied step as a rail node and an open-able station', () => {
+            seedAppliedConfig({ missing_indicator: { variables: ['age'], suffix: '_na' } });
+            fixture.detectChanges();
+            fixture.detectChanges();
+
+            const { live } = railRows(pipelineCard('analysis-transformation'));
+            expect(live.some((row) => (row.textContent ?? '').includes('Missing Indicator'))).toBe(true);
+            expect(component.isStepAdded('transformation')).toBe(true);
+            expect(component.isStepAdded('setup')).toBe(false);
+            expect(component.appliedGenericParameters('missing_indicator')).toEqual({ variables: ['age'], suffix: '_na' });
+            expect(fixture.nativeElement.querySelector('app-generic-data-transformation-step[data-step="missing_indicator"] app-station-card')).not.toBeNull();
+        });
     });
 
     it('restores the transform and scaler editors from a persisted config', () => {
@@ -479,12 +575,44 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         });
         fixture.detectChanges();
 
-        expect(component.isStepAdded('setup')).toBe(true);
+        expect(component.isStepAdded('transformation')).toBe(true);
+        expect(component.isStepAdded('setup')).toBe(false);
         expect(component.appliedTransformStrategies).toEqual({ age: 'yeo_johnson' });
         expect(component.pendingTransformStrategies).toEqual({ age: 'yeo_johnson' });
         expect(component.appliedScalerStrategies).toEqual({ age: 'minmax' });
         expect(component.appliedScalerFeatureRange).toEqual([-1, 1]);
         expect(component.pendingScalerFeatureRange).toEqual(['-1', '1']);
+    });
+
+    it('keeps the data transformation steps when the preprocessing stage is removed', () => {
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age, mmse]);
+        seedAppliedConfig({
+            missing_values_handler: { strategies: { age: 'drop' } },
+            variable_transformer: { strategies: { mmse: 'log1p' } },
+        });
+        fixture.detectChanges();
+
+        mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+        component.removeStep('setup');
+        const afterPreprocessing = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+        expect(Object.keys(afterPreprocessing ?? {})).toEqual(['variable_transformer']);
+
+    });
+
+    it('keeps the preprocessing steps when the data transformation stage is removed', () => {
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+        (mockExpService.selectedVariables as any).set([age, mmse]);
+        seedAppliedConfig({
+            missing_values_handler: { strategies: { age: 'drop' } },
+            variable_transformer: { strategies: { mmse: 'log1p' } },
+        });
+        fixture.detectChanges();
+
+        component.removeStep('transformation');
+        const afterTransformation = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+        expect(Object.keys(afterTransformation ?? {})).toEqual(['missing_values_handler']);
+        expect(component.appliedTransformStrategies).toEqual({});
     });
 
     it('hides the transform and scaler stations when the catalog lacks them', () => {
@@ -500,10 +628,11 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         // No rail node and no ghost row: the deployment cannot run the step, so the
         // UI must not offer it even though a persisted config still carries it.
         expect(component.appliedPreprocessingSubNodes.map((n) => n.id)).toEqual(['missing']);
-        const card = pipelineCard('analysis-preprocessing');
-        const { ghost } = railRows(card);
-        expect(ghost.some((row) => row.textContent?.includes('Add variable transforms'))).toBe(false);
-        expect(ghost.some((row) => row.textContent?.includes('Add variable scaling'))).toBe(false);
+        expect(component.appliedTransformationSingletonNodes).toEqual([]);
+        const card = pipelineCard('analysis-transformation');
+        const steps = railSteps(card);
+        expect(steps).not.toContain('variable_transformer');
+        expect(steps).not.toContain('variable_scaler');
         expect(card.textContent).not.toContain('Variable Transforms');
         expect(card.textContent).not.toContain('Variable Scaling');
     });
@@ -646,7 +775,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(overview.map((item) => item.textContent)).toEqual([
             expect.stringMatching('mrs_good_outcome'),
             expect.stringMatching('mrs_bad_outcome'),
-            expect.stringMatching('Add derived column'),
+            // One add row, whatever the number of steps it can add.
+            expect.stringMatching('Add a transformation step'),
         ]);
     });
 
@@ -662,11 +792,16 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.sectionOpen().setup).toBe(true);
         expect(component.preprocessingStepOpen.outlier).toBe(true);
         expect(component.preprocessingStepOpen.missing).toBe(false);
-        expect(component.preprocessingStepOpen.longitudinal).toBe(false);
 
         component.jumpToSubNode('transformation', 'transformation');
         expect(component.sectionOpen().transformation).toBe(true);
         expect(component.preprocessingStepOpen.transformation).toBe(true);
+
+        // A singleton transformation station opens alone, and not the derived-column graph.
+        component.jumpToSubNode('transformation', 'scaler');
+        expect(component.preprocessingStepOpen.scaler).toBe(true);
+        expect(component.preprocessingStepOpen.transform).toBe(false);
+        expect(component.preprocessingStepOpen.transformation).toBe(false);
     });
 
     it('opens step 0 as a read that adds no stage and writes no config', () => {
@@ -703,7 +838,7 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             expect(section.querySelector('.pipeline-node-toggle')?.getAttribute('aria-expanded'), guide).toBe('false');
         }
         expect(root.querySelector('[data-guide="analysis-filtering"]')?.textContent).toContain('Add condition');
-        expect(root.querySelector('[data-guide="analysis-transformation"]')?.textContent).toContain('Add derived column');
+        expect(root.querySelector('[data-guide="analysis-transformation"]')?.textContent).toContain('Add a transformation step');
     });
 
     it('opens and folds every step from its title button', () => {
@@ -896,38 +1031,8 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             expect(component.isStepAdded('transformation')).toBe(true);
         });
 
-        it('opens a new transformation stage on the type chooser', () => {
-            component.addStep('transformation');
-            fixture.detectChanges();
-
-            const graphCards = () => (fixture.nativeElement as HTMLElement).querySelectorAll(
-                '[data-guide="analysis-transformation"] .transformation-graph app-station-card');
-            const chooserRows = () => Array.from(
-                (fixture.nativeElement as HTMLElement).querySelectorAll(
-                    '[data-guide="analysis-transformation"] .transformation-chooser .pipeline-subnode-content')
-            ) as HTMLButtonElement[];
-
-            expect(component.transformationChooserOnly).toBe(true);
-            expect(graphCards().length).toBe(0);
-            expect(chooserRows().length).toBe(2);
-
-            chooserRows()[0].click();
-            fixture.detectChanges();
-
-            expect(graphCards().length).toBe(1);
-            expect(component.transformationChooserOnly).toBe(false);
-
-            const kmeansRow = chooserRows().find((row) => row.textContent?.includes('K-means')) as HTMLButtonElement;
-            kmeansRow.click();
-            fixture.detectChanges();
-
-            expect(graphCards().length).toBe(2);
-            // Chooser always lists every creator in the specs (repeated cards are allowed).
-            expect(chooserRows().length).toBe(2);
-        });
-
         it('counts pending preprocessing changes in the badge and apply label', () => {
-            const pending = vi.spyOn(component, 'pendingChangeCount', 'get').mockReturnValue(2);
+            const pending = vi.spyOn(component, 'pendingPreprocessingChangeCount', 'get').mockReturnValue(2);
             const missingPending = vi.spyOn(component, 'pendingMissingChangeCount', 'get').mockReturnValue(2);
 
             expect(component.preprocessingStatusLabel).toBe('In run · 2 changes not applied');
@@ -1227,6 +1332,113 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
             const config = mockExpService.loadDescriptiveOverview.mock.lastCall![1] as Record<string, unknown>;
             expect(config['missing_values_handler']).toEqual(expect.objectContaining({ strategies: { age: 'mean' } }));
             expect(config['outlier_winsorizer']).toBeUndefined();
+        });
+    });
+
+    /**
+     * A stage used to draw one dashed row per step it could still add: nine rows once the whole
+     * catalog was on offer. The rail now ends in a single add row whose menu holds every step,
+     * grouped by what the user wants to do.
+     */
+    describe('add-step menu on the collapsed rail', () => {
+        const step = (name: string, label: string) => ({
+            name,
+            label,
+            desc: `${label} description.`,
+            parameters: {
+                variables: { label: 'Variables', desc: '', types: ['text'], required: true, multiple: true },
+            },
+        });
+        const catalog = [
+            step('global_imputer', 'Global Imputer'),
+            step('global_winsorizer', 'Global Winsorizer'),
+            step('one_hot_encoder', 'One-Hot Encoder'),
+            step('ordinal_encoder', 'Ordinal Encoder'),
+            step('missing_indicator', 'Missing Indicator'),
+            step('outlier_detector', 'Outlier Detector'),
+        ];
+
+        beforeEach(() => {
+            mockExpService.genericCatalogSteps.mockReturnValue(catalog as never);
+            mockExpService.catalogStepSpec.mockImplementation(((name: string) =>
+                catalog.find((candidate) => candidate.name === name) ?? null) as never);
+            (mockExpService.selectedVariables as any).set([age]);
+            fixture.detectChanges();
+        });
+
+        it('ends each rail in one closed add row, however many steps the stage can add', () => {
+            for (const [stage, label] of [
+                ['analysis-preprocessing', 'Add a preprocessing step'],
+                ['analysis-transformation', 'Add a transformation step'],
+            ] as const) {
+                const card = pipelineCard(stage);
+                expect(railRows(card).ghost.length, stage).toBe(1);
+                expect(railRows(card).ghost[0].querySelector('.pipeline-subnode-dot'), stage).not.toBeNull();
+                expect(railTrigger(card)?.textContent, stage).toContain(label);
+                expect(railTrigger(card)?.getAttribute('aria-expanded'), stage).toBe('false');
+                expect(card.querySelectorAll('.step-picker-option').length, stage).toBe(0);
+            }
+            // Missing values is the only live row; the steps to add are inside the menu.
+            expect(railRows(pipelineCard('analysis-preprocessing')).live.length).toBe(1);
+            expect(railRows(pipelineCard('analysis-transformation')).live.length).toBe(0);
+        });
+
+        it('says what kind of steps each menu holds', () => {
+            expect(railTrigger(pipelineCard('analysis-preprocessing'))?.textContent)
+                .toContain('Fill or cap values. Every variable keeps its meaning.');
+            expect(railTrigger(pipelineCard('analysis-transformation'))?.textContent)
+                .toContain('Reshape values, encode categories, flag records or create columns.');
+        });
+
+        it('groups the preprocessing steps by purpose', () => {
+            const card = pipelineCard('analysis-preprocessing');
+            railOptions(card);
+            const groups = Array.from(card.querySelectorAll('.step-picker-group')) as HTMLElement[];
+
+            expect(groups.map((group) => group.dataset['group'])).toEqual(['missing', 'outliers']);
+            expect(groups.map((group) => Array.from(group.querySelectorAll('.step-picker-option')).map((option) => (option as HTMLElement).dataset['step'])))
+                .toEqual([['global_imputer'], ['outlier_winsorizer', 'global_winsorizer']]);
+        });
+
+        it('groups the transformation steps by purpose, column creators last', () => {
+            const card = pipelineCard('analysis-transformation');
+            railOptions(card);
+            const groups = Array.from(card.querySelectorAll('.step-picker-group')) as HTMLElement[];
+
+            expect(groups.map((group) => group.dataset['group'])).toEqual(['reshape', 'encode', 'flag', 'create']);
+            expect(groups.map((group) => Array.from(group.querySelectorAll('.step-picker-option')).map((option) => (option as HTMLElement).dataset['step'])))
+                .toEqual([
+                    ['variable_transformer', 'variable_scaler'],
+                    ['one_hot_encoder', 'ordinal_encoder'],
+                    ['missing_indicator', 'outlier_detector'],
+                    ['categorical_column_creator', 'kmeans_cluster_creator'],
+                ]);
+        });
+
+        it('shows a creator with the name and icon of the card it adds', () => {
+            const option = railOption(pipelineCard('analysis-transformation'), 'kmeans_cluster_creator')!;
+
+            expect(option.querySelector('.step-picker-option-title')?.textContent?.trim()).toBe('K-means cluster column');
+            expect(option.querySelector('i')?.className).toContain('fa-diagram-project');
+        });
+
+        it('offers the longitudinal comparison only for a longitudinal data model', () => {
+            expect(railSteps(pipelineCard('analysis-transformation'))).not.toContain('longitudinal_transformer');
+
+            (mockExpService.selectedDataModel as any).set({ code: 'Stroke', version: '3.7', variables: [], longitudinal: true });
+            fixture.detectChanges();
+
+            const card = pipelineCard('analysis-transformation');
+            expect(railSteps(card)).toContain('longitudinal_transformer');
+            expect((card.querySelector('.step-picker-group[data-group="visits"]') as HTMLElement | null)?.textContent)
+                .toContain('Longitudinal Transformation');
+        });
+
+        it('keeps the rail caption free of the old dashed-row wording', () => {
+            const caption = pipelineCard('analysis-preprocessing').querySelector('.pipeline-subnodes-caption')?.textContent ?? '';
+
+            expect(caption).toContain('These steps run in this order');
+            expect(caption).not.toContain('dashed');
         });
     });
 });

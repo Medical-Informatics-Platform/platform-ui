@@ -46,6 +46,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
+            'catalogStepSpec',
             'stepOutputNames',
         ], {
             selectedVariables: signal([]),
@@ -95,6 +98,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
+        mockExpService.catalogStepSpec.mockReturnValue(null);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
@@ -208,6 +214,26 @@ describe('StatisticAnalysisPanelComponent', () => {
             component.chooseTransformation('categorical_column_creator');
         }
         fixture.detectChanges();
+    }
+
+    /**
+     * The steps the opened Transformation stage's add-step menu offers. Opens the menu first when
+     * it is closed: it folds once the stage has a card to show.
+     */
+    function transformationMenuOptions(): HTMLButtonElement[] {
+        const picker = workflowSection('Transformation').querySelector('.pipeline-node-body app-step-picker');
+        const trigger = picker?.querySelector('.step-picker-trigger') as HTMLButtonElement | null;
+        if (!picker || !trigger) return [];
+        if (trigger.getAttribute('aria-expanded') !== 'true') {
+            trigger.click();
+            fixture.detectChanges();
+        }
+        return Array.from(picker.querySelectorAll('.step-picker-option')) as HTMLButtonElement[];
+    }
+
+    /** The column creators among them: one option per creator the deployment exposes. */
+    function creatorOptions(): HTMLButtonElement[] {
+        return transformationMenuOptions().filter((option) => option.dataset['step']?.endsWith('_creator'));
     }
 
     function openStation(step: 'filters' | 'setup' | 'transformation'): HTMLElement {
@@ -655,7 +681,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
-        openStation('setup');
+        openStation('transformation');
         expect(fixture.nativeElement.textContent).toContain('Required for longitudinal pathologies');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal Transformation');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal strategy');
@@ -741,10 +767,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(workflowSection('Preprocessing').querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
         expect(workflowSection('Transformation').querySelector('.station-card-footer .station-action-preview')).toBeNull();
 
-        // The K-means station is opened from the chooser's dashed row, like the categorical draft.
-        const addKmeans = Array.from(
-            workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
-        ).find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
+        // The K-means station is added from the stage's add-step menu, like the categorical draft.
+        const addKmeans = creatorOptions().find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
         addKmeans.click();
         fixture.detectChanges();
 
@@ -855,9 +879,13 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // Missing Values defaults (NA removal) are implicit, so they don't
         // contribute to the pending count. Only the longitudinal step counts.
-        openStation('setup');
+        openStation('transformation');
         expect(component.pendingChangeCount).toBe(1);
-        expect(fixture.nativeElement.textContent).toContain('1 change');
+        // The longitudinal comparison is a data transformation, so the Preprocessing badge stays out of it.
+        expect(component.pendingPreprocessingChangeCount).toBe(0);
+        expect(component.pendingTransformationSingletonChangeCount).toBe(1);
+        expect(component.preprocessingStatusLabel).toBe('In run · Default');
+        expect(component.transformationStatusLabel).toBe('Not applied');
     });
 
     it('shows category choices for categorical constant preprocessing values', () => {
@@ -2510,13 +2538,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             Array.from(
                 workflowSection('Transformation').querySelectorAll('.transformation-graph .btn-remove-step-node')
             ) as HTMLButtonElement[];
-        const chooserRows = () =>
-            Array.from(
-                workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
-            ) as HTMLButtonElement[];
+        const chooserRows = () => creatorOptions();
 
         openStation('transformation');
-        // Nothing chosen yet: the stage is the type chooser, with no column card.
+        // Nothing chosen yet: the stage is its add-step menu, with no column card.
         expect(cards().length).toBe(0);
         expect(chooserRows().length).toBe(2);
 
@@ -3148,6 +3173,141 @@ describe('StatisticAnalysisPanelComponent', () => {
             // Reverting to no transform is a pending change until applied.
             component.onTransformStrategyChange(age, null);
             expect(component.hasPendingTransformChanges).toBe(true);
+        });
+    });
+
+    describe('catalog steps without a dedicated station', () => {
+        const detectorSpec = {
+            name: 'outlier_detector',
+            label: 'Outlier Detector',
+            desc: 'Flags outliers.',
+            parameters: {
+                strategies: {
+                    label: 'Mode', desc: '', types: ['dict'], required: true,
+                    dict_keys_enums: { type: 'input_var_names', source: ['variables'] },
+                    dict_values_enums: { type: 'list', source: ['zscore', 'robust'] },
+                },
+            },
+        };
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+
+        function listDetectorInCatalog(): void {
+            mockExpService.genericCatalogSteps.mockReturnValue([detectorSpec] as never);
+            mockExpService.catalogStepSpec.mockImplementation(((name: string) =>
+                name === 'outlier_detector' ? detectorSpec : null) as never);
+            (mockExpService.selectedVariables as any).set([age, mmse]);
+        }
+
+        it('keeps an applied generic step in the config when another card applies', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore', mmse: 'robust' } },
+            });
+
+            const config = (component as any).buildPreprocessingConfig({}, new Set(['age', 'mmse']));
+
+            expect(config['outlier_detector']).toEqual({ strategies: { age: 'zscore', mmse: 'robust' } });
+        });
+
+        it('trims the step to the selected variables and drops it when none remain', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore', mmse: 'robust' } },
+            });
+
+            expect((component as any).buildPreprocessingConfig({}, new Set(['age']))['outlier_detector'])
+                .toEqual({ strategies: { age: 'zscore' } });
+            expect((component as any).buildPreprocessingConfig({}, new Set(['bmi']))?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('drops an applied step the loaded catalog no longer lists', () => {
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore' } },
+            });
+
+            expect((component as any).buildPreprocessingConfig({}, new Set(['age']))?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('persists an applied step beside the other applied rules and removes it again', () => {
+            listDetectorInCatalog();
+            mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+
+            component.applyGenericStep('outlier_detector', { strategies: { age: 'zscore' } });
+            const written = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown>;
+            expect(written['outlier_detector']).toEqual({ strategies: { age: 'zscore' } });
+
+            (mockExpService.appliedPreprocessingConfig as any).set(written);
+            component.removeGenericStep('outlier_detector');
+            const after = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+            expect(after?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('lists an applied generic step on the pipeline rail', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore' } },
+            });
+
+            // An outlier detector flags with a new column by default: a data transformation, not preprocessing.
+            expect(component.appliedPreprocessingSubNodes.some((n) => n.id === 'step:outlier_detector')).toBe(false);
+            const node = component.appliedTransformationSingletonNodes.find((n) => n.id === 'step:outlier_detector');
+            expect(node?.title).toBe('Outlier Detector');
+            expect(node?.statusTone).toBe('applied');
+        });
+    });
+
+    describe('quantile transform settings', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+
+        beforeEach(() => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.pendingTransformStrategies = {};
+            component.appliedTransformStrategies = {};
+        });
+
+        it('shows n_quantiles only while a quantile transform is chosen', () => {
+            component.onTransformStrategyChange(age, 'log1p');
+            expect(component.transformUsesQuantiles).toBe(false);
+            component.onTransformStrategyChange(age, 'quantile_normal');
+            expect(component.transformUsesQuantiles).toBe(true);
+        });
+
+        it('sends n_quantiles with a quantile transform and leaves it out for the others', () => {
+            component.onTransformStrategyChange(age, 'quantile_uniform');
+            component.onTransformNQuantilesChange('21');
+            expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                .toEqual({ strategies: { age: 'quantile_uniform' }, n_quantiles: 21 });
+
+            component.onTransformStrategyChange(age, 'log1p');
+            expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                .toEqual({ strategies: { age: 'log1p' } });
+        });
+
+        it('treats a value below 2 or a fraction as an error and sends the engine default', () => {
+            component.onTransformStrategyChange(age, 'quantile_uniform');
+            for (const bad of ['1', '2.5', 'x']) {
+                component.onTransformNQuantilesChange(bad);
+                expect(component.transformNQuantilesError).toMatch(/at least 2/);
+                expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                    .toEqual({ strategies: { age: 'quantile_uniform' } });
+            }
+            component.onTransformNQuantilesChange('');
+            expect(component.transformNQuantilesError).toBe('');
+        });
+
+        it('applies n_quantiles with the card and counts it as a pending change', () => {
+            component.onTransformStrategyChange(age, 'quantile_normal');
+            (component as any).prepStepOps['transform'].commit();
+            expect(component.hasPendingTransformChanges).toBe(false);
+
+            component.onTransformNQuantilesChange('21');
+            expect(component.hasPendingTransformChanges).toBe(true);
+            (component as any).prepStepOps['transform'].commit();
+            expect(component.appliedTransformNQuantiles).toBe(21);
+            expect(component.hasPendingTransformChanges).toBe(false);
+            (component as any).prepStepOps['transform'].reset();
+            expect(component.pendingTransformNQuantiles).toBe('21');
         });
     });
 
@@ -3783,11 +3943,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             openStation('transformation');
             fixture.detectChanges();
 
-            const titles = Array.from(
-                workflowSection('Transformation').querySelectorAll(
-                    '.transformation-chooser .pipeline-subnode-title',
-                ),
-            ).map((el) => el.textContent?.trim());
+            const titles = transformationMenuOptions()
+                .map((option) => option.querySelector('.step-picker-option-title')?.textContent?.trim());
             expect(titles.some((title) => /pca/i.test(title ?? ''))).toBe(false);
             expect(titles).toContain('Nominal column from rules');
             expect(titles).toContain('K-means cluster column');

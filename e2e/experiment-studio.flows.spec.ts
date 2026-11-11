@@ -12,6 +12,7 @@ import {
   applyLongitudinalStrategy,
   applyMeanImputationToAll,
   applyOutlierChoice,
+  pickStep,
   assignRole,
   clearRole,
   collapsePreprocessing,
@@ -249,7 +250,7 @@ test.describe('preprocessing', () => {
   test('batch actions set every numerical variable', async ({ page, api }) => {
     await openAgeAndSex(page);
     await applyMeanImputationToAll(page);
-    await page.locator('button:visible').filter({ hasText: /Add outlier/ }).first().click();
+    await pickStep(page, 'preprocessing', 'outlier_winsorizer');
     const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
     await outlier.getByRole('button', { name: 'Batch' }).click();
     await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();
@@ -364,7 +365,7 @@ test.describe('filters and transformations', () => {
   test('nominal column and k-means cluster column together', async ({ page, api }) => {
     await openAgeAndSex(page);
     await addNominalColumn(page, 'sex_group', 'female', 'other');
-    await addKMeansColumn(page, { stepAdded: true });
+    await addKMeansColumn(page);
     await expect(page.getByText('Nominal column · sex_group')).toBeVisible();
     await expect(page.locator('app-station-card', { hasText: 'Nominal column · sex_group' })).toContainText('Applied');
     await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
@@ -397,7 +398,7 @@ test.describe('filters and transformations', () => {
     await addVariable(page, 'Sex');
     await goToDataHandling(page);
     await addPcaColumns(page);
-    await addKMeansOnColumns(page, ['pca_pc1', 'pca_pc2'], { stepAdded: true });
+    await addKMeansOnColumns(page, ['pca_pc1', 'pca_pc2']);
     await expect(page.locator('app-pca-column-source .pca-column-source-applied-code')).toHaveText('pca_pc1, pca_pc2');
     await expect(page.locator('app-kmeans-cluster-source .kmeans-cluster-source-applied-code')).toHaveText('Column kmeans_cluster');
 

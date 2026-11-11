@@ -83,6 +83,25 @@ import {
   newStepId,
   stepOutputNames as stepOutputNamesOf,
 } from '../../../core/transformation-steps.utils';
+import { RawPreprocessingStep } from '../../../models/backend-algorithms.model';
+import {
+  filterStepParameters,
+  isGenericCatalogStep,
+  isPreprocessingSingleton,
+  isTransformationSingleton,
+  stepFields,
+  stepStage,
+  stepVariableScope,
+  summarizeStepParameters,
+} from '../../../core/data-transformation-step-form.utils';
+import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
+import {
+  StepCandidate,
+  StepPickerGroup,
+  stepIcon,
+  stepPickerGroups,
+} from '../../../core/step-picker.utils';
+import { StepPickerComponent } from '../shared/step-picker/step-picker.component';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -115,6 +134,9 @@ const SUMMARY_GUIDE_ANCHORS: Record<SummaryKind, Record<SummaryAnchorKey, string
 type MissingAction = 'no_action' | 'drop' | 'mean' | 'median' | 'constant' | 'most_frequent';
 type LongitudinalStrategy = 'first' | 'second' | 'diff';
 type TransformStrategy = 'log1p' | 'sqrt' | 'asinh' | 'yeo_johnson' | 'quantile_uniform' | 'quantile_normal';
+/** The quantile methods are the only ones `n_quantiles` applies to. */
+const isQuantileStrategy = (strategy: unknown): boolean =>
+  strategy === 'quantile_uniform' || strategy === 'quantile_normal';
 type ScalerStrategy = 'standard' | 'robust' | 'minmax' | 'maxabs';
 type TransformOrScalerStep = 'transform' | 'scaler';
 
@@ -299,7 +321,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent, GenericDataTransformationStepComponent, StepPickerComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -360,6 +382,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   /** Full desired state per variable (null = no transform); hydration copies `applied` into it. */
   pendingTransformStrategies: Record<string, TransformStrategy | null> = {};
   appliedTransformStrategies: Record<string, TransformStrategy> = {};
+  /** `n_quantiles` of the quantile transforms, as the text input binds it; '' = engine default (100). */
+  pendingTransformNQuantiles = '';
+  appliedTransformNQuantiles: number | null = null;
   pendingScalerStrategies: Record<string, ScalerStrategy | null> = {};
   appliedScalerStrategies: Record<string, ScalerStrategy> = {};
   /** `feature_range` for minmax, as the two text inputs the editor binds; null = default. */
@@ -437,15 +462,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const applied = this.expStudioService.appliedPreprocessingConfig();
     if (!applied) return false;
     if (step === 'transformation') {
-      return !!applied['categorical_column_creator'] || !!applied['kmeans_cluster_creator'];
+      return (
+        !!applied['categorical_column_creator'] ||
+        !!applied['kmeans_cluster_creator'] ||
+        Object.keys(applied).some((name) => isTransformationSingleton(name))
+      );
     }
-    return !!(
-      applied['missing_values_handler'] ||
-      applied['outlier_winsorizer'] ||
-      applied['longitudinal_transformer'] ||
-      applied['variable_transformer'] ||
-      applied['variable_scaler']
-    );
+    return Object.keys(applied).some((name) => isPreprocessingSingleton(name));
   }
 
   /** Opening a stage is a read: it shows the editor, it never writes the request. */
@@ -468,13 +491,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.pendingOutlierRules = {};
       this.appliedOutlierRules = {};
       this.userEnabledOutliers.set(false);
-      this.pendingTransformStrategies = {};
-      this.appliedTransformStrategies = {};
-      this.pendingScalerStrategies = {};
-      this.appliedScalerStrategies = {};
-      this.pendingScalerFeatureRange = ['', ''];
-      this.appliedScalerFeatureRange = null;
-      this.persistAppliedDescriptivePreprocessing(null);
+      // Data transformation steps live in their own stage and survive removing preprocessing.
+      this.persistAppliedDescriptivePreprocessing(this.appliedConfigWhere((name) => isTransformationSingleton(name)));
       this.preprocessingStatus = 'none';
       this.userPreprocessingApplied = false;
       this.processedDescribeSeq++;
@@ -484,10 +502,46 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.processedSummaryKey = '';
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     } else if (step === 'transformation') {
+      this.startedStations.set({ transform: false, scaler: false });
       this.resetTransformation();
+      this.resetTransformationSingletons();
       this.sectionOpen.update((open) => ({ ...open, transformation: false }));
     }
     this.cdr.markForCheck();
+  }
+
+  /**
+   * The applied singleton steps whose name passes `keep`, as a config to persist, or null when none
+   * does. Built from the current rules so the missing-values and outlier cards are carried over.
+   */
+  private appliedConfigWhere(keep: (name: string) => boolean): PreprocessingConfig | null {
+    const config = this.buildPreprocessingConfig(this.appliedPreprocessingRules) ?? {};
+    for (const name of Object.keys(config)) {
+      if (!keep(name)) delete config[name];
+    }
+    return Object.keys(config).length ? config : null;
+  }
+
+  /** Clears every Data transformation singleton (transformer, scaler, longitudinal, catalog steps), keeping preprocessing. */
+  private resetTransformationSingletons(): void {
+    this.pendingTransformStrategies = {};
+    this.appliedTransformStrategies = {};
+    this.pendingScalerStrategies = {};
+    this.appliedScalerStrategies = {};
+    this.pendingScalerFeatureRange = ['', ''];
+    this.appliedScalerFeatureRange = null;
+    this.pendingTransformNQuantiles = '';
+    this.appliedTransformNQuantiles = null;
+    this.appliedLongitudinalEnabled = false;
+    this.longitudinalVisit1 = '';
+    this.longitudinalVisit2 = '';
+    this.appliedLongitudinalVisit1 = '';
+    this.appliedLongitudinalVisit2 = '';
+    this.pendingLongitudinalStrategies = {};
+    this.appliedLongitudinalStrategies = {};
+    const keep = (name: string) => !isTransformationSingleton(name);
+    this.persistAppliedDescriptivePreprocessing(this.appliedConfigWhere(keep));
+    this.updatePreprocessingStatus();
   }
 
   /**
@@ -616,9 +670,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Drop one transform/scaler sub-step entirely and persist the request config without it. */
   removePreprocessingSubNode(step: 'transform' | 'scaler'): void {
+    this.startedStations.update((state) => ({ ...state, [step]: false }));
     if (step === 'transform') {
       this.pendingTransformStrategies = {};
       this.appliedTransformStrategies = {};
+      this.pendingTransformNQuantiles = '';
+      this.appliedTransformNQuantiles = null;
     } else {
       this.pendingScalerStrategies = {};
       this.appliedScalerStrategies = {};
@@ -662,14 +719,19 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Header chip tone; the label reads off it so copy and colour cannot drift. */
   get preprocessingBadgeTone(): 'applied' | 'pending' | 'default' {
-    if (this.pendingChangeCount > 0) return 'pending';
-    return this.preprocessingStatus === 'applied' ? 'applied' : 'default';
+    if (this.pendingPreprocessingChangeCount > 0) return 'pending';
+    return this.hasAppliedPreprocessingStep ? 'applied' : 'default';
+  }
+
+  /** True when the persisted request holds a Preprocessing-stage step (the transformation stage has its own). */
+  private get hasAppliedPreprocessingStep(): boolean {
+    return Object.keys(this.expStudioService.appliedPreprocessingConfig() ?? {}).some((name) => isPreprocessingSingleton(name));
   }
 
   get preprocessingStatusLabel(): string {
     switch (this.preprocessingBadgeTone) {
       case 'pending':
-        return `In run · ${pluralize(this.pendingChangeCount, 'change')} not applied`;
+        return `In run · ${pluralize(this.pendingPreprocessingChangeCount, 'change')} not applied`;
       case 'applied': {
         const count = this.appliedPreprocessingCount;
         return count > 1 ? `${count} steps applied ✓` : 'Applied ✓';
@@ -677,6 +739,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       default:
         return 'In run · Default';
     }
+  }
+
+  /** Terminal card's data transformation fact: how many singleton steps are applied, or nothing. */
+  get terminalTransformationLine(): string {
+    const count = this.appliedTransformationSingletonNodes.length;
+    return count ? `Data transformation: ${pluralize(count, 'step')}` : '';
   }
 
   /** Terminal card's preprocessing fact: default drop-NaN, or the applied step count. */
@@ -707,10 +775,42 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       });
     }
 
+    nodes.push(...this.genericSubNodes(config, 'preprocessing'));
+    return nodes;
+  }
+
+  /** Rail rows of the applied catalog steps of one stage, in catalog order. */
+  private genericSubNodes(config: Record<string, unknown>, stage: 'preprocessing' | 'transformation'): PipelineSubNode[] {
+    const nodes: PipelineSubNode[] = [];
+    for (const spec of this.genericSteps) {
+      if (stepStage(spec.name) !== stage) continue;
+      const parameters = config[spec.name];
+      if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) continue;
+      nodes.push({
+        id: `step:${spec.name}`,
+        icon: stepIcon(spec.name),
+        title: spec.label || spec.name,
+        subtitle: summarizeStepParameters(parameters as Record<string, unknown>).join(' · ') || 'Configured',
+        statusLabel: 'Applied',
+        statusTone: 'applied',
+      });
+    }
+    return nodes;
+  }
+
+  /**
+   * Data transformation steps that are edited once for the whole selection (variable transforms,
+   * scaling, longitudinal comparison, and the catalog steps that add columns or change a variable's
+   * meaning), read from the persisted request config like the Preprocessing rail.
+   */
+  get appliedTransformationSingletonNodes(): PipelineSubNode[] {
+    const config = this.expStudioService.appliedPreprocessingConfig() ?? {};
+    const nodes: PipelineSubNode[] = [];
     const transformNode = this.transformSubNode(config);
     if (transformNode) nodes.push(transformNode);
     const scalerNode = this.scalerSubNode(config);
     if (scalerNode) nodes.push(scalerNode);
+    nodes.push(...this.genericSubNodes(config, 'transformation'));
 
     const longitudinal = config['longitudinal_transformer'] as
       | { visit1?: unknown; visit2?: unknown; strategies?: Record<string, unknown> }
@@ -749,7 +849,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   get appliedTransformationSubNodes(): PipelineSubNode[] {
     const statusTone: PipelineSubNode['statusTone'] =
       this.transformationStatusLabel === 'Applied' ? 'applied' : 'pending';
-    const nodes: PipelineSubNode[] = [];
+    const nodes: PipelineSubNode[] = [...this.appliedTransformationSingletonNodes];
     for (const step of this.cards()) {
       const outputs = stepOutputNamesOf(step);
       if (!outputs.length) continue;
@@ -800,25 +900,223 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   jumpToSubNode(stage: 'setup' | 'transformation', subNode: PipelineSubNode['id']): void {
     this.goToSection(stage);
     if (stage === 'transformation') {
-      this.preprocessingStepOpen.transformation = true;
-      return;
+      for (const step of ['transform', 'scaler', 'longitudinal'] as const) {
+        this.preprocessingStepOpen[step] = step === subNode;
+      }
+      // A derived column opens its own card; the singleton stations open only themselves.
+      this.preprocessingStepOpen.transformation = !(['transform', 'scaler', 'longitudinal'].includes(subNode) || subNode.startsWith('step:'));
+    } else {
+      for (const step of ['missing', 'outlier'] as const) {
+        this.preprocessingStepOpen[step] = step === subNode;
+      }
     }
-    for (const step of ['missing', 'outlier', 'transform', 'scaler', 'longitudinal'] as const) {
-      this.preprocessingStepOpen[step] = step === subNode;
+    if (subNode.startsWith('step:')) {
+      const target = subNode.slice('step:'.length);
+      this.genericStepOpen.set(Object.fromEntries(this.genericSteps.map((spec) => [spec.name, spec.name === target])));
     }
     if (subNode === 'outlier') this.userEnabledOutliers.set(true);
+    if (subNode === 'transform' || subNode === 'scaler') {
+      this.startedStations.update((state) => ({ ...state, [subNode]: true }));
+    }
     this.cdr.markForCheck();
   }
 
+  // ---- Catalog steps without a dedicated station (schema-driven, e.g. missing indicator, outlier detector) ----
+
+  /** Open state of the generic stations, by step name. */
+  readonly genericStepOpen = signal<Record<string, boolean>>({});
+
+  /** Every catalog step the generic station renders, in catalog order. */
+  get genericSteps(): RawPreprocessingStep[] {
+    return this.expStudioService.genericCatalogSteps();
+  }
+
+  /**
+   * Variables a generic step may act on: the selected CDEs (never created columns), narrowed to
+   * numerical or categorical ones for the steps the engine restricts that way.
+   */
+  genericStepVariables(name: string): VariableRow[] {
+    const pool = this.preprocessingVariables.filter((variable) => !(variable as { isCreatedColumn?: boolean }).isCreatedColumn);
+    switch (stepVariableScope(name)) {
+      case 'numerical':
+        return pool.filter((variable) => isOutlierEligibleVariable(variable));
+      case 'categorical':
+        return pool.filter((variable) => this.isCategoricalVariable(variable));
+      default:
+        return pool;
+    }
+  }
+
+  /** The applied parameters of a generic step, or null when it is not part of the run. */
+  appliedGenericParameters(name: string): Record<string, unknown> | null {
+    const value = this.expStudioService.appliedPreprocessingConfig()?.[name];
+    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  }
+
+  /** The rail's dashed row for a catalog step: opens its station in the stage it belongs to. */
+  addGenericStep(name: string): void {
+    if (stepStage(name) === 'transformation') this.addTransformationSubNode(`step:${name}`);
+    else this.addPreprocessingSubNode(`step:${name}`);
+  }
+
+  // ---- Add-step menu (app-step-picker): one add row per stage instead of one dashed row per step ----
+
+  /**
+   * The Variable Transforms and Variable Scaling stations the user opened this visit. A station
+   * is drawn once its step is applied or it was opened here; until then the step is only an
+   * option of the add-step menu.
+   */
+  readonly startedStations = signal<Record<'transform' | 'scaler', boolean>>({ transform: false, scaler: false });
+
+  /**
+   * The steps a stage's add-step menu offers, grouped by purpose (`stepPickerGroups`).
+   * The collapsed rail offers every step the run does not hold yet. With `inStage` (the menu
+   * inside the opened stage) a step whose station is already on screen is left out as well.
+   */
+  addableSteps(stage: 'preprocessing' | 'transformation', inStage = false): StepPickerGroup[] {
+    const candidates: StepCandidate[] = [];
+    if (stage === 'preprocessing') {
+      if (inStage ? !this.showOutliersSection : !this.outlierSubNodeApplied) candidates.push({ name: 'outlier_winsorizer' });
+    } else {
+      if (this.transformStepAvailable && !(inStage ? this.transformStationShown : this.transformSubNodeApplied)) candidates.push({ name: 'variable_transformer' });
+      if (this.scalerStepAvailable && !(inStage ? this.scalerStationShown : this.scalerSubNodeApplied)) candidates.push({ name: 'variable_scaler' });
+    }
+    for (const spec of this.genericStepsOf(stage).filter((spec) => !this.isGenericStepApplied(spec.name) && !(inStage && this.genericStepOpen()[spec.name]))) {
+      candidates.push({ name: spec.name, label: spec.label, desc: spec.desc });
+    }
+    if (stage === 'transformation') {
+      if (!inStage && this.isLongitudinalModel && !this.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+        candidates.push({ name: 'longitudinal_transformer' });
+      }
+      for (const kind of this.chooserCreators()) {
+        candidates.push({
+          name: kind,
+          label: CREATOR_CHOOSER_COPY[kind].title,
+          desc: CREATOR_CHOOSER_COPY[kind].subtitle,
+          icon: CREATOR_CHOOSER_COPY[kind].icon,
+        });
+      }
+    }
+    return stepPickerGroups(candidates);
+  }
+
+  /**
+   * A pick in an add-step menu, by engine step name: opens the stage on that step's station.
+   * A column creator adds its card. Nothing is written to the request.
+   */
+  pickStep(name: string): void {
+    if (name === 'outlier_winsorizer') {
+      this.addPreprocessingSubNode('outlier');
+    } else if (name === 'variable_transformer') {
+      this.addTransformationSubNode('transform');
+    } else if (name === 'variable_scaler') {
+      this.addTransformationSubNode('scaler');
+    } else if (name === 'longitudinal_transformer') {
+      this.addTransformationSubNode('longitudinal');
+    } else if (this.chooserCreators().includes(name as CreatorName)) {
+      if (!this.sectionOpen().transformation) this.addStep('transformation');
+      this.chooseTransformation(name as CreatorName);
+    } else {
+      this.addGenericStep(name);
+    }
+  }
+
+  /** Whether the Variable Transforms station is drawn: the step is applied, or was opened this visit. */
+  get transformStationShown(): boolean {
+    return this.transformStepAvailable && (this.transformSubNodeApplied || this.startedStations().transform);
+  }
+
+  /** Same for the Variable Scaling station. */
+  get scalerStationShown(): boolean {
+    return this.scalerStepAvailable && (this.scalerSubNodeApplied || this.startedStations().scaler);
+  }
+
+  /**
+   * Whether the opened Data transformation stage shows its add-step menu unfolded: only while the
+   * stage has nothing else to show (no card, no applied step, no opened station).
+   */
+  get transformationPickerOpen(): boolean {
+    return this.transformationChooserOnly
+      && this.appliedTransformationSingletonNodes.length === 0
+      && !this.startedStations().transform
+      && !this.startedStations().scaler
+      && !Object.values(this.genericStepOpen()).some(Boolean)
+      && !this.isLongitudinalModel;
+  }
+
+  /** Catalog steps of one stage, in catalog order. */
+  genericStepsOf(stage: 'preprocessing' | 'transformation'): RawPreprocessingStep[] {
+    return this.genericSteps.filter((spec) => stepStage(spec.name) === stage);
+  }
+
+  setGenericStepOpen(name: string, open: boolean): void {
+    this.genericStepOpen.update((state) => ({ ...state, [name]: open }));
+  }
+
+  isGenericStepApplied(name: string): boolean {
+    return this.appliedGenericParameters(name) !== null;
+  }
+
+  /** Applying a generic step writes it into the applied config, beside the other cards' applied rules. */
+  applyGenericStep(name: string, parameters: Record<string, unknown>): void {
+    this.writeGenericStep(name, parameters);
+    this.setGenericStepOpen(name, false);
+  }
+
+  removeGenericStep(name: string): void {
+    this.writeGenericStep(name, null);
+  }
+
+  private writeGenericStep(name: string, parameters: Record<string, unknown> | null): void {
+    // buildPreprocessingConfig carries every applied generic step over, so only this one changes.
+    const config: PreprocessingConfig = { ...(this.buildPreprocessingConfig(this.appliedPreprocessingRules) ?? {}) };
+    if (parameters) config[name] = parameters;
+    else delete config[name];
+    this.persistAppliedDescriptivePreprocessing(Object.keys(config).length ? config : null);
+    this.userPreprocessingApplied = true;
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Applied generic steps, kept on the variables still selected. A step whose required variable
+   * parameters end up empty is left out. Before the catalog loads they pass through unchanged
+   * (a hydrated saved experiment), after it only steps the catalog lists are kept.
+   */
+  private appliedGenericStepConfig(allowedCodes: Set<string>): PreprocessingConfig {
+    const applied = this.expStudioService.appliedPreprocessingConfig() ?? {};
+    const config: PreprocessingConfig = {};
+    for (const [name, value] of Object.entries(applied)) {
+      if (!isGenericCatalogStep(name) || !value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const spec = this.expStudioService.catalogStepSpec(name);
+      if (!spec) {
+        if (!this.expStudioService.catalogLoaded()) config[name] = value;
+        continue;
+      }
+      const kept = filterStepParameters(stepFields(spec), value as Record<string, unknown>, allowedCodes);
+      if (kept) config[name] = kept;
+    }
+    return config;
+  }
+
   /** A dashed rail row adds and opens its sub-step in one click, writing nothing. */
-  addPreprocessingSubNode(subNode: 'outlier' | 'longitudinal' | 'transform' | 'scaler'): void {
+  addPreprocessingSubNode(subNode: 'outlier' | `step:${string}`): void {
     if (!this.isStepAdded('setup')) this.addStep('setup');
     this.jumpToSubNode('setup', subNode);
   }
 
-  /** Same for the Transformation stage: opens it on the type chooser at the end of its graph. */
-  addTransformationSubNode(): void {
-    this.addStep('transformation');
+  /**
+   * Same for the Data transformation stage. Without a sub-step it opens the stage on the type
+   * chooser at the end of its graph; with one it opens that station only.
+   */
+  addTransformationSubNode(subNode?: 'longitudinal' | 'transform' | 'scaler' | `step:${string}`): void {
+    if (!subNode) {
+      this.addStep('transformation');
+      return;
+    }
+    if (!this.isStepAdded('transformation')) this.addStep('transformation');
+    this.jumpToSubNode('transformation', subNode);
   }
 
   isDraftShown(draft: TransformationColumnDraft): boolean {
@@ -1052,12 +1350,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   get transformSubNodeApplied(): boolean {
     return this.transformStepAvailable
-      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'transform');
+      && this.appliedTransformationSingletonNodes.some((node) => node.id === 'transform');
   }
 
   get scalerSubNodeApplied(): boolean {
     return this.scalerStepAvailable
-      && this.appliedPreprocessingSubNodes.some((node) => node.id === 'scaler');
+      && this.appliedTransformationSingletonNodes.some((node) => node.id === 'scaler');
   }
 
   get transformPreprocessingStatusLabel(): string {
@@ -1422,6 +1720,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.clearHistogramSubscriptions(this.processedSummary);
   }
 
+  /** Pending edits on the Preprocessing stage's own cards. */
+  get pendingPreprocessingChangeCount(): number {
+    return this.pendingMissingChangeCount + this.pendingOutlierChangeCount;
+  }
+
+  /** Pending edits on the Data transformation stage's singleton cards. */
+  get pendingTransformationSingletonChangeCount(): number {
+    return this.pendingLongitudinalChangeCount + this.pendingTransformChangeCount + this.pendingScalerChangeCount;
+  }
+
   get pendingChangeCount(): number {
     return this.pendingMissingChangeCount + this.pendingOutlierChangeCount + this.pendingLongitudinalChangeCount
       + this.pendingTransformChangeCount + this.pendingScalerChangeCount;
@@ -1468,11 +1776,13 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   get transformationStatusLabel(): string {
     const validCount = this.transformationConfigs().length;
     const hasAppliedColumn = validCount > 0
-      || this.cards().some((step) => step.name !== 'categorical_column_creator' && stepOutputNamesOf(step).length > 0);
-    if (hasAppliedColumn && !this.transformationHasPendingChange) return 'Applied';
+      || this.cards().some((step) => step.name !== 'categorical_column_creator' && stepOutputNamesOf(step).length > 0)
+      || this.appliedTransformationSingletonNodes.length > 0;
+    const hasPending = this.transformationHasPendingChange || this.pendingTransformationSingletonChangeCount > 0;
+    if (hasAppliedColumn && !hasPending) return 'Applied';
     if (
       hasAppliedColumn
-      || this.transformationHasPendingChange
+      || hasPending
       || this.transformationDrafts.some((draft) => this.draftHasWork(draft))
       || this.cards().length > 0
     ) {
@@ -2680,12 +2990,14 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     },
     transform: {
       pending: () => this.pendingTransformChangeCount,
-      validate: () => ({}),
+      validate: (): Record<string, string> => (this.transformNQuantilesError ? { __n_quantiles__: this.transformNQuantilesError } : {}),
       commit: () => {
         this.appliedTransformStrategies = this.cleanStrategyMap(this.pendingTransformStrategies);
+        this.appliedTransformNQuantiles = this.parseNQuantiles(this.pendingTransformNQuantiles);
       },
       reset: () => {
         this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+        this.pendingTransformNQuantiles = this.appliedTransformNQuantiles === null ? '' : String(this.appliedTransformNQuantiles);
       },
     },
     scaler: {
@@ -2856,6 +3168,33 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.pendingScalerStrategies[variable.code] ?? null;
   }
 
+  onTransformNQuantilesChange(value: string): void {
+    this.pendingTransformNQuantiles = String(value ?? '');
+    this.updatePreprocessingStatus();
+    this.emitProgressState();
+  }
+
+  /** True while a quantile transform is chosen: only then does `n_quantiles` matter. */
+  get transformUsesQuantiles(): boolean {
+    const codes = new Set(this.outlierPreprocessingVariables.map((variable) => variable.code));
+    return Object.entries(this.pendingTransformStrategies)
+      .some(([code, strategy]) => codes.has(code) && isQuantileStrategy(strategy));
+  }
+
+  /** Whole number >= 2, or null (empty = engine default). */
+  private parseNQuantiles(raw: string): number | null {
+    const text = String(raw ?? '').trim();
+    if (!text) return null;
+    const n = Number(text);
+    return Number.isInteger(n) && n >= 2 ? n : null;
+  }
+
+  get transformNQuantilesError(): string {
+    const text = String(this.pendingTransformNQuantiles ?? '').trim();
+    if (!text || !this.transformUsesQuantiles) return '';
+    return this.parseNQuantiles(text) === null ? 'Number of quantiles must be a whole number of at least 2.' : '';
+  }
+
   onScalerStrategyChange(variable: VariableRow, strategy: ScalerStrategy | null): void {
     this.pendingScalerStrategies = {
       ...this.pendingScalerStrategies,
@@ -2896,9 +3235,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const range = applied ? this.appliedScalerFeatureRange : this.parseFeatureRange(this.pendingScalerFeatureRange);
     const source = step === 'transform' ? transformStrategies : scalerStrategies;
     const codes = this.outlierPreprocessingVariables.map((v) => v.code);
+    const nQuantiles = applied ? this.appliedTransformNQuantiles : this.parseNQuantiles(this.pendingTransformNQuantiles);
     return JSON.stringify({
       strategies: Object.fromEntries(codes.sort().map((code) => [code, source[code] ?? null])),
       ...(step === 'scaler' ? { featureRange: range } : {}),
+      ...(step === 'transform' && Object.values(source).some(isQuantileStrategy) ? { nQuantiles } : {}),
     });
   }
 
@@ -3289,16 +3630,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     this.goToSection('processed');
   }
 
+  /** Processed-data summary variables: the selection, minus those an applied step removes. */
+  private processedPreviewVariableCodes(): string[] {
+    const dropped = new Set(this.expStudioService.genericStepDroppedCodes());
+    return this.preprocessingVariables.map((variable) => variable.code).filter((code) => !dropped.has(code));
+  }
+
   /**
    * Transient processed describe for the pending config. It shares the processed
    * summary's cache key with the applied fetch, so an Apply (or an applied refresh)
    * with identical inputs reuses the data instead of refetching.
    */
+
   private fetchProcessedPreview(): void {
     const scope = this.processedPreviewScope;
     this.processedPreviewScope = 'all';
     if (Object.keys(this.validatePendingRulesFor(scope)).length > 0) return;
-    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const variableCodes = this.processedPreviewVariableCodes();
     const hasScope =
       !!this.expStudioService.selectedDataModel() && this.expStudioService.selectedDatasets().length > 0;
     if (!hasScope || !variableCodes.length) {
@@ -3387,7 +3735,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       return;
     }
 
-    const variableCodes = this.preprocessingVariables.map((variable) => variable.code);
+    const variableCodes = this.processedPreviewVariableCodes();
     const requestSeq = ++this.processedDescribeSeq;
     this.isApplyingPreprocessing = true;
     this.clearHistogramSubscriptions(this.processedSummary);
@@ -4193,6 +4541,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     if (scaler) config['variable_scaler'] = scaler;
     const longitudinal = this.buildLongitudinalPreprocessingConfig(step !== 'longitudinal');
     if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+    Object.assign(config, this.appliedGenericStepConfig(this.currentPreprocessingCodeSet()));
     return Object.keys(config).length ? config : null;
   }
 
@@ -4219,6 +4568,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
     const longitudinal = this.buildLongitudinalPreprocessingConfig(applied, allowedCodes);
     if (longitudinal) config['longitudinal_transformer'] = longitudinal;
+
+    // Catalog steps without a dedicated card are applied from their own card, never pending here.
+    Object.assign(config, this.appliedGenericStepConfig(allowedCodes));
 
     return Object.keys(config).length ? config : null;
   }
@@ -4579,7 +4931,11 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const strategies = Object.fromEntries(
       Object.entries(source).filter(([code]) => allowedCodes.has(code))
     );
-    return Object.keys(strategies).length ? { strategies } : null;
+    if (!Object.keys(strategies).length) return null;
+    // `n_quantiles` only matters to the quantile methods; without one it stays out of the request.
+    const nQuantiles = applied ? this.appliedTransformNQuantiles : this.parseNQuantiles(this.pendingTransformNQuantiles);
+    const usesQuantiles = Object.values(strategies).some(isQuantileStrategy);
+    return usesQuantiles && nQuantiles !== null ? { strategies, n_quantiles: nQuantiles } : { strategies };
   }
 
   private buildScalerPreprocessingConfig(
@@ -4840,6 +5196,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     };
     this.appliedTransformStrategies = hydrateStrategies('variable_transformer', this.isTransformStrategy);
     this.pendingTransformStrategies = { ...this.appliedTransformStrategies };
+    const transformHolder = preprocessing['variable_transformer'] as { n_quantiles?: unknown } | undefined;
+    this.appliedTransformNQuantiles = this.parseNQuantiles(String(transformHolder?.n_quantiles ?? ''));
+    this.pendingTransformNQuantiles = this.appliedTransformNQuantiles === null ? '' : String(this.appliedTransformNQuantiles);
     this.appliedScalerStrategies = hydrateStrategies('variable_scaler', this.isScalerStrategy);
     this.pendingScalerStrategies = { ...this.appliedScalerStrategies };
     const scalerHolder = preprocessing['variable_scaler'] as { feature_range?: unknown } | undefined;

@@ -987,6 +987,140 @@ describe('ExperimentStudioService', () => {
     }));
   });
 
+  describe('catalog steps without a dedicated station', () => {
+    const detectorSpec = {
+      name: 'outlier_detector',
+      label: 'Outlier Detector',
+      desc: 'Flags outliers.',
+      parameters: {
+        strategies: {
+          label: 'Mode', desc: '', types: ['dict'], required: true,
+          dict_keys_enums: { type: 'input_var_names', source: ['variables'] },
+          dict_values_enums: { type: 'list', source: ['zscore', 'robust'] },
+        },
+      },
+    };
+
+    function loadCatalog(preprocessing: unknown[]): void {
+      service.loadBackendAlgorithms().subscribe();
+      httpMock.expectOne('/services/specifications/inputdata').flush(mockInputdataSpec);
+      httpMock.expectOne('/services/specifications/preprocessing').flush(preprocessing);
+      httpMock.expectOne('/services/specifications/algorithms').flush(mockAlgorithmSpecs);
+    }
+
+    it('lists catalog steps that have neither a dedicated station nor a creator card', () => {
+      loadCatalog([
+        { name: 'missing_values_handler', label: 'M', desc: '', parameters: {} },
+        { name: 'categorical_column_creator', label: 'C', desc: '', parameters: {} },
+        detectorSpec,
+        { name: 'missing_indicator', label: 'Missing Indicator', desc: '', parameters: {} },
+      ]);
+
+      expect(service.genericCatalogSteps().map((spec) => spec.name)).toEqual(['outlier_detector', 'missing_indicator']);
+      expect(service.catalogStepSpec('outlier_detector')?.label).toBe('Outlier Detector');
+      expect(service.catalogStepSpec('nope')).toBeNull();
+    });
+
+    it('sends an applied generic step in the request as configured, after the dedicated steps', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      loadCatalog([detectorSpec]);
+      const applied = {
+        missing_values_handler: { strategies: { age: 'drop' } },
+        outlier_detector: { strategies: { age: 'zscore' }, threshold: 2.5 },
+      };
+
+      service.setAppliedDescriptivePreprocessing(applied);
+      const body = service.buildRequestBody('mock_algo', ['age']);
+
+      expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+    });
+
+    it('drops a generic step the loaded catalog does not list', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      loadCatalog([]);
+
+      service.setAppliedDescriptivePreprocessing({
+        missing_values_handler: { strategies: { age: 'drop' } },
+        outlier_detector: { strategies: { age: 'zscore' } },
+      });
+      const body = service.buildRequestBody('mock_algo', ['age']);
+
+      expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+        missing_values_handler: { strategies: { age: 'drop' } },
+      }));
+    });
+
+    it('puts a missing indicator ahead of the missing-values step', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      loadCatalog([{ name: 'missing_indicator', label: 'Missing Indicator', desc: '', parameters: {} }]);
+
+      service.setAppliedDescriptivePreprocessing({
+        missing_values_handler: { strategies: { age: 'mean' } },
+        missing_indicator: { variables: ['age'], suffix: '_na' },
+      });
+      const body = service.buildRequestBody('mock_algo', ['age']);
+
+      expect(body.analysis.preprocessing?.map((step: { name: string }) => step.name)).toEqual(['missing_indicator', 'missing_values_handler']);
+    });
+
+    it('offers indicator columns as assignable variables and keeps them out of inputdata', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([{ code: 'age', label: 'Age', type: 'real' } as any]);
+      loadCatalog([{ name: 'missing_indicator', label: 'Missing Indicator', desc: '', parameters: {} }]);
+
+      service.setAppliedDescriptivePreprocessing({ missing_indicator: { variables: ['age'] } });
+
+      const created = service.algorithmAssignableVariables().filter((v: any) => v.isCreatedColumn);
+      expect(created.map((v: any) => v.code)).toEqual(['age_missing']);
+      expect(service.buildRequestBody('mock_algo', ['age']).analysis.inputdata.variables).toEqual(['age']);
+    });
+
+    it('removes a one-hot encoded variable from the assignable pool and drops its roles', () => {
+      service.selectedDataModel.set(mockDataModel);
+      service.setSelectedDatasets(['ds1']);
+      service.setVariables([
+        { code: 'age', label: 'Age', type: 'real' } as any,
+        { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F', label: 'F' }, { code: 'M', label: 'M' }] } as any,
+      ]);
+      service.setAlgorithmX([{ code: 'sex', label: 'Sex', type: 'nominal' } as any]);
+      loadCatalog([{ name: 'one_hot_encoder', label: 'One-Hot Encoder', desc: '', parameters: {} }]);
+
+      service.setAppliedDescriptivePreprocessing({ one_hot_encoder: { variables: ['sex'] } });
+
+      expect(service.algorithmAssignableVariables().map((v: any) => v.code)).toEqual(['age', 'sex_M']);
+      expect(service.algorithmX()).toEqual([]);
+      expect(service.genericStepDroppedCodes()).toEqual(['sex']);
+    });
+
+    it('summarizes a generic step with its catalog label and variable labels', () => {
+      loadCatalog([detectorSpec]);
+
+      const summary = service.formatPreprocessingConfig({
+        outlier_detector: { strategies: { age: 'zscore' }, threshold: 3 },
+      }, { age: 'Age' });
+
+      expect(summary).toBe('Outlier Detector: Age: zscore; threshold: 3');
+    });
+  });
+
+  it('drops the transformer step when filtering leaves no strategy, not just n_quantiles', () => {
+    service.selectedDataModel.set(mockDataModel);
+    service.setSelectedDatasets(['ds1']);
+    const applied = {
+      variable_transformer: { strategies: { bmi: 'quantile_normal' }, n_quantiles: 21 },
+    };
+
+    const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
+
+    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+      missing_values_handler: { strategies: { age: 'drop' } },
+    }));
+  });
+
   it('drops the scaler step when filtering leaves no strategy, not just feature_range', () => {
     service.selectedDataModel.set(mockDataModel);
     service.setSelectedDatasets(['ds1']);

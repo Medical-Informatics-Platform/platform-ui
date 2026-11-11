@@ -44,6 +44,8 @@ describe('StatisticAnalysisPanelComponent transformation card open state', () =>
             'hasPreprocessingSpec',
             'catalogLoaded',
             'stepOutputNames',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
         ], {
             selectedVariables: signal([]),
             selectedFilters: signal([]),
@@ -92,6 +94,8 @@ describe('StatisticAnalysisPanelComponent transformation card open state', () =>
             ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
