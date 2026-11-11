@@ -6,8 +6,6 @@ import {
   HISTOGRAM_RESIDUAL_COLOR,
   HISTOGRAM_RESIDUAL_KEY,
   HISTOGRAM_RESIDUAL_LABEL,
-  HISTOGRAM_RESIDUAL_LEGEND_LABEL,
-  HISTOGRAM_SOFT_EDGE,
   HistogramChartData,
   HistogramGroupSeries,
   isNominalHistogramNode,
@@ -104,7 +102,7 @@ export function formatClippedNullEdgesNote(
     .filter(Boolean)
     .join(' / ');
   return range
-    ? `Values ${range} hidden (too few records per bin for privacy). Review outliers in Data Handling.`
+    ? `Values ${range} masked (too few records per bin for privacy). Review outliers in Data Handling.`
     : null;
 }
 
@@ -184,17 +182,37 @@ interface StackedTooltipRow {
   hatch?: boolean;
 }
 
-interface LegendItem {
-  label: string;
-  color: string;
-  hatch?: boolean;
-  title?: string;
+/**
+ * Drops hidden split groups. Each bin's total becomes the groups still shown plus
+ * the masked-or-missing share no group accounts for, so hiding a group never
+ * hides the masked records with it.
+ */
+export function withoutHiddenGroups(
+  data: HistogramChartData,
+  hidden: ReadonlySet<string>
+): HistogramChartData {
+  if (!data.groups?.length || !hidden.size) return data;
+  const allGroups = data.groups;
+  const groups = allGroups.filter((group) => !hidden.has(group.key));
+  const counts = data.counts.map((total, index) => {
+    if (total === null) return null;
+    const shown = groups.reduce((sum, group) => sum + (group.counts[index] ?? 0), 0);
+    return shown + residualCount(total, allGroups, index);
+  });
+  return { ...data, counts, groups };
+}
+
+/** True when some bin's total is more than its groups show (privacy masking, missing values). */
+export function hasMaskedRemainder(data: HistogramChartData): boolean {
+  const groups = data.groups ?? [];
+  return groups.length > 0 && data.counts.some((total, index) => residualCount(total, groups, index) > 0);
 }
 
 function attachChartTooltip(
   container: HTMLElement,
   formatTitle: (binLabel: string) => string = (binLabel) => binLabel,
   total?: number,
+  totalLabel = 'Total',
 ) {
   container.style.position = 'relative';
   const tooltip = d3
@@ -265,7 +283,7 @@ function attachChartTooltip(
       .style('line-height', '1.4')
       .text(formatTitle(binLabel));
     const totalRow = tooltip.append('div').style('margin-bottom', '6px');
-    totalRow.append('span').style('color', 'var(--text-muted, #475569)').text('Total ');
+    totalRow.append('span').style('color', 'var(--text-muted, #475569)').text(`${totalLabel} `);
     totalRow.append('b').text(formatCountLabel(binTotal));
     if (binTotal !== null && total) {
       totalRow
@@ -331,57 +349,6 @@ function attachChartTooltip(
   return { showTooltip, showStackedTooltip, moveTooltip, hideTooltip };
 }
 
-function appendHistogramLegend(
-  container: HTMLElement,
-  items: LegendItem[],
-  title?: string,
-  plotLeft = 0
-): number {
-  // D3/DOM nodes created at runtime have no `_ngcontent-*`, so emulated
-  // component CSS never matches them. Inline styles, same as the tooltip.
-  const el = (tag: string, className: string, css: string): HTMLElement => {
-    const node = document.createElement(tag);
-    node.className = className;
-    node.style.cssText = css;
-    return node;
-  };
-  const muted = 'color: var(--text-muted, #475569);';
-  const legend = el('div', 'histogram-legend',
-    'display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0;' +
-    ` margin: 0 0 4px ${Math.max(0, plotLeft)}px;` +
-    ` width: ${plotLeft ? `calc(100% - ${plotLeft}px)` : '100%'};` +
-    ` box-sizing: border-box; font-family: var(--font-sans, inherit); ${muted}`);
-  if (title) {
-    const heading = el('span', 'histogram-legend-title',
-      'display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;' +
-      ` text-transform: uppercase; ${muted}`);
-    heading.textContent = title;
-    legend.appendChild(heading);
-  }
-  const list = el('div', 'histogram-legend-items',
-    'display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 6px; width: 100%;');
-  list.setAttribute('role', 'list');
-  for (const item of items) {
-    const entry = el('span', 'histogram-legend-item',
-      'display: inline-flex; align-items: center; gap: 6px; max-width: 180px; min-height: 16px;' +
-      ` font-size: 12px; line-height: 1.2; font-variant-numeric: tabular-nums; ${muted}`);
-    entry.setAttribute('role', 'listitem');
-    entry.title = item.title || item.label;
-    const edge = item.hatch ? HISTOGRAM_SOFT_EDGE : histogramSeriesEdgeColor(item.color);
-    const swatch = el('span', 'histogram-legend-swatch',
-      'display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto;' +
-      ` background: ${item.hatch ? RESIDUAL_SWATCH : item.color};` +
-      (edge ? ` box-shadow: inset 0 0 0 1px ${edge};` : ''));
-    const caption = el('span', '', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;');
-    caption.textContent = item.label;
-    entry.append(swatch, caption);
-    list.appendChild(entry);
-  }
-  legend.appendChild(list);
-  container.insertBefore(legend, container.firstChild);
-  return legend.offsetHeight || 28;
-}
-
 let hatchSerial = 0;
 
 function appendHatch(
@@ -416,14 +383,31 @@ export function createHistogram(
     color?: string;
     orientation?: 'vertical' | 'horizontal';
     clipNullEdges?: boolean;
+    /** Split-group keys the user switched off in the legend. */
+    hiddenGroups?: ReadonlySet<string>;
   } = {}
 ): void {
+  // Colours follow the full group list, so a hidden group keeps its slot and the
+  // remaining groups keep their colours.
+  const allGroups = data.groups;
+  const hiddenGroups = config.hiddenGroups ?? new Set<string>();
+  const shownGroupCount = (allGroups ?? []).filter((group) => !hiddenGroups.has(group.key)).length;
+  const totalLabel = hiddenGroups.size && allGroups?.length
+    ? `Total (${shownGroupCount} of ${allGroups.length} shown)`
+    : 'Total';
+
   // A nominal variable split by another category has no meaningful stack: draw
   // one side-by-side cluster of bars per group instead.
-  if (data.groups?.length && isNominalHistogramNode({ type: data.variableType })) {
-    createGroupedCategoryChart(data, container);
+  if (allGroups?.length && isNominalHistogramNode({ type: data.variableType })) {
+    createGroupedCategoryChart(
+      withoutHiddenGroups(data, hiddenGroups),
+      container,
+      allGroups.map((group) => group.key)
+    );
     return;
   }
+
+  data = withoutHiddenGroups(data, hiddenGroups);
 
   if (config.orientation === 'horizontal') {
     createHorizontalBarChart(data, container, config);
@@ -588,6 +572,7 @@ export function createHistogram(
     container,
     (binLabel) => `${data.variableName ? data.variableName + ' · ' : ''}${binLabel}`,
     total,
+    totalLabel,
   );
   const visiblePoints = binPoints.filter((entry) => entry.count !== null);
   // Every null bin before the first or after the last visible bin is an edge outlier.
@@ -599,7 +584,7 @@ export function createHistogram(
   const bandWidth = xScale.bandwidth();
   const barOpacity = 0.9;
   const groupColorByKey = new Map(
-    (groups ?? []).map((group, index) => [group.key, histogramSeriesColor(index)])
+    (allGroups ?? []).map((group, index) => [group.key, histogramSeriesColor(index)])
   );
 
   // Hover band behind the bars: a full-height tint marks the bin under the pointer.
@@ -928,30 +913,6 @@ export function createHistogram(
   if (svgBBox && svgBBox.height > 0) {
     containerHeight = Math.ceil(svgBBox.y + svgBBox.height + 4);
     svg.attr('height', containerHeight);
-  }
-
-  if (stacked) {
-    const legendItems: LegendItem[] = (groups ?? []).map((group) => ({
-      label: group.label,
-      color: groupColorByKey.get(group.key) ?? barColor,
-    }));
-    if (anyResidual) {
-      legendItems.push({
-        label: HISTOGRAM_RESIDUAL_LEGEND_LABEL,
-        color: HISTOGRAM_RESIDUAL_COLOR,
-        hatch: true,
-        title: HISTOGRAM_RESIDUAL_LABEL,
-      });
-    }
-    if (legendItems.length) {
-      const legendHeight = appendHistogramLegend(
-        container,
-        legendItems,
-        data.splitLabel,
-        plotLeft
-      );
-      containerHeight += legendHeight + 4;
-    }
   }
 
   container.style.height = `${containerHeight}px`;

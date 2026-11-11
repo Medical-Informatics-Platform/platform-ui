@@ -911,6 +911,104 @@
   color: var(--text-muted);
 }
 
+/* Split by: one-click pills (native radios, so arrow keys move the choice).
+   Rounded pills choose the dimension; the square chips under the chart then
+   toggle its groups. */
+.split-pills {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A flex box beside the floated legend: wrapped pills line up under the
+   first pill, not under "Split by". */
+.split-pills-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.split-pills-legend {
+  float: left;
+  margin-right: 10px;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 28px;
+  color: var(--text-muted);
+}
+
+.split-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 200px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.split-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.split-pill input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.split-pill:hover:not(.is-disabled):not(.is-active) {
+  background: var(--tint-nav-hover, #e5ebfa);
+}
+
+.split-pill.is-active {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.split-pill:has(input:focus-visible) {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.split-pill.is-disabled {
+  background: transparent;
+  border-style: dashed;
+  color: var(--unavailable-text, #94a3b8);
+  cursor: not-allowed;
+}
+
+.split-pill.is-active.is-disabled {
+  border-style: solid;
+  background: color-mix(in srgb, var(--primary-color) 55%, white);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-pill {
+    transition: none;
+  }
+}
+
 /* Split variable missing from a selected dataset: grayed out and disabled. */
 .bin-selector option.is-unavailable {
   color: var(--unavailable-text);

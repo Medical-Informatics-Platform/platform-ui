@@ -1,6 +1,7 @@
 import { Component, ElementRef, provideZonelessChangeDetection, signal, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HistogramChartConfig, HistogramComponent } from './histogram.component';
+import { HistogramChartData } from './histogram-data';
 
 type ChartData = { bins: string[]; counts: number[]; variableName: string };
 
@@ -25,7 +26,7 @@ const RESIZE_MS = 300;
 })
 class HistogramSpecHostComponent {
   readonly wrapper = viewChild.required<ElementRef<HTMLDivElement>>('wrapper');
-  readonly data = signal<ChartData | null>(null);
+  readonly data = signal<ChartData | HistogramChartData | null>(null);
   readonly config = signal<HistogramChartConfig>({});
 }
 
@@ -61,7 +62,7 @@ describe('HistogramComponent', () => {
   }
 
   function chart(): HTMLElement {
-    return wrapper.querySelector('#histogram-chart') as HTMLElement;
+    return wrapper.querySelector('.histogram-plot') as HTMLElement;
   }
 
   function svg(): SVGElement | null {
@@ -171,5 +172,84 @@ describe('HistogramComponent', () => {
     await settle(RESIZE_MS);
 
     expect(bars()).toBe(SWAPPED.bins.length);
+  });
+  describe('split group chips', () => {
+    const SPLIT: HistogramChartData = {
+      bins: ['0', '10', '20'],
+      counts: [10, 20, 30],
+      variableName: 'Dose',
+      variableType: 'real',
+      splitLabel: 'Dataset',
+      splitCode: 'dataset',
+      groups: [
+        { key: 'SSR', label: 'SSR Swiss Stroke Registry', counts: [4, 8, 10] },
+        { key: 'SSR-even', label: 'SSR Swiss Stroke Registry (even)', counts: [4, 8, 10] },
+      ],
+    };
+
+    function chips(): HTMLButtonElement[] {
+      return Array.from(wrapper.querySelectorAll<HTMLButtonElement>('button.histogram-chip'));
+    }
+
+    function status(): string {
+      return (wrapper.querySelector('.histogram-filter-status')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    it('shows one chip per group, labelled by dataset code, named in full for assistive tech', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      expect(chips().map((chip) => chip.textContent?.trim())).toEqual(['SSR', 'SSR-even']);
+      expect(chips().map((chip) => chip.getAttribute('aria-label'))).toEqual([
+        'SSR Swiss Stroke Registry',
+        'SSR Swiss Stroke Registry (even)',
+      ]);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+      // The groups do not add up to the totals, so the masked remainder is named.
+      expect(wrapper.querySelector('.histogram-chip.is-static')?.textContent).toContain('Masked or missing');
+      expect(status()).toBe('');
+    });
+
+    it('hides a group on click, says how many are shown, and Show all brings it back', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      chips()[1].click();
+      await settle(0);
+      expect(chips()[1].getAttribute('aria-pressed')).toBe('false');
+      expect(chart().querySelectorAll('.bar[data-group="SSR-even"]')).toHaveLength(0);
+      expect(status()).toContain('Showing 1 of 2 datasets');
+
+      // The last shown group is locked rather than silently ignoring the click.
+      expect(chips()[0].getAttribute('aria-disabled')).toBe('true');
+      chips()[0].click();
+      await settle(0);
+      expect(chips()[0].getAttribute('aria-pressed')).toBe('true');
+
+      (wrapper.querySelector('.histogram-show-all') as HTMLButtonElement).click();
+      await settle(0);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+      expect(status()).toBe('');
+    });
+
+    it('uses the group names and "groups" for a non-dataset split', async () => {
+      host.data.set({ ...SPLIT, splitCode: 'sex', splitLabel: 'Sex' });
+      await settle(RENDER_MS);
+      expect(chips()[0].textContent?.trim()).toBe('SSR Swiss Stroke Registry');
+      chips()[0].click();
+      await settle(0);
+      expect(status()).toContain('Showing 1 of 2 groups');
+    });
+
+    it('starts fully shown again when the split groups change', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+      chips()[1].click();
+      await settle(0);
+
+      host.data.set({ ...SPLIT, groups: [...SPLIT.groups!, { key: 'SSR-odd', label: 'Odd', counts: [1, 1, 1] }] });
+      await settle(0);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+    });
   });
 });

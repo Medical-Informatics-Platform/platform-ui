@@ -6,12 +6,13 @@ import {
   orderHorizontalBarRows,
   selectXTickValues,
   shouldClipNullEdges,
+  withoutHiddenGroups,
   wrapCategoryLabel,
 } from './histogram-chart';
 import {
   HISTOGRAM_EDGE_PRIVACY_TOOLTIP,
   HISTOGRAM_INTERIOR_PRIVACY_TOOLTIP,
-  HISTOGRAM_RESIDUAL_LABEL,
+  histogramSeriesColor,
 } from './histogram-data';
 
 describe('wrapCategoryLabel', () => {
@@ -162,10 +163,10 @@ describe('describeClippedNullEdges', () => {
 
   it('formats the Data Exploration warning from those edges', () => {
     expect(formatClippedNullEdgesNote({ below: '10', above: '30' })).toBe(
-      'Values below 10 / above 30 hidden (too few records per bin for privacy). Review outliers in Data Handling.'
+      'Values below 10 / above 30 masked (too few records per bin for privacy). Review outliers in Data Handling.'
     );
     expect(formatClippedNullEdgesNote({ below: null, above: '85' })).toBe(
-      'Values above 85 hidden (too few records per bin for privacy). Review outliers in Data Handling.'
+      'Values above 85 masked (too few records per bin for privacy). Review outliers in Data Handling.'
     );
     expect(formatClippedNullEdgesNote(null)).toBeNull();
   });
@@ -196,6 +197,33 @@ describe('createHistogram with floating-point bin edges', () => {
   });
 });
 
+describe('withoutHiddenGroups', () => {
+  const data = {
+    bins: ['0', '10'],
+    counts: [10, 20],
+    groups: [
+      { key: 'a', label: 'A', counts: [4, null] },
+      { key: 'b', label: 'B', counts: [5, null] },
+    ],
+  };
+
+  it('re-totals each bin from the groups still shown plus the masked remainder', () => {
+    const filtered = withoutHiddenGroups(data, new Set(['b']));
+    expect(filtered.groups?.map((group) => group.key)).toEqual(['a']);
+    // Bin 0: A's 4 plus the 1 no group accounts for. Bin 1: both groups masked, all 20 stay.
+    expect(filtered.counts).toEqual([5, 20]);
+  });
+
+  it('keeps a privacy-null bin total null', () => {
+    const filtered = withoutHiddenGroups({ ...data, counts: [null, 20] }, new Set(['b']));
+    expect(filtered.counts[0]).toBeNull();
+  });
+
+  it('returns the data unchanged when nothing is hidden', () => {
+    expect(withoutHiddenGroups(data, new Set())).toBe(data);
+  });
+});
+
 describe('createHistogram stacked groups', () => {
   const unsplit = {
     bins: ['0', '10', '20'],
@@ -221,30 +249,32 @@ describe('createHistogram stacked groups', () => {
     return host;
   }
 
-  it('draws stacked segments per bin, a residual when groups do not sum, and a legend', () => {
+  it('draws stacked segments per bin and a residual when groups do not sum', () => {
     container = mount();
     createHistogram({ ...unsplit, groups, splitLabel: 'Dataset' }, container, {});
 
     const bars = Array.from(container.querySelectorAll('.bar'));
     expect(bars).toHaveLength(9);
     expect(container.querySelectorAll('.bar-residual')).toHaveLength(3);
-    expect(container.querySelector('.histogram-legend-title')?.textContent).toBe('Dataset');
-    expect(getComputedStyle(container.querySelector('.histogram-legend-title')!).textTransform).toBe('uppercase');
-    const legendItems = Array.from(container.querySelectorAll('.histogram-legend-item')).map((item) => item.textContent);
-    expect(legendItems).toEqual(['Group A', 'Group B', 'Not shown']);
-    expect(
-      container.querySelector('.histogram-legend-item:last-child')?.getAttribute('title')
-    ).toBe(HISTOGRAM_RESIDUAL_LABEL);
-
-    const swatch = container.querySelector('.histogram-legend-swatch') as HTMLElement;
-    const item = container.querySelector('.histogram-legend-item') as HTMLElement;
-    const swatchStyle = getComputedStyle(swatch);
-    expect(parseFloat(swatchStyle.width)).toBeGreaterThan(0);
-    expect(parseFloat(swatchStyle.height)).toBeGreaterThan(0);
-    expect(swatchStyle.backgroundColor).not.toMatch(/^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/);
-    const itemGap = getComputedStyle(item).columnGap || getComputedStyle(item).gap;
-    expect(parseFloat(itemGap)).toBeGreaterThan(0);
     expect(container.querySelectorAll('.bar-value')).toHaveLength(3);
+  });
+
+  it('drops a hidden group but keeps the masked remainder drawn', () => {
+    container = mount();
+    createHistogram({ ...unsplit, groups, splitLabel: 'Dataset' }, container, { hiddenGroups: new Set(['b']) });
+
+    expect(container.querySelectorAll('.bar[data-group="b"]')).toHaveLength(0);
+    expect(container.querySelectorAll('.bar[data-group="a"]')).toHaveLength(3);
+    // Totals 10/20/30 minus both groups leave 2/4/10 masked; hiding B must not hide them.
+    expect(container.querySelectorAll('.bar-residual')).toHaveLength(3);
+    expect(container.querySelector('.histogram-legend')).toBeNull();
+  });
+
+  it('keeps a hidden group\'s colour slot so the others keep their colours', () => {
+    container = mount();
+    createHistogram({ ...unsplit, groups, splitLabel: 'Dataset' }, container, { hiddenGroups: new Set(['a']) });
+    const bar = container.querySelector('.bar[data-group="b"]');
+    expect(bar?.getAttribute('fill')).toBe(histogramSeriesColor(1));
   });
 
   it('does not draw a slate box around bars or yellow segments', () => {
@@ -267,18 +297,6 @@ describe('createHistogram stacked groups', () => {
     );
     expect(hue.length).toBeGreaterThan(0);
     expect(hue.every((color) => color === '#d99a00')).toBe(true);
-  });
-
-  it('aligns the legend with the plot origin', () => {
-    container = mount();
-    createHistogram({ ...unsplit, groups, splitLabel: 'Dataset' }, container, {});
-
-    const svg = container.querySelector('svg')!;
-    const plot = svg.querySelector(':scope > g')!;
-    const match = plot.getAttribute('transform')?.match(/translate\(([\d.]+)/);
-    const plotLeft = svg.getBoundingClientRect().left + Number(match?.[1] ?? 0);
-    const legendLeft = container.querySelector('.histogram-legend')!.getBoundingClientRect().left;
-    expect(Math.abs(legendLeft - plotLeft)).toBeLessThanOrEqual(2);
   });
 
   it('fades other stacks on hover', () => {
@@ -373,7 +391,6 @@ describe('createHistogram numeric bins', () => {
     const bars = [0, 1, 2].map((index) => container.querySelector(`.bar[data-index="${index}"]`)!);
     expect(Math.abs(barRight(bars[0]) - barLeft(bars[1]))).toBeLessThanOrEqual(1);
     expect(Math.abs(barRight(bars[1]) - barLeft(bars[2]))).toBeLessThanOrEqual(1);
-    expect(container.querySelector('.histogram-legend-title')?.textContent).toBe('Sex');
   });
 
   it('keeps gaps between nominal bars', () => {

@@ -291,6 +291,7 @@ interface HistogramPreviewData {
   variableType?: string;
   groups?: HistogramGroupSeries[];
   splitLabel?: string;
+  splitCode?: string;
 }
 
 interface PreprocessingRule {
@@ -4430,6 +4431,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         variableName: block.name,
         variableType: this.statisticBlockType(kind, block),
         splitLabel,
+        splitCode: groupingCode ?? undefined,
       },
       error: '',
     };

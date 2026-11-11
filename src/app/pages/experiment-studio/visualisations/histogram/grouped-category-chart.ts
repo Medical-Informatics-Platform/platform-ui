@@ -14,19 +14,27 @@ export interface GroupedCategoryCluster {
  * Clusters for a categorical variable split by another category: one cluster per group,
  * in group order, each holding one bar per bin of the plotted variable.
  */
-export function buildGroupedCategoryClusters(data: HistogramChartData): GroupedCategoryCluster[] {
+export function buildGroupedCategoryClusters(
+  data: HistogramChartData,
+  /** Keys of every group, hidden ones included, so colours stay put when one is hidden. */
+  colorKeys: string[] = (data.groups ?? []).map((group) => group.key)
+): GroupedCategoryCluster[] {
   if (!data.groups?.length) return [];
-  return data.groups.map((group, index) => ({
+  return data.groups.map((group) => ({
     key: group.key,
     label: group.label,
-    color: histogramSeriesColor(index),
+    color: histogramSeriesColor(Math.max(0, colorKeys.indexOf(group.key))),
     bars: data.bins.map((bin, i) => ({ bin: String(bin), count: group.counts[i] ?? null })),
   }));
 }
 
 /** Draws the clusters side by side (d3, vertical bars), one colour per cluster. */
-export function createGroupedCategoryChart(data: HistogramChartData, container: HTMLElement): void {
-  const clusters = buildGroupedCategoryClusters(data);
+export function createGroupedCategoryChart(
+  data: HistogramChartData,
+  container: HTMLElement,
+  colorKeys?: string[]
+): void {
+  const clusters = buildGroupedCategoryClusters(data, colorKeys);
   if (!clusters.length) return;
 
   container.innerHTML = '';

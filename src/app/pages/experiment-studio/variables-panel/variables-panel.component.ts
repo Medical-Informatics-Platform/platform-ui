@@ -119,6 +119,8 @@ export class VariablesPanelComponent implements OnDestroy {
     })
   );
   readonly canSplitHistogram = computed(() => canSplitHistogramNode(this.plottedVariable()));
+  /** Up to this many split choices show as one-click pills; more fall back to a select. */
+  readonly maxSplitPills = 5;
   readonly histogramPrivacyTrimNote = computed(() => {
     const data = this.histogramData();
     if (!data?.bins?.length || isNominalHistogramNode(this.plottedVariable())) {
@@ -722,6 +724,7 @@ export class VariablesPanelComponent implements OnDestroy {
                 variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
                 variableType: variableNode?.type,
                 splitLabel,
+                splitCode: grouping ?? undefined,
               });
               this.clearChartNotices();
             } else {
@@ -729,6 +732,12 @@ export class VariablesPanelComponent implements OnDestroy {
               const resultData = response?.result?.data || response?.data;
               if (typeof resultData === 'string' && resultData.includes('insufficient data')) {
                 this.emptyChartMessage.set('This variable does not have sufficient data.');
+              } else if (response?.status === 'error') {
+                console.error('Histogram analysis failed:', resultData);
+                this.emptyChartMessage.set(null);
+                this.errorMessage.set(
+                  typeof resultData === 'string' && resultData ? resultData : 'Error loading histogram. Please try again.'
+                );
               } else {
                 this.emptyChartMessage.set('No distribution for this selection.');
               }

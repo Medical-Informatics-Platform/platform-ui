@@ -25,7 +25,7 @@ describe('CsvExportService', () => {
 
     expect(saved!.name).toBe('Age_distribution.csv');
     expect(saved!.content).toBe(
-      'Category,Count,Dataset A,Not shown (missing or < privacy threshold)\r\n0,10,4,6\r\n10,20,8,12'
+      'Category,Count,Dataset A,Masked or missing (below the privacy threshold or no value)\r\n0,10,4,6\r\n10,20,8,12'
     );
   });
 

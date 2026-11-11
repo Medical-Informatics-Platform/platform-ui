@@ -1,4 +1,12 @@
 #histogram-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.histogram-plot {
   display: block;
   padding: 0;
   width: 100%;
@@ -7,6 +15,142 @@
      paints a stray vertical scrollbar. Hide Y; size the box to the drawing. */
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+/* Split groups as show/hide chips. The swatch is the state: filled = shown,
+   a ring in the group's colour = hidden. */
+.histogram-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.histogram-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.histogram-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  max-width: 220px;
+  padding: 3px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: #ffffff;
+  color: var(--text-main, #0f172a);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+button.histogram-chip:hover {
+  background: var(--tint-nav-hover, #e5ebfa);
+}
+
+button.histogram-chip:focus-visible,
+.histogram-show-all:focus-visible {
+  outline: 2px solid var(--primary-color, #2b33e9);
+  outline-offset: 2px;
+}
+
+.histogram-chip.is-off {
+  background: transparent;
+  color: var(--text-muted, #475569);
+}
+
+.histogram-chip[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+button.histogram-chip[aria-disabled='true']:hover {
+  background: #ffffff;
+}
+
+.histogram-chip.is-static {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-muted, #475569);
+  font-weight: 500;
+  cursor: help;
+}
+
+.histogram-chip-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background: var(--chip-color);
+  box-shadow: inset 0 0 0 1px var(--chip-edge, transparent);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.histogram-chip.is-off .histogram-chip-swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--chip-color);
+}
+
+.histogram-chip-swatch.is-masked {
+  background: repeating-linear-gradient(-45deg, #cbd5e1, #cbd5e1 1.5px, #e2e8f0 1.5px, #e2e8f0 3px);
+  box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.4);
+}
+
+.histogram-chip-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* Long category names wrap to two lines, never an ellipsis. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.histogram-filter-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted, #475569);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.histogram-filter-status:empty {
+  display: none;
+}
+
+.histogram-show-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary-color, #2b33e9);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.histogram-show-all:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .histogram-chip,
+  .histogram-chip-swatch {
+    transition: none;
+  }
 }
 
 #histogram-chart svg {

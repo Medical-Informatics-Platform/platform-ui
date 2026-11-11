@@ -233,6 +233,32 @@
             @if (canSplitHistogram() || histogramData() || groupHistogramData()) {
             <div class="histogram-toolbar">
               @if (!groupHistogramData() && canSplitHistogram()) {
+              @if (histogramSplitOptions().length <= maxSplitPills) {
+              <fieldset class="split-pills">
+                <legend class="split-pills-legend">Split by</legend>
+                <div class="split-pills-options">
+                <label class="split-pill" [class.is-active]="histogramSplit() === ''">
+                  <input type="radio" name="histogram-split" value=""
+                    [checked]="histogramSplit() === ''"
+                    (change)="onHistogramSplitChange($event)" />
+                  <span>None</span>
+                </label>
+                @for (option of histogramSplitOptions(); track option.code) {
+                <label class="split-pill"
+                  [class.is-active]="histogramSplit() === option.code"
+                  [class.is-disabled]="option.disabled"
+                  [class.is-unavailable]="!!option.unavailable"
+                  [title]="option.title">
+                  <input type="radio" name="histogram-split" [value]="option.code"
+                    [checked]="histogramSplit() === option.code"
+                    [disabled]="option.disabled"
+                    (change)="onHistogramSplitChange($event)" />
+                  <span>{{ option.label }}</span>
+                </label>
+                }
+                </div>
+              </fieldset>
+              } @else {
               <div class="bin-selector">
                 <label for="histogram-split-select">Split by</label>
                 <select
@@ -250,6 +276,7 @@
                   }
                 </select>
               </div>
+              }
               }
               @if (histogramData() || groupHistogramData()) {
               <div class="histogram-export-group" aria-label="Export histogram">

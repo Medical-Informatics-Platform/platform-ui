@@ -106,4 +106,48 @@ describe('VariablesPanelComponent data exploration layout', () => {
     expect(empty.textContent).toContain('Add');
     expect(empty.textContent?.toLowerCase()).not.toContain('map');
   });
+
+  describe('Split by', () => {
+    const sex = { code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] };
+
+    function selectAge(): void {
+      component.onSelectedNodeChange({ code: 'age', label: 'Age', type: 'real' });
+      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+    }
+
+    it('shows the split choices as radio pills and splits on click', () => {
+      const service = TestBed.inject(ExperimentStudioService) as unknown as {
+        selectedVariables: ReturnType<typeof signal<any[]>>;
+        getAlgorithmResults: ReturnType<typeof vi.fn>;
+      };
+      service.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }, sex]);
+      selectAge();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const pills = Array.from(host.querySelectorAll<HTMLLabelElement>('.split-pill'));
+      expect(pills.map((pill) => pill.textContent?.trim())).toEqual(['None', 'Dataset', 'Sex']);
+      expect(host.querySelector('#histogram-split-select')).toBeNull();
+      expect(pills[0].querySelector('input')!.checked).toBe(true);
+
+      pills[2].querySelector('input')!.click();
+      expect(component.histogramSplit()).toBe('sex');
+      expect(service.getAlgorithmResults.mock.calls.at(-1)?.[5]).toEqual(['sex']);
+    });
+
+    it('falls back to a select when there are more split choices than pills', () => {
+      const service = TestBed.inject(ExperimentStudioService) as unknown as {
+        selectedVariables: ReturnType<typeof signal<any[]>>;
+      };
+      const nominal = Array.from({ length: 6 }, (_, i) => ({
+        code: `n${i}`, label: `N${i}`, type: 'nominal', enumerations: [{ code: 'a' }, { code: 'b' }],
+      }));
+      service.selectedVariables.set([{ code: 'age', label: 'Age', type: 'real' }, ...nominal]);
+      selectAge();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('#histogram-split-select')).not.toBeNull();
+      expect(host.querySelector('.split-pill')).toBeNull();
+    });
+  });
 });

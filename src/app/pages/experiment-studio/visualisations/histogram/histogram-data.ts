@@ -10,13 +10,13 @@ export const HISTOGRAM_SPLIT_NONE = '';
 
 export const HISTOGRAM_RESIDUAL_KEY = '__residual__';
 
-export const HISTOGRAM_RESIDUAL_LABEL = 'Not shown (missing or < privacy threshold)';
+export const HISTOGRAM_RESIDUAL_LABEL = 'Masked or missing (below the privacy threshold or no value)';
 
 /** Short legend text; {@link HISTOGRAM_RESIDUAL_LABEL} stays on the title/tooltip. */
-export const HISTOGRAM_RESIDUAL_LEGEND_LABEL = 'Not shown';
+export const HISTOGRAM_RESIDUAL_LEGEND_LABEL = 'Masked or missing';
 
 export const HISTOGRAM_EDGE_PRIVACY_TOOLTIP =
-  'Fewer than the privacy threshold (hidden for privacy)';
+  'Fewer than the privacy threshold (masked for privacy)';
 
 export const HISTOGRAM_INTERIOR_PRIVACY_TOOLTIP =
   '0 or fewer than the privacy threshold';
@@ -59,6 +59,8 @@ export interface HistogramChartData {
   groups?: HistogramGroupSeries[];
   /** Split-variable label for the stacked legend title (`Dataset`, `Sex`, …). */
   splitLabel?: string;
+  /** Split-variable code; `dataset` lets the legend use short dataset codes. */
+  splitCode?: string;
 }
 
 export interface HistogramSplitOption {
@@ -187,14 +189,12 @@ export function toNumericCounts(counts: unknown): Array<number | null> {
 
 export function extractHistogramItems(response: unknown): RawHistogramItem[] {
   const payload = (response as { result?: unknown } | null)?.result ?? response;
-  const fromPayload = (payload as { histogram?: unknown } | null)?.histogram;
-  const fromResponse = (response as { histogram?: unknown } | null)?.histogram;
-  const histList = Array.isArray(fromPayload)
-    ? fromPayload
-    : Array.isArray(fromResponse)
-      ? fromResponse
-      : [];
-  return histList as RawHistogramItem[];
+  const fromPayload = payload as { histogram?: unknown; histograms?: unknown } | null;
+  const fromResponse = response as { histogram?: unknown; histograms?: unknown } | null;
+  const histList = [fromPayload?.histogram, fromPayload?.histograms,
+    fromResponse?.histogram, fromResponse?.histograms]
+    .find(Array.isArray);
+  return (histList ?? []) as RawHistogramItem[];
 }
 
 export function histogramItemMatchesVariable(item: RawHistogramItem | undefined, code: string): boolean {

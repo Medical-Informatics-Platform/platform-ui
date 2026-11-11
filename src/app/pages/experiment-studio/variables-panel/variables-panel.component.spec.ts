@@ -672,7 +672,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       variableName: 'Age',
     });
 
-    expect(component.histogramPrivacyTrimNote()).toContain('Values below 10 / above 30 hidden');
+    expect(component.histogramPrivacyTrimNote()).toContain('Values below 10 / above 30 masked');
   });
 
   it('does not warn about trimmed edges on a nominal histogram', () => {
@@ -783,6 +783,19 @@ describe('VariablesPanelComponent bubble selection', () => {
 
     expect(component.emptyChartMessage()).toBe('This variable does not have sufficient data.');
     expect(component.errorMessage()).toBeNull();
+  });
+
+  it('shows the backend error text when the histogram analysis returns status error', async () => {
+    experimentStudioService.getAlgorithmResults.mockReturnValue(
+      of({ status: 'error', result: { type: 'text/plain+error', data: 'Something went wrong.' } })
+    );
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    await flushLeafHistogram(component);
+
+    expect(component.errorMessage()).toBe('Something went wrong.');
+    expect(component.emptyChartMessage()).toBeNull();
   });
 
   it('keeps a red error message when the histogram request fails', async () => {
