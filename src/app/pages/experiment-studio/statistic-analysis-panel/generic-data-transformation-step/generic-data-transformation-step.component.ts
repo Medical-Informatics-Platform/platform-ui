@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RawPreprocessingStep } from '../../../../models/backend-algorithms.model';
+import { stepIcon } from '../../../../core/step-picker.utils';
 import {
   DEPENDENT_MAPS,
   StepField,
@@ -8,7 +9,6 @@ import {
   buildStepParameters,
   stepFields,
   stepNote,
-  stepStage,
   stepValuesFromParameters,
   unsupportedRequiredFields,
   valueOptionsForVariable,
@@ -38,7 +38,7 @@ interface StepVariable {
   imports: [FormsModule, StationCardComponent, StationActionBarComponent],
   templateUrl: './generic-data-transformation-step.component.html',
   styleUrl: './generic-data-transformation-step.component.css',
-  host: { '[attr.data-step]': 'spec().name' },
+  host: { '[attr.data-step]': 'spec().name', '[class.is-idle]': '!shown()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GenericDataTransformationStepComponent {
@@ -55,9 +55,7 @@ export class GenericDataTransformationStepComponent {
   readonly removeStep = output<void>();
 
   protected readonly note = computed(() => stepNote(this.spec().name));
-  protected readonly icon = computed(() =>
-    stepStage(this.spec().name) === 'transformation' ? 'fas fa-code-branch' : 'fas fa-sliders',
-  );
+  protected readonly icon = computed(() => stepIcon(this.spec().name));
   protected readonly fields = computed(() => stepFields(this.spec()));
   protected readonly blockedFields = computed(() => unsupportedRequiredFields(this.fields()));
   protected readonly values = signal<StepFormValues>({});
@@ -105,11 +103,6 @@ export class GenericDataTransformationStepComponent {
     effect(() => {
       if (this.open()) untracked(() => this.started.set(true));
     });
-  }
-
-  protected add(): void {
-    this.started.set(true);
-    this.openChange.emit(true);
   }
 
   protected toggle(): void {
