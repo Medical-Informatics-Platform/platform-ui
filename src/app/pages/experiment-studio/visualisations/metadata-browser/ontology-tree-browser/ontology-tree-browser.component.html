@@ -25,7 +25,21 @@
             }
           </span>
           <span class="tree-label">{{ row.group.label }}</span>
-          <span class="tree-count">{{ row.group.totalVariableCount }}</span>
+          <span
+            class="tree-count"
+            [class.has-pool]="pooledCount(row.group) > 0"
+            [title]="
+              pooledCount(row.group) > 0
+                ? pooledCount(row.group) + ' of ' + row.group.totalVariableCount + ' variables in this experiment'
+                : null
+            "
+          >
+            @if (pooledCount(row.group) > 0) {
+            {{ pooledCount(row.group) }}/{{ row.group.totalVariableCount }}
+            } @else {
+            {{ row.group.totalVariableCount }}
+            }
+          </span>
         </button>
         }
       </div>
@@ -42,20 +56,24 @@
       }
 
       @if (selectedChildGroups().length) {
-      <div class="content-section-title">Child groups</div>
+      <div class="content-section-title">Groups</div>
       @for (group of selectedChildGroups(); track group.id) {
       <button type="button" class="content-row group-row" (click)="selectGroup(group)">
         <span class="row-main">
           <span class="row-label">{{ group.label }}</span>
-          <span class="row-meta">{{ pluralize(group.directGroupCount, 'group') }} · {{ pluralize(group.totalVariableCount, 'variable') }}</span>
+          <span class="row-meta">{{ groupContentsLabel(group.directGroupCount, group.totalVariableCount) }}</span>
+          <span class="row-share" aria-hidden="true"><span class="row-share-fill" [style.width.%]="shareOf(group)"></span></span>
         </span>
+        @if (pooledCount(group) > 0) {
+        <span class="row-pool">{{ pooledCount(group) }} added</span>
+        }
         <i class="fas fa-chevron-right" aria-hidden="true"></i>
       </button>
       }
       }
 
       @if (selectedVariables().length) {
-      <div class="content-section-title">Direct variables</div>
+      <div class="content-section-title">Variables</div>
       @for (variable of selectedVariables(); track variable.id) {
       <button
         type="button"

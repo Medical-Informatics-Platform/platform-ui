@@ -58,7 +58,9 @@
   align-items: center;
   gap: 7px;
   width: 100%;
-  min-height: 34px;
+  min-height: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   border: 0;
   border-bottom: 1px solid rgba(241, 245, 249, 0.9);
   background: transparent;
@@ -164,6 +166,7 @@
   overflow: hidden;
   font-size: 0.78rem;
   font-weight: 650;
+  line-height: 1.25;
   white-space: normal;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -176,16 +179,28 @@
   background: #f1f5f9;
   color: var(--text-muted);
   font-size: 0.68rem;
-  font-weight: 800;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-count.has-pool,
+.row-pool {
+  background: #fff4d6;
+  color: #78350f;
+}
+
+.row-pool {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .content-section-title {
   padding: 12px 12px 6px;
   color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 .content-row {
@@ -237,6 +252,22 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.row-share {
+  display: block;
+  height: 3px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  max-width: 220px;
+}
+
+.row-share-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-light);
 }
 
 .type-badge {
