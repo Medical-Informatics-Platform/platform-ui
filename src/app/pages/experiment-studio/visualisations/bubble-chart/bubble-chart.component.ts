@@ -61,6 +61,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   private lastHighlighted: any = null;
   private zoomToNodeFn!: (d: any) => void;
+  private zoomToDepthFn?: (depth: number) => void;
   private viewReady = false;
   private refreshColorsFn!: (options?: {
     selectedVariables?: any[];
@@ -157,8 +158,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
   /** Trail crumb click: zoom out to the crumb at `depth` (0 is the data model). */
   zoomToTrailDepth(depth: number): void {
-    void depth;
-    throw new Error('not implemented');
+    this.zoomToDepthFn?.(depth);
   }
 
   renderChart(): void {
@@ -181,7 +181,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
     const rect = container.getBoundingClientRect();
     this.renderedSize = { width: Math.floor(rect.width), height: Math.floor(rect.height) };
 
-    const { zoomToNode, refreshColors, destroy } = createZoomableCirclePacking(
+    const { zoomToNode, zoomToDepth, refreshColors, destroy } = createZoomableCirclePacking(
       this.d3Data(),
       container,
       node => this.selectedNodeChange.emit(node),
@@ -190,9 +190,11 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
         ...this.buildRefreshOptions(),
         onAnimationStart: () => this.isAnimating = true,
         onAnimationEnd: () => this.isAnimating = false,
+        onFocusChange: (path) => this.focusPath.set(path),
       }
     );
     this.zoomToNodeFn = zoomToNode;
+    this.zoomToDepthFn = zoomToDepth;
     this.refreshColorsFn = refreshColors;
     this.destroyFn = destroy;
 

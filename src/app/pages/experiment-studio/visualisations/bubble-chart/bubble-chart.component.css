@@ -99,7 +99,51 @@ circle:hover {
 }
 
 .map-legend-swatch.selected {
-  background: #3f6078;
+  background: var(--primary-color);
+}
+
+.map-trail {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 34px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--studio-card-header-border);
+  background: var(--studio-card-header-bg);
+  overflow-x: auto;
+}
+
+.map-trail-crumb {
+  border: 0;
+  background: transparent;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.map-trail-crumb:hover {
+  background: var(--tint-nav-hover);
+}
+
+.map-trail-crumb:disabled {
+  color: var(--text-main);
+  cursor: default;
+}
+
+.map-trail-crumb:disabled:hover {
+  background: transparent;
+}
+
+.map-trail-crumb + .map-trail-crumb::before {
+  content: '/';
+  margin-right: 8px;
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .map-hint {
