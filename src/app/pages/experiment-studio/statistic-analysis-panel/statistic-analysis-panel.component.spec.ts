@@ -46,6 +46,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             'availableCreatorNames',
             'hasPreprocessingSpec',
             'catalogLoaded',
+            'genericCatalogSteps',
+            'genericStepDroppedCodes',
+            'catalogStepSpec',
             'stepOutputNames',
         ], {
             selectedVariables: signal([]),
@@ -95,6 +98,9 @@ describe('StatisticAnalysisPanelComponent', () => {
             ['categorical_column_creator', 'kmeans_cluster_creator'].includes(name),
         );
         mockExpService.catalogLoaded.mockReturnValue(true);
+        mockExpService.genericCatalogSteps.mockReturnValue([]);
+        mockExpService.genericStepDroppedCodes.mockReturnValue([]);
+        mockExpService.catalogStepSpec.mockReturnValue(null);
         mockExpService.transformationDependents.mockReturnValue([]);
         mockExpService.outputsInUse.mockReturnValue([]);
         mockExpService.upsertTransformation.mockImplementation((step: any) => {
@@ -655,7 +661,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         ]);
         mockExpService.loadDescriptiveOverview.mockReturnValue(of({ result: { featurewise: [] } }));
 
-        openStation('setup');
+        openStation('transformation');
         expect(fixture.nativeElement.textContent).toContain('Required for longitudinal pathologies');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal Transformation');
         expect(fixture.nativeElement.textContent).toContain('Longitudinal strategy');
@@ -855,9 +861,13 @@ describe('StatisticAnalysisPanelComponent', () => {
 
         // Missing Values defaults (NA removal) are implicit, so they don't
         // contribute to the pending count. Only the longitudinal step counts.
-        openStation('setup');
+        openStation('transformation');
         expect(component.pendingChangeCount).toBe(1);
-        expect(fixture.nativeElement.textContent).toContain('1 change');
+        // The longitudinal comparison is a data transformation, so the Preprocessing badge stays out of it.
+        expect(component.pendingPreprocessingChangeCount).toBe(0);
+        expect(component.pendingTransformationSingletonChangeCount).toBe(1);
+        expect(component.preprocessingStatusLabel).toBe('In run · Default');
+        expect(component.transformationStatusLabel).toBe('Not applied');
     });
 
     it('shows category choices for categorical constant preprocessing values', () => {
@@ -3148,6 +3158,87 @@ describe('StatisticAnalysisPanelComponent', () => {
             // Reverting to no transform is a pending change until applied.
             component.onTransformStrategyChange(age, null);
             expect(component.hasPendingTransformChanges).toBe(true);
+        });
+    });
+
+    describe('catalog steps without a dedicated station', () => {
+        const detectorSpec = {
+            name: 'outlier_detector',
+            label: 'Outlier Detector',
+            desc: 'Flags outliers.',
+            parameters: {
+                strategies: {
+                    label: 'Mode', desc: '', types: ['dict'], required: true,
+                    dict_keys_enums: { type: 'input_var_names', source: ['variables'] },
+                    dict_values_enums: { type: 'list', source: ['zscore', 'robust'] },
+                },
+            },
+        };
+        const age = { code: 'age', label: 'Age', type: 'real' };
+        const mmse = { code: 'mmse', label: 'MMSE', type: 'real' };
+
+        function listDetectorInCatalog(): void {
+            mockExpService.genericCatalogSteps.mockReturnValue([detectorSpec] as never);
+            mockExpService.catalogStepSpec.mockImplementation(((name: string) =>
+                name === 'outlier_detector' ? detectorSpec : null) as never);
+            (mockExpService.selectedVariables as any).set([age, mmse]);
+        }
+
+        it('keeps an applied generic step in the config when another card applies', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore', mmse: 'robust' } },
+            });
+
+            const config = (component as any).buildPreprocessingConfig({}, new Set(['age', 'mmse']));
+
+            expect(config['outlier_detector']).toEqual({ strategies: { age: 'zscore', mmse: 'robust' } });
+        });
+
+        it('trims the step to the selected variables and drops it when none remain', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore', mmse: 'robust' } },
+            });
+
+            expect((component as any).buildPreprocessingConfig({}, new Set(['age']))['outlier_detector'])
+                .toEqual({ strategies: { age: 'zscore' } });
+            expect((component as any).buildPreprocessingConfig({}, new Set(['bmi']))?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('drops an applied step the loaded catalog no longer lists', () => {
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore' } },
+            });
+
+            expect((component as any).buildPreprocessingConfig({}, new Set(['age']))?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('persists an applied step beside the other applied rules and removes it again', () => {
+            listDetectorInCatalog();
+            mockExpService.setAppliedDescriptivePreprocessing.mockClear();
+
+            component.applyGenericStep('outlier_detector', { strategies: { age: 'zscore' } });
+            const written = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown>;
+            expect(written['outlier_detector']).toEqual({ strategies: { age: 'zscore' } });
+
+            (mockExpService.appliedPreprocessingConfig as any).set(written);
+            component.removeGenericStep('outlier_detector');
+            const after = mockExpService.setAppliedDescriptivePreprocessing.mock.calls.at(-1)![0] as Record<string, unknown> | null;
+            expect(after?.['outlier_detector']).toBeUndefined();
+        });
+
+        it('lists an applied generic step on the pipeline rail', () => {
+            listDetectorInCatalog();
+            (mockExpService.appliedPreprocessingConfig as any).set({
+                outlier_detector: { strategies: { age: 'zscore' } },
+            });
+
+            // An outlier detector flags with a new column by default: a data transformation, not preprocessing.
+            expect(component.appliedPreprocessingSubNodes.some((n) => n.id === 'step:outlier_detector')).toBe(false);
+            const node = component.appliedTransformationSingletonNodes.find((n) => n.id === 'step:outlier_detector');
+            expect(node?.title).toBe('Outlier Detector');
+            expect(node?.statusTone).toBe('applied');
         });
     });
 

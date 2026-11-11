@@ -125,6 +125,14 @@ export async function collapsePreprocessing(page: Page) {
   if (await open.isVisible()) await open.click();
 }
 
+/** Same for the Data transformation step, where the longitudinal comparison lives. */
+export async function collapseTransformation(page: Page) {
+  const section = page.locator('[data-guide="analysis-transformation"]');
+  const open = section.locator('.pipeline-node-toggle[aria-expanded="true"]');
+  await expect(open.or(section.getByRole('list', { name: 'Data transformation steps' }))).toBeVisible();
+  if (await open.isVisible()) await open.click();
+}
+
 export async function openMissingValues(page: Page) {
   await page.getByRole('button', { name: 'Customize rules' }).click();
   const missing = page.locator('app-station-card', { hasText: 'Missing Values' });
@@ -172,12 +180,13 @@ export async function openLongitudinalAge(page: Page) {
 }
 
 export async function applyLongitudinalStrategy(page: Page, label: string) {
-  await page.getByRole('button', { name: 'Customize rules' }).click();
+  // The longitudinal comparison changes what the variable means, so it is a data transformation.
+  await page.getByRole('button', { name: /Add longitudinal comparison/ }).click();
   const card = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
   await card.getByRole('button', { name: /^Age/ }).click();
   await card.locator('select').last().selectOption({ label });
   await card.getByRole('button', { name: 'Apply', exact: true }).click();
-  await collapsePreprocessing(page);
+  await collapseTransformation(page);
   await expect(page.getByText('Baseline vs Month 12')).toBeVisible();
 }
 
