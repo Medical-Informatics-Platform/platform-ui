@@ -6,7 +6,8 @@ export async function openNewStudio(page: Page) {
   await page.goto('/experiments-dashboard');
   await page.getByRole('button', { name: 'New experiment' }).click();
   await expect(page).toHaveURL(/\/experiment-studio\/?$/);
-  await expect(page.getByRole('button', { name: /Dementia/ })).toBeVisible();
+  // The study chip, not the bubble map's "Dementia" location crumb.
+  await expect(page.locator('.study-context-chip', { hasText: /Dementia/ })).toBeVisible();
 }
 
 export async function addVariable(page: Page, label: string) {
