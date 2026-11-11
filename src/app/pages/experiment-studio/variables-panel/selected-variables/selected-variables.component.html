@@ -13,7 +13,7 @@
   </header>
   <div class="pool-card-body">
     @if (variables().length === 0) {
-    <p class="parameter-empty">No variables yet. Pick one in the map and choose <strong>Add</strong>.</p>
+    <p class="parameter-empty">No variables yet. Select a variable in the browser, then choose <strong>Add</strong>.</p>
     } @else {
     <div class="studio-chip-row">
       @for (variable of variables(); track variable.code ?? variable.label) {
