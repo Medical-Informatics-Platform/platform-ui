@@ -95,8 +95,14 @@ import {
   summarizeStepParameters,
 } from '../../../core/data-transformation-step-form.utils';
 import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
-import { StepPickerGroup } from '../../../core/step-picker.utils';
 import { RailOrder } from '../../../core/summary-rail.utils';
+import {
+  StepCandidate,
+  StepPickerGroup,
+  stepIcon,
+  stepPickerGroups,
+} from '../../../core/step-picker.utils';
+import { StepPickerComponent } from '../shared/step-picker/step-picker.component';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -313,7 +319,7 @@ export interface DescriptiveProgressState {
 
 @Component({
   selector: 'app-statistic-analysis-panel',
-  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent, GenericDataTransformationStepComponent],
+  imports: [ChartRendererComponent, HistogramComponent, FormsModule, NgTemplateOutlet, FilterConfigModalComponent, StationActionBarComponent, StationCardComponent, KMeansClusterSourceComponent, PcaColumnSourceComponent, GenericDataTransformationStepComponent, StepPickerComponent],
   templateUrl: './statistic-analysis-panel.component.html',
   // Order is the cascade: shell + pipeline canvas, then preprocessing stations,
   // then shared controls / result surfaces + responsive overrides. Concatenated in this order.
@@ -784,7 +790,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) continue;
       nodes.push({
         id: `step:${spec.name}`,
-        icon: stage === 'transformation' ? 'fas fa-code-branch' : 'fas fa-sliders',
+        icon: stepIcon(spec.name),
         title: spec.label || spec.name,
         subtitle: summarizeStepParameters(parameters as Record<string, unknown>).join(' · ') || 'Configured',
         statusLabel: 'Applied',
@@ -967,9 +973,31 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * inside the opened stage) a step whose station is already on screen is left out as well.
    */
   addableSteps(stage: 'preprocessing' | 'transformation', inStage = false): StepPickerGroup[] {
-    void stage;
     void inStage;
-    throw new Error('not implemented');
+    const candidates: StepCandidate[] = [];
+    if (stage === 'preprocessing') {
+      if (!this.outlierSubNodeApplied) candidates.push({ name: 'outlier_winsorizer' });
+    } else {
+      if (this.transformStepAvailable && !this.transformSubNodeApplied) candidates.push({ name: 'variable_transformer' });
+      if (this.scalerStepAvailable && !this.scalerSubNodeApplied) candidates.push({ name: 'variable_scaler' });
+    }
+    for (const spec of this.genericStepsOf(stage).filter((spec) => !this.isGenericStepApplied(spec.name))) {
+      candidates.push({ name: spec.name, label: spec.label, desc: spec.desc });
+    }
+    if (stage === 'transformation') {
+      if (this.isLongitudinalModel && !this.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+        candidates.push({ name: 'longitudinal_transformer' });
+      }
+      for (const kind of this.chooserCreators()) {
+        candidates.push({
+          name: kind,
+          label: CREATOR_CHOOSER_COPY[kind].title,
+          desc: CREATOR_CHOOSER_COPY[kind].subtitle,
+          icon: CREATOR_CHOOSER_COPY[kind].icon,
+        });
+      }
+    }
+    return stepPickerGroups(candidates);
   }
 
   /**
@@ -977,8 +1005,20 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * A column creator adds its card. Nothing is written to the request.
    */
   pickStep(name: string): void {
-    void name;
-    throw new Error('not implemented');
+    if (name === 'outlier_winsorizer') {
+      this.addPreprocessingSubNode('outlier');
+    } else if (name === 'variable_transformer') {
+      this.addTransformationSubNode('transform');
+    } else if (name === 'variable_scaler') {
+      this.addTransformationSubNode('scaler');
+    } else if (name === 'longitudinal_transformer') {
+      this.addTransformationSubNode('longitudinal');
+    } else if (this.chooserCreators().includes(name as CreatorName)) {
+      if (!this.sectionOpen().transformation) this.addStep('transformation');
+      this.chooseTransformation(name as CreatorName);
+    } else {
+      this.addGenericStep(name);
+    }
   }
 
   /** Whether the Variable Transforms station is drawn: the step is applied, or was opened this visit. */

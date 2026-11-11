@@ -660,7 +660,7 @@
              by the dashed rows that create the ones it does not hold yet. -->
         @if (!sectionOpen().setup && !sectionOpen().processed) {
         <div class="pipeline-subnodes-tree" role="list" aria-label="Preprocessing steps">
-          <p class="pipeline-subnodes-caption">Everything below runs in this order. Click a step to edit it; dashed rows add optional steps.</p>
+          <p class="pipeline-subnodes-caption">These steps run in this order. Click one to edit it.</p>
           @for (node of appliedPreprocessingSubNodes; track node.id) {
           <div class="pipeline-subnode-item" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
@@ -678,37 +678,15 @@
             </button>
           </div>
           }
-          <!-- Dashed rail rows: a sub-step the stage can still create, so a stage grows
-               without being expanded first. Each row is the whole add flow and the station
-               it opens is already narrowed to the matching sub-step. A row disappears only
-               once the rail itself holds the step, never because an editor was opened. -->
-          @if (!outlierSubNodeApplied) {
+          @if (addableSteps('preprocessing').length) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addPreprocessingSubNode('outlier')" title="Add and open this step">
-              <i class="fas fa-line-chart" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add outlier clipping</span>
-                <span class="pipeline-subnode-subtitle">Cap extreme values so a few outliers don’t skew results — numerical variables only</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
+            <app-step-picker
+              label="Add a preprocessing step"
+              hint="Fill or cap values. Every variable keeps its meaning."
+              [groups]="addableSteps('preprocessing')"
+              (pick)="pickStep($event)"></app-step-picker>
           </div>
-          }
-          @for (spec of genericStepsOf('preprocessing'); track spec.name) {
-          @if (!isGenericStepApplied(spec.name)) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addGenericStep(spec.name)" title="Add and open this step">
-              <i class="fas fa-sliders" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add {{ spec.label }}</span>
-                <span class="pipeline-subnode-subtitle">{{ spec.desc }}</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-          }
           }
         </div>
         }
@@ -1365,71 +1343,16 @@
             </button>
           </div>
           }
-          @if (!transformSubNodeApplied && transformStepAvailable) {
+          @if (addableSteps('transformation').length) {
           <div class="pipeline-subnode-item is-ghost" role="listitem">
             <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('transform')" title="Add and open this step">
-              <i class="fas fa-arrow-up-right-dots" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add variable transforms</span>
-                <span class="pipeline-subnode-subtitle">Reshape skewed values — log, square root, Yeo-Johnson or quantile — numerical variables only</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
+            <app-step-picker
+              label="Add a transformation step"
+              hint="Reshape values, encode categories, flag records or create columns."
+              [groups]="addableSteps('transformation')"
+              (pick)="pickStep($event)"></app-step-picker>
           </div>
           }
-          @if (!scalerSubNodeApplied && scalerStepAvailable) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('scaler')" title="Add and open this step">
-              <i class="fas fa-ruler-horizontal" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add variable scaling</span>
-                <span class="pipeline-subnode-subtitle">Bring numerical variables to a comparable range — standard, robust, min-max or max absolute</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-          }
-          @for (spec of genericStepsOf('transformation'); track spec.name) {
-          @if (!isGenericStepApplied(spec.name)) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addGenericStep(spec.name)" title="Add and open this step">
-              <i class="fas fa-code-branch" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add {{ spec.label }}</span>
-                <span class="pipeline-subnode-subtitle">{{ spec.desc }}</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-          }
-          }
-          @if (isLongitudinalModel && !expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode('longitudinal')" title="Add and open this step">
-              <i class="fas fa-code-compare" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add longitudinal comparison</span>
-                <span class="pipeline-subnode-subtitle">Compare two visits per variable (required for two-visit pathologies)</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
-          }
-          <div class="pipeline-subnode-item is-ghost" role="listitem">
-            <span class="pipeline-subnode-rail" aria-hidden="true"><span class="pipeline-subnode-dot"></span></span>
-            <button type="button" class="pipeline-subnode-content" (click)="addTransformationSubNode()" title="Add and open a derived column">
-              <i class="fas fa-tag" aria-hidden="true"></i>
-              <span class="pipeline-subnode-text">
-                <span class="pipeline-subnode-title">Add derived column</span>
-                <span class="pipeline-subnode-subtitle">Create another nominal or numeric feature</span>
-              </span>
-              <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-            </button>
-          </div>
         </div>
         }
 
