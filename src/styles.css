@@ -817,6 +817,75 @@ select:required:valid {
   text-transform: uppercase;
 }
 
+/* Rail header = the list's column headings: what is listed on the left, the
+   number every row is ranked on at the right. The right heading is a button,
+   the way a table column sorts: it puts the most missing variable first. Both
+   read in sentence case; the group titles under them keep the small caps. */
+.statistics-browser-header .statistics-rail-count {
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.statistics-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  /* Pulls the label onto the percentage column below it. */
+  margin-right: -4px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.14s var(--ease-standard),
+    color 0.14s var(--ease-standard);
+}
+
+.statistics-sort-btn i {
+  font-size: 0.68rem;
+  opacity: 0.5;
+}
+
+.statistics-sort-btn:hover {
+  background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+  color: var(--primary-color);
+}
+
+.statistics-sort-btn[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--primary-color) 22%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 9%, transparent);
+  color: var(--primary-color);
+}
+
+.statistics-sort-btn[aria-pressed='true'] i {
+  opacity: 1;
+}
+
+/* Keyboard hint. It takes its line all the time and only becomes visible while
+   focus is inside the list, so the foot under it never jumps. */
+.statistics-rail-hint {
+  margin: 8px 0 0;
+  padding-left: 12px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.3;
+  visibility: hidden;
+}
+
+.statistics-variable-list:focus-within + .statistics-rail-hint {
+  visibility: visible;
+}
+
 .statistics-variable-btn > span {
   color: var(--text-main);
   font-size: 0.86rem;
