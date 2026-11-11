@@ -5,6 +5,14 @@ import {
   unavailableDatasetsFor,
   unavailableVariableTooltip,
 } from '../../../../core/variable-availability.utils';
+import {
+  BUBBLE_LABEL_CHAR_WIDTH,
+  BUBBLE_LABEL_LINE_HEIGHT,
+  type BubbleLabelBox,
+  type BubbleLabelFit,
+  fitBubbleLabel,
+  pickVisibleLabels,
+} from './bubble-label-layout';
 
 /** Unavailable leaves: grayed out and inert, see variable-availability.utils. */
 const UNAVAILABLE_FILL = '#cbd5e1';
@@ -13,59 +21,37 @@ const UNAVAILABLE_STROKE_DASH = '3 2';
 const UNAVAILABLE_LABEL_FILL = '#94a3b8';
 
 // helpers
-// Splits labels
-
-
-// Creates label + background rect
-function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false) {
+function createLabelGroup(
+  group: d3.Selection<SVGGElement, any, any, any>,
+  d: any,
+  unavailable = false,
+  fit: BubbleLabelFit,
+) {
   group.selectAll('*').remove();
 
-  const label = d.data.label || '';
-  const maxCharsPerLine = 20;
-
-  // Split label into lines
-  const words = label.split(/\s+/);
-  const lines: string[] = [];
-  let currentLine: string[] = [];
-
-  words.forEach((word: string) => {
-    const potentialLine = [...currentLine, word].join(' ');
-    if (potentialLine.length <= maxCharsPerLine) {
-      currentLine.push(word);
-    } else {
-      if (currentLine.length > 0) lines.push(currentLine.join(' '));
-      currentLine = [word];
-    }
-  });
-  if (currentLine.length > 0) lines.push(currentLine.join(' '));
-
-  const fontSize = d.children ? 15 : 10;
   const hangFromTop = !!d.children;
 
   const textNode = group
     .append('text')
     .attr('class', 'label')
     .attr('text-anchor', 'middle')
-    .style('font-size', `${fontSize}px`)
+    .style('font-size', fit.fontSize + 'px')
     .style('font-weight', '600')
     .style('fill', unavailable ? UNAVAILABLE_LABEL_FILL : '#0f172a')
     .style('paint-order', 'stroke')
     .style('stroke', 'rgba(255,255,255,0.9)')
-    .style('stroke-width', 2)
+    .style('stroke-width', 3)
     .style('stroke-linejoin', 'round');
 
-  // Add tspans
-  lines.forEach((lineStr, i) => {
+  fit.lines.forEach((line, i) => {
     const firstDy = hangFromTop
       ? '1em'
-      : (lines.length === 1 ? '0.35em' : `-${(lines.length - 1) * 0.6}em`);
+      : (fit.lines.length === 1 ? '0.35em' : `-${(fit.lines.length - 1) * 0.6}em`);
     textNode.append('tspan')
       .attr('x', 0)
       .attr('dy', i === 0 ? firstDy : '1.2em')
-      .text(lineStr);
+      .text(line);
   });
-
-  if (!d.children) return;
 }
 
 // Get code/id from nodes
@@ -380,6 +366,10 @@ export function createZoomableCirclePacking(
   container.appendChild(svg.node()!);
 
   // Functions
+  function fitForNode(d: any, scale: number): BubbleLabelFit | null {
+    return fitBubbleLabel(d.data.label || '', d.r * scale, !!d.children);
+  }
+
   function zoomTo(v: [number, number, number]) {
     const k = size / v[2];
     view = v;
@@ -388,18 +378,53 @@ export function createZoomableCirclePacking(
     node.attr('r', (d: any) => d.r * k);
 
     labelNodes.attr('transform', (d: any) => {
-      const x = (d.x - v[0]) * k + size / 2 + offsetX;
-      const y = (d.y - v[1]) * k + size / 2 + offsetY;
-      const topY = d.children ? y - d.r * k + 2 : y;
-      return `translate(${x}, ${topY})`;
-    })
-      .each(function (d: any) {
-        const el = d3.select(this as SVGGElement);
-        if (d.parent === focus && shouldShowLabel(d, k)) {
-          el.style('display', 'inline').style('fill-opacity', 0.92);
-          createLabelGroup(el, d, isUnavailable(d));
-        } else el.style('display', 'none');
+      const cx = (d.x - v[0]) * k + size / 2 + offsetX;
+      const cy = (d.y - v[1]) * k + size / 2 + offsetY;
+      const top = d.children ? cy - d.r * k + d.r * k * 0.12 : cy;
+      return `translate(${cx}, ${top})`;
+    });
+
+    const boxes: BubbleLabelBox[] = [];
+    const candidates: Array<{ node: SVGGElement; d: any; fit: BubbleLabelFit }> = [];
+
+    labelNodes.each(function (d: any) {
+      if (!(d.parent === focus && shouldShowLabel(d, k))) return;
+      const fit = fitForNode(d, k);
+      if (!fit) return;
+      const cx = (d.x - v[0]) * k + size / 2 + offsetX;
+      const cy = (d.y - v[1]) * k + size / 2 + offsetY;
+      const longest = Math.max(0, ...fit.lines.map((line) => line.length));
+      const width = longest * fit.fontSize * BUBBLE_LABEL_CHAR_WIDTH;
+      const height = fit.lines.length * fit.fontSize * BUBBLE_LABEL_LINE_HEIGHT;
+      const top = cy - d.r * k + d.r * k * 0.12;
+      boxes.push({
+        x: cx - width / 2,
+        y: d.children ? top : cy - height / 2,
+        width,
+        height,
+        priority: d.r * k,
       });
+      candidates.push({ node: this as SVGGElement, d, fit });
+    });
+
+    const visible = pickVisibleLabels(boxes);
+    const fitByNode = new Map<SVGGElement, { d: any; fit: BubbleLabelFit }>();
+    visible.forEach((keep, index) => {
+      if (!keep) return;
+      const candidate = candidates[index];
+      fitByNode.set(candidate.node, candidate);
+    });
+
+    labelNodes.each(function () {
+      const el = d3.select(this as SVGGElement);
+      const kept = fitByNode.get(this as SVGGElement);
+      if (kept) {
+        el.style('display', 'inline').style('fill-opacity', 0.92);
+        createLabelGroup(el, kept.d, isUnavailable(kept.d), kept.fit);
+      } else {
+        el.style('display', 'none');
+      }
+    });
   }
 
   const isTutorialTarget = (d: any): boolean =>
@@ -469,12 +494,14 @@ export function createZoomableCirclePacking(
     }
 
     const zoomTarget: [number, number, number] = [group.x, group.y, group.r * 2.05];
+    const zoomK = size / zoomTarget[2];
 
     labelNodes.each(function (nd: any) {
       const el = d3.select(this as SVGGElement);
-      if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
+      const fit = nd.parent === group && shouldShowLabel(nd, zoomK) ? fitForNode(nd, zoomK) : null;
+      if (fit) {
         el.style('display', 'inline').style('fill-opacity', 0.6);
-        createLabelGroup(el, nd, isUnavailable(nd));
+        createLabelGroup(el, nd, isUnavailable(nd), fit);
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
@@ -503,11 +530,13 @@ export function createZoomableCirclePacking(
 
         labelNodes.each(function (nd: any) {
           const el = d3.select(this as SVGGElement);
-          if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
+          const fit = nd.parent === group && shouldShowLabel(nd, zoomK) ? fitForNode(nd, zoomK) : null;
+          if (fit) {
             el.style('display', 'inline')
               .transition()
               .duration(250)
               .style('fill-opacity', 0.92);
+            createLabelGroup(el, nd, isUnavailable(nd), fit);
           } else el.style('display', 'none').style('fill-opacity', 0);
         });
 
@@ -560,9 +589,13 @@ export function createZoomableCirclePacking(
     if (newOptions && Object.prototype.hasOwnProperty.call(newOptions, 'unavailableVariables')) {
       unavailableVariables = newOptions.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
       node.call(applyAvailability);
+      const labelK = size / view[2];
       labelNodes.each(function (d: any) {
         const el = d3.select(this as SVGGElement);
-        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d));
+        if (el.style('display') === 'none') return;
+        const fit = fitForNode(d, labelK);
+        if (fit) createLabelGroup(el, d, isUnavailable(d), fit);
+        else el.style('display', 'none');
       });
     }
     groupColor = d3.scaleLinear<string>()
