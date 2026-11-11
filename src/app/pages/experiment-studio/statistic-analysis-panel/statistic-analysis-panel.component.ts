@@ -100,6 +100,7 @@ import {
   orderByMissing,
   railCountLabel,
   railStep,
+  visibleSummaryColumns,
 } from '../../../core/summary-rail.utils';
 import {
   StepCandidate,
@@ -2194,8 +2195,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Columns the statistics table draws for a block (no pooled column beside a single dataset). */
   summaryColumns(block: PivotBlock): string[] {
-    void block;
-    throw new Error('not implemented');
+    return visibleSummaryColumns(block.columns, (column) => this.isRollupColumn(column));
   }
 
   statisticBlockVariable(block: PivotBlock): VariableRow | null {
