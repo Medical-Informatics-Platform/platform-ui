@@ -95,7 +95,7 @@ import {
   summarizeStepParameters,
 } from '../../../core/data-transformation-step-form.utils';
 import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
-import { RailOrder } from '../../../core/summary-rail.utils';
+import { RailOrder, orderByMissing, railCountLabel, railStep } from '../../../core/summary-rail.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -2018,7 +2018,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   statisticBlocks(kind: SummaryKind, type: StatisticVariableType): PivotBlock[] {
-    return this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+    const blocks = this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+    if (this.statisticsSort[kind] !== 'missing') return blocks;
+    return orderByMissing(blocks, (block) => this.blockCoverage(block)?.share ?? null);
   }
 
   selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
@@ -2045,33 +2047,37 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Rail header text: "4 variables", or "1 of 4 variables" while the search hides some. */
   statisticsCountLabel(kind: SummaryKind): string {
-    void kind;
-    throw new Error('not implemented');
+    return railCountLabel(this.filteredStatisticBlocks(kind).length, this.getSummary(kind).data.length);
   }
 
   /** Switches the rail between selection order and most missing first. */
   toggleStatisticsSort(kind: SummaryKind): void {
-    void kind;
-    throw new Error('not implemented');
+    this.statisticsSort[kind] = this.statisticsSort[kind] === 'missing' ? 'selection' : 'missing';
+    this.cdr.markForCheck();
   }
 
   /** Empties the rail search of one surface. */
   clearStatisticsSearch(kind: SummaryKind): void {
-    void kind;
-    throw new Error('not implemented');
+    this.statisticsSearch[kind] = '';
+    this.cdr.markForCheck();
   }
 
   /** Rail rows in the order they are drawn: the numerical group, then the categorical group. */
   railBlocks(kind: SummaryKind): PivotBlock[] {
-    void kind;
-    throw new Error('not implemented');
+    return [...this.statisticBlocks(kind, 'numeric'), ...this.statisticBlocks(kind, 'nominal')];
   }
 
   /** Arrow keys, Home and End walk the rail: select the row and move focus to it. */
   onStatisticRailKeydown(kind: SummaryKind, event: KeyboardEvent): void {
-    void kind;
-    void event;
-    throw new Error('not implemented');
+    const blocks = this.railBlocks(kind);
+    const index = blocks.findIndex((block) => this.isStatisticBlockSelected(kind, block));
+    const next = railStep(event.key, index, blocks.length);
+    if (next === null) return;
+    event.preventDefault();
+    this.selectStatisticBlock(kind, blocks[next]);
+    const list = event.currentTarget as HTMLElement;
+    list.querySelectorAll<HTMLElement>('.statistics-variable-btn')[next]?.focus();
+    this.cdr.markForCheck();
   }
 
   /** Columns the statistics table draws for a block (no pooled column beside a single dataset). */
