@@ -1,9 +1,4 @@
-@if (!shown()) {
-<button type="button" class="btn-add-dashed" [attr.data-step]="spec().name" (click)="add()">
-  <i class="fas fa-plus" aria-hidden="true"></i>
-  <span>Add {{ spec().label }} — {{ spec().desc }} (optional)</span>
-</button>
-} @else {
+@if (shown()) {
 <app-station-card
   collapsible
   [icon]="icon()"
