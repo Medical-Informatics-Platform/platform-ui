@@ -1,6 +1,11 @@
 <div class="collapsible-tree-browser">
   <div class="chart-shell">
     <div #chartCanvas class="chart-canvas" aria-label="Collapsible metadata hierarchy"></div>
+    <div class="tree-controls" role="group" aria-label="Tree view controls">
+      <button type="button" aria-label="Zoom in" title="Zoom in" (click)="zoomIn()"><i class="fas fa-plus" aria-hidden="true"></i></button>
+      <button type="button" aria-label="Zoom out" title="Zoom out" (click)="zoomOut()"><i class="fas fa-minus" aria-hidden="true"></i></button>
+      <button type="button" aria-label="Fit tree to view" title="Fit tree to view" (click)="fitTree()"><i class="fas fa-expand" aria-hidden="true"></i></button>
+    </div>
     @if (error()) {
     <div class="tree-error" role="status">{{ error() }}</div>
     }
