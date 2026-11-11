@@ -1,4 +1,4 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { ChangeDetectorRef, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
@@ -60,7 +60,10 @@ describe('VariablesPanelComponent data exploration layout', () => {
 
     fixture = TestBed.createComponent(VariablesPanelComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
+    // Loading an empty model list clears the view on init, so the tree goes in afterwards.
     component.d3Data = tree;
+    fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
     fixture.detectChanges();
   });
 
