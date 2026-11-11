@@ -6,6 +6,7 @@ import {
   unavailableDatasetsFor,
   unavailableVariableTooltip,
 } from '../../../../../core/variable-availability.utils';
+import { groupContentsLabel } from '../metadata-browser-labels';
 
 interface CollapsibleTreeSelectionOptions {
   selectedVariables?: D3HierarchyNode[];
@@ -17,6 +18,8 @@ export interface CollapsibleTreeRenderer {
   refreshSelection: (options?: CollapsibleTreeSelectionOptions) => void;
   setUnavailableVariables: (unavailable: UnavailableVariablesMap | null | undefined) => void;
   fitView: () => void;
+  /** Multiplies the current zoom by `factor`, keeping the view centre fixed. */
+  zoomBy: (factor: number) => void;
   resize: () => void;
   destroy: () => void;
 }
@@ -268,16 +271,11 @@ export function createCollapsibleTree(
   };
 
   const fitView = (): void => {
-    const scale = Math.min(
-      1.15,
-      Math.max(0.35, Math.min(bounds.width / Math.max(treeSize.width, 1), bounds.height / Math.max(treeSize.height, 1)) * 0.92)
-    );
-    const translateX = Math.max(18, (bounds.width - treeSize.width * scale) / 2);
-    const translateY = Math.max(18, (bounds.height - treeSize.height * scale) / 2);
+    const { x, y, k } = fitTransform(bounds, treeSize);
     svg
       .transition()
       .duration(duration)
-      .call(zoom.transform, d3.zoomIdentity.translate(translateX, translateY).scale(scale));
+      .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(k));
   };
 
   const cancelPendingAutoFit = (): void => {
@@ -369,6 +367,9 @@ export function createCollapsibleTree(
     refreshSelection,
     setUnavailableVariables,
     fitView,
+    zoomBy: (factor: number) => {
+      svg.transition().duration(duration).call(zoom.scaleBy, factor);
+    },
     resize,
     destroy: () => {
       cancelPendingAutoFit();
@@ -396,6 +397,26 @@ export function createCollapsibleTree(
   }
 }
 
+/** Smallest scale the automatic fit may pick: below it node text is unreadable. */
+export const MIN_READABLE_SCALE = 0.75;
+
+/** Zoom transform that fits the tree in the view without shrinking text below the readable scale. */
+export function fitTransform(
+  bounds: { width: number; height: number },
+  treeSize: { width: number; height: number }
+): { x: number; y: number; k: number } {
+  const k = Math.min(
+    1.15,
+    Math.max(
+      MIN_READABLE_SCALE,
+      Math.min(bounds.width / Math.max(treeSize.width, 1), bounds.height / Math.max(treeSize.height, 1)) * 0.92
+    )
+  );
+  const x = Math.max(18, (bounds.width - treeSize.width * k) / 2);
+  const y = Math.max(18, (bounds.height - treeSize.height * k) / 2);
+  return { x, y, k };
+}
+
 export function cloneNode(node: D3HierarchyNode): RenderNode {
   return {
     ...node,
@@ -417,6 +438,9 @@ export function focalPointForExpandedGroup(node: TreeDatum): { x: number; y: num
   };
 }
 
+/** Rows (depth-2 nodes) the tree may open with before it collapses the first level too. */
+const MAX_OPEN_ROWS = 14;
+
 export function initializeCollapse(root: TreeDatum): void {
   root.descendants().forEach((node) => {
     if (node.depth > 1 && node.children) {
@@ -424,6 +448,14 @@ export function initializeCollapse(root: TreeDatum): void {
       node.children = undefined;
     }
   });
+  if (root.descendants().filter((node) => node.depth === 2).length > MAX_OPEN_ROWS) {
+    root.descendants().forEach((node) => {
+      if (node.depth === 1 && node.children) {
+        node._children = node.children as TreeDatum[];
+        node.children = undefined;
+      }
+    });
+  }
 }
 
 export function findHierarchyNode(root: TreeDatum, target: D3HierarchyNode): TreeDatum | null {
@@ -522,9 +554,9 @@ function nodeMeta(node: TreeDatum): string {
     const type = normalizeString(node.data.type);
     return type || 'Variable';
   }
-  const variableCount = countVariables(node);
-  const childCount = (node.children?.length ?? 0) + (node._children?.length ?? 0);
-  return `${childCount} groups/items · ${variableCount} variables`;
+  const kids = [...(node.children ?? []), ...(node._children ?? [])] as TreeDatum[];
+  const groupCount = kids.filter((child) => hasChildren(child)).length;
+  return groupContentsLabel(groupCount, countVariables(node));
 }
 
 function countVariables(node: TreeDatum): number {

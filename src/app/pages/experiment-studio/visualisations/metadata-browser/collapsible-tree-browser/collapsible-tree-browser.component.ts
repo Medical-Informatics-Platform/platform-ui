@@ -108,6 +108,18 @@ export class CollapsibleTreeBrowserComponent implements AfterViewInit, OnDestroy
     });
   }
 
+  zoomIn(): void {
+    this.renderer?.zoomBy(1.25);
+  }
+
+  zoomOut(): void {
+    this.renderer?.zoomBy(0.8);
+  }
+
+  fitTree(): void {
+    this.renderer?.fitView();
+  }
+
   ngOnDestroy(): void {
     this.renderer?.destroy();
     this.stopObservingSize?.();

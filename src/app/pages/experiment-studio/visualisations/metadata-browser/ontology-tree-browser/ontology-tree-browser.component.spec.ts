@@ -163,7 +163,7 @@ describe('OntologyTreeBrowserComponent', () => {
     component.selectGroup(vitals);
     fixture.detectChanges();
 
-    expect(component.contentsPaneSubtitle()).toBe('1 group · 1 variable');
+    expect(component.contentsPaneSubtitle()).toBe('1 group, 1 variable');
     // Child groups stay listed and clickable even when the group has no
     // direct variables.
     const groupRow = fixture.nativeElement.querySelector('button.content-row.group-row') as HTMLElement;
