@@ -75,6 +75,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
 
 
   readonly error = signal<string | null>(null); // Holds the current error message
+  /** Root-to-focus path of the group the map is zoomed into; drives the location trail. */
+  readonly focusPath = signal<Array<{ code: string; label: string }>>([]);
   readonly COLORBLIND_PALETTE = { ...DEFAULT_BUBBLE_COLORS };
 
   colors: {
@@ -151,6 +153,12 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   ngOnDestroy(): void {
     this.destroyFn?.();
     this.stopObservingSize?.();
+  }
+
+  /** Trail crumb click: zoom out to the crumb at `depth` (0 is the data model). */
+  zoomToTrailDepth(depth: number): void {
+    void depth;
+    throw new Error('not implemented');
   }
 
   renderChart(): void {

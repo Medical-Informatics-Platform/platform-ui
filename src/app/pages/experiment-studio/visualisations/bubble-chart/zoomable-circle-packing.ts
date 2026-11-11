@@ -153,6 +153,8 @@ export function createZoomableCirclePacking(
   zoomToNode: (d: any) => void;
   refreshColors: (opts?: any) => void;
   resetZoom: () => void;
+  /** Zooms out to the ancestor of the focused group at `depth` (0 is the root). */
+  zoomToDepth: (depth: number) => void;
   destroy?: () => void;
 } {
 
@@ -191,7 +193,7 @@ export function createZoomableCirclePacking(
 
   if (!container) {
     console.error('No container provided');
-    return { zoomToNode: () => { }, refreshColors: () => { }, resetZoom: () => { } };
+    return { zoomToNode: () => { }, refreshColors: () => { }, resetZoom: () => { }, zoomToDepth: () => { } };
   }
   container.innerHTML = '';
 
@@ -601,6 +603,10 @@ export function createZoomableCirclePacking(
       if (focus !== root) {
         zoom(null, root);
       }
+    },
+    zoomToDepth: (depth: number) => {
+      void depth;
+      throw new Error('not implemented');
     },
     destroy: () => {
       tooltip.remove();

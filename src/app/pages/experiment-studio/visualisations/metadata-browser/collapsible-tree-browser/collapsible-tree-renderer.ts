@@ -17,6 +17,8 @@ export interface CollapsibleTreeRenderer {
   refreshSelection: (options?: CollapsibleTreeSelectionOptions) => void;
   setUnavailableVariables: (unavailable: UnavailableVariablesMap | null | undefined) => void;
   fitView: () => void;
+  /** Multiplies the current zoom by `factor`, keeping the view centre fixed. */
+  zoomBy: (factor: number) => void;
   resize: () => void;
   destroy: () => void;
 }
@@ -369,6 +371,10 @@ export function createCollapsibleTree(
     refreshSelection,
     setUnavailableVariables,
     fitView,
+    zoomBy: (factor: number) => {
+      void factor;
+      throw new Error('not implemented');
+    },
     resize,
     destroy: () => {
       cancelPendingAutoFit();
@@ -394,6 +400,19 @@ export function createCollapsibleTree(
     if (isPartial(node)) classes.push('partial-variable');
     return classes.join(' ');
   }
+}
+
+/** Smallest scale the automatic fit may pick: below it node text is unreadable. */
+export const MIN_READABLE_SCALE = 0.75;
+
+/** Zoom transform that fits the tree in the view without shrinking text below the readable scale. */
+export function fitTransform(
+  bounds: { width: number; height: number },
+  treeSize: { width: number; height: number }
+): { x: number; y: number; k: number } {
+  void bounds;
+  void treeSize;
+  throw new Error('not implemented');
 }
 
 export function cloneNode(node: D3HierarchyNode): RenderNode {
