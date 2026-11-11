@@ -85,7 +85,7 @@ export class VariablesPanelComponent implements OnDestroy {
       },
       {
         value: 'collapsible',
-        label: 'Graph',
+        label: 'Tree',
         icon: 'fas fa-project-diagram',
         title: 'Interactive collapsible hierarchy diagram',
       },

@@ -153,6 +153,13 @@
       </div>
 
       <aside class="right-column">
+        <app-selected-variables
+          mode="inline"
+          data-guide="variable-containers"
+          [selectedNode]="selectedNode"
+          (variableClicked)="onVariableClicked($event)">
+        </app-selected-variables>
+
         <!-- Node details: histogram + metadata -->
         <section class="panel-block histogram-panel" id="histogram-graph" data-guide="variable-details">
           <div class="details-panel-header">
@@ -177,7 +184,7 @@
                 type="button"
                 class="selection-toggle-btn"
                 data-guide="guide-add-variable"
-                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode"
+                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode && !isSelectedNodeGroup()"
                 [class.is-remove]="isSelectedNodeInPool()"
                 [disabled]="selectionToggleDisabled()"
                 [title]="selectionToggleTitle()"
@@ -304,7 +311,7 @@
                   <p>Click a variable in the browser to see its chart and details.</p>
                 </div>
                 } @else if (groupHistogramData()) {
-                <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
+                <app-histogram-graph [data]="groupHistogramData()" [horizontal]="true"></app-histogram-graph>
                 } @else if (histogramData()) {
                 <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
                 }
@@ -337,13 +344,6 @@
           </div>
           }
         </section>
-
-        <app-selected-variables
-          mode="inline"
-          data-guide="variable-containers"
-          [selectedNode]="selectedNode"
-          (variableClicked)="onVariableClicked($event)">
-        </app-selected-variables>
       </aside>
     </div>
 
