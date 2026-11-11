@@ -216,6 +216,26 @@ describe('StatisticAnalysisPanelComponent', () => {
         fixture.detectChanges();
     }
 
+    /**
+     * The steps the opened Transformation stage's add-step menu offers. Opens the menu first when
+     * it is closed: it folds once the stage has a card to show.
+     */
+    function transformationMenuOptions(): HTMLButtonElement[] {
+        const picker = workflowSection('Transformation').querySelector('.pipeline-node-body app-step-picker');
+        const trigger = picker?.querySelector('.step-picker-trigger') as HTMLButtonElement | null;
+        if (!picker || !trigger) return [];
+        if (trigger.getAttribute('aria-expanded') !== 'true') {
+            trigger.click();
+            fixture.detectChanges();
+        }
+        return Array.from(picker.querySelectorAll('.step-picker-option')) as HTMLButtonElement[];
+    }
+
+    /** The column creators among them: one option per creator the deployment exposes. */
+    function creatorOptions(): HTMLButtonElement[] {
+        return transformationMenuOptions().filter((option) => option.dataset['step']?.endsWith('_creator'));
+    }
+
     function openStation(step: 'filters' | 'setup' | 'transformation'): HTMLElement {
         component.addStep(step);
         fixture.detectChanges();
@@ -747,10 +767,8 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(workflowSection('Preprocessing').querySelectorAll('.station-action-bar:has(.station-action-preview)').length).toBe(1);
         expect(workflowSection('Transformation').querySelector('.station-card-footer .station-action-preview')).toBeNull();
 
-        // The K-means station is opened from the chooser's dashed row, like the categorical draft.
-        const addKmeans = Array.from(
-            workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
-        ).find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
+        // The K-means station is added from the stage's add-step menu, like the categorical draft.
+        const addKmeans = creatorOptions().find((button) => button.textContent?.includes('K-means')) as HTMLButtonElement;
         addKmeans.click();
         fixture.detectChanges();
 
@@ -2520,13 +2538,10 @@ describe('StatisticAnalysisPanelComponent', () => {
             Array.from(
                 workflowSection('Transformation').querySelectorAll('.transformation-graph .btn-remove-step-node')
             ) as HTMLButtonElement[];
-        const chooserRows = () =>
-            Array.from(
-                workflowSection('Transformation').querySelectorAll('.transformation-chooser .pipeline-subnode-content')
-            ) as HTMLButtonElement[];
+        const chooserRows = () => creatorOptions();
 
         openStation('transformation');
-        // Nothing chosen yet: the stage is the type chooser, with no column card.
+        // Nothing chosen yet: the stage is its add-step menu, with no column card.
         expect(cards().length).toBe(0);
         expect(chooserRows().length).toBe(2);
 
@@ -3928,11 +3943,8 @@ describe('StatisticAnalysisPanelComponent', () => {
             openStation('transformation');
             fixture.detectChanges();
 
-            const titles = Array.from(
-                workflowSection('Transformation').querySelectorAll(
-                    '.transformation-chooser .pipeline-subnode-title',
-                ),
-            ).map((el) => el.textContent?.trim());
+            const titles = transformationMenuOptions()
+                .map((option) => option.querySelector('.step-picker-option-title')?.textContent?.trim());
             expect(titles.some((title) => /pca/i.test(title ?? ''))).toBe(false);
             expect(titles).toContain('Nominal column from rules');
             expect(titles).toContain('K-means cluster column');

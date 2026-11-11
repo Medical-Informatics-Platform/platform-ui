@@ -53,18 +53,30 @@ describe('GenericDataTransformationStepComponent', () => {
     await settle();
   });
 
-  it('shows only the add row until the step is opened or applied', () => {
-    expect(el.querySelector('.btn-add-dashed')?.textContent).toContain('Outlier Detector');
+  it('draws nothing until the step is opened or applied: the stage menu is what adds it', () => {
     expect(el.querySelector('app-station-card')).toBeNull();
+    expect(el.querySelector('.btn-add-dashed')).toBeNull();
+    expect(el.textContent?.trim()).toBe('');
+    // An idle step takes no room either: the stage lays its stations out with a gap.
+    expect(getComputedStyle(el).display).toBe('none');
   });
 
-  it('opens the station from the add row and asks the panel to open it', async () => {
-    const opened: boolean[] = [];
-    fixture.componentInstance.openChange.subscribe((open) => opened.push(open));
-    (el.querySelector('.btn-add-dashed') as HTMLButtonElement).click();
+  it('draws the station once the panel opens it, and keeps it on screen when it is folded', async () => {
+    fixture.componentRef.setInput('open', true);
     await settle();
-    expect(opened).toEqual([true]);
     expect(el.querySelector('app-station-card')).not.toBeNull();
+    expect(el.querySelector('.btn-add-dashed')).toBeNull();
+    expect(getComputedStyle(el).display).toBe('block');
+
+    fixture.componentRef.setInput('open', false);
+    await settle();
+    expect(el.querySelector('app-station-card')).not.toBeNull();
+  });
+
+  it('uses the step\'s own icon on the station', async () => {
+    fixture.componentRef.setInput('open', true);
+    await settle();
+    expect(el.querySelector('app-station-card i.fa-magnifying-glass-chart')).not.toBeNull();
   });
 
   it('applies the schema-shaped payload built from the form', async () => {

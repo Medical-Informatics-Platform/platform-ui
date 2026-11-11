@@ -12,6 +12,7 @@ import {
   applyLongitudinalStrategy,
   applyMeanImputationToAll,
   applyOutlierChoice,
+  pickStep,
   assignRole,
   clearRole,
   collapsePreprocessing,
@@ -249,7 +250,7 @@ test.describe('preprocessing', () => {
   test('batch actions set every numerical variable', async ({ page, api }) => {
     await openAgeAndSex(page);
     await applyMeanImputationToAll(page);
-    await page.locator('button:visible').filter({ hasText: /Add outlier/ }).first().click();
+    await pickStep(page, 'preprocessing', 'outlier_winsorizer');
     const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
     await outlier.getByRole('button', { name: 'Batch' }).click();
     await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();

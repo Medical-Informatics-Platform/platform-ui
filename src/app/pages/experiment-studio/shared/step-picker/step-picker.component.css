@@ -1,0 +1,210 @@
+/* The add row of a pipeline stage. Closed it wears the dashed edge of the rail's other "add"
+   rows (Filtering's "Add condition"), so it reads as the next node of the flow. Open, the row
+   becomes the header of one card and the steps list under it as an index: the purpose on the
+   left, the steps that serve it on the right. Rows, not tiles - nine identical boxes were the
+   problem this replaces. */
+:host {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.step-picker {
+  margin-bottom: 6px;
+  border: 1px dashed color-mix(in srgb, var(--primary-color) 25%, transparent);
+  border-radius: var(--radius-md, 8px);
+  transition: border-color 0.15s ease;
+}
+
+.step-picker:hover,
+.step-picker.is-open {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+}
+
+.step-picker.is-open {
+  background: var(--card-bg, #ffffff);
+}
+
+.step-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-md, 8px) - 1px);
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-picker:not(.is-open) .step-picker-trigger:hover {
+  background: color-mix(in srgb, var(--primary-color) 7%, white);
+}
+
+.step-picker.is-open .step-picker-trigger {
+  background: var(--studio-card-header-bg, #f8fbff);
+  border-bottom: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.step-picker-trigger:focus-visible,
+.step-picker-option:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.step-picker-plus {
+  flex-shrink: 0;
+  width: 16px;
+  color: var(--primary-color);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.step-picker-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.step-picker-label {
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--primary-color);
+}
+
+.step-picker-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.step-picker-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.step-picker.is-open .step-picker-chevron {
+  transform: rotate(180deg);
+}
+
+.step-picker-menu {
+  padding: 2px 12px 4px;
+  animation: step-picker-reveal 0.14s ease-out;
+}
+
+@keyframes step-picker-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* One purpose per band: its label in a fixed left column, its steps beside it. */
+.step-picker-group {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 6px 0;
+}
+
+.step-picker-group + .step-picker-group {
+  border-top: 1px solid var(--border-color, rgba(43, 51, 233, 0.1));
+}
+
+.step-picker-group-label {
+  padding-top: 7px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.step-picker-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.step-picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm, 4px);
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.step-picker-option:hover {
+  background: var(--tint-nav-hover, #e5ebfa);
+}
+
+.step-picker-option > i {
+  flex-shrink: 0;
+  width: 16px;
+  margin-top: 3px;
+  color: var(--primary-color);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.step-picker-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.step-picker-option-title {
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text-main);
+}
+
+/* The description is the part a clinician reads to choose, so it wraps instead of being cut. */
+.step-picker-option-subtitle {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .step-picker-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .step-picker-group-label {
+    padding: 0 8px 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step-picker,
+  .step-picker-chevron {
+    transition: none;
+  }
+
+  .step-picker-menu {
+    animation: none;
+  }
+}

@@ -150,10 +150,21 @@ export async function applyMeanImputationToAll(page: Page) {
   await expect(missing).toContainText(/Mean imputation|Applied/);
 }
 
+/**
+ * Pick a step from a stage's add-step menu: the rail's while the stage is collapsed, the stage's
+ * own once it is open. `step` is the engine's step name, e.g. `outlier_winsorizer`.
+ */
+export async function pickStep(page: Page, stage: 'preprocessing' | 'transformation', step: string) {
+  const picker = page.locator(`[data-guide="analysis-${stage}"] app-step-picker:visible`).first();
+  const trigger = picker.locator('.step-picker-trigger');
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+  await picker.locator(`.step-picker-option[data-step="${step}"]`).click();
+}
+
 /** Enable outlier capping for every numerical variable, optionally picking a method and tail. */
 export async function applyOutlierChoice(page: Page, method?: string, clip?: string) {
   await page.getByRole('button', { name: 'Customize rules' }).click();
-  await page.locator('button:visible').filter({ hasText: /Add outlier/ }).first().click();
+  await pickStep(page, 'preprocessing', 'outlier_winsorizer');
   const outlier = page.locator('app-station-card', { hasText: 'Outlier Handling' });
   await outlier.getByRole('button', { name: 'Batch' }).click();
   await page.getByRole('menuitem', { name: 'Enable for all numerical' }).click();
@@ -181,7 +192,7 @@ export async function openLongitudinalAge(page: Page) {
 
 export async function applyLongitudinalStrategy(page: Page, label: string) {
   // The longitudinal comparison changes what the variable means, so it is a data transformation.
-  await page.getByRole('button', { name: /Add longitudinal comparison/ }).click();
+  await pickStep(page, 'transformation', 'longitudinal_transformer');
   const card = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
   await card.getByRole('button', { name: /^Age/ }).click();
   await card.locator('select').last().selectOption({ label });
@@ -215,8 +226,7 @@ export async function applyFilters(page: Page, { female = false } = {}) {
 }
 
 export async function addNominalColumn(page: Page, code: string, category: string, fallback: string) {
-  await page.getByTitle('Add and open a derived column').click();
-  await page.getByRole('button', { name: /Nominal column from rules/ }).click();
+  await pickStep(page, 'transformation', 'categorical_column_creator');
   await page.getByPlaceholder('e.g. mrs_good_outcome').fill(code);
   await page.getByRole('button', { name: /Add the first category/ }).click();
   await page.getByPlaceholder('Enumeration value').fill(category);
@@ -229,10 +239,10 @@ export async function addNominalColumn(page: Page, code: string, category: strin
   await expect(page.getByText('Sex is Female')).toBeVisible();
 }
 
-/** `stepAdded`: the transformation step is already open (another column was added first). */
+/** `stepAdded` is kept for the callers: the add-step menu is the same whether the stage is open or not. */
 export async function addKMeansColumn(page: Page, { stepAdded = false } = {}) {
-  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
-  await page.getByRole('button', { name: /K-means cluster column/ }).click();
+  void stepAdded;
+  await pickStep(page, 'transformation', 'kmeans_cluster_creator');
   const source = page.locator('app-kmeans-cluster-source');
   await source.getByRole('button', { name: 'Run K-means report' }).click();
   await expect(source.getByText('Cluster 0')).toBeVisible();
@@ -247,8 +257,8 @@ export async function addKMeansColumn(page: Page, { stepAdded = false } = {}) {
  * `stepAdded`: transformation stage already open with the type chooser visible.
  */
 export async function addPcaColumns(page: Page, { stepAdded = false } = {}) {
-  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
-  await page.getByRole('button', { name: /PCA component columns/ }).click();
+  void stepAdded;
+  await pickStep(page, 'transformation', 'pca_column_creator');
   const source = page.locator('app-pca-column-source');
   await source.getByRole('button', { name: 'Fit on selected variables' }).click();
   await source.getByRole('button', { name: 'Add component columns' }).click();
@@ -260,8 +270,8 @@ export async function addPcaColumns(page: Page, { stepAdded = false } = {}) {
  * Deselects every other numerical option in the fit pool.
  */
 export async function addKMeansOnColumns(page: Page, columns: string[], { stepAdded = false } = {}) {
-  if (!stepAdded) await page.getByTitle('Add and open a derived column').click();
-  await page.getByRole('button', { name: /K-means cluster column/ }).click();
+  void stepAdded;
+  await pickStep(page, 'transformation', 'kmeans_cluster_creator');
   const source = page.locator('app-kmeans-cluster-source').last();
   await source.getByRole('button', { name: 'Fit on selected variables' }).click();
   const keep = new Set(columns);

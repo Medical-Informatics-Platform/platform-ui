@@ -95,6 +95,7 @@ import {
   summarizeStepParameters,
 } from '../../../core/data-transformation-step-form.utils';
 import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
+import { StepPickerGroup } from '../../../core/step-picker.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -942,6 +943,53 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   addGenericStep(name: string): void {
     if (stepStage(name) === 'transformation') this.addTransformationSubNode(`step:${name}`);
     else this.addPreprocessingSubNode(`step:${name}`);
+  }
+
+  // ---- Add-step menu (app-step-picker): one add row per stage instead of one dashed row per step ----
+
+  /**
+   * The Variable Transforms and Variable Scaling stations the user opened this visit. A station
+   * is drawn once its step is applied or it was opened here; until then the step is only an
+   * option of the add-step menu.
+   */
+  readonly startedStations = signal<Record<'transform' | 'scaler', boolean>>({ transform: false, scaler: false });
+
+  /**
+   * The steps a stage's add-step menu offers, grouped by purpose (`stepPickerGroups`).
+   * The collapsed rail offers every step the run does not hold yet. With `inStage` (the menu
+   * inside the opened stage) a step whose station is already on screen is left out as well.
+   */
+  addableSteps(stage: 'preprocessing' | 'transformation', inStage = false): StepPickerGroup[] {
+    void stage;
+    void inStage;
+    throw new Error('not implemented');
+  }
+
+  /**
+   * A pick in an add-step menu, by engine step name: opens the stage on that step's station.
+   * A column creator adds its card. Nothing is written to the request.
+   */
+  pickStep(name: string): void {
+    void name;
+    throw new Error('not implemented');
+  }
+
+  /** Whether the Variable Transforms station is drawn: the step is applied, or was opened this visit. */
+  get transformStationShown(): boolean {
+    throw new Error('not implemented');
+  }
+
+  /** Same for the Variable Scaling station. */
+  get scalerStationShown(): boolean {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * Whether the opened Data transformation stage shows its add-step menu unfolded: only while the
+   * stage has nothing else to show (no card, no applied step, no opened station).
+   */
+  get transformationPickerOpen(): boolean {
+    throw new Error('not implemented');
   }
 
   /** Catalog steps of one stage, in catalog order. */
