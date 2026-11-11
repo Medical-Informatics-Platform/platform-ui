@@ -25,15 +25,15 @@ export class StepPickerComponent {
   readonly pick = output<string>();
 
   protected toggle(): void {
-    throw new Error('not implemented');
+    this.open.update((value) => !value);
   }
 
   protected choose(option: StepPickerOption): void {
-    void option;
-    throw new Error('not implemented');
+    this.close();
+    this.pick.emit(option.id);
   }
 
   protected close(): void {
-    throw new Error('not implemented');
+    this.open.set(false);
   }
 }
