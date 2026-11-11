@@ -13,6 +13,7 @@ import {
   isTransformationSingleton,
   stepNote,
   stepStage,
+  valueOptionsForVariable,
 } from './data-transformation-step-form.utils';
 
 const param = (extra: Record<string, unknown>) => ({
@@ -112,6 +113,47 @@ describe('preprocessing step form utils', () => {
   it('summarizes parameters with variable labels', () => {
     expect(summarizeStepParameters({ strategies: { age: 'zscore' }, threshold: 3, variables: ['mmse'] }, { age: 'Age', mmse: 'MMSE' }))
       .toEqual(['Age: zscore', 'threshold: 3', 'variables: MMSE']);
+  });
+
+  describe('global imputer contract', () => {
+    const imputer = {
+      name: 'global_imputer', label: 'Global Imputer', desc: '',
+      parameters: {
+        strategies: param({
+          types: ['dict'], required: true,
+          dict_keys_enums: { type: 'input_var_names', source: ['variables'] },
+          dict_values_enums: { type: 'list', source: ['mean', 'median', 'most_frequent', 'constant'] },
+        }),
+        fill_values: param({ types: ['dict'], dict_keys_enums: { type: 'input_var_names', source: ['variables'] } }),
+      },
+    } as unknown as RawPreprocessingStep;
+
+    it('offers mean and median to numerical variables and most_frequent to nominal ones; constant to both', () => {
+      const options = ['mean', 'median', 'most_frequent', 'constant'];
+      expect(valueOptionsForVariable('global_imputer', options, true)).toEqual(['mean', 'median', 'constant']);
+      expect(valueOptionsForVariable('global_imputer', options, false)).toEqual(['most_frequent', 'constant']);
+      expect(valueOptionsForVariable('other_step', options, false)).toEqual(options);
+    });
+
+    it('sends fill values only for constant variables, as numbers for numerical ones', () => {
+      const fields = stepFields(imputer);
+      const values = {
+        strategies: { age: 'constant', sex: 'constant', mmse: 'mean' },
+        fill_values: { age: '0', sex: 'F', mmse: '9' },
+      };
+      const { parameters, errors } = buildStepParameters(fields, values, null, { stepName: 'global_imputer', numericalCodes: new Set(['age', 'mmse']) });
+      expect(errors).toEqual({});
+      expect(parameters).toEqual({
+        strategies: { age: 'constant', sex: 'constant', mmse: 'mean' },
+        fill_values: { age: 0, sex: 'F' },
+      });
+    });
+
+    it('rejects a non-numeric fill value for a numerical variable', () => {
+      const fields = stepFields(imputer);
+      const result = buildStepParameters(fields, { strategies: { age: 'constant' }, fill_values: { age: 'abc' } }, null, { stepName: 'global_imputer', numericalCodes: new Set(['age']) });
+      expect(result.errors['fill_values']).toMatch(/number/);
+    });
   });
 });
 

@@ -107,7 +107,7 @@
     <fieldset class="step-fieldset">
       <legend>{{ field.label }}@if (field.required) {<em aria-hidden="true"> *</em>}</legend>
       @if (field.description) {<small>{{ field.description }}</small>}
-      @if (field.itemKind === 'enum') {
+      @if (field.itemKind === 'enum' && !isDependent(field)) {
       <div class="step-quick">
         @for (option of field.options; track option) {
         <button type="button" (click)="setAllMapValues(field, option)">Set all to {{ optionLabel(option) }}</button>
@@ -115,14 +115,17 @@
         <button type="button" (click)="setAllMapValues(field, '')">Clear all</button>
       </div>
       }
+      @if (isDependent(field) && rowsFor(field).length === 0) {
+      <small>Appears for the variables set to constant above.</small>
+      }
       <div class="step-variable-list" [attr.data-param]="field.key">
-        @for (variable of variables(); track variable.code) {
+        @for (variable of rowsFor(field); track variable.code) {
         <label class="step-row">
           <span>{{ variableLabel(variable) }}</span>
           @if (field.itemKind === 'enum') {
           <select class="step-select" [attr.data-variable]="variable.code" [ngModel]="mapValue(field, variable.code)" (ngModelChange)="setMapValue(field, variable.code, $event)">
             <option value="">Not set</option>
-            @for (option of field.options; track option) {
+            @for (option of optionsFor(field, variable); track option) {
             <option [value]="option">{{ optionLabel(option) }}</option>
             }
           </select>

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, output, si
 import { FormsModule } from '@angular/forms';
 import { RawPreprocessingStep } from '../../../../models/backend-algorithms.model';
 import {
+  DEPENDENT_MAPS,
   StepField,
   StepFormValues,
   buildStepParameters,
@@ -10,7 +11,9 @@ import {
   stepStage,
   stepValuesFromParameters,
   unsupportedRequiredFields,
+  valueOptionsForVariable,
 } from '../../../../core/data-transformation-step-form.utils';
+import { isOutlierEligibleVariable } from '../../../../core/outlier-rules';
 import { StationActionBarComponent } from '../../shared/station-action-bar/station-action-bar.component';
 import { StationCardComponent } from '../../shared/station-card/station-card.component';
 
@@ -65,7 +68,10 @@ export class GenericDataTransformationStepComponent {
   /** Content key of the applied parameters, so an unrelated config change keeps the draft. */
   private readonly appliedKey = computed(() => JSON.stringify(this.applied()));
   private readonly codes = computed(() => new Set(this.variables().map((variable) => variable.code)));
-  private readonly built = computed(() => buildStepParameters(this.fields(), this.values(), this.codes()));
+  private readonly numericalCodes = computed(() =>
+    new Set(this.variables().filter((variable) => isOutlierEligibleVariable(variable)).map((variable) => variable.code)));
+  private readonly built = computed(() =>
+    buildStepParameters(this.fields(), this.values(), this.codes(), { stepName: this.spec().name, numericalCodes: this.numericalCodes() }));
 
   protected readonly errors = computed(() => this.built().errors);
   protected readonly isApplied = computed(() => this.applied() !== null);
@@ -118,6 +124,23 @@ export class GenericDataTransformationStepComponent {
     return variable.label || variable.name || variable.code;
   }
 
+  /** Enum values of a per-variable row that the variable's type allows. */
+  protected optionsFor(field: StepField, variable: StepVariable): string[] {
+    return valueOptionsForVariable(this.spec().name, field.options, this.numericalCodes().has(variable.code));
+  }
+
+  /** Variables with a row in a per-variable map: dependent maps list only the variables that need them. */
+  protected rowsFor(field: StepField): StepVariable[] {
+    const rule = (DEPENDENT_MAPS[this.spec().name] ?? []).find((candidate) => candidate.key === field.key);
+    if (!rule) return this.variables();
+    const governing = (this.values()[rule.on] ?? {}) as Record<string, string>;
+    return this.variables().filter((variable) => governing[variable.code] === rule.value);
+  }
+
+  protected isDependent(field: StepField): boolean {
+    return (DEPENDENT_MAPS[this.spec().name] ?? []).some((candidate) => candidate.key === field.key);
+  }
+
   protected optionLabel(option: string): string {
     return option.replace(/_/g, ' ');
   }
@@ -166,9 +189,12 @@ export class GenericDataTransformationStepComponent {
     this.setValue(field, map);
   }
 
-  /** Set every selected variable to one value (the batch shortcut of the per-variable steps). */
+  /** Set every selected variable that accepts the value (a numerical-only mean skips nominal ones). */
   protected setAllMapValues(field: StepField, value: string): void {
-    this.setValue(field, Object.fromEntries(this.variables().map((variable) => [variable.code, value])));
+    const accepting = value === ''
+      ? this.variables()
+      : this.variables().filter((variable) => this.optionsFor(field, variable).includes(value));
+    this.setValue(field, Object.fromEntries(accepting.map((variable) => [variable.code, value])));
   }
 
   protected discard(): void {

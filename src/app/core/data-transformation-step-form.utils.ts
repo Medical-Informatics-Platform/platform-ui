@@ -98,6 +98,30 @@ export function stepVariableScope(name: string): StepVariableScope {
  */
 export const STEPS_BEFORE_IMPUTATION: ReadonlySet<string> = new Set(['missing_indicator']);
 
+/**
+ * Per-variable values only some variable types accept (the engine rejects the rest with HTTP 460),
+ * so the form never offers them: `global_imputer` fills a numerical variable with mean or median
+ * and a categorical one with its most frequent code; constant works for both.
+ */
+const VALUE_VARIABLE_TYPE: Readonly<Record<string, Readonly<Record<string, 'numerical' | 'categorical'>>>> = {
+  global_imputer: { mean: 'numerical', median: 'numerical', most_frequent: 'categorical' },
+};
+
+/** The enum values of a per-variable map that suit a variable of the given kind. */
+export function valueOptionsForVariable(stepName: string, options: string[], numerical: boolean): string[] {
+  const rules = VALUE_VARIABLE_TYPE[stepName];
+  if (!rules) return options;
+  return options.filter((option) => {
+    const needs = rules[option];
+    return !needs || (needs === 'numerical') === numerical;
+  });
+}
+
+/** Per-variable maps that only apply to the variables another map in the step selected. */
+export const DEPENDENT_MAPS: Readonly<Record<string, { key: string; on: string; value: string }[]>> = {
+  global_imputer: [{ key: 'fill_values', on: 'strategies', value: 'constant' }],
+};
+
 export type StepFieldKind =
   | 'enum'
   | 'text'
@@ -293,6 +317,7 @@ export function buildStepParameters(
   fields: StepField[],
   values: StepFormValues,
   selectedCodes: ReadonlySet<string> | null = null,
+  context: { stepName?: string; numericalCodes?: ReadonlySet<string> } = {},
 ): BuiltStepParameters {
   const parameters: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
@@ -325,9 +350,14 @@ export function buildStepParameters(
       }
       case 'variable-map': {
         const map: Record<string, unknown> = {};
+        const dependency = (DEPENDENT_MAPS[context.stepName ?? ''] ?? []).find((rule) => rule.key === field.key);
+        const governing = dependency ? ((values[dependency.on] ?? {}) as Record<string, unknown>) : null;
         for (const [code, entry] of Object.entries((raw ?? {}) as Record<string, unknown>)) {
           if (selectedCodes && !selectedCodes.has(code)) continue;
-          const value = parseScalar(field.itemKind, entry, field, `${field.label} (${code})`, errors);
+          if (dependency && governing?.[code] !== dependency.value) continue;
+          // A fill value is a number for a numerical variable and an enumeration code otherwise.
+          const kind = dependency && field.itemKind === 'text' && context.numericalCodes?.has(code) ? 'real' : field.itemKind;
+          const value = parseScalar(kind, entry, field, `${field.label} (${code})`, errors);
           if (value !== null && value !== '') map[code] = value;
         }
         if (Object.keys(map).length) parameters[field.key] = map;

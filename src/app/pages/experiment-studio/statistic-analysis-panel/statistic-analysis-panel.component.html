@@ -1567,6 +1567,18 @@
                   @if (transformStrategyFor(variable); as strategy) {
                   <p class="preprocessing-consequence">{{ transformDomainWarning(variable, strategy) }}</p>
                   }
+                  @if (transformUsesQuantiles) {
+                  <label class="preprocessing-control quantile-control">
+                    <span>Number of quantiles (all quantile transforms)</span>
+                    <input class="table-input" type="number" min="2" step="1" placeholder="100 (default)"
+                      data-param="n_quantiles"
+                      [ngModel]="pendingTransformNQuantiles" (ngModelChange)="onTransformNQuantilesChange($event)" />
+                  </label>
+                  <p class="preprocessing-consequence">Quantile transforms need at least 5 × (quantiles − 1) pooled observations per variable (default 100 quantiles needs 495). Lower this for small cohorts, for example 21.</p>
+                  @if (transformNQuantilesError) {
+                  <p class="preprocessing-consequence" role="alert">{{ transformNQuantilesError }}</p>
+                  }
+                  }
                 </div>
                 } @else {
                 <div class="empty-state-block compact-empty">

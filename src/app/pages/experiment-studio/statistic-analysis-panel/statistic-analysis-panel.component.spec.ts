@@ -3242,6 +3242,60 @@ describe('StatisticAnalysisPanelComponent', () => {
         });
     });
 
+    describe('quantile transform settings', () => {
+        const age = { code: 'age', label: 'Age', type: 'real' };
+
+        beforeEach(() => {
+            (mockExpService.selectedVariables as any).set([age]);
+            component.pendingTransformStrategies = {};
+            component.appliedTransformStrategies = {};
+        });
+
+        it('shows n_quantiles only while a quantile transform is chosen', () => {
+            component.onTransformStrategyChange(age, 'log1p');
+            expect(component.transformUsesQuantiles).toBe(false);
+            component.onTransformStrategyChange(age, 'quantile_normal');
+            expect(component.transformUsesQuantiles).toBe(true);
+        });
+
+        it('sends n_quantiles with a quantile transform and leaves it out for the others', () => {
+            component.onTransformStrategyChange(age, 'quantile_uniform');
+            component.onTransformNQuantilesChange('21');
+            expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                .toEqual({ strategies: { age: 'quantile_uniform' }, n_quantiles: 21 });
+
+            component.onTransformStrategyChange(age, 'log1p');
+            expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                .toEqual({ strategies: { age: 'log1p' } });
+        });
+
+        it('treats a value below 2 or a fraction as an error and sends the engine default', () => {
+            component.onTransformStrategyChange(age, 'quantile_uniform');
+            for (const bad of ['1', '2.5', 'x']) {
+                component.onTransformNQuantilesChange(bad);
+                expect(component.transformNQuantilesError).toMatch(/at least 2/);
+                expect((component as any).buildTransformPreprocessingConfig(false, new Set(['age'])))
+                    .toEqual({ strategies: { age: 'quantile_uniform' } });
+            }
+            component.onTransformNQuantilesChange('');
+            expect(component.transformNQuantilesError).toBe('');
+        });
+
+        it('applies n_quantiles with the card and counts it as a pending change', () => {
+            component.onTransformStrategyChange(age, 'quantile_normal');
+            (component as any).prepStepOps['transform'].commit();
+            expect(component.hasPendingTransformChanges).toBe(false);
+
+            component.onTransformNQuantilesChange('21');
+            expect(component.hasPendingTransformChanges).toBe(true);
+            (component as any).prepStepOps['transform'].commit();
+            expect(component.appliedTransformNQuantiles).toBe(21);
+            expect(component.hasPendingTransformChanges).toBe(false);
+            (component as any).prepStepOps['transform'].reset();
+            expect(component.pendingTransformNQuantiles).toBe('21');
+        });
+    });
+
     describe('cohort retention strip', () => {
         it('shows the retention strip only when both raw and processed summaries are loaded', () => new Promise<void>((done) => {
             const { age } = configureRawSummary();
