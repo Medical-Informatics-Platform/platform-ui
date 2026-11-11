@@ -1,0 +1,34 @@
+@if (groups().length) {
+<div class="step-picker" [class.is-open]="open()" (keydown.escape)="close()">
+  <button type="button" class="step-picker-trigger" [attr.aria-expanded]="open()" (click)="toggle()">
+    <i class="fas fa-plus step-picker-plus" aria-hidden="true"></i>
+    <span class="step-picker-text">
+      <span class="step-picker-label">{{ label() }}</span>
+      @if (hint()) {
+      <span class="step-picker-hint">{{ hint() }}</span>
+      }
+    </span>
+    <i class="fas fa-chevron-down step-picker-chevron" aria-hidden="true"></i>
+  </button>
+  @if (open()) {
+  <div class="step-picker-menu">
+    @for (group of groups(); track group.key) {
+    <div class="step-picker-group" role="group" [attr.aria-label]="group.label" [attr.data-group]="group.key">
+      <span class="step-picker-group-label" aria-hidden="true">{{ group.label }}</span>
+      <div class="step-picker-options">
+        @for (option of group.options; track option.id) {
+        <button type="button" class="step-picker-option" [attr.data-step]="option.id" (click)="choose(option)">
+          <i [class]="option.icon" aria-hidden="true"></i>
+          <span class="step-picker-option-text">
+            <span class="step-picker-option-title">{{ option.title }}</span>
+            <span class="step-picker-option-subtitle">{{ option.subtitle }}</span>
+          </span>
+        </button>
+        }
+      </div>
+    </div>
+    }
+  </div>
+  }
+</div>
+}
