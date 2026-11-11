@@ -51,7 +51,7 @@
         <small>{{ contentsPaneSubtitle() }}</small>
       </div>
 
-      @if (!selectedChildGroups().length && !selectedVariables().length) {
+      @if (!selectedChildGroups().length && !selectedVariables().length && !subtreeRows().length) {
       <div class="empty-state">No child groups or direct variables.</div>
       }
 
@@ -75,6 +75,21 @@
       @if (selectedVariables().length) {
       <div class="content-section-title">Variables</div>
       @for (variable of selectedVariables(); track variable.id) {
+      <ng-container *ngTemplateOutlet="variableRow; context: { $implicit: variable, path: '' }"></ng-container>
+      }
+      }
+
+      @if (subtreeRows().length > 0) {
+      <div class="content-section-title">In subgroups</div>
+      @for (row of subtreeRows(); track row.variable.id) {
+      <ng-container *ngTemplateOutlet="variableRow; context: { $implicit: row.variable, path: row.path }"></ng-container>
+      }
+      @if (subtreeOverflow() > 0) {
+      <p class="subtree-more">{{ subtreeOverflow() }} more. Open a group or use search to narrow the list.</p>
+      }
+      }
+
+      <ng-template #variableRow let-variable let-path="path">
       <button
         type="button"
         class="content-row variable-row"
@@ -88,6 +103,9 @@
       >
         <span class="row-main">
           <span class="row-label">{{ variable.label }}</span>
+          @if (path) {
+          <span class="row-path">{{ path }}</span>
+          }
           @if (variable.description) {
           <span class="row-description">{{ variable.description }}</span>
           }
@@ -104,8 +122,7 @@
         </span>
         }
       </button>
-      }
-      }
+      </ng-template>
     </section>
 
   </div>

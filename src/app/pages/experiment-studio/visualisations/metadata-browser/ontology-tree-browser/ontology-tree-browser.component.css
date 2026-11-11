@@ -243,6 +243,11 @@
   -webkit-line-clamp: 2;
 }
 
+.row-path {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
 .row-meta,
 .row-description {
   overflow: hidden;
@@ -287,6 +292,13 @@
   padding: 12px;
   color: #64748b;
   font-size: 0.8rem;
+}
+
+.subtree-more {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
 }
 
 @media (max-width: 1000px) {
