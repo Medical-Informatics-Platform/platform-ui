@@ -506,6 +506,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.processedSummaryKey = '';
       this.sectionOpen.update((open) => ({ ...open, setup: false, processed: false }));
     } else if (step === 'transformation') {
+      this.startedStations.set({ transform: false, scaler: false });
       this.resetTransformation();
       this.resetTransformationSingletons();
       this.sectionOpen.update((open) => ({ ...open, transformation: false }));
@@ -673,6 +674,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Drop one transform/scaler sub-step entirely and persist the request config without it. */
   removePreprocessingSubNode(step: 'transform' | 'scaler'): void {
+    this.startedStations.update((state) => ({ ...state, [step]: false }));
     if (step === 'transform') {
       this.pendingTransformStrategies = {};
       this.appliedTransformStrategies = {};
@@ -917,6 +919,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
       this.genericStepOpen.set(Object.fromEntries(this.genericSteps.map((spec) => [spec.name, spec.name === target])));
     }
     if (subNode === 'outlier') this.userEnabledOutliers.set(true);
+    if (subNode === 'transform' || subNode === 'scaler') {
+      this.startedStations.update((state) => ({ ...state, [subNode]: true }));
+    }
     this.cdr.markForCheck();
   }
 
@@ -973,19 +978,18 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * inside the opened stage) a step whose station is already on screen is left out as well.
    */
   addableSteps(stage: 'preprocessing' | 'transformation', inStage = false): StepPickerGroup[] {
-    void inStage;
     const candidates: StepCandidate[] = [];
     if (stage === 'preprocessing') {
-      if (!this.outlierSubNodeApplied) candidates.push({ name: 'outlier_winsorizer' });
+      if (inStage ? !this.showOutliersSection : !this.outlierSubNodeApplied) candidates.push({ name: 'outlier_winsorizer' });
     } else {
-      if (this.transformStepAvailable && !this.transformSubNodeApplied) candidates.push({ name: 'variable_transformer' });
-      if (this.scalerStepAvailable && !this.scalerSubNodeApplied) candidates.push({ name: 'variable_scaler' });
+      if (this.transformStepAvailable && !(inStage ? this.transformStationShown : this.transformSubNodeApplied)) candidates.push({ name: 'variable_transformer' });
+      if (this.scalerStepAvailable && !(inStage ? this.scalerStationShown : this.scalerSubNodeApplied)) candidates.push({ name: 'variable_scaler' });
     }
-    for (const spec of this.genericStepsOf(stage).filter((spec) => !this.isGenericStepApplied(spec.name))) {
+    for (const spec of this.genericStepsOf(stage).filter((spec) => !this.isGenericStepApplied(spec.name) && !(inStage && this.genericStepOpen()[spec.name]))) {
       candidates.push({ name: spec.name, label: spec.label, desc: spec.desc });
     }
     if (stage === 'transformation') {
-      if (this.isLongitudinalModel && !this.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
+      if (!inStage && this.isLongitudinalModel && !this.expStudioService.appliedPreprocessingConfig()?.['longitudinal_transformer']) {
         candidates.push({ name: 'longitudinal_transformer' });
       }
       for (const kind of this.chooserCreators()) {
@@ -1023,12 +1027,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Whether the Variable Transforms station is drawn: the step is applied, or was opened this visit. */
   get transformStationShown(): boolean {
-    throw new Error('not implemented');
+    return this.transformStepAvailable && (this.transformSubNodeApplied || this.startedStations().transform);
   }
 
   /** Same for the Variable Scaling station. */
   get scalerStationShown(): boolean {
-    throw new Error('not implemented');
+    return this.scalerStepAvailable && (this.scalerSubNodeApplied || this.startedStations().scaler);
   }
 
   /**
@@ -1036,7 +1040,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
    * stage has nothing else to show (no card, no applied step, no opened station).
    */
   get transformationPickerOpen(): boolean {
-    throw new Error('not implemented');
+    return this.transformationChooserOnly
+      && this.appliedTransformationSingletonNodes.length === 0
+      && !this.startedStations().transform
+      && !this.startedStations().scaler
+      && !Object.values(this.genericStepOpen()).some(Boolean)
+      && !this.isLongitudinalModel;
   }
 
   /** Catalog steps of one stage, in catalog order. */

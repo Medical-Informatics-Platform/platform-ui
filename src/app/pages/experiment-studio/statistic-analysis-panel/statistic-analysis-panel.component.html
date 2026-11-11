@@ -960,12 +960,7 @@
             <ng-container ngProjectAs="[stationFooter]" [ngTemplateOutlet]="prepFooter" [ngTemplateOutletContext]="{ $implicit: 'missing' }"></ng-container>
           </app-station-card>
 
-          @if (!showOutliersSection) {
-          <button type="button" class="btn-add-dashed" (click)="enableOutlierHandling()">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-            <span>Add outlier handling — cap extreme values (optional)</span>
-          </button>
-          } @else {
+          @if (showOutliersSection) {
           <app-station-card
             collapsible
             icon="fas fa-line-chart"
@@ -1272,6 +1267,13 @@
             (applyStep)="applyGenericStep(spec.name, $event)"
             (removeStep)="removeGenericStep(spec.name)"></app-generic-data-transformation-step>
           }
+          @if (addableSteps('preprocessing', true).length) {
+          <app-step-picker
+            label="Add a preprocessing step"
+            hint="Fill or cap values. Every variable keeps its meaning."
+            [groups]="addableSteps('preprocessing', true)"
+            (pick)="pickStep($event)"></app-step-picker>
+          }
 
           </div>
           </div>
@@ -1365,12 +1367,7 @@
             <div class="preprocessing-shell">
             <!-- Stations that change a variable's meaning or add columns for the whole selection;
                  they run before the ordered derived columns below. -->
-          @if (!transformSubNodeApplied && transformStepAvailable) {
-          <button type="button" class="btn-add-dashed" (click)="addTransformationSubNode('transform')">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-            <span>Add variable transforms — log, sqrt, Yeo-Johnson or quantile (optional)</span>
-          </button>
-          } @else if (transformSubNodeApplied) {
+          @if (transformStationShown) {
           <app-station-card
             collapsible
             icon="fas fa-arrow-up-right-dots"
@@ -1523,12 +1520,7 @@
           </app-station-card>
           }
 
-          @if (!scalerSubNodeApplied && scalerStepAvailable) {
-          <button type="button" class="btn-add-dashed" (click)="addTransformationSubNode('scaler')">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-            <span>Add variable scaling — standard, robust, min-max or max absolute (optional)</span>
-          </button>
-          } @else if (scalerSubNodeApplied) {
+          @if (scalerStationShown) {
           <app-station-card
             collapsible
             icon="fas fa-ruler-horizontal"
@@ -2101,25 +2093,12 @@
                 <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
               </div>
               }
-              <div class="transformation-chooser">
-                @if (transformationChooserOnly) {
-                <p class="pipeline-subnodes-caption">Choose the kind of column to add. You can add more afterwards.</p>
-                }
-                <div role="list" aria-label="Kinds of derived column">
-                  @for (kind of chooserCreators(); track kind) {
-                  <div class="pipeline-subnode-item is-ghost" role="listitem">
-                    <button type="button" class="pipeline-subnode-content" (click)="chooseTransformation(kind)">
-                      <i [class]="creatorChooserCopy(kind).icon" aria-hidden="true"></i>
-                      <span class="pipeline-subnode-text">
-                        <span class="pipeline-subnode-title">{{ creatorChooserCopy(kind).title }}</span>
-                        <span class="pipeline-subnode-subtitle">{{ creatorChooserCopy(kind).subtitle }}</span>
-                      </span>
-                      <i class="fas fa-plus pipeline-subnode-add" aria-hidden="true"></i>
-                    </button>
-                  </div>
-                  }
-                </div>
-              </div>
+              <app-step-picker
+                label="Add a transformation step"
+                hint="Reshape values, encode categories, flag records or create columns."
+                [groups]="addableSteps('transformation', true)"
+                [open]="transformationPickerOpen"
+                (pick)="pickStep($event)"></app-step-picker>
             </div>
             </div>
           </div>
