@@ -65,7 +65,8 @@ const countIn = (haystack, name) => {
 const DECL = /^\s*export\s+(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(const|let|var|function|class|interface|type|enum)\s+([A-Za-z0-9_$]+)/;
 const deadExports = [];
 const appSources = ts.filter((p) => !p.endsWith('.spec.ts'));
-for (const p of appSources) {
+// `*.testing.ts` files exist for specs, so an export only specs import is not dead.
+for (const p of appSources.filter((q) => !q.endsWith('.testing.ts'))) {
   const text = read(p);
   for (const line of text.split('\n')) {
     const m = DECL.exec(line);

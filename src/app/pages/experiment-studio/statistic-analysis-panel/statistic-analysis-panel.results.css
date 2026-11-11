@@ -250,6 +250,18 @@ button:disabled {
   border-radius: 0;
 }
 
+/* Sized to its content. Stretched over the whole pane, a one-dataset table put
+   each value about 600px from its label. --summary-cols is the number of value
+   columns the template draws; without it (other tables that share this
+   wrapper) both rules fall back to the old full-width, 620px-minimum layout. */
+.statistics-table-wrapper {
+  max-width: min(100%, calc(240px + var(--summary-cols, 99) * 220px));
+}
+
+.statistics-table-wrapper .statistics-table {
+  min-width: min(620px, calc(200px + var(--summary-cols, 3) * 140px));
+}
+
 /* Explicit tints, not --studio-card-header-bg: the studio sets that token to
    white, which flattened the header and section rows into the body. */
 .statistics-table-wrapper .statistics-table th {
