@@ -87,7 +87,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'variable-selection',
     section: 'Explore',
     title: 'Explore Variable Views',
-    body: 'Browse variables in <strong>Map</strong>, <strong>List</strong>, or <strong>Graph</strong> — try switching modes here, or press <strong>Next</strong>. Charts and details appear on the right.',
+    body: 'Browse variables in <strong>Map</strong>, <strong>List</strong>, or <strong>Tree</strong> — try switching modes here, or press <strong>Next</strong>. Charts and details appear on the right.',
     selector: '[data-guide="variable-selection"]',
     allowTargetInteraction: true,
   },

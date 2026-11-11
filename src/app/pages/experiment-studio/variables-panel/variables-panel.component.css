@@ -249,14 +249,6 @@
   box-shadow: none;
 }
 
-.metadata-mode-btn {
-  padding: 5px 10px;
-}
-
-.metadata-mode-btn span {
-  display: none;
-}
-
 .visualization-parameters-row {
   display: grid;
   grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
@@ -336,7 +328,7 @@
   --segment-gap: 2px;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 36px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--segment-gap);
   flex: 0 0 auto;
   padding: var(--segment-pad);
@@ -382,9 +374,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: auto;
   height: 28px;
-  padding: 0;
+  padding: 0 12px;
+  gap: 6px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
   border: 0;
   border-radius: 999px;
   background: transparent;

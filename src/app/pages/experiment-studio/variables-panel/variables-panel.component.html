@@ -296,7 +296,7 @@
                   <p>Click a variable in the browser to see its chart and details.</p>
                 </div>
                 } @else if (groupHistogramData()) {
-                <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
+                <app-histogram-graph [data]="groupHistogramData()" [horizontal]="true"></app-histogram-graph>
                 } @else if (histogramData()) {
                 <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
                 }
