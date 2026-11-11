@@ -10,6 +10,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
@@ -21,6 +22,7 @@ import {
   NormalizedGroupNode,
   NormalizedVariableNode,
 } from '../metadata-browser.model';
+import { pluralize } from '../../../../../core/result-label.utils';
 import { groupContentsLabel } from '../metadata-browser-labels';
 import {
   findGroupByNode,
@@ -54,6 +56,7 @@ const EMPTY_METADATA_TREE: D3HierarchyNode = {
 
 @Component({
   selector: 'app-ontology-tree-browser',
+  imports: [NgTemplateOutlet],
   templateUrl: './ontology-tree-browser.component.html',
   styleUrl: './ontology-tree-browser.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -69,6 +72,7 @@ export class OntologyTreeBrowserComponent {
   readonly variablePoolToggle = output<D3HierarchyNode>();
 
   @ViewChildren('treeRowButton') private treeRowButtons?: QueryList<ElementRef<HTMLButtonElement>>;
+  private keptVariableId: string | null = null;
 
   readonly selectedGroupId = signal<string | null>(null);
   readonly selectedVariableId = signal<string | null>(null);
@@ -145,16 +149,35 @@ export class OntologyTreeBrowserComponent {
     return counts;
   });
 
+  /** Variables of nested groups under the selected group, with the path after that group. */
+  private readonly subtreeMatches = computed<SubtreeVariableRow[]>(() => {
+    const G = this.selectedGroup();
+    const index = this.index();
+    const matches: SubtreeVariableRow[] = [];
+    for (const id of index.variableIds) {
+      const variable = index.variablesById[id];
+      if (variable.parentGroupId !== G.id && variable.pathGroupIds.includes(G.id)) {
+        const path = variable.pathGroupIds
+          .slice(variable.pathGroupIds.indexOf(G.id) + 1)
+          .map((id) => index.groupsById[id].label)
+          .join(' / ');
+        matches.push({ variable, path });
+      }
+    }
+    return matches;
+  });
   /** Variables of the selected group's nested groups (not its direct ones), capped at the limit. */
   readonly subtreeRows = computed<SubtreeVariableRow[]>(() => {
-    throw new Error('not implemented');
+    // ponytail: hard cap, virtual scroll if models with thousands of variables need the full list
+    return this.subtreeMatches().slice(0, SUBTREE_VARIABLE_LIMIT);
   });
   /** How many nested variables the cap left out; 0 when all are listed. */
   readonly subtreeOverflow = computed<number>(() => {
-    throw new Error('not implemented');
+    return this.subtreeMatches().length - this.subtreeRows().length;
   });
 
   readonly groupContentsLabel = groupContentsLabel;
+  readonly pluralize = pluralize;
 
   constructor() {
     effect(() => {
@@ -177,6 +200,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   selectGroup(group: NormalizedGroupNode): void {
+    this.keptVariableId = null;
     this.selectedGroupId.set(group.id);
     this.selectedVariableId.set(null);
     this.expandPathToGroup(group.id);
@@ -184,6 +208,14 @@ export class OntologyTreeBrowserComponent {
   }
 
   selectVariable(variable: NormalizedVariableNode): void {
+    const selectedGroup = this.selectedGroup();
+    if (variable.parentGroupId !== selectedGroup.id && variable.pathGroupIds.includes(selectedGroup.id)) {
+      this.selectedVariableId.set(variable.id);
+      this.keptVariableId = variable.id;
+      this.selectedNodeChange.emit(variable.original);
+      return;
+    }
+    this.keptVariableId = null;
     this.selectedGroupId.set(variable.parentGroupId);
     this.selectedVariableId.set(variable.id);
     this.expandPathToGroup(variable.parentGroupId);
@@ -322,6 +354,10 @@ export class OntologyTreeBrowserComponent {
     const index = this.index();
     const variable = findVariableByNode(index, node);
     if (variable) {
+      if (variable.id === this.keptVariableId) {
+        this.selectedVariableId.set(variable.id);
+        return;
+      }
       this.selectedGroupId.set(variable.parentGroupId);
       this.selectedVariableId.set(variable.id);
       this.expandPathToGroup(variable.parentGroupId);
