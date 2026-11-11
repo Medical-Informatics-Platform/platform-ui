@@ -9,8 +9,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
+  background: var(--bg-neutral);
   color: var(--text-main);
 }
 
@@ -43,20 +42,51 @@
   width: 100%;
   height: 100%;
   cursor: grab;
-  background:
-    linear-gradient(rgba(226, 232, 240, 0.48) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.48) 1px, transparent 1px);
-  background-size: 28px 28px;
 }
 
 :host ::ng-deep .collapsible-tree-svg:active {
   cursor: grabbing;
 }
 
+.tree-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--studio-card-border);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  box-shadow: var(--studio-card-shadow);
+  overflow: hidden;
+}
+
+.tree-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tree-controls button:hover {
+  color: var(--primary-color);
+  background: var(--tint-nav-hover);
+}
+
+.tree-controls button + button {
+  border-top: 1px solid var(--studio-card-border);
+}
+
 :host ::ng-deep .tree-link {
   fill: none;
   stroke: #cbd5e1;
-  stroke-width: 1.7px;
+  stroke-width: 1.25px;
 }
 
 :host ::ng-deep .collapsible-node {
@@ -133,15 +163,15 @@
 
 :host ::ng-deep .node-label {
   fill: var(--text-main);
-  font-size: 11px;
-  font-weight: 760;
+  font-size: 12px;
+  font-weight: 600;
   pointer-events: none;
 }
 
 :host ::ng-deep .node-meta {
-  fill: #64748b;
-  font-size: 9px;
-  font-weight: 620;
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
   pointer-events: none;
 }
 
