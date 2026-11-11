@@ -70,7 +70,7 @@ describe('VariablesPanelComponent data exploration layout', () => {
   it('names each browser view next to its icon', () => {
     const names = Array.from(fixture.nativeElement.querySelectorAll('.metadata-mode-btn span')) as HTMLElement[];
 
-    expect(names.map((name) => name.textContent?.trim())).toEqual(['Map', 'List', 'Graph']);
+    expect(names.map((name) => name.textContent?.trim())).toEqual(['Map', 'List', 'Tree']);
     for (const name of names) {
       expect(getComputedStyle(name).display).not.toBe('none');
     }

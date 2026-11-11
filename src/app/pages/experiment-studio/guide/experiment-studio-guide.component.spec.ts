@@ -748,7 +748,8 @@ describe('ExperimentStudioGuideComponent', () => {
     expect(exploreStep?.allowTargetInteraction).toBe(true);
     expect(exploreStep?.body).toContain('Map');
     expect(exploreStep?.body).toContain('List');
-    expect(exploreStep?.body).toContain('Graph');
+    expect(exploreStep?.body).toContain('Tree');
+    expect(exploreStep?.body).not.toContain('Graph');
     expect(exploreStep?.body).toContain('Next');
     expect(exploreStep?.interactionSelectors).toBeUndefined();
     expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBe(false);

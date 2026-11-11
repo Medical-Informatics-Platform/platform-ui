@@ -28,6 +28,15 @@ import {
   pathForGroup,
 } from '../metadata-browser-normalizer';
 
+/** Most variables of nested groups the contents pane lists before it asks the user to narrow down. */
+export const SUBTREE_VARIABLE_LIMIT = 200;
+
+/** A variable of a nested group, with the group names between the selected group and the variable. */
+export interface SubtreeVariableRow {
+  variable: NormalizedVariableNode;
+  path: string;
+}
+
 interface TreeRow {
   group: NormalizedGroupNode;
   depth: number;
@@ -115,6 +124,15 @@ export class OntologyTreeBrowserComponent {
   readonly contentsPaneSubtitle = computed(() => {
     const group = this.selectedGroup();
     return `${this.pluralize(group.directGroupCount, 'group')} · ${this.pluralize(group.totalVariableCount, 'variable')}`;
+  });
+
+  /** Variables of the selected group's nested groups (not its direct ones), capped at the limit. */
+  readonly subtreeRows = computed<SubtreeVariableRow[]>(() => {
+    throw new Error('not implemented');
+  });
+  /** How many nested variables the cap left out; 0 when all are listed. */
+  readonly subtreeOverflow = computed<number>(() => {
+    throw new Error('not implemented');
   });
 
   readonly pluralize = pluralize;

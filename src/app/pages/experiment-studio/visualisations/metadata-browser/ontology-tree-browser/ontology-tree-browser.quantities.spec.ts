@@ -80,7 +80,8 @@ describe('OntologyTreeBrowserComponent quantities', () => {
       (Array.from(fixture.nativeElement.querySelectorAll('.content-section-title')) as HTMLElement[]).map(
         (title) => text(title)
       );
-    expect(titles()).toEqual(['Groups']);
+    expect(titles()[0]).toBe('Groups');
+    expect(titles()).not.toContain('Child groups');
 
     groupRow('Demographics').click();
     fixture.detectChanges();
