@@ -57,6 +57,8 @@ describe('GenericDataTransformationStepComponent', () => {
     expect(el.querySelector('app-station-card')).toBeNull();
     expect(el.querySelector('.btn-add-dashed')).toBeNull();
     expect(el.textContent?.trim()).toBe('');
+    // An idle step takes no room either: the stage lays its stations out with a gap.
+    expect(getComputedStyle(el).display).toBe('none');
   });
 
   it('draws the station once the panel opens it, and keeps it on screen when it is folded', async () => {
@@ -64,6 +66,7 @@ describe('GenericDataTransformationStepComponent', () => {
     await settle();
     expect(el.querySelector('app-station-card')).not.toBeNull();
     expect(el.querySelector('.btn-add-dashed')).toBeNull();
+    expect(getComputedStyle(el).display).toBe('block');
 
     fixture.componentRef.setInput('open', false);
     await settle();
