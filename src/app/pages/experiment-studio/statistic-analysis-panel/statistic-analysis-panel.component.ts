@@ -95,7 +95,7 @@ import {
   summarizeStepParameters,
 } from '../../../core/data-transformation-step-form.utils';
 import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
-import { RailOrder, orderByMissing, railCountLabel, railStep } from '../../../core/summary-rail.utils';
+import { RailOrder, orderByMissing, railCountLabel, railStep, visibleSummaryColumns } from '../../../core/summary-rail.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -2082,8 +2082,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** Columns the statistics table draws for a block (no pooled column beside a single dataset). */
   summaryColumns(block: PivotBlock): string[] {
-    void block;
-    throw new Error('not implemented');
+    return visibleSummaryColumns(block.columns, (column) => this.isRollupColumn(column));
   }
 
   statisticBlockVariable(block: PivotBlock): VariableRow | null {
