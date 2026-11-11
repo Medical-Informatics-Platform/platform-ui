@@ -95,6 +95,7 @@ import {
   summarizeStepParameters,
 } from '../../../core/data-transformation-step-form.utils';
 import { GenericDataTransformationStepComponent } from './generic-data-transformation-step/generic-data-transformation-step.component';
+import { RailOrder } from '../../../core/summary-rail.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -411,6 +412,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     source: '',
     raw: '',
     processed: '',
+  };
+  /** Rail order per summary surface; the "Missing" column header of the rail toggles it. */
+  statisticsSort: Record<string, RailOrder> = {
+    source: 'selection',
+    raw: 'selection',
+    processed: 'selection',
   };
   isExporting = false;
   isLoading = true;
@@ -2032,6 +2039,45 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   isStatisticBlockSelected(kind: SummaryKind, block: PivotBlock): boolean {
     const selected = this.selectedStatisticBlock(kind);
     return !!selected && this.statisticBlockKey(selected) === this.statisticBlockKey(block);
+  }
+
+  // ---- Summary rail and table (helpers in core/summary-rail.utils.ts)
+
+  /** Rail header text: "4 variables", or "1 of 4 variables" while the search hides some. */
+  statisticsCountLabel(kind: SummaryKind): string {
+    void kind;
+    throw new Error('not implemented');
+  }
+
+  /** Switches the rail between selection order and most missing first. */
+  toggleStatisticsSort(kind: SummaryKind): void {
+    void kind;
+    throw new Error('not implemented');
+  }
+
+  /** Empties the rail search of one surface. */
+  clearStatisticsSearch(kind: SummaryKind): void {
+    void kind;
+    throw new Error('not implemented');
+  }
+
+  /** Rail rows in the order they are drawn: the numerical group, then the categorical group. */
+  railBlocks(kind: SummaryKind): PivotBlock[] {
+    void kind;
+    throw new Error('not implemented');
+  }
+
+  /** Arrow keys, Home and End walk the rail: select the row and move focus to it. */
+  onStatisticRailKeydown(kind: SummaryKind, event: KeyboardEvent): void {
+    void kind;
+    void event;
+    throw new Error('not implemented');
+  }
+
+  /** Columns the statistics table draws for a block (no pooled column beside a single dataset). */
+  summaryColumns(block: PivotBlock): string[] {
+    void block;
+    throw new Error('not implemented');
   }
 
   statisticBlockVariable(block: PivotBlock): VariableRow | null {
