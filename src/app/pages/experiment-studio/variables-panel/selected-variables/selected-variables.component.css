@@ -258,6 +258,8 @@
 
 .pool-card-body {
   padding: 12px 16px 14px;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .pool-chip {
