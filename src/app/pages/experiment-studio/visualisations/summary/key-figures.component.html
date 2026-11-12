@@ -1,0 +1,11 @@
+<div class="key-figures" role="group" aria-label="Key figures">
+  @for (figure of figures(); track figure.label) {
+  <div class="key-figure">
+    <span class="key-figure-label">{{ figure.label }}</span>
+    <span class="key-figure-value">{{ figure.value }}</span>
+    @if (figure.note) {
+    <span class="key-figure-note">{{ figure.note }}</span>
+    }
+  </div>
+  }
+</div>
