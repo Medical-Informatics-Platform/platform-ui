@@ -10,13 +10,13 @@ export const HISTOGRAM_SPLIT_NONE = '';
 
 export const HISTOGRAM_RESIDUAL_KEY = '__residual__';
 
-export const HISTOGRAM_RESIDUAL_LABEL = 'Not shown (missing or < privacy threshold)';
+export const HISTOGRAM_RESIDUAL_LABEL = 'Masked or missing (below the privacy threshold or no value)';
 
 /** Short legend text; {@link HISTOGRAM_RESIDUAL_LABEL} stays on the title/tooltip. */
-export const HISTOGRAM_RESIDUAL_LEGEND_LABEL = 'Not shown';
+export const HISTOGRAM_RESIDUAL_LEGEND_LABEL = 'Masked or missing';
 
 export const HISTOGRAM_EDGE_PRIVACY_TOOLTIP =
-  'Fewer than the privacy threshold (hidden for privacy)';
+  'Fewer than the privacy threshold (masked for privacy)';
 
 export const HISTOGRAM_INTERIOR_PRIVACY_TOOLTIP =
   '0 or fewer than the privacy threshold';
@@ -55,10 +55,14 @@ export interface HistogramChartData {
   variable?: string;
   variableName?: string;
   description?: string;
+  /** Physical unit from the data-model node (`mmol/L`, `years`, …). */
+  units?: string;
   variableType?: string;
   groups?: HistogramGroupSeries[];
   /** Split-variable label for the stacked legend title (`Dataset`, `Sex`, …). */
   splitLabel?: string;
+  /** Split-variable code; `dataset` lets the legend use short dataset codes. */
+  splitCode?: string;
 }
 
 export interface HistogramSplitOption {
@@ -105,6 +109,25 @@ export function isNominalHistogramNode(
   if (type === 'nominal' || type === 'text') return true;
   if (node.isCategorical) return true;
   return Array.isArray(node.enumerations) && node.enumerations.length > 0;
+}
+
+/** A dataset split: its groups can overlap (a pooled dataset beside its parts), so they are never summed. */
+export function isDatasetSplit(data: { splitCode?: string }): boolean {
+  return (data.splitCode ?? '').toLowerCase() === DATASET_VARIABLE_CODE;
+}
+
+/** A plotted leaf variable can be split, numeric or categorical; groups and free text cannot. */
+export function canSplitHistogramNode(
+  node: {
+    code?: unknown;
+    type?: string | null;
+    children?: unknown[];
+  } | null | undefined
+): boolean {
+  if (!node) return false;
+  if (!String(node.code ?? '').trim()) return false;
+  if (Array.isArray(node.children) && node.children.length > 0) return false;
+  return String(node.type ?? '').toLowerCase() !== 'text';
 }
 
 export function buildHistogramSplitOptions(input: {
@@ -173,14 +196,12 @@ export function toNumericCounts(counts: unknown): Array<number | null> {
 
 export function extractHistogramItems(response: unknown): RawHistogramItem[] {
   const payload = (response as { result?: unknown } | null)?.result ?? response;
-  const fromPayload = (payload as { histogram?: unknown } | null)?.histogram;
-  const fromResponse = (response as { histogram?: unknown } | null)?.histogram;
-  const histList = Array.isArray(fromPayload)
-    ? fromPayload
-    : Array.isArray(fromResponse)
-      ? fromResponse
-      : [];
-  return histList as RawHistogramItem[];
+  const fromPayload = payload as { histogram?: unknown; histograms?: unknown } | null;
+  const fromResponse = response as { histogram?: unknown; histograms?: unknown } | null;
+  const histList = [fromPayload?.histogram, fromPayload?.histograms,
+    fromResponse?.histogram, fromResponse?.histograms]
+    .find(Array.isArray);
+  return (histList ?? []) as RawHistogramItem[];
 }
 
 export function histogramItemMatchesVariable(item: RawHistogramItem | undefined, code: string): boolean {

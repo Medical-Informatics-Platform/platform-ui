@@ -114,6 +114,22 @@ describe('buildStackedHistogramSeries', () => {
     expect(buildStackedHistogramSeries(items.slice(1), 'age', 'dataset', (_var, value) => value)).toBeNull();
   });
 
+  it('keeps a pooled dataset alongside its parts so the chart can dodge, not stack them', () => {
+    const items = [
+      { var: 'glucose', grouping_var: null, grouping_enum: null, bins: [0, 10], counts: [95, 20] },
+      { var: 'glucose', grouping_var: 'dataset', grouping_enum: 'SSR', bins: [0, 10], counts: [95, 20] },
+      { var: 'glucose', grouping_var: 'dataset', grouping_enum: 'SSR-even', bins: [0, 10], counts: [53, 10] },
+      { var: 'glucose', grouping_var: 'dataset', grouping_enum: 'SSR-odd', bins: [0, 10], counts: [42, 10] },
+    ];
+    const stacked = buildStackedHistogramSeries(items, 'glucose', 'dataset', (_v, e) => e);
+    // The backend lists a pooled dataset and its parts as separate groups whose
+    // counts overlap, so stacking sums the same rows twice. The chart dodges
+    // dataset splits (histogram-chart.ts) instead.
+    expect(stacked?.groups?.map((group) => group.key)).toEqual(['SSR', 'SSR-even', 'SSR-odd']);
+    expect(stacked?.groups?.[0].counts[0]).toBe(95);
+    expect(stacked?.counts[0]).toBe(95);
+  });
+
   it('drops unselected datasets and all-null groups', () => {
     const stacked = buildStackedHistogramSeries(
       [

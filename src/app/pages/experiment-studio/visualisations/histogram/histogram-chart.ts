@@ -6,14 +6,15 @@ import {
   HISTOGRAM_RESIDUAL_COLOR,
   HISTOGRAM_RESIDUAL_KEY,
   HISTOGRAM_RESIDUAL_LABEL,
-  HISTOGRAM_RESIDUAL_LEGEND_LABEL,
-  HISTOGRAM_SOFT_EDGE,
   HistogramChartData,
   HistogramGroupSeries,
+  isDatasetSplit,
+  isNominalHistogramNode,
   histogramSeriesColor,
   histogramSeriesEdgeColor,
   residualCount,
 } from './histogram-data';
+import { createGroupedCategoryChart } from './grouped-category-chart';
 
 export type { HistogramChartData, HistogramGroupSeries } from './histogram-data';
 
@@ -50,24 +51,38 @@ export function shouldClipNullEdges(bins: Array<string | number>): boolean {
   return binsAreNumeric(bins.map(String));
 }
 
-/** First and last non-null count; `start > end` when every count is null. */
-function nonNullRange(counts: Array<number | null>): { start: number; end: number } {
+/**
+ * First and last bin that draws a bar. A stack draws from the bin total; a dodged
+ * dataset split draws one bar per group, so the group counts decide the crop.
+ * Interior bins (zero, masked) never drop out of the window.
+ */
+function drawnRange(
+  counts: Array<number | null>,
+  groups: HistogramGroupSeries[] | undefined,
+  drawnByGroups: boolean
+): { start: number; end: number } {
+  const series = drawnByGroups && groups?.length
+    ? groups.map((group) => group.counts)
+    : [counts];
+  const drawnAt = (index: number): boolean => series.some((s) => (s[index] ?? 0) > 0);
   let start = 0;
-  while (start < counts.length && counts[start] === null) start += 1;
+  while (start < counts.length && !drawnAt(start)) start += 1;
   let end = counts.length - 1;
-  while (end >= start && counts[end] === null) end -= 1;
+  while (end >= start && !drawnAt(end)) end -= 1;
   return { start, end };
 }
 
 export function clipHistogramNullEdges(
   bins: Array<string | number>,
   counts: Array<number | null>,
-  groups?: HistogramGroupSeries[]
+  groups?: HistogramGroupSeries[],
+  /** True for a dataset split: crop by the group bars, not by the pooled bin totals. */
+  drawnByGroups?: boolean
 ): { bins: string[]; counts: Array<number | null>; groups?: HistogramGroupSeries[] } {
   if (!Array.isArray(counts) || !Array.isArray(bins) || !bins.length) {
     return { bins: [], counts: [], groups: groups && [] };
   }
-  const { start, end } = nonNullRange(counts);
+  const { start, end } = drawnRange(counts, groups, drawnByGroups === true);
   const clip = <T>(values: T[]): T[] => values.slice(start, end + 1);
   return {
     bins: clip(bins).map(String),
@@ -76,34 +91,94 @@ export function clipHistogramNullEdges(
   };
 }
 
-/** Bin edges removed by {@link clipHistogramNullEdges}, or null when nothing was trimmed. */
+/** One cropped edge: the boundary bin the axis now starts/ends at, and why the trim happened. */
+export interface HistogramTrimmedEdge {
+  edge: string;
+  /** `masked`: at least one cropped bin has a privacy-null count; `empty`: every cropped bin is 0. */
+  kind: 'masked' | 'empty';
+}
+
+export interface HistogramTrimBounds {
+  below: HistogramTrimmedEdge | null;
+  above: HistogramTrimmedEdge | null;
+}
+
+/**
+ * Bin edges removed by {@link clipHistogramNullEdges}, or null when nothing was trimmed.
+ * The boundary is the first/last bin the axis keeps, so the note matches the drawn axis.
+ */
 export function describeClippedNullEdges(
   bins: Array<string | number>,
-  counts: Array<number | null>
-): { below: string | null; above: string | null } | null {
+  counts: Array<number | null>,
+  groups?: HistogramGroupSeries[],
+  /** True for a dataset split: the crop follows the group bars, not the pooled totals. */
+  drawnByGroups?: boolean
+): HistogramTrimBounds | null {
   if (!shouldClipNullEdges(bins) || !counts.length || !bins.length) return null;
 
-  const { start, end } = nonNullRange(counts);
+  const { start, end } = drawnRange(counts, groups, drawnByGroups === true);
   if (start > end || (start === 0 && end === counts.length - 1)) {
     return null;
   }
 
+  const edgeKind = (lo: number, hi: number): 'masked' | 'empty' => {
+    for (let index = lo; index <= hi; index += 1) {
+      if (counts[index] === null) return 'masked';
+    }
+    return 'empty';
+  };
+
   return {
-    below: start > 0 ? String(bins[start] ?? '') : null,
-    above: end < counts.length - 1 ? String(bins[Math.min(end + 1, bins.length - 1)] ?? '') : null,
+    below: start > 0 ? { edge: String(bins[start] ?? ''), kind: edgeKind(0, start - 1) } : null,
+    above:
+      end < counts.length - 1
+        ? { edge: String(bins[Math.min(end + 1, bins.length - 1)] ?? ''), kind: edgeKind(end + 1, bins.length - 1) }
+        : null,
   };
 }
 
 export function formatClippedNullEdgesNote(
-  bounds: { below: string | null; above: string | null } | null
+  bounds: HistogramTrimBounds | null
 ): string | null {
   if (!bounds) return null;
-  const range = [bounds.below && `below ${bounds.below}`, bounds.above && `above ${bounds.above}`]
-    .filter(Boolean)
-    .join(' / ');
-  return range
-    ? `Values ${range} hidden (too few records per bin for privacy). Review outliers in Data Handling.`
-    : null;
+  const masked: string[] = [];
+  const empty: string[] = [];
+  if (bounds.below) {
+    (bounds.below.kind === 'masked' ? masked : empty).push(`below ${bounds.below.edge}`);
+  }
+  if (bounds.above) {
+    (bounds.above.kind === 'masked' ? masked : empty).push(`above ${bounds.above.edge}`);
+  }
+  const clauses: string[] = [];
+  if (empty.length) clauses.push(`Values ${empty.join(' / ')} have no records`);
+  if (masked.length) clauses.push(`Values ${masked.join(' / ')} masked (too few records per bin for privacy)`);
+  if (!clauses.length) return null;
+  const text = clauses
+    .map((clause, index) => (index === 0 ? clause : clause.replace(/^Values/, 'values')))
+    .join('; ');
+  return masked.length
+    ? `${text}. Review outliers in Data Handling.`
+    : `${text}. The axis is cropped to the populated range.`;
+}
+
+/** Axis title: the variable label as the data model writes it, plus its unit when it has one. */
+export function histogramAxisTitle(data: {
+  variableName?: string;
+  units?: string;
+}): string {
+  const label = String(data.variableName ?? '').trim();
+  const unit = String(data.units ?? '').trim();
+  return unit ? `${label} (${unit})` : label;
+}
+
+/** House style for axis titles: sentence case, 500 weight, muted ink, no caps tracking. */
+export function styleAxisTitle(
+  text: d3.Selection<SVGTextElement, unknown, any, any>
+): void {
+  text
+    .style('font-size', '11px')
+    .style('font-weight', '500')
+    .style('fill', 'var(--text-muted, #475569)');
 }
 
 export function selectXTickValues(bins: string[], chartWidth: number, maxLabelLength: number): string[] {
@@ -160,12 +235,12 @@ function formatNumber(d: any): string {
 }
 
 /** 1,621 → 1.6k on a bar, but counts under 1,000 stay exact. */
-function formatBarCount(count: number): string {
+export function formatBarCount(count: number): string {
   return count >= 1000 ? d3.format('.2~s')(count) : String(count);
 }
 
 /** Top corners rounded, bottom square so the bar sits flush on the baseline. */
-function topRoundedBarPath(x: number, y: number, width: number, height: number, radius: number): string {
+export function topRoundedBarPath(x: number, y: number, width: number, height: number, radius: number): string {
   const r = Math.max(0, Math.min(radius, width / 2, height));
   return `M${x},${y + height}V${y + r}Q${x},${y} ${x + r},${y}` +
     `H${x + width - r}Q${x + width},${y} ${x + width},${y + r}V${y + height}Z`;
@@ -182,17 +257,37 @@ interface StackedTooltipRow {
   hatch?: boolean;
 }
 
-interface LegendItem {
-  label: string;
-  color: string;
-  hatch?: boolean;
-  title?: string;
+/**
+ * Drops hidden split groups. Each bin's total becomes the groups still shown plus
+ * the masked-or-missing share no group accounts for, so hiding a group never
+ * hides the masked records with it.
+ */
+export function withoutHiddenGroups(
+  data: HistogramChartData,
+  hidden: ReadonlySet<string>
+): HistogramChartData {
+  if (!data.groups?.length || !hidden.size) return data;
+  const allGroups = data.groups;
+  const groups = allGroups.filter((group) => !hidden.has(group.key));
+  const counts = data.counts.map((total, index) => {
+    if (total === null) return null;
+    const shown = groups.reduce((sum, group) => sum + (group.counts[index] ?? 0), 0);
+    return shown + residualCount(total, allGroups, index);
+  });
+  return { ...data, counts, groups };
 }
 
-function attachChartTooltip(
+/** True when some bin's total is more than its groups show (privacy masking, missing values). */
+export function hasMaskedRemainder(data: HistogramChartData): boolean {
+  const groups = data.groups ?? [];
+  return groups.length > 0 && data.counts.some((total, index) => residualCount(total, groups, index) > 0);
+}
+
+export function attachChartTooltip(
   container: HTMLElement,
   formatTitle: (binLabel: string) => string = (binLabel) => binLabel,
   total?: number,
+  totalLabel = 'Total',
 ) {
   container.style.position = 'relative';
   const tooltip = d3
@@ -263,7 +358,7 @@ function attachChartTooltip(
       .style('line-height', '1.4')
       .text(formatTitle(binLabel));
     const totalRow = tooltip.append('div').style('margin-bottom', '6px');
-    totalRow.append('span').style('color', 'var(--text-muted, #475569)').text('Total ');
+    totalRow.append('span').style('color', 'var(--text-muted, #475569)').text(`${totalLabel} `);
     totalRow.append('b').text(formatCountLabel(binTotal));
     if (binTotal !== null && total) {
       totalRow
@@ -329,57 +424,6 @@ function attachChartTooltip(
   return { showTooltip, showStackedTooltip, moveTooltip, hideTooltip };
 }
 
-function appendHistogramLegend(
-  container: HTMLElement,
-  items: LegendItem[],
-  title?: string,
-  plotLeft = 0
-): number {
-  // D3/DOM nodes created at runtime have no `_ngcontent-*`, so emulated
-  // component CSS never matches them. Inline styles, same as the tooltip.
-  const el = (tag: string, className: string, css: string): HTMLElement => {
-    const node = document.createElement(tag);
-    node.className = className;
-    node.style.cssText = css;
-    return node;
-  };
-  const muted = 'color: var(--text-muted, #475569);';
-  const legend = el('div', 'histogram-legend',
-    'display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0;' +
-    ` margin: 0 0 4px ${Math.max(0, plotLeft)}px;` +
-    ` width: ${plotLeft ? `calc(100% - ${plotLeft}px)` : '100%'};` +
-    ` box-sizing: border-box; font-family: var(--font-sans, inherit); ${muted}`);
-  if (title) {
-    const heading = el('span', 'histogram-legend-title',
-      'display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em;' +
-      ` text-transform: uppercase; ${muted}`);
-    heading.textContent = title;
-    legend.appendChild(heading);
-  }
-  const list = el('div', 'histogram-legend-items',
-    'display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 6px; width: 100%;');
-  list.setAttribute('role', 'list');
-  for (const item of items) {
-    const entry = el('span', 'histogram-legend-item',
-      'display: inline-flex; align-items: center; gap: 6px; max-width: 180px; min-height: 16px;' +
-      ` font-size: 12px; line-height: 1.2; font-variant-numeric: tabular-nums; ${muted}`);
-    entry.setAttribute('role', 'listitem');
-    entry.title = item.title || item.label;
-    const edge = item.hatch ? HISTOGRAM_SOFT_EDGE : histogramSeriesEdgeColor(item.color);
-    const swatch = el('span', 'histogram-legend-swatch',
-      'display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto;' +
-      ` background: ${item.hatch ? RESIDUAL_SWATCH : item.color};` +
-      (edge ? ` box-shadow: inset 0 0 0 1px ${edge};` : ''));
-    const caption = el('span', '', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;');
-    caption.textContent = item.label;
-    entry.append(swatch, caption);
-    list.appendChild(entry);
-  }
-  legend.appendChild(list);
-  container.insertBefore(legend, container.firstChild);
-  return legend.offsetHeight || 28;
-}
-
 let hatchSerial = 0;
 
 function appendHatch(
@@ -402,8 +446,17 @@ function appendHatch(
   return id;
 }
 
-function preventChartScrollbar(container: HTMLElement): void {
-  container.style.overflowX = 'auto';
+/**
+ * Keep overflow on the chart host. Pass `chartWidthPx` from the vertical numeric
+ * chart so a plot that already fits the container does not grow a 1px scrollbar
+ * from overflowing tick labels; omit it to keep the previous always-scroll host.
+ */
+export function preventChartScrollbar(container: HTMLElement, chartWidthPx?: number): void {
+  const hostWidth = container.clientWidth;
+  const needsXScroll = chartWidthPx == null
+    ? true
+    : hostWidth > 0 && chartWidthPx > hostWidth + 0.5;
+  container.style.overflowX = needsXScroll ? 'auto' : 'hidden';
   container.style.overflowY = 'hidden';
 }
 
@@ -414,8 +467,37 @@ export function createHistogram(
     color?: string;
     orientation?: 'vertical' | 'horizontal';
     clipNullEdges?: boolean;
+    /** Split-group keys the user switched off in the legend. */
+    hiddenGroups?: ReadonlySet<string>;
   } = {}
 ): void {
+  // Colours follow the full group list, so a hidden group keeps its slot and the
+  // remaining groups keep their colours.
+  const allGroups = data.groups;
+  const hiddenGroups = config.hiddenGroups ?? new Set<string>();
+  const shownGroupCount = (allGroups ?? []).filter((group) => !hiddenGroups.has(group.key)).length;
+  // Dataset groups can overlap (a pooled dataset beside its parts), so their sum
+  // is not a total: a dataset split keeps the pooled bin counts whatever is hidden.
+  const datasetSplit = isDatasetSplit(data);
+  const totalLabel = hiddenGroups.size && allGroups?.length && !datasetSplit
+    ? `Total (${shownGroupCount} of ${allGroups.length} shown)`
+    : 'Total';
+
+  // A nominal variable split by another category has no meaningful stack: draw
+  // one side-by-side cluster of bars per group instead.
+  if (allGroups?.length && isNominalHistogramNode({ type: data.variableType })) {
+    createGroupedCategoryChart(
+      withoutHiddenGroups(data, hiddenGroups),
+      container,
+      allGroups.map((group) => group.key)
+    );
+    return;
+  }
+
+  data = datasetSplit && data.groups
+    ? { ...data, groups: data.groups.filter((group) => !hiddenGroups.has(group.key)) }
+    : withoutHiddenGroups(data, hiddenGroups);
+
   if (config.orientation === 'horizontal') {
     createHorizontalBarChart(data, container, config);
     return;
@@ -427,12 +509,16 @@ export function createHistogram(
   const barColor = config.color || '#2b33e9';
 
   const clipNullEdges = config.clipNullEdges !== false;
+  // A dataset split's groups can overlap (a pooled dataset next to its parts), so
+  // a stack double counts. Dodged bars draw one group per sub-slot of each bin.
+  const dodged = datasetSplit && data.groups !== undefined;
   const clipped = clipNullEdges && shouldClipNullEdges(data.bins)
-    ? clipHistogramNullEdges(data.bins, data.counts, data.groups)
+    ? clipHistogramNullEdges(data.bins, data.counts, data.groups, dodged)
     : { bins: data.bins.map(String), counts: data.counts, groups: data.groups };
   const { bins, counts } = clipped;
   const groups = clipped.groups;
-  const stacked = groups !== undefined;
+  const hasGroups = groups !== undefined;
+  const stacked = hasGroups && !dodged;
   const showPrivacyStubs = !clipNullEdges;
   const containerWidth = container.clientWidth || 640;
 
@@ -520,8 +606,13 @@ export function createHistogram(
     hasStringBins ? 30 : denseNumericLabels ? 12 : Math.max(24, maxLabelLength * 8),
   );
   const desiredWidth = Math.max(containerWidth, bins.length * minPerBinWidth);
+  preventChartScrollbar(container, desiredWidth);
 
-  svg.attr('width', desiredWidth).attr('height', containerHeight);
+  svg
+    .attr('width', desiredWidth)
+    .attr('height', containerHeight)
+    .style('display', 'block')
+    .style('overflow', 'hidden');
 
   const innerWidth = desiredWidth - margin.left - margin.right;
   const optimalChartWidth = bins.length * maxBarWidth;
@@ -535,9 +626,29 @@ export function createHistogram(
     .range([0, chartWidth])
     .padding(hasStringBins ? 0.2 : 0);
 
+  // Dodged bars split each bin band into one sub-slot per visible group. Colours
+  // keep the full-group slot, so hiding a group leaves the others' colours.
+  const groupScale = dodged && groups?.length
+    ? d3
+        .scaleBand<string>()
+        .domain(groups.map((group) => group.key))
+        .range([0, xScale.bandwidth()])
+        .paddingInner(0.12)
+        .paddingOuter(0.08)
+    : null;
+  const barXOf = (segment: { index: number; groupKey: string }): number =>
+    (xScale(bins[segment.index]) || 0) + (groupScale ? groupScale(segment.groupKey) || 0 : 0);
+  const barWidthOf = (): number => (groupScale ? groupScale.bandwidth() : xScale.bandwidth());
+
+  // A dodged bar never exceeds the largest single group count, so the y axis
+  // is sized to that, not to a stack of overlapping groups.
+  const drawnMax = dodged && groups
+    ? d3.max(groups.flatMap((group) => group.counts), (count) => count ?? 0) || 0
+    : d3.max(counts.filter((count): count is number => count !== null)) || 0;
+
   const yScale = d3
     .scaleLinear()
-    .domain([0, d3.max(counts.filter((count): count is number => count !== null)) || 0])
+    .domain([0, drawnMax])
     .nice()
     .range([innerHeight, 0]);
   const binPoints = bins.map((bin, index) => ({
@@ -579,6 +690,7 @@ export function createHistogram(
     container,
     (binLabel) => `${data.variableName ? data.variableName + ' · ' : ''}${binLabel}`,
     total,
+    totalLabel,
   );
   const visiblePoints = binPoints.filter((entry) => entry.count !== null);
   // Every null bin before the first or after the last visible bin is an edge outlier.
@@ -590,7 +702,7 @@ export function createHistogram(
   const bandWidth = xScale.bandwidth();
   const barOpacity = 0.9;
   const groupColorByKey = new Map(
-    (groups ?? []).map((group, index) => [group.key, histogramSeriesColor(index)])
+    (allGroups ?? []).map((group, index) => [group.key, histogramSeriesColor(index)])
   );
 
   // Hover band behind the bars: a full-height tint marks the bin under the pointer.
@@ -608,6 +720,7 @@ export function createHistogram(
     index: number;
     groupKey: string;
     color: string;
+    count: number;
     y: number;
     height: number;
     separator: boolean;
@@ -623,10 +736,30 @@ export function createHistogram(
     color: string;
   };
 
-  // One segment per visible bin; a stacked bin splits into group pieces plus a
+  // One segment per visible bin. A stacked bin splits into group pieces plus a
   // residual for what the groups do not show, keeping the unsplit total height.
+  // A dodged bin draws one bar per group, each at its own height: overlapping
+  // groups (a pooled dataset plus its parts) are never added into one bar.
   const segments: BarDatum[] = [];
   for (const point of visiblePoints) {
+    if (dodged) {
+      for (const group of groups ?? []) {
+        const count = Math.max(0, group.counts[point.index] ?? 0);
+        if (count > 0) {
+          segments.push({
+            index: point.index,
+            groupKey: group.key,
+            color: groupColorByKey.get(group.key) ?? barColor,
+            count,
+            y: yScale(count),
+            height: innerHeight - yScale(count),
+            separator: false,
+            isTop: true,
+          });
+        }
+      }
+      continue;
+    }
     let remaining = point.count as number;
     const pieces: Array<{ groupKey: string; count: number; color: string }> = [];
     for (const group of groups ?? []) {
@@ -649,6 +782,7 @@ export function createHistogram(
         index: point.index,
         groupKey: piece.groupKey,
         color: piece.color,
+        count: piece.count,
         y: yCursor,
         height,
         separator: pieceIndex > 0,
@@ -672,28 +806,29 @@ export function createHistogram(
     .append('path')
     .attr('class', (d) => d.groupKey === HISTOGRAM_RESIDUAL_KEY ? 'bar bar-residual' : 'bar')
     .attr('data-index', (d) => d.index)
-    .attr('data-group', (d) => (stacked ? d.groupKey : null))
+    .attr('data-group', (d) => (hasGroups ? d.groupKey : null))
     .attr('d', (d) =>
-      topRoundedBarPath(xScale(bins[d.index]) || 0, d.y, bandWidth, d.height, hasStringBins ? 4 : 0))
+      topRoundedBarPath(barXOf(d), d.y, barWidthOf(), d.height, hasStringBins ? 4 : 0))
     .attr('fill', (d) => d.groupKey === HISTOGRAM_RESIDUAL_KEY ? `url(#${residualHatchId})` : d.color)
     .attr('stroke', 'none')
     .attr('opacity', barOpacity)
     .style('transition', 'opacity 120ms ease')
     .style('pointer-events', 'none');
 
-  if (stacked) {
+  if (hasGroups) {
     const hueEdges: HueEdge[] = segments.flatMap((segment) => {
       const color = histogramSeriesEdgeColor(segment.color);
       if (!color) return [];
-      const x = xScale(bins[segment.index]) || 0;
+      const x = barXOf(segment);
+      const w = barWidthOf();
       const top = segment.y;
       const bottom = segment.y + segment.height;
       const edge = (x1: number, y1: number, x2: number, y2: number): HueEdge =>
         ({ index: segment.index, x1, y1, x2, y2, color });
       return [
         edge(x + 0.5, top, x + 0.5, bottom),
-        edge(x + bandWidth - 0.5, top, x + bandWidth - 0.5, bottom),
-        ...(segment.isTop ? [edge(x, top + 0.5, x + bandWidth, top + 0.5)] : []),
+        edge(x + w - 0.5, top, x + w - 0.5, bottom),
+        ...(segment.isTop ? [edge(x, top + 0.5, x + w, top + 0.5)] : []),
       ];
     });
     chart
@@ -711,19 +846,21 @@ export function createHistogram(
       .attr('stroke-width', 1)
       .style('pointer-events', 'none');
 
-    chart
-      .selectAll('.bar-stack-separator')
-      .data(segments.filter((segment) => segment.separator))
-      .enter()
-      .append('rect')
-      .attr('class', 'bar-stack-separator')
-      .attr('data-index', (d) => d.index)
-      .attr('x', (d) => xScale(bins[d.index]) || 0)
-      .attr('y', (d) => d.y + d.height - 0.5)
-      .attr('width', bandWidth)
-      .attr('height', 1)
-      .attr('fill', '#ffffff')
-      .style('pointer-events', 'none');
+    if (stacked) {
+      chart
+        .selectAll('.bar-stack-separator')
+        .data(segments.filter((segment) => segment.separator))
+        .enter()
+        .append('rect')
+        .attr('class', 'bar-stack-separator')
+        .attr('data-index', (d) => d.index)
+        .attr('x', (d) => xScale(bins[d.index]) || 0)
+        .attr('y', (d) => d.y + d.height - 0.5)
+        .attr('width', bandWidth)
+        .attr('height', 1)
+        .attr('fill', '#ffffff')
+        .style('pointer-events', 'none');
+    }
   }
 
   if (privacyStubPoints.length) {
@@ -742,29 +879,46 @@ export function createHistogram(
       .style('pointer-events', 'none');
   }
 
-  const labelPoints = visiblePoints.filter((entry) => {
-    const text = formatBarCount(entry.count as number);
-    const fits = bandWidth >= Math.max(28, text.length * 6.5 + 4);
-    if (!fits) return false;
-    return !hasStringBins || (!stacked && bandWidth >= 34);
-  });
-  if (labelPoints.length) {
-    chart
-      .selectAll('.bar-value')
-      .data(labelPoints)
-      .enter()
-      .append('text')
-      .attr('class', 'bar-value')
-      .attr('data-index', (d) => d.index)
-      .attr('x', (d) => (xScale(bins[d.index]) || 0) + bandWidth / 2)
-      .attr('y', (d) => yScale(d.count as number) - 4)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', '11px')
-      .attr('font-weight', '500')
-      .attr('fill', 'var(--text-muted, #475569)')
-      .style('pointer-events', 'none')
-      .text((d) => formatBarCount(d.count as number));
-  }
+  // Count labels above the bars, skipped when a bar is too narrow to read them:
+  // one per dodged bar, otherwise one per bin (never on a stacked category bar).
+  const fits = (count: number, width: number, min: number): boolean =>
+    width >= Math.max(min, formatBarCount(count).length * 6.5 + 4);
+  const barLabels = dodged
+    ? segments
+        .filter((segment) => fits(segment.count, barWidthOf(), 24))
+        .map((segment) => ({
+          index: segment.index,
+          groupKey: segment.groupKey as string | null,
+          x: barXOf(segment) + barWidthOf() / 2,
+          y: segment.y,
+          count: segment.count,
+        }))
+    : visiblePoints
+        .filter((entry) =>
+          fits(entry.count as number, bandWidth, 28) && (!hasStringBins || (!stacked && bandWidth >= 34)))
+        .map((entry) => ({
+          index: entry.index,
+          groupKey: null,
+          x: (xScale(bins[entry.index]) || 0) + bandWidth / 2,
+          y: yScale(entry.count as number),
+          count: entry.count as number,
+        }));
+  chart
+    .selectAll('.bar-value')
+    .data(barLabels)
+    .enter()
+    .append('text')
+    .attr('class', 'bar-value')
+    .attr('data-index', (d) => d.index)
+    .attr('data-group', (d) => d.groupKey)
+    .attr('x', (d) => d.x)
+    .attr('y', (d) => d.y - 4)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '11px')
+    .attr('font-weight', '500')
+    .attr('fill', 'var(--text-muted, #475569)')
+    .style('pointer-events', 'none')
+    .text((d) => formatBarCount(d.count));
 
   const stackedTooltipRows = (index: number, binTotal: number | null): StackedTooltipRow[] => {
     const rows: StackedTooltipRow[] = (groups ?? []).map((group) => ({
@@ -772,7 +926,8 @@ export function createHistogram(
       count: group.counts[index] ?? null,
       color: groupColorByKey.get(group.key) ?? barColor,
     }));
-    const leftover = residualCount(binTotal, groups ?? [], index);
+    // Dodged groups are not parts of the total, so there is no remainder to name.
+    const leftover = dodged ? 0 : residualCount(binTotal, groups ?? [], index);
     if (leftover > 0) {
       rows.push({ label: HISTOGRAM_RESIDUAL_LABEL, count: leftover, color: HISTOGRAM_RESIDUAL_COLOR, hatch: true });
     }
@@ -811,7 +966,7 @@ export function createHistogram(
           null,
           isEdge ? HISTOGRAM_EDGE_PRIVACY_TOOLTIP : HISTOGRAM_INTERIOR_PRIVACY_TOOLTIP
         );
-      } else if (stacked) {
+      } else if (hasGroups) {
         showStackedTooltip(tooltipTitle, d.count, stackedTooltipRows(d.index, d.count));
       } else {
         showTooltip(tooltipTitle, d.count);
@@ -842,6 +997,7 @@ export function createHistogram(
 
   const xAxisGroup = chart
     .append('g')
+    .attr('class', 'x-axis')
     .attr('transform', `translate(0, ${innerHeight})`)
     .call(xAxis)
     .call(g => g.select('.domain').attr('stroke', domainColor));
@@ -861,24 +1017,24 @@ export function createHistogram(
   const xAxisBBox = (xAxisGroup.node() as SVGGElement | null)?.getBBox();
   const xTicksBottom = xAxisBBox && xAxisBBox.height > 0 ? xAxisBBox.y + xAxisBBox.height : 28;
   const xLabelY = innerHeight + xTicksBottom + 10;
-  const axisBottom = margin.top + xLabelY + 8;
-  if (axisBottom > containerHeight) {
-    containerHeight = Math.ceil(axisBottom);
+  const xAxisTitleText = data.variableName ? histogramAxisTitle(data) : '';
+  // The title's baseline sits at xLabelY; its descender must stay inside the SVG,
+  // so the height floor includes the title, not just the tick labels.
+  const titleRoom = margin.top + xLabelY + (xAxisTitleText ? 14 : 4);
+  if (titleRoom > containerHeight) {
+    containerHeight = Math.ceil(titleRoom);
     svg.attr('height', containerHeight);
   }
 
-  if (data.variableName) {
+  if (xAxisTitleText) {
     chart
       .append('text')
+      .attr('class', 'histogram-x-title')
       .attr('x', chartWidth / 2)
       .attr('y', xLabelY)
       .attr('text-anchor', 'middle')
-      .text(data.variableName)
-      .style('font-size', '11px')
-      .style('font-weight', '700')
-      .style('fill', 'var(--text-muted, #475569)')
-      .style('letter-spacing', '0.08em')
-      .style('text-transform', 'uppercase');
+      .text(xAxisTitleText)
+      .call(styleAxisTitle);
   }
 
   // Y axis: compact counts (50k); fractional ticks on small counts are not counts.
@@ -890,6 +1046,7 @@ export function createHistogram(
     .tickPadding(8);
 
   chart.append('g')
+    .attr('class', 'y-axis')
     .call(yAxis)
     .call(g => g.select('.domain').remove())
     .selectAll('text')
@@ -907,42 +1064,14 @@ export function createHistogram(
     .attr('y', -yAxisGutter + yLabelPaddingFromAxis)
     .attr('text-anchor', 'middle')
     .text(yLabelText)
-    .style('font-size', '11px')
-    .style('font-weight', '700')
-    .style('fill', 'var(--text-muted, #475569)')
-    .style('letter-spacing', '0.08em')
-    .style('text-transform', 'uppercase');
+    .call(styleAxisTitle);
 
   // A zero-height bbox is the signature of an unlaid-out container; keep the
   // computed height instead of collapsing the chart to a few visible pixels.
   const svgBBox = (svg.node() as SVGSVGElement | null)?.getBBox();
   if (svgBBox && svgBBox.height > 0) {
-    containerHeight = Math.ceil(svgBBox.y + svgBBox.height + 4);
+    containerHeight = Math.ceil(Math.max(svgBBox.y + svgBBox.height + 4, titleRoom));
     svg.attr('height', containerHeight);
-  }
-
-  if (stacked) {
-    const legendItems: LegendItem[] = (groups ?? []).map((group) => ({
-      label: group.label,
-      color: groupColorByKey.get(group.key) ?? barColor,
-    }));
-    if (anyResidual) {
-      legendItems.push({
-        label: HISTOGRAM_RESIDUAL_LEGEND_LABEL,
-        color: HISTOGRAM_RESIDUAL_COLOR,
-        hatch: true,
-        title: HISTOGRAM_RESIDUAL_LABEL,
-      });
-    }
-    if (legendItems.length) {
-      const legendHeight = appendHistogramLegend(
-        container,
-        legendItems,
-        data.splitLabel,
-        plotLeft
-      );
-      containerHeight += legendHeight + 4;
-    }
   }
 
   container.style.height = `${containerHeight}px`;
@@ -1022,10 +1151,12 @@ function createHorizontalBarChart(
     .append('g')
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-  // Vertical grid lines (X axis)
+  // Vertical grid lines span the bar area: axis lives on the baseline so
+  // tickSize(-innerHeight) draws up through every row, not into the top margin.
   chart
     .append('g')
     .attr('class', 'grid')
+    .attr('transform', `translate(0, ${innerHeight})`)
     .call(
       d3.axisBottom(xScale)
         .ticks(Math.min(8, Math.max(3, Math.floor(innerWidth / 80))))

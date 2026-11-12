@@ -1,6 +1,7 @@
 import { Component, ElementRef, provideZonelessChangeDetection, signal, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HistogramChartConfig, HistogramComponent } from './histogram.component';
+import { HistogramChartData } from './histogram-data';
 
 type ChartData = { bins: string[]; counts: number[]; variableName: string };
 
@@ -25,7 +26,7 @@ const RESIZE_MS = 300;
 })
 class HistogramSpecHostComponent {
   readonly wrapper = viewChild.required<ElementRef<HTMLDivElement>>('wrapper');
-  readonly data = signal<ChartData | null>(null);
+  readonly data = signal<ChartData | HistogramChartData | null>(null);
   readonly config = signal<HistogramChartConfig>({});
 }
 
@@ -61,7 +62,7 @@ describe('HistogramComponent', () => {
   }
 
   function chart(): HTMLElement {
-    return wrapper.querySelector('#histogram-chart') as HTMLElement;
+    return wrapper.querySelector('.histogram-plot') as HTMLElement;
   }
 
   function svg(): SVGElement | null {
@@ -171,5 +172,145 @@ describe('HistogramComponent', () => {
     await settle(RESIZE_MS);
 
     expect(bars()).toBe(SWAPPED.bins.length);
+  });
+  describe('split group chips', () => {
+    const SPLIT: HistogramChartData = {
+      bins: ['0', '10', '20'],
+      counts: [10, 20, 30],
+      variableName: 'Dose',
+      variableType: 'real',
+      splitLabel: 'Dataset',
+      splitCode: 'dataset',
+      groups: [
+        { key: 'SSR', label: 'SSR Swiss Stroke Registry', counts: [4, 8, 10] },
+        { key: 'SSR-even', label: 'SSR Swiss Stroke Registry (even)', counts: [4, 8, 10] },
+      ],
+    };
+
+    function chips(): HTMLButtonElement[] {
+      return Array.from(wrapper.querySelectorAll<HTMLButtonElement>('button.histogram-chip'));
+    }
+
+    function status(): string {
+      return (wrapper.querySelector('.histogram-filter-status')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    }
+
+    it('shows one chip per group, labelled by dataset code, named in full for assistive tech', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      expect(chips().map((chip) => chip.textContent?.trim())).toEqual(['SSR', 'SSR-even']);
+      expect(chips().map((chip) => chip.getAttribute('aria-label'))).toEqual([
+        'SSR Swiss Stroke Registry',
+        'SSR Swiss Stroke Registry (even)',
+      ]);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+      // The groups do not add up to the totals, so the masked remainder is named
+      // — as a plain legend entry, never another pill-shaped control.
+      const masked = wrapper.querySelector('.histogram-legend-masked');
+      expect(masked?.tagName).not.toBe('BUTTON');
+      expect(masked?.classList.contains('histogram-chip')).toBe(false);
+      expect(masked?.querySelector('.histogram-chip-swatch.is-masked')).not.toBeNull();
+      expect(wrapper.querySelector('.histogram-chip.is-static')).toBeNull();
+      expect(status()).toBe('');
+    });
+
+    it('marks a hidden chip unmistakably off: muted struck label, empty neutral swatch', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      chips()[1].click();
+      // The chip animates its colour; let the 150ms transition finish first.
+      await settle(300);
+
+      const off = chips()[1];
+      expect(off.classList.contains('is-off')).toBe(true);
+      expect(off.getAttribute('aria-pressed')).toBe('false');
+      const offSwatch = off.querySelector('.histogram-chip-swatch') as HTMLElement;
+      const onSwatch = chips()[0].querySelector('.histogram-chip-swatch') as HTMLElement;
+      expect(getComputedStyle(offSwatch).backgroundColor).not.toBe(getComputedStyle(onSwatch).backgroundColor);
+      expect(getComputedStyle(offSwatch).boxShadow).not.toContain('rgb(127, 156, 232)');
+      const offLabel = off.querySelector('.histogram-chip-label') as HTMLElement;
+      expect(getComputedStyle(offLabel).textDecorationLine).toContain('line-through');
+      expect(getComputedStyle(offLabel).color).toBe('rgb(71, 85, 105)');
+    });
+
+    it('keeps the status and Show all at the end of the chip row and out of the way while all groups show', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      const statusEl = wrapper.querySelector('.histogram-filter-status') as HTMLElement;
+      expect(wrapper.querySelector('.histogram-show-all')).toBeNull();
+      expect(getComputedStyle(statusEl).display).toBe('none');
+
+      chips()[0].click();
+      await settle(0);
+
+      const row = wrapper.querySelector('.histogram-filter') as HTMLElement;
+      expect(row.querySelector('.histogram-show-all')).not.toBeNull();
+      expect(row.querySelector('.histogram-filter-status')).not.toBeNull();
+      expect(status()).toContain('Showing 1 of 2 datasets');
+
+      (wrapper.querySelector('.histogram-show-all') as HTMLButtonElement).click();
+      await settle(0);
+      expect(wrapper.querySelector('.histogram-show-all')).toBeNull();
+      expect(getComputedStyle(wrapper.querySelector('.histogram-filter-status') as HTMLElement).display).toBe('none');
+    });
+
+    it('wraps chips without horizontal overflow at a 330px card and truncates labels with an ellipsis', async () => {
+      wrapper.style.width = '330px';
+      host.data.set({ ...SPLIT, groups: [...SPLIT.groups!, { key: 'SSR-odd', label: 'SSR Swiss Stroke Registry (odd)', counts: [1, 1, 1] }] });
+      await settle(RENDER_MS);
+
+      const row = wrapper.querySelector('.histogram-filter') as HTMLElement;
+      expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 1);
+      for (const chip of chips()) {
+        expect(chip.title).toContain(chip.getAttribute('aria-label') ?? '');
+        const label = chip.querySelector('.histogram-chip-label') as HTMLElement;
+        expect(getComputedStyle(label).textOverflow).toBe('ellipsis');
+      }
+    });
+
+    it('hides a group on click, says how many are shown, and Show all brings it back', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+
+      chips()[1].click();
+      await settle(0);
+      expect(chips()[1].getAttribute('aria-pressed')).toBe('false');
+      expect(chart().querySelectorAll('.bar[data-group="SSR-even"]')).toHaveLength(0);
+      expect(status()).toContain('Showing 1 of 2 datasets');
+
+      // The last shown group is locked rather than silently ignoring the click.
+      expect(chips()[0].getAttribute('aria-disabled')).toBe('true');
+      chips()[0].click();
+      await settle(0);
+      expect(chips()[0].getAttribute('aria-pressed')).toBe('true');
+
+      (wrapper.querySelector('.histogram-show-all') as HTMLButtonElement).click();
+      await settle(0);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+      expect(status()).toBe('');
+    });
+
+    it('uses the group names and "groups" for a non-dataset split', async () => {
+      host.data.set({ ...SPLIT, splitCode: 'sex', splitLabel: 'Sex' });
+      await settle(RENDER_MS);
+      expect(chips()[0].textContent?.trim()).toBe('SSR Swiss Stroke Registry');
+      chips()[0].click();
+      await settle(0);
+      expect(status()).toContain('Showing 1 of 2 groups');
+    });
+
+    it('starts fully shown again when the split groups change', async () => {
+      host.data.set(SPLIT);
+      await settle(RENDER_MS);
+      chips()[1].click();
+      await settle(0);
+
+      host.data.set({ ...SPLIT, groups: [...SPLIT.groups!, { key: 'SSR-odd', label: 'Odd', counts: [1, 1, 1] }] });
+      await settle(0);
+      expect(chips().every((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(true);
+    });
   });
 });

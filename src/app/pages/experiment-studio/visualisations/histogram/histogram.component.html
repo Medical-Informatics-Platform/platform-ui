@@ -1,1 +1,38 @@
-  <div id="histogram-chart" class="histogram-container"></div>
+<div id="histogram-chart" class="histogram-figure">
+  @if (legend(); as legend) {
+  <div class="histogram-filter">
+    <div class="histogram-chips" role="group" [attr.aria-label]="legend.splitLabel + ' shown in the chart'">
+      @for (chip of legend.chips; track chip.key) {
+      <button
+        type="button"
+        class="histogram-chip"
+        [class.is-off]="chip.hidden"
+        [attr.aria-pressed]="!chip.hidden"
+        [attr.aria-disabled]="chip.locked || null"
+        [attr.aria-label]="chip.fullLabel"
+        [title]="chipTitle(chip, legend.noun)"
+        [style.--chip-color]="chip.color"
+        [style.--chip-edge]="chip.edge ?? 'transparent'"
+        (click)="toggleGroup(chip.key)">
+        <span class="histogram-chip-swatch" aria-hidden="true"></span>
+        <span class="histogram-chip-label">{{ chip.label }}</span>
+      </button>
+      }
+    </div>
+    @if (legend.masked) {
+    <span class="histogram-legend-masked" [title]="maskedTitle">
+      <span class="histogram-chip-swatch is-masked" aria-hidden="true"></span>
+      <span class="histogram-legend-label">{{ maskedLabel }}</span>
+    </span>
+    }
+    <p class="histogram-filter-status" aria-live="polite" data-html2canvas-ignore>
+      @if (legend.shownCount < legend.chips.length) {
+      Showing {{ legend.shownCount }} of {{ legend.chips.length }} {{ legend.noun }}
+      <span aria-hidden="true">·</span>
+      <button type="button" class="histogram-show-all" (click)="showAllGroups()">Show all</button>
+      }
+    </p>
+  </div>
+  }
+  <div class="histogram-plot histogram-container"></div>
+</div>
