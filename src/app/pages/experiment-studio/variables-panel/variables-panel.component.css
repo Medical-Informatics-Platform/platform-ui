@@ -10,6 +10,9 @@
 /* ---------- MAIN LAYOUT: bubble + right column ---------- */
 
 .variables-main {
+  /* Same tinted card headers as the Data Handling pipeline nodes
+     (.stats-panel-shell), so every studio step reads alike. */
+  --studio-card-header-bg: #eef1fd;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -21,7 +24,7 @@
    independent of how wide the context chip and search button are. */
 .visualization-toolbar {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   column-gap: 12px;
   flex: 0 0 auto;
@@ -88,7 +91,14 @@
   box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.18);
 }
 
+.study-context-chip {
+  min-width: 0;
+}
+
 .study-context-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 650;
   color: var(--text-main);
@@ -186,6 +196,23 @@
   flex: 0 0 auto;
 }
 
+/* Narrow column: keep one row, drop text labels (icons keep title + aria-label). */
+@container bubble-column (max-width: 720px) {
+  .metadata-mode-btn {
+    padding: 0 10px;
+  }
+
+  .metadata-mode-btn span,
+  .search-toggle-btn span {
+    display: none;
+  }
+
+  .search-toggle-btn {
+    width: 34px;
+    padding: 0;
+  }
+}
+
 .search-popover {
   position: absolute;
   top: calc(100% + 6px);
@@ -249,19 +276,16 @@
   box-shadow: none;
 }
 
-.metadata-mode-btn {
-  padding: 5px 10px;
-}
-
-.metadata-mode-btn span {
-  display: none;
-}
-
 .visualization-parameters-row {
+  /* Both columns share the browser canvas' height cap: the row track caps the
+     whole step at that height, so the inspector scrolls inside the right
+     column instead of growing the page below the canvas. */
+  --explore-canvas-max: min(72vh, 680px);
   display: grid;
   grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+  grid-template-rows: var(--explore-canvas-max);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .bubble-column {
@@ -272,7 +296,7 @@
   width: 100%;
   height: auto;
   align-items: stretch;
-  align-self: start;
+  align-self: stretch;
   container-type: inline-size;
   container-name: bubble-column;
 }
@@ -283,7 +307,14 @@
   gap: 16px;
   min-width: 0;
   width: 100%;
-  align-self: start;
+  align-self: stretch;
+  min-height: 0;
+}
+
+/* The pool card keeps its natural height; the inspector absorbs what is left
+   of the shared column height and scrolls inside itself. */
+.right-column > app-selected-variables {
+  flex-shrink: 0;
 }
 
 /* Left: bubble chart “canvas” */
@@ -294,8 +325,9 @@
   z-index: 1;
   width: 100%;
   max-width: 100%;
-  flex-grow: 0;
+  flex: 1 1 auto;
   min-height: 0;
+  max-height: var(--explore-canvas-max, min(72vh, 680px));
   height: auto;
   display: flex;
   flex-direction: column;
@@ -336,7 +368,7 @@
   --segment-gap: 2px;
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 36px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--segment-gap);
   flex: 0 0 auto;
   padding: var(--segment-pad);
@@ -382,9 +414,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  width: auto;
   height: 28px;
-  padding: 0;
+  padding: 0 12px;
+  gap: 6px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -447,6 +484,27 @@
   height: 100%;
 }
 
+/* Plotted variable missing in a selected dataset: view only, never addable. */
+.partial-availability-note {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.partial-availability-swatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border: 1px dashed #d99a00;
+  border-radius: 50%;
+  background: #fbd38d;
+}
+
 /* Right column: parameters + histogram */
 /* Common block styling */
 .panel-block {
@@ -459,7 +517,7 @@
 }
 
 .histogram-panel {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -551,8 +609,34 @@
   background: rgba(43, 51, 233, 0.06);
 }
 
+/* "Add this variable" hint: a soft halo in the page's selection blue, spreading outward
+   from the button three times and then stopping. A spreading halo reads as an
+   invitation, not as the tight 2px ring :focus-visible draws, and it never raises the
+   button above the stepper's Continue, because the fill is untouched. */
 .pulse-hint--variable {
-  box-shadow: 0 0 0 2px rgba(255, 186, 8, 0.55);
+  animation: add-variable-halo 1.15s ease-out 3;
+}
+
+@keyframes add-variable-halo {
+  0% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color, #2b33e9) 26%, transparent);
+  }
+
+  60% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary-color, #2b33e9) 12%, transparent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-hint--variable {
+    animation: none;
+    /* Resting halo, one step wider than the focus ring, so it still marks the hint. */
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color, #2b33e9) 12%, transparent);
+  }
 }
 
 .histogram-graph {
@@ -628,94 +712,7 @@
   initial-value: 0;
 }
 
-.details-segment {
-  --segment-active-index: 0;
-  --segment-pad: 3px;
-  --segment-gap: 2px;
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--segment-gap);
-  padding: var(--segment-pad);
-  border: 0;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.12);
-  box-shadow: inset 0 0 0 1px var(--border-color);
-  isolation: isolate;
-  transition: --segment-active-index var(--motion-enter) var(--ease-standard);
-}
-
-.details-segment-track {
-  position: absolute;
-  inset: var(--segment-pad);
-  z-index: 0;
-  pointer-events: none;
-  border-radius: 999px;
-}
-
-.details-segment-indicator {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: calc((100% - var(--segment-gap)) / 2);
-  border-radius: 999px;
-  background: var(--card-bg);
-  box-shadow: var(--shadow-sm);
-  transform: translate3d(calc(var(--segment-active-index) * (100% + var(--segment-gap))), 0, 0);
-  transition: transform var(--motion-enter) var(--ease-standard);
-}
-
-.details-segment-btn {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color var(--motion-exit) var(--ease-standard);
-}
-
-.details-segment-btn i {
-  font-size: 0.72rem;
-}
-
-.details-segment-btn:hover,
-.details-segment-btn.active {
-  color: var(--primary-color);
-}
-
-.details-segment-btn:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.details-tab-panel {
-  animation: details-tab-enter 0.36s var(--ease-standard) both;
-}
-
-@keyframes details-tab-enter {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.992);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .details-segment,
   .metadata-browser-switcher {
     transition: none;
   }
@@ -725,49 +722,73 @@
     animation: none;
   }
 
-  .details-segment-indicator {
-    transition: transform 0.01ms linear;
-  }
-
-  .details-segment-btn,
-  .details-segment-btn i,
   .metadata-mode-btn,
-  .metadata-mode-btn i,
-  .details-tab-panel {
+  .metadata-mode-btn i {
     transition: none;
     animation: none;
   }
 
-  .details-segment-btn:active,
-  .details-segment-btn.active i,
   .metadata-mode-btn:active,
   .metadata-mode-btn.active i {
     transform: none;
   }
 }
 
-.histogram-tab-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.details-panel-body {
+  flex: 1 1 auto;
   min-width: 0;
-  flex: 1;
   min-height: 0;
-  padding: 10px 16px 10px;
-}
-
-.metadata-tab-content {
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  flex: 0 0 auto;
-  padding: 10px 16px 10px;
 }
 
-.metadata-tab-content {
-  max-height: min(700px, calc(85vh - 120px));
-  overflow-y: auto;
+/* "More content" cue: pins to the bottom of the scrollport while the body can
+   scroll further down; at the end of the scroll it comes to rest on its own
+   empty flow space, so the tint disappears exactly when nothing is left. No
+   animation is involved, and it never captures a click. */
+.details-panel-fade {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  height: 28px;
+  background: linear-gradient(to top, var(--studio-card-bg), transparent);
+  pointer-events: none;
+}
+
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.inspector-section + .inspector-section {
+  border-top: 1px solid var(--studio-card-header-border, rgba(226, 232, 240, 0.9));
+}
+
+.inspector-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.inspector-section-title {
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .histogram-graph-area {
@@ -775,8 +796,6 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  flex: 1;
-  min-height: 0;
 }
 
 .histogram-privacy-note {
@@ -799,15 +818,6 @@
   color: color-mix(in srgb, var(--accent-color) 45%, var(--text-muted));
   font-size: 0.75rem;
   line-height: 1.4;
-}
-
-.histogram-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-  min-height: 34px;
 }
 
 /* Relative so the menu still anchors to the button and floats over the chart. */
@@ -866,6 +876,104 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--text-muted);
+}
+
+/* Split by: one-click pills (native radios, so arrow keys move the choice).
+   Rounded pills choose the dimension; the square chips under the chart then
+   toggle its groups. */
+.split-pills {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* A flex box beside the floated legend: wrapped pills line up under the
+   first pill, not under "Split by". */
+.split-pills-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.split-pills-legend {
+  float: left;
+  margin-right: 10px;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 28px;
+  color: var(--text-muted);
+}
+
+.split-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 200px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.split-pill span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.split-pill input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.split-pill:hover:not(.is-disabled):not(.is-active) {
+  background: var(--tint-nav-hover, #e5ebfa);
+}
+
+.split-pill.is-active {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
+.split-pill:has(input:focus-visible) {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.split-pill.is-disabled {
+  background: transparent;
+  border-style: dashed;
+  color: var(--unavailable-text, #94a3b8);
+  cursor: not-allowed;
+}
+
+.split-pill.is-active.is-disabled {
+  border-style: solid;
+  background: color-mix(in srgb, var(--primary-color) 55%, white);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-pill {
+    transition: none;
+  }
 }
 
 /* Split variable missing from a selected dataset: grayed out and disabled. */
@@ -1066,6 +1174,7 @@
 
   .visualization-parameters-row {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
     min-height: 0;
   }
 
@@ -1099,5 +1208,66 @@
 
   .histogram-graph {
     min-height: 210px;
+  }
+}
+
+/* Collapsible inspector "Details": the summary row is the control, the chevron shows its state. */
+.inspector-collapse {
+  display: block;
+  min-width: 0;
+}
+
+.inspector-collapse-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  list-style: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.inspector-collapse-summary::-webkit-details-marker {
+  display: none;
+}
+
+.inspector-collapse-summary:hover,
+.inspector-collapse-summary:focus-visible {
+  background: rgba(43, 51, 233, 0.06);
+}
+
+.inspector-collapse-summary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.inspector-collapse-chevron {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  transition: transform 0.2s var(--ease-standard);
+}
+
+.inspector-collapse:not([open]) .inspector-collapse-chevron {
+  transform: rotate(-90deg);
+}
+
+.inspector-collapse-body {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.inspector-collapse:not([open]) .inspector-collapse-body {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector-collapse-summary,
+  .inspector-collapse-chevron {
+    transition: none;
   }
 }

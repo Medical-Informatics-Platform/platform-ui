@@ -138,6 +138,14 @@
                 </app-bubble-chart>
                 }
               }
+              @if (plottedVariableMissingIn().length) {
+              <p class="partial-availability-note" role="note">
+                <span class="partial-availability-swatch" aria-hidden="true"></span>
+                <strong>{{ plottedVariable()?.label ?? plottedVariable()?.code }}</strong> is missing in
+                {{ plottedVariableMissingIn().join(', ') }}. You can explore it, but it cannot be added to the experiment
+                while these datasets are selected.
+              </p>
+              }
             </div>
           </div>
           }
@@ -145,6 +153,13 @@
       </div>
 
       <aside class="right-column">
+        <app-selected-variables
+          mode="inline"
+          data-guide="variable-containers"
+          [selectedNode]="selectedNode"
+          (variableClicked)="onVariableClicked($event)">
+        </app-selected-variables>
+
         <!-- Node details: histogram + metadata -->
         <section class="panel-block histogram-panel" id="histogram-graph" data-guide="variable-details">
           <div class="details-panel-header">
@@ -169,7 +184,7 @@
                 type="button"
                 class="selection-toggle-btn"
                 data-guide="guide-add-variable"
-                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode"
+                [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode && !isSelectedNodeGroup()"
                 [class.is-remove]="isSelectedNodeInPool()"
                 [disabled]="selectionToggleDisabled()"
                 [title]="selectionToggleTitle()"
@@ -178,46 +193,68 @@
                 <span>{{ selectionToggleLabel() }}</span>
               </button>
             </div>
-            <div
-              class="details-segment"
-              role="tablist"
-              aria-label="Selected node views"
-              [style.--segment-active-index]="activeDetailsTab() === 'info' ? 1 : 0">
-              <span class="details-segment-track" aria-hidden="true">
-                <span class="details-segment-indicator"></span>
-              </span>
-              <button
-                type="button"
-                class="details-segment-btn"
-                role="tab"
-                id="details-tab-chart"
-                [class.active]="activeDetailsTab() === 'histogram'"
-                [attr.aria-selected]="activeDetailsTab() === 'histogram'"
-                aria-controls="histogram-tab-panel"
-                (click)="setActiveDetailsTab('histogram')">
-                <i class="fas fa-chart-bar" aria-hidden="true"></i>
-                <span>Chart</span>
-              </button>
-              <button
-                type="button"
-                class="details-segment-btn"
-                role="tab"
-                id="details-tab-details"
-                [class.active]="activeDetailsTab() === 'info'"
-                [attr.aria-selected]="activeDetailsTab() === 'info'"
-                aria-controls="metadata-tab-panel"
-                (click)="setActiveDetailsTab('info')">
-                <i class="fas fa-list-ul" aria-hidden="true"></i>
-                <span>Details</span>
-              </button>
-            </div>
           </div>
 
-          @if (activeDetailsTab() === 'histogram') {
-          <div class="histogram-tab-content details-tab-panel" id="histogram-tab-panel" role="tabpanel" aria-labelledby="details-tab-chart">
-            @if (canSplitHistogram() || histogramData() || groupHistogramData()) {
-            <div class="histogram-toolbar">
+          <div class="details-panel-body">
+            <section class="inspector-section" id="histogram-section" aria-labelledby="inspector-distribution-title">
+              <div class="inspector-section-head">
+                <h3 id="inspector-distribution-title" class="inspector-section-title">{{ distributionSectionTitle() }}</h3>
+                @if (histogramData() || groupHistogramData()) {
+                <div class="histogram-export-group" aria-label="Export histogram">
+                  <button type="button" class="studio-export-btn"
+                    [disabled]="isExportDisabled() || isExporting()"
+                    [attr.aria-expanded]="exportMenuOpen()"
+                    aria-haspopup="menu"
+                    (click)="toggleExportMenu()" title="Export histogram">
+                    <i class="fa fa-download" aria-hidden="true"></i>
+                    <span>Export</span>
+                    <i class="fa fa-chevron-down histogram-export-caret" [class.open]="exportMenuOpen()"
+                      aria-hidden="true"></i>
+                  </button>
+                  @if (exportMenuOpen()) {
+                  <div class="studio-export-menu" role="menu" aria-label="Export histogram">
+                    <button type="button" class="studio-export-menu-item" role="menuitem"
+                      (click)="exportHistogramCsv()" title="Export CSV">
+                      <i class="fa fa-file-csv" aria-hidden="true"></i>
+                      <span>CSV</span>
+                    </button>
+                    <button type="button" class="studio-export-menu-item" role="menuitem"
+                      (click)="exportHistogramPdf()" title="Export PDF">
+                      <i class="fa fa-file-pdf" aria-hidden="true"></i>
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                  }
+                </div>
+                }
+              </div>
               @if (!groupHistogramData() && canSplitHistogram()) {
+              @if (histogramSplitOptions().length <= maxSplitPills) {
+              <fieldset class="split-pills">
+                <legend class="split-pills-legend">Split by</legend>
+                <div class="split-pills-options">
+                <label class="split-pill" [class.is-active]="histogramSplit() === ''">
+                  <input type="radio" name="histogram-split" value=""
+                    [checked]="histogramSplit() === ''"
+                    (change)="onHistogramSplitChange($event)" />
+                  <span>None</span>
+                </label>
+                @for (option of histogramSplitOptions(); track option.code) {
+                <label class="split-pill"
+                  [class.is-active]="histogramSplit() === option.code"
+                  [class.is-disabled]="option.disabled"
+                  [class.is-unavailable]="!!option.unavailable"
+                  [title]="option.title">
+                  <input type="radio" name="histogram-split" [value]="option.code"
+                    [checked]="histogramSplit() === option.code"
+                    [disabled]="option.disabled"
+                    (change)="onHistogramSplitChange($event)" />
+                  <span>{{ option.label }}</span>
+                </label>
+                }
+                </div>
+              </fieldset>
+              } @else {
               <div class="bin-selector">
                 <label for="histogram-split-select">Split by</label>
                 <select
@@ -236,89 +273,76 @@
                 </select>
               </div>
               }
-              @if (histogramData() || groupHistogramData()) {
-              <div class="histogram-export-group" aria-label="Export histogram">
-                <button type="button" class="studio-export-btn"
-                  [disabled]="isExportDisabled() || isExporting()"
-                  [attr.aria-expanded]="exportMenuOpen()"
-                  aria-haspopup="menu"
-                  (click)="toggleExportMenu()" title="Export histogram">
-                  <i class="fa fa-download" aria-hidden="true"></i>
-                  <span>Export</span>
-                  <i class="fa fa-chevron-down histogram-export-caret" [class.open]="exportMenuOpen()"
-                    aria-hidden="true"></i>
-                </button>
-                @if (exportMenuOpen()) {
-                <div class="studio-export-menu" role="menu" aria-label="Export histogram">
-                  <button type="button" class="studio-export-menu-item" role="menuitem"
-                    (click)="exportHistogramCsv()" title="Export CSV">
-                    <i class="fa fa-file-csv" aria-hidden="true"></i>
-                    <span>CSV</span>
-                  </button>
-                  <button type="button" class="studio-export-menu-item" role="menuitem"
-                    (click)="exportHistogramPdf()" title="Export PDF">
-                    <i class="fa fa-file-pdf" aria-hidden="true"></i>
-                    <span>PDF</span>
-                  </button>
-                </div>
-                }
-              </div>
               }
-            </div>
-            }
-            <div class="histogram-graph-area">
-              <div class="histogram-graph" #histogramExport>
-                @if (isLoadingHistogram()) {
-                <div class="histogram-loader">
-                  <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
-                    <span class="studio-skeleton-line medium"></span>
-                    <div class="studio-skeleton-chart" aria-hidden="true">
-                      <span class="studio-skeleton-bar" style="height: 42%"></span>
-                      <span class="studio-skeleton-bar" style="height: 68%"></span>
-                      <span class="studio-skeleton-bar" style="height: 56%"></span>
-                      <span class="studio-skeleton-bar" style="height: 84%"></span>
-                      <span class="studio-skeleton-bar" style="height: 48%"></span>
-                      <span class="studio-skeleton-bar" style="height: 64%"></span>
+              <div class="histogram-graph-area">
+                <div class="histogram-graph" #histogramExport>
+                  @if (isLoadingHistogram()) {
+                  <div class="histogram-loader">
+                    <div class="studio-skeleton-card studio-skeleton-card--chart" role="status" aria-label="Loading histogram">
+                      <span class="studio-skeleton-line medium"></span>
+                      <div class="studio-skeleton-chart" aria-hidden="true">
+                        <span class="studio-skeleton-bar" style="height: 42%"></span>
+                        <span class="studio-skeleton-bar" style="height: 68%"></span>
+                        <span class="studio-skeleton-bar" style="height: 56%"></span>
+                        <span class="studio-skeleton-bar" style="height: 84%"></span>
+                        <span class="studio-skeleton-bar" style="height: 48%"></span>
+                        <span class="studio-skeleton-bar" style="height: 64%"></span>
+                      </div>
                     </div>
                   </div>
+                  } @else if (errorMessage()) {
+                  <div class="message-container error">
+                    <p>{{ errorMessage() }}</p>
+                  </div>
+                  } @else if (emptyChartMessage()) {
+                  <div class="message-container empty">
+                    <p>{{ emptyChartMessage() }}</p>
+                  </div>
+                  } @else if (!selectedNode) {
+                  <div class="message-container empty-state-clinical">
+                    <h3>No variable selected</h3>
+                    <p>Click a variable in the browser to see its chart and details.</p>
+                  </div>
+                  } @else if (groupHistogramData()) {
+                  <app-histogram-graph [data]="groupHistogramData()" [horizontal]="true"></app-histogram-graph>
+                  } @else if (histogramData()) {
+                  <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
+                  }
                 </div>
-                } @else if (errorMessage()) {
-                <div class="message-container error">
-                  <p>{{ errorMessage() }}</p>
+                @if (histogramPrivacyTrimNote()) {
+                <div class="histogram-privacy-note" role="note">
+                  <i class="fas fa-info-circle" aria-hidden="true"></i>
+                  <span>{{ histogramPrivacyTrimNote() }}</span>
                 </div>
-                } @else if (emptyChartMessage()) {
-                <div class="message-container empty">
-                  <p>{{ emptyChartMessage() }}</p>
-                </div>
-                } @else if (!selectedNode) {
-                <div class="message-container empty-state-clinical">
-                  <h3>No variable selected</h3>
-                  <p>Click a variable in the browser to see its chart and details.</p>
-                </div>
-                } @else if (groupHistogramData()) {
-                <app-histogram-graph [data]="groupHistogramData()"></app-histogram-graph>
-                } @else if (histogramData()) {
-                <app-histogram-graph [data]="histogramData()"></app-histogram-graph>
                 }
               </div>
-              @if (histogramPrivacyTrimNote()) {
-              <div class="histogram-privacy-note" role="note">
-                <i class="fas fa-info-circle" aria-hidden="true"></i>
-                <span>{{ histogramPrivacyTrimNote() }}</span>
-              </div>
-              }
-            </div>
+            </section>
+            @if (selectedNode) {
+            <section class="inspector-section" aria-labelledby="inspector-details-title">
+              <details
+                class="inspector-collapse"
+                [open]="detailsOpen()"
+                (toggle)="onInspectorDetailsToggle($event)">
+                <summary class="inspector-collapse-summary" (click)="onInspectorDetailsClick($event)">
+                  <h3 id="inspector-details-title" class="inspector-section-title">Details</h3>
+                  <i class="fas fa-chevron-down inspector-collapse-chevron" aria-hidden="true"></i>
+                </summary>
+                <div class="inspector-collapse-body">
+                  <app-metadata-info-panel
+                    [selectedNode]="selectedNode"
+                    [pathNodes]="getPathNodes(selectedNode)"
+                    [groupInfo]="groupHistogramMeta()"
+                    [hideHeader]="true"
+                    [flat]="true">
+                  </app-metadata-info-panel>
+                </div>
+              </details>
+            </section>
+            }
+
+            <!-- More-content cue while the body can scroll further down. -->
+            <div class="details-panel-fade" aria-hidden="true"></div>
           </div>
-          } @else {
-          <div class="metadata-tab-content details-tab-panel" id="metadata-tab-panel" role="tabpanel" aria-labelledby="details-tab-details">
-            <app-metadata-info-panel
-              [selectedNode]="selectedNode"
-              [pathNodes]="getPathNodes(selectedNode)"
-              [groupInfo]="groupHistogramMeta()"
-              [hideHeader]="true">
-            </app-metadata-info-panel>
-          </div>
-          }
 
           @if (isExporting()) {
           <div class="pdf-export-overlay">
@@ -329,13 +353,6 @@
           </div>
           }
         </section>
-
-        <app-selected-variables
-          mode="inline"
-          data-guide="variable-containers"
-          [selectedNode]="selectedNode"
-          (variableClicked)="onVariableClicked($event)">
-        </app-selected-variables>
       </aside>
     </div>
 

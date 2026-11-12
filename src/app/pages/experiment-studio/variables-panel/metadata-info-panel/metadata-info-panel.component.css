@@ -11,6 +11,26 @@
   padding: 2px 2px 4px;
 }
 
+/* Flat rendering (inspector): blocks are label + content separated by
+   hairlines, so no card appears inside the card under the section heading. */
+.metadata-info-panel.is-flat {
+  gap: 12px;
+  padding: 0;
+}
+
+.metadata-info-panel.is-flat .metadata-section + .metadata-section {
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.metadata-info-panel.is-flat .metadata-block h4 {
+  color: var(--text-main);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
 .metadata-empty {
   display: grid;
   gap: 10px;
@@ -74,6 +94,9 @@
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+
+.metadata-block-card {
   padding: 10px 12px;
   border-radius: var(--radius-md, 8px);
   background: var(--studio-card-header-bg);
@@ -89,11 +112,9 @@
   text-transform: uppercase;
 }
 
+/* One breadcrumb line that wraps: the path flows as inline text with
+   separators, instead of chips stacking row by row. */
 .metadata-path {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 4px;
   min-width: 0;
 }
 
@@ -103,7 +124,7 @@
   color: var(--text-muted);
   font-size: 0.76rem;
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.6;
   word-break: break-word;
 }
 
@@ -113,12 +134,12 @@
 }
 
 .metadata-path i {
-  flex-shrink: 0;
-  align-self: center;
+  display: inline-block;
+  vertical-align: middle;
   color: var(--primary-light);
   font-size: 0.5rem;
   opacity: 0.85;
-  margin: 0 1px;
+  margin: 0 5px;
 }
 
 .metadata-field-grid,

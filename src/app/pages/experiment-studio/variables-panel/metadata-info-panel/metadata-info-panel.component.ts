@@ -33,6 +33,8 @@ export class MetadataInfoPanelComponent {
   readonly pathNodes = input<MetadataPathNode[]>([]);
   readonly groupInfo = input<MetadataGroupInfo | null>(null);
   readonly hideHeader = input(false);
+  /** Flat inspector rendering: blocks are plain label + content, no card surface. */
+  readonly flat = input(false);
 
   readonly isGroup = computed(() => !!this.selectedNode()?.children?.length);
   readonly directGroupCount = computed(() => this.children().filter((child) => !!child.children?.length).length);

@@ -447,7 +447,7 @@ test.describe('filters and transformations', () => {
 test.describe('statistics previews', () => {
   test('variable details show the Exaflow histogram', async ({ page, api }) => {
     await openNewStudio(page);
-    const histogram = page.locator('#histogram-tab-panel');
+    const histogram = page.locator('#histogram-section');
     for (const [label, ticks] of [['Age', ['55', '80', 'Count']], ['Sex', ['Male', 'Female']]] as const) {
       await page.getByRole('button', { name: 'Search variables or groups' }).click();
       await page.locator('#search-bar').fill(label);

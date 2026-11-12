@@ -1,4 +1,4 @@
-<div class="metadata-info-panel">
+<div class="metadata-info-panel" [class.is-flat]="flat()">
   @if (!selectedNode()) {
   <div class="metadata-empty">
     <i class="fas fa-info-circle" aria-hidden="true"></i>
@@ -17,7 +17,7 @@
 
   @if (pathNodes().length) {
   <section class="metadata-section" aria-label="Hierarchy path">
-    <div class="metadata-block">
+    <div class="metadata-block" [class.metadata-block-card]="!flat()">
       <h4>Path</h4>
       <div class="metadata-path">
         @for (node of pathNodes(); track node.code + ':' + node.label; let last = $last) {
@@ -33,7 +33,7 @@
 
   @if (isGroup()) {
   <section class="metadata-section" aria-label="Group summary">
-    <div class="metadata-block">
+    <div class="metadata-block" [class.metadata-block-card]="!flat()">
       <h4>Summary</h4>
       <dl class="metadata-metric-grid">
         <dt>Child groups</dt>
@@ -52,7 +52,7 @@
   } @else {
   @if (fields().length) {
   <section class="metadata-section" aria-label="Variable metadata">
-    <div class="metadata-block">
+    <div class="metadata-block" [class.metadata-block-card]="!flat()">
       <h4>Metadata</h4>
       <dl class="metadata-field-grid">
         @for (field of fields(); track field.label) {
@@ -66,7 +66,7 @@
 
   @if (selectedNode()?.methodology) {
   <section class="metadata-section" aria-label="Methodology">
-    <div class="metadata-block">
+    <div class="metadata-block" [class.metadata-block-card]="!flat()">
       <h4>Methodology</h4>
       <p class="metadata-long-text">{{ selectedNode()?.methodology }}</p>
     </div>
@@ -75,7 +75,7 @@
 
   @if (enumerations().length) {
   <section class="metadata-section" aria-label="Enumerations">
-    <div class="metadata-block">
+    <div class="metadata-block" [class.metadata-block-card]="!flat()">
       <h4>Enumerations</h4>
       <ul class="enumeration-list">
         @for (entry of enumerations(); track entry.code ?? entry.label) {

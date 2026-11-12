@@ -13,7 +13,7 @@
   </header>
   <div class="pool-card-body">
     @if (variables().length === 0) {
-    <p class="parameter-empty">No variables yet. Pick one in the map and choose <strong>Add</strong>.</p>
+    <p class="parameter-empty">No variables yet. Select a variable in the browser, then choose <strong>Add</strong>.</p>
     } @else {
     <div class="studio-chip-row">
       @for (variable of variables(); track variable.code ?? variable.label) {
@@ -23,7 +23,12 @@
             [class.is-unavailable]="!!unavailable"
             [attr.title]="unavailable || null"
             (click)="onVariableClick(variable)">
-        <span class="pool-chip-dot" aria-hidden="true"></span>
+        <!-- The dot is the role colour: every chip in this card is a data-model variable,
+             so the colour says "variable". DESIGN.md: a role colour never carries the role
+             alone, so the role is spelled out for the mouse (title) and for the screen
+             reader (sr-only text). The type text beside it is the data type, not the role. -->
+        <span class="pool-chip-dot" aria-hidden="true" title="Role: variable"></span>
+        <span class="sr-only">Role: variable</span>
         <span>{{ variable.label }}</span>
         <span class="pool-chip-type">{{ variable.type }}</span>
         <button type="button" class="parameter-remove-btn"

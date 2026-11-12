@@ -166,6 +166,24 @@ describe('SelectedVariablesComponent', () => {
     expect(fixture.nativeElement.querySelector('.pool-chip')?.classList).toContain('is-current');
   });
 
+  it('says what the chip dot means, in words as well as colour', () => {
+    experimentStudioService.selectedVariables.set([
+      { code: 'sex_value', label: 'Stentretriever', type: 'nominal' },
+    ]);
+    const fixture = TestBed.createComponent(SelectedVariablesComponent);
+    fixture.componentRef.setInput('mode', 'inline');
+    fixture.detectChanges();
+
+    const chip = fixture.nativeElement.querySelector('.pool-chip') as HTMLElement;
+    const dot = chip.querySelector('.pool-chip-dot') as HTMLElement;
+
+    // The dot is the role colour; the role is spelled out for mouse and screen reader.
+    expect(dot.getAttribute('title')).toBe('Role: variable');
+    expect(chip.querySelector('.sr-only')?.textContent).toContain('Role: variable');
+    // The text beside it is the data type, not a silent copy of the role.
+    expect(chip.querySelector('.pool-chip-type')?.textContent?.trim()).toBe('nominal');
+  });
+
   it('emits the clicked inline chip and removes one from the pool', () => {
     experimentStudioService.selectedVariables.set([
       { code: 'age_value', label: 'Age', type: 'real' },

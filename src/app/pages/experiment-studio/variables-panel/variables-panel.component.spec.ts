@@ -8,6 +8,10 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { VariablesPanelComponent } from './variables-panel.component';
 import { ExperimentStudioGuideStateService } from '../guide/experiment-studio-guide-state.service';
+import {
+  normalizeMetadataTree,
+  searchMetadataIndex,
+} from '../visualisations/metadata-browser/metadata-browser-normalizer';
 describe('VariablesPanelComponent bubble selection', () => {
   let experimentStudioService: {
     selectedDataModel: ReturnType<typeof signal<any>>;
@@ -132,20 +136,43 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
   });
 
-  it('ignores clicks, double clicks and search picks on an unavailable variable', () => {
+  it('selects a clicked or searched unavailable variable but never adds it', () => {
     experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A']]]));
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     const node = { code: 'age_value', label: 'Age', type: 'real' };
+    component.d3Data = {
+      code: 'root',
+      label: 'Root',
+      children: [{ code: 'demo', label: 'Demographics', children: [node] }],
+    };
     const selectSpy = vi.spyOn(component, 'onSelectedNodeChange').mockReturnValue(undefined);
 
     component.onBubbleNodeSelected(node);
+    const [searched] = searchMetadataIndex(normalizeMetadataTree(component.d3Data), 'age');
+    component.onSearchSelected(searched);
     component.onMetadataBrowserNodeSelected(node);
-    component.onNodeDoubleClicked(node);
+    expect(selectSpy).toHaveBeenCalledWith(node);
+    expect(selectSpy).toHaveBeenCalledTimes(3);
+    expect(component.highlightNode).toBe(node);
 
-    expect(selectSpy).not.toHaveBeenCalled();
-    expect(component.highlightNode).toBeNull();
+    component.onNodeDoubleClicked(node);
+    expect(selectSpy).toHaveBeenCalledTimes(3);
     expect(experimentStudioService.addVariableAndEnrich).not.toHaveBeenCalled();
+  });
+
+  it('reports the selected datasets that lack the plotted variable', () => {
+    experimentStudioService.unavailableVariables.set(new Map([['age_value', ['Dataset A', 'Dataset B']]]));
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+    expect(component.plottedVariableMissingIn()).toEqual([]);
+
+    component.plottedVariable.set({ code: 'age_value', label: 'Age', type: 'real' });
+    expect(component.plottedVariableMissingIn()).toEqual(['Dataset A', 'Dataset B']);
+
+    // Groups have nothing to plot, so they never read as partially available.
+    component.plottedVariable.set({ code: 'demo', label: 'Demographics', children: [{ code: 'age_value' }] });
+    expect(component.plottedVariableMissingIn()).toEqual([]);
   });
 
   it('adds only the available variables of a group', () => {
@@ -492,33 +519,36 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.metadataBrowserModes.map((mode) => mode.value)).toEqual(['bubble', 'ontology', 'collapsible']);
   });
 
-  it('resets selected-node details to the histogram tab on variable selection', () => {
+  it('captions a selected variable as a distribution', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     const node = { code: 'age_value', label: 'Age', type: 'real' };
 
-    component.setActiveDetailsTab('info');
     component.onSelectedNodeChange(node);
 
-    expect(component.activeDetailsTab()).toBe('histogram');
+    expect(component.selectedNode).toEqual(expect.objectContaining({ code: 'age_value', label: 'Age' }));
+    expect(component.distributionSectionTitle()).toBe('Distribution');
   });
 
-  it('defaults a group selection to the Chart tab', () => {
+  it('captions a nested-group census as variables per group', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     const group = {
       code: 'acute_treatment',
       label: 'Acute treatment',
-      children: [{ code: 'age_value', label: 'Age', type: 'real' }],
+      children: [
+        { code: 'age_value', label: 'Age', type: 'real', children: [{ code: 'a', label: 'A' }] },
+      ],
     };
 
-    component.setActiveDetailsTab('info');
     component.onSelectedNodeChange(group);
 
-    expect(component.activeDetailsTab()).toBe('histogram');
+    expect(component.selectedNode).toEqual(expect.objectContaining({ code: 'acute_treatment' }));
+    expect(component.groupHistogramMeta()?.hasGroups).toBe(true);
+    expect(component.distributionSectionTitle()).toBe('Variables per group');
   });
 
-  it('offers Dataset plus selected nominal variables as splits and hides them for nominal plots', () => {
+  it('offers Dataset plus selected nominal variables as splits, including for nominal plots', () => {
     const fixture = TestBed.createComponent(VariablesPanelComponent);
     const component = fixture.componentInstance;
     experimentStudioService.selectedVariables.set([
@@ -531,7 +561,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     expect(component.histogramSplitOptions().map((option) => option.code)).toEqual(['dataset', 'sex']);
 
     component.onSelectedNodeChange({ code: 'sex', label: 'Sex', type: 'nominal', enumerations: [{ code: 'F' }, { code: 'M' }] });
-    expect(component.canSplitHistogram()).toBe(false);
+    expect(component.canSplitHistogram()).toBe(true);
   });
 
   it('offers an unavailable split grayed out and disabled, and keeps an active one', () => {
@@ -645,7 +675,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       variableName: 'Age',
     });
 
-    expect(component.histogramPrivacyTrimNote()).toContain('Values below 10 / above 30 hidden');
+    expect(component.histogramPrivacyTrimNote()).toContain('Values below 10 / above 30 masked');
   });
 
   it('does not warn about trimmed edges on a nominal histogram', () => {
@@ -756,6 +786,19 @@ describe('VariablesPanelComponent bubble selection', () => {
 
     expect(component.emptyChartMessage()).toBe('This variable does not have sufficient data.');
     expect(component.errorMessage()).toBeNull();
+  });
+
+  it('shows the backend error text when the histogram analysis returns status error', async () => {
+    experimentStudioService.getAlgorithmResults.mockReturnValue(
+      of({ status: 'error', result: { type: 'text/plain+error', data: 'Something went wrong.' } })
+    );
+    const fixture = TestBed.createComponent(VariablesPanelComponent);
+    const component = fixture.componentInstance;
+
+    await flushLeafHistogram(component);
+
+    expect(component.errorMessage()).toBe('Something went wrong.');
+    expect(component.emptyChartMessage()).toBeNull();
   });
 
   it('keeps a red error message when the histogram request fails', async () => {

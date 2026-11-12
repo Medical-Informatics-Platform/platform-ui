@@ -23,7 +23,7 @@ import {
 } from '../visualisations/metadata-browser/metadata-browser-normalizer';
 import { countLeafNodes } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
-import { isVariableUnavailable } from '../../../core/variable-availability.utils';
+import { isVariableUnavailable, unavailableDatasetsFor } from '../../../core/variable-availability.utils';
 import {
   describeClippedNullEdges,
   formatClippedNullEdgesNote,
@@ -35,11 +35,11 @@ import {
   HistogramSplitOption,
   buildHistogramSplitOptions,
   buildStackedHistogramSeries,
+  canSplitHistogramNode,
   extractHistogramItems,
+  isDatasetSplit,
   isNominalHistogramNode,
 } from '../visualisations/histogram/histogram-data';
-
-type DetailsPanelTab = 'histogram' | 'info';
 
 /** Shown when the selected node groups variables only, so there is nothing to census. */
 const GROUP_OF_VARIABLES_ONLY_MESSAGE =
@@ -84,7 +84,7 @@ export class VariablesPanelComponent implements OnDestroy {
       },
       {
         value: 'collapsible',
-        label: 'Graph',
+        label: 'Tree',
         icon: 'fas fa-project-diagram',
         title: 'Interactive collapsible hierarchy diagram',
       },
@@ -117,16 +117,20 @@ export class VariablesPanelComponent implements OnDestroy {
       unavailableVariables: this.experimentStudioService.unavailableVariables(),
     })
   );
-  readonly canSplitHistogram = computed(() => {
-    const node = this.plottedVariable();
-    return !!node && !node.children?.length && !isNominalHistogramNode(node);
-  });
+  readonly canSplitHistogram = computed(() => canSplitHistogramNode(this.plottedVariable()));
+  /** Up to this many split choices show as one-click pills; more fall back to a select. */
+  readonly maxSplitPills = 5;
   readonly histogramPrivacyTrimNote = computed(() => {
     const data = this.histogramData();
     if (!data?.bins?.length || isNominalHistogramNode(this.plottedVariable())) {
       return null;
     }
-    return formatClippedNullEdgesNote(describeClippedNullEdges(data.bins, data.counts));
+    // A dataset split crops the axis to the group bars, so the note must read the
+    // same window the chart draws: pass the groups for the crop, as createHistogram does.
+    const dodged = isDatasetSplit(data);
+    return formatClippedNullEdgesNote(
+      describeClippedNullEdges(data.bins, data.counts, dodged ? data.groups : undefined, dodged)
+    );
   });
   groupHistogramMeta = signal<{
     pathNodes: Array<{ code: string; label: string }>;
@@ -145,6 +149,8 @@ export class VariablesPanelComponent implements OnDestroy {
   emptyChartMessage = signal<string | null>(null);
   isExporting = signal(false);
   exportMenuOpen = signal(false);
+  /** Collapsed/expanded state of the inspector "Details" section; kept across node selections. */
+  detailsOpen = signal(true);
   metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
   readonly metadataBrowserModeIndex = computed(() => {
     const index = this.metadataBrowserModes.findIndex(
@@ -154,10 +160,13 @@ export class VariablesPanelComponent implements OnDestroy {
   });
   contextOpen = signal(false);
   searchExpanded = signal(false);
-  /** Variables missing from a selected dataset: grayed out in every view and never selected. */
+  /** Variables missing from a selected dataset: viewable everywhere, but never added to the experiment. */
   readonly unavailableVariables = this.experimentStudioService.unavailableVariables;
+  /** Datasets lacking the plotted variable: the note under the chart; such a variable is view-only. */
+  readonly plottedVariableMissingIn = computed((): readonly string[] =>
+    unavailableDatasetsFor(this.unavailableVariables(), this.plottedVariable())
+  );
   readonly selectedDatasetCount = computed(() => (this.experimentStudioService.selectedDatasets() ?? []).length);
-  activeDetailsTab = signal<DetailsPanelTab>('histogram');
   private destroy$ = new Subject<void>();
   private histogramRequest$ = new Subject<{
     codes: string[];
@@ -216,7 +225,6 @@ export class VariablesPanelComponent implements OnDestroy {
     const index = normalizeMetadataTree(this.d3Data);
     const selection = selectionFromSearchResult(index, result);
     const node = selection.originalNode;
-    if (this.isUnavailable(node)) return;
     this.highlightNode = { ...node, path: result.path };
     this.onSelectedNodeChange(node);
     this.searchExpanded.set(false);
@@ -242,17 +250,16 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   onBubbleNodeSelected(node: any): void {
-    if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
   }
 
   onMetadataBrowserNodeSelected(node: any): void {
-    if (this.isUnavailable(node)) return;
     this.highlightNode = node;
     this.onSelectedNodeChange(node);
   }
 
   onNodeDoubleClicked(node: any): void {
+    // Adding stays blocked for partially available variables; exploring them is allowed.
     if (this.isUnavailable(node)) return;
     this.onSelectedNodeChange(node);
     this.addVariableFromBubble();
@@ -271,10 +278,6 @@ export class VariablesPanelComponent implements OnDestroy {
     } catch {
       // Ignore private-mode or quota failures; the UI can still use the in-memory signal.
     }
-  }
-
-  setActiveDetailsTab(tab: DetailsPanelTab): void {
-    this.activeDetailsTab.set(tab);
   }
 
   toggleContext(): void {
@@ -479,7 +482,6 @@ export class VariablesPanelComponent implements OnDestroy {
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
-    this.activeDetailsTab.set('histogram');
   }
 
   loadVisualizationData(): void {
@@ -560,7 +562,6 @@ export class VariablesPanelComponent implements OnDestroy {
     this.histogramData.set(null);
     this.groupHistogramData.set(null);
     this.groupHistogramMeta.set(null);
-    this.activeDetailsTab.set('histogram');
     this.searchExpanded.set(false);
 
     // reload new model data
@@ -580,7 +581,6 @@ export class VariablesPanelComponent implements OnDestroy {
       this.groupHistogramMeta.set(null);
       this.isLoadingHistogram.set(false);
       this.errorMessage.set('No variable selected.');
-      this.activeDetailsTab.set('histogram');
       return;
     }
 
@@ -590,7 +590,6 @@ export class VariablesPanelComponent implements OnDestroy {
     }
 
     this.selectedNode = { ...node };
-    this.activeDetailsTab.set('histogram');
     this.guideState.setSelectedHierarchyNode(this.selectedNode);
     this.cdr.detectChanges();
     this.clearChartNotices();
@@ -721,7 +720,9 @@ export class VariablesPanelComponent implements OnDestroy {
                 groups: stacked.groups,
                 variableName: label ?? variableNode?.label ?? resolvedVariable?.label ?? '',
                 variableType: variableNode?.type,
+                units: variableNode?.units,
                 splitLabel,
+                splitCode: grouping ?? undefined,
               });
               this.clearChartNotices();
             } else {
@@ -729,6 +730,12 @@ export class VariablesPanelComponent implements OnDestroy {
               const resultData = response?.result?.data || response?.data;
               if (typeof resultData === 'string' && resultData.includes('insufficient data')) {
                 this.emptyChartMessage.set('This variable does not have sufficient data.');
+              } else if (response?.status === 'error') {
+                console.error('Histogram analysis failed:', resultData);
+                this.emptyChartMessage.set(null);
+                this.errorMessage.set(
+                  typeof resultData === 'string' && resultData ? resultData : 'Error loading histogram. Please try again.'
+                );
               } else {
                 this.emptyChartMessage.set('No distribution for this selection.');
               }
@@ -847,6 +854,14 @@ export class VariablesPanelComponent implements OnDestroy {
     return String(this.selectedNode.label ?? '').trim();
   }
 
+  /** Group bars count leaf variables in each child group; a variable chart is a distribution. */
+  distributionSectionTitle(): string {
+    if (this.groupHistogramMeta()?.hasGroups) {
+      return 'Variables per group';
+    }
+    return 'Distribution';
+  }
+
   detailsPanelSubtitle(): string {
     if (!this.selectedNode) {
       return '';
@@ -860,6 +875,20 @@ export class VariablesPanelComponent implements OnDestroy {
       }
     }
     return String(this.selectedNode.description ?? '').trim();
+  }
+
+  /** The heading row is the control: sync the signal the moment the row is activated. */
+  onInspectorDetailsClick(event: Event): void {
+    const row = event.currentTarget as HTMLElement;
+    this.detailsOpen.set(!(row.parentElement as HTMLDetailsElement).open);
+  }
+
+  /** Keep the signal in sync when the state changes by keyboard, script, or the `open` attribute. */
+  onInspectorDetailsToggle(event: Event): void {
+    const open = (event.target as HTMLDetailsElement).open;
+    if (this.detailsOpen() !== open) {
+      this.detailsOpen.set(open);
+    }
   }
 
   toggleExportMenu(): void {
