@@ -1,3 +1,9 @@
+/* Same tinted card headers as the Data Handling pipeline nodes
+   (.stats-panel-shell), so every studio step reads alike. */
+:host {
+  --studio-card-header-bg: #eef1fd;
+}
+
 /* Result workspace chrome (.experiment-panel-workspace, .result-section-toolbar, .toolbar-btn,
    .save-as-inline) is global in styles.css. Only this step's own surfaces live here. */
 
@@ -252,9 +258,11 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding-bottom: 14px;
+  padding: 14px 18px;
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+  border-radius: var(--radius-lg, 12px);
+  background: var(--studio-card-header-bg);
 }
 
 .result-header-main {

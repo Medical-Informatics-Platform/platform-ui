@@ -4,6 +4,12 @@
    (documentation + parameters) scrolling in the column on the right.
    Tokens per DESIGN.md — typography, borders, subtle tints; no icon fonts. */
 
+/* Same tinted card headers as the Data Handling pipeline nodes
+   (.stats-panel-shell), so every studio step reads alike. */
+:host {
+  --studio-card-header-bg: #eef1fd;
+}
+
 /* ROOT LAYOUT - CONTAINER */
 
 .experiment-container {
