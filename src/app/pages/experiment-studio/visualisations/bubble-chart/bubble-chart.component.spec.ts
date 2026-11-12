@@ -50,8 +50,8 @@ describe('BubbleChartComponent tutorial highlighting', () => {
           {
             label: 'Demographics',
             children: [
-              { code: 'sex', label: 'Sex', type: 'text' },
-              { code: 'age_value', label: 'Age', type: 'real' },
+              { code: 'sex', label: 'Sex', type: 'text', value: 1 },
+              { code: 'age_value', label: 'Age', type: 'real', value: 1 },
             ],
           },
         ],
@@ -96,5 +96,47 @@ describe('BubbleChartComponent tutorial highlighting', () => {
 
     const hint = fixture.nativeElement.querySelector('.map-hint') as HTMLElement;
     expect(hint.textContent).toContain('double-click to add');
+  });
+
+  it('reads the selection fill from --primary-color instead of a fixed slate', async () => {
+    guideState.expectedTutorialCovariate.set(null);
+    document.documentElement.style.setProperty('--primary-color', '#0044aa');
+    document.documentElement.style.setProperty('--primary-dark', '#002266');
+
+    try {
+      const tokenFixture = TestBed.createComponent(BubbleChartComponent);
+      tokenFixture.componentRef.setInput('d3Data', {
+        label: 'root',
+        children: [{
+          label: 'Demographics',
+          children: [
+            { code: 'sex', label: 'Sex', type: 'text', value: 1 },
+            { code: 'age_value', label: 'Age', type: 'real', value: 1 },
+          ],
+        }],
+      });
+      tokenFixture.detectChanges();
+
+      const leaf = (Array.from(tokenFixture.nativeElement.querySelectorAll('circle.leaf')) as SVGCircleElement[])
+        .find((circle) => (circle as any).__data__?.data?.code === 'age_value')!;
+
+      leaf.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+
+      // d3's fill transition writes the end value in rgb() form.
+      const normalizedColor = (value: string): string => {
+        const probe = document.createElement('span');
+        probe.style.color = value;
+        document.body.appendChild(probe);
+        const computed = getComputedStyle(probe).color;
+        probe.remove();
+        return computed;
+      };
+      expect(normalizedColor(leaf.getAttribute('fill')!)).toBe('rgb(0, 68, 170)'); // #0044aa
+      expect(normalizedColor(leaf.getAttribute('stroke')!)).toBe('rgb(0, 34, 102)'); // #002266
+    } finally {
+      document.documentElement.style.removeProperty('--primary-color');
+      document.documentElement.style.removeProperty('--primary-dark');
+    }
   });
 });

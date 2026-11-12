@@ -6,18 +6,24 @@ import {
   unavailableVariableTooltip,
 } from '../../../../core/variable-availability.utils';
 
-/** Unavailable leaves: grayed out and inert, see variable-availability.utils. */
-const UNAVAILABLE_FILL = '#cbd5e1';
-const UNAVAILABLE_FILL_OPACITY = 0.6;
+/**
+ * Partially available leaves (missing in some selected dataset, see variable-availability.utils):
+ * view only — clickable to plot, but never added to the experiment.
+ */
+export const PARTIAL_AVAILABILITY_FILL = '#fbd38d';
+/** Dashed outline keeps the "not everywhere available" signal without hiding the leaf. */
 const UNAVAILABLE_STROKE_DASH = '3 2';
-const UNAVAILABLE_LABEL_FILL = '#94a3b8';
 
 // helpers
 // Splits labels
 
 
 // Creates label + background rect
-function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: any, unavailable = false) {
+function createLabelGroup(
+  group: d3.Selection<SVGGElement, any, any, any>,
+  d: any,
+  isSelected: boolean,
+) {
   group.selectAll('*').remove();
 
   const label = d.data.label || '';
@@ -48,11 +54,18 @@ function createLabelGroup(group: d3.Selection<SVGGElement, any, any, any>, d: an
     .attr('text-anchor', 'middle')
     .style('font-size', `${fontSize}px`)
     .style('font-weight', '600')
-    .style('fill', unavailable ? UNAVAILABLE_LABEL_FILL : '#0f172a')
-    .style('paint-order', 'stroke')
-    .style('stroke', 'rgba(255,255,255,0.9)')
-    .style('stroke-width', 2)
-    .style('stroke-linejoin', 'round');
+    // Same size and weight on every bubble; only the ink changes. White on the
+    // selection blue is ~6.9:1, and an outline blurs it, so only the unselected
+    // label keeps its white halo.
+    .style('fill', isSelected ? '#ffffff' : '#0f172a');
+
+  if (!isSelected) {
+    textNode
+      .style('paint-order', 'stroke')
+      .style('stroke', 'rgba(255,255,255,0.9)')
+      .style('stroke-width', 2)
+      .style('stroke-linejoin', 'round');
+  }
 
   // Add tspans
   lines.forEach((lineStr, i) => {
@@ -95,20 +108,28 @@ const bubbleChartLabel = (root: d3.HierarchyNode<any>): string => {
   );
 };
 
-type BubbleColorConfig = {
+export type BubbleColorConfig = {
   variable: string;
   covariate: string;
   filter: string;
   selected: string;
+  /** Ring of the selected bubble: a darker step of the same selection blue. */
+  selectedRing: string;
   groupStart: string;
   groupEnd: string;
 };
 
+/**
+ * The component reads `--primary-color` / `--primary-dark` when it renders
+ * (see BubbleChartComponent.selectionColors); these are the fallbacks. Selection
+ * is the page's primary-blue idiom, not the old steel-blue slate.
+ */
 export const DEFAULT_BUBBLE_COLORS: BubbleColorConfig = {
   variable: '#ffba08',     // MIP golden yellow
   covariate: '#bba66f',    // MIP tan/beige
   filter: '#483300',       // MIP dark brown
-  selected: '#3f6078',     // MIP steel blue
+  selected: '#2b33e9',     // --primary-color
+  selectedRing: '#1b21a3', // --primary-dark
   groupStart: '#c8d5f0',   // Light pale blue
   groupEnd: '#3340e8',     // Deep blue
 };
@@ -167,13 +188,7 @@ export function createZoomableCirclePacking(
   // unavailableDatasetsFor already skips groups: d.data.children is what d3 builds d.children from.
   const unavailableIn = (d: any): readonly string[] => unavailableDatasetsFor(unavailableVariables, d?.data);
   const isUnavailable = (d: any): boolean => unavailableIn(d).length > 0;
-  const leafFillOpacity = (d: any): number =>
-    d.children ? 0.6 : (isUnavailable(d) ? UNAVAILABLE_FILL_OPACITY : 1);
-  const applyAvailability = (selection: d3.Selection<any, any, any, any>): void => {
-    selection
-      .style('cursor', (d: any) => (isUnavailable(d) ? 'not-allowed' : 'pointer'))
-      .attr('aria-disabled', (d: any) => (isUnavailable(d) ? 'true' : null));
-  };
+  const leafFillOpacity = (d: any): number => (d.children ? 0.6 : 1);
 
   const bounds = container.getBoundingClientRect();
   const width = Math.floor(bounds.width || 0) || 700;
@@ -263,6 +278,8 @@ export function createZoomableCirclePacking(
   let focus = root;
   // Use a 2.05x radius to reduce padding
   let view: [number, number, number] = [focus.x, focus.y, focus.r * 2.05];
+  /** The scale the drawing is at right now, so labels are rebuilt at the same size. */
+  let currentK = size / view[2];
   let selectedDataNode: d3.HierarchyNode<any> | null = null;
 
   const svg = d3
@@ -300,8 +317,9 @@ export function createZoomableCirclePacking(
       return groupColor(d.depth);
     }
 
+    // Partially available: view only.
     if (isUnavailable(d)) {
-      return UNAVAILABLE_FILL;
+      return PARTIAL_AVAILABILITY_FILL;
     }
 
     if (tutorialHighlightCode) {
@@ -328,11 +346,11 @@ export function createZoomableCirclePacking(
     .attr('fill-opacity', (d: any) => leafFillOpacity(d))
     .attr('stroke', (d: any) => (d.children ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.12)'))
     .attr('stroke-width', (d: any) => (d.children ? 1 : 0.6))
-    .call(applyAvailability)
+    // Every leaf is clickable to plot it; adding a partially available one stays blocked (dblclick).
+    .style('cursor', 'pointer')
     .attr('stroke-dasharray', (d: any) => (isUnavailable(d) ? UNAVAILABLE_STROKE_DASH : null))
     .on('click', (event: MouseEvent, d: any) => {
       event.stopPropagation();
-      if (isUnavailable(d)) return;
       if (!d.children) {
         selectedDataNode = d;
         onNodeClick(d.data);
@@ -343,6 +361,7 @@ export function createZoomableCirclePacking(
     })
     .on('dblclick', (event: MouseEvent, d: any) => {
       event.stopPropagation();
+      // Double click adds: a partially available leaf never joins the experiment pool.
       if (!d.children && !isUnavailable(d)) {
         onNodeDoubleClick(d.data);
       }
@@ -381,6 +400,7 @@ export function createZoomableCirclePacking(
   function zoomTo(v: [number, number, number]) {
     const k = size / v[2];
     view = v;
+    currentK = k;
 
     node.attr('transform', (d: any) => `translate(${(d.x - v[0]) * k + size / 2 + offsetX}, ${(d.y - v[1]) * k + size / 2 + offsetY})`);
     node.attr('r', (d: any) => d.r * k);
@@ -390,14 +410,8 @@ export function createZoomableCirclePacking(
       const y = (d.y - v[1]) * k + size / 2 + offsetY;
       const topY = d.children ? y - d.r * k + 2 : y;
       return `translate(${x}, ${topY})`;
-    })
-      .each(function (d: any) {
-        const el = d3.select(this as SVGGElement);
-        if (d.parent === focus && shouldShowLabel(d, k)) {
-          el.style('display', 'inline').style('fill-opacity', 0.92);
-          createLabelGroup(el, d, isUnavailable(d));
-        } else el.style('display', 'none');
-      });
+    });
+    refreshLabels();
   }
 
   const isTutorialTarget = (d: any): boolean =>
@@ -409,18 +423,36 @@ export function createZoomableCirclePacking(
       .attr('fill-opacity', (d: any) => leafFillOpacity(d))
       .attr('stroke', (d: any) => {
         if (isTutorialTarget(d)) return '#15803d';
-        if (d === selectedDataNode) return '#000';
+        // The ring is a darker step of the selection blue, so selection survives
+        // without colour (and never reads as a black error ring).
+        if (d === selectedDataNode) return colors.selectedRing;
         if (d.children) return 'rgba(0,0,0,0.08)';
         return 'rgba(0,0,0,0.12)';
       })
       .attr('stroke-width', (d: any) => {
         if (isTutorialTarget(d)) return 2.5;
-        if (d === selectedDataNode) return 2;
+        // Thicker than every resting leaf (0.6) and its hover (1.5).
+        if (d === selectedDataNode) return 2.5;
         if (d.children) return 1;
         return 0.6;
       })
       .attr('filter', (d: any) => (d === selectedDataNode ? 'url(#node-glow)' : 'none'))
       .attr('stroke-dasharray', (d: any) => (isUnavailable(d) ? UNAVAILABLE_STROKE_DASH : null));
+
+    // The fill transition is the animation; the label is set straight away so the
+    // clicked bubble reads as selected the moment its ring lands.
+    refreshLabels();
+  }
+
+  /** Rebuilds the labels of the current focus, so a selection repaints its own label. */
+  function refreshLabels() {
+    labelNodes.each(function (d: any) {
+      const el = d3.select(this as SVGGElement);
+      if (d.parent === focus && shouldShowLabel(d, currentK)) {
+        el.style('display', 'inline').style('fill-opacity', 0.92);
+        createLabelGroup(el, d, d === selectedDataNode);
+      } else el.style('display', 'none');
+    });
   }
 
   function zoom(event: MouseEvent | null, d: any) {
@@ -472,7 +504,7 @@ export function createZoomableCirclePacking(
       const el = d3.select(this as SVGGElement);
       if (nd.parent === group && shouldShowLabel(nd, size / zoomTarget[2])) {
         el.style('display', 'inline').style('fill-opacity', 0.6);
-        createLabelGroup(el, nd, isUnavailable(nd));
+        createLabelGroup(el, nd, nd === selectedDataNode);
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
@@ -557,11 +589,6 @@ export function createZoomableCirclePacking(
     }
     if (newOptions && Object.prototype.hasOwnProperty.call(newOptions, 'unavailableVariables')) {
       unavailableVariables = newOptions.unavailableVariables ?? EMPTY_UNAVAILABLE_VARIABLES;
-      node.call(applyAvailability);
-      labelNodes.each(function (d: any) {
-        const el = d3.select(this as SVGGElement);
-        if (el.style('display') !== 'none') createLabelGroup(el, d, isUnavailable(d));
-      });
     }
     groupColor = d3.scaleLinear<string>()
       .domain([0, 5])

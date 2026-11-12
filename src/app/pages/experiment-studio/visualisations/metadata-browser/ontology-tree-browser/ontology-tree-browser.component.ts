@@ -10,23 +10,35 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { pluralize } from '../../../../../core/result-label.utils';
+import { NgTemplateOutlet } from '@angular/common';
 import { D3HierarchyNode } from '../../../../../models/data-model.interface';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
   UnavailableVariablesMap,
+  unavailableDatasetsFor,
   unavailableTooltipFor,
 } from '../../../../../core/variable-availability.utils';
 import {
   NormalizedGroupNode,
   NormalizedVariableNode,
 } from '../metadata-browser.model';
+import { pluralize } from '../../../../../core/result-label.utils';
+import { groupContentsLabel } from '../metadata-browser-labels';
 import {
   findGroupByNode,
   findVariableByNode,
   normalizeMetadataTree,
   pathForGroup,
 } from '../metadata-browser-normalizer';
+
+/** Most variables of nested groups the contents pane lists before it asks the user to narrow down. */
+export const SUBTREE_VARIABLE_LIMIT = 200;
+
+/** A variable of a nested group, with the group names between the selected group and the variable. */
+export interface SubtreeVariableRow {
+  variable: NormalizedVariableNode;
+  path: string;
+}
 
 interface TreeRow {
   group: NormalizedGroupNode;
@@ -44,6 +56,7 @@ const EMPTY_METADATA_TREE: D3HierarchyNode = {
 
 @Component({
   selector: 'app-ontology-tree-browser',
+  imports: [NgTemplateOutlet],
   templateUrl: './ontology-tree-browser.component.html',
   styleUrl: './ontology-tree-browser.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,13 +65,14 @@ export class OntologyTreeBrowserComponent {
   readonly data = input<D3HierarchyNode | null>(null);
   readonly highlightNode = input<D3HierarchyNode | null>(null);
   readonly poolVariables = input<D3HierarchyNode[]>([]);
-  /** Variables shown grayed out that ignore clicks for the current datasets. */
+  /** Variables missing from some selected dataset: shown amber, viewable, never addable. */
   readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
   readonly selectedNodeChange = output<D3HierarchyNode>();
   readonly nodeDoubleClicked = output<D3HierarchyNode>();
   readonly variablePoolToggle = output<D3HierarchyNode>();
 
   @ViewChildren('treeRowButton') private treeRowButtons?: QueryList<ElementRef<HTMLButtonElement>>;
+  private keptVariableId: string | null = null;
 
   readonly selectedGroupId = signal<string | null>(null);
   readonly selectedVariableId = signal<string | null>(null);
@@ -114,9 +128,51 @@ export class OntologyTreeBrowserComponent {
   });
   readonly contentsPaneSubtitle = computed(() => {
     const group = this.selectedGroup();
-    return `${this.pluralize(group.directGroupCount, 'group')} · ${this.pluralize(group.totalVariableCount, 'variable')}`;
+    return groupContentsLabel(group.directGroupCount, group.totalVariableCount);
+  });
+  /** Count of pooled variables under each group (any descendant whose code is in the pool). */
+  readonly pooledCountByGroupId = computed(() => {
+    const index = this.index();
+    const poolCodes = new Set(
+      this.poolVariables()
+        .map((node) => String(node?.code ?? ''))
+        .filter((code) => code !== '')
+    );
+    const counts = new Map<string, number>();
+    for (const id of index.variableIds) {
+      const variable = index.variablesById[id];
+      if (!poolCodes.has(variable.code)) continue;
+      for (const groupId of variable.pathGroupIds) {
+        counts.set(groupId, (counts.get(groupId) ?? 0) + 1);
+      }
+    }
+    return counts;
   });
 
+  /** Variables of nested groups under the selected group, with the path after that group. */
+  private readonly subtreeMatches = computed<SubtreeVariableRow[]>(() => {
+    const G = this.selectedGroup();
+    const index = this.index();
+    const matches: SubtreeVariableRow[] = [];
+    for (const id of index.variableIds) {
+      const variable = index.variablesById[id];
+      if (variable.parentGroupId !== G.id && variable.pathGroupIds.includes(G.id)) {
+        const path = variable.pathGroupIds
+          .slice(variable.pathGroupIds.indexOf(G.id) + 1)
+          .map((id) => index.groupsById[id].label)
+          .join(' / ');
+        matches.push({ variable, path });
+      }
+    }
+    return matches;
+  });
+  /** Variables of the selected group's nested groups (not its direct ones), capped at the limit. */
+  // ponytail: hard cap, virtual scroll if models with thousands of variables need the full list
+  readonly subtreeRows = computed(() => this.subtreeMatches().slice(0, SUBTREE_VARIABLE_LIMIT));
+  /** How many nested variables the cap left out; 0 when all are listed. */
+  readonly subtreeOverflow = computed(() => this.subtreeMatches().length - this.subtreeRows().length);
+
+  readonly groupContentsLabel = groupContentsLabel;
   readonly pluralize = pluralize;
 
   constructor() {
@@ -140,6 +196,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   selectGroup(group: NormalizedGroupNode): void {
+    this.keptVariableId = null;
     this.selectedGroupId.set(group.id);
     this.selectedVariableId.set(null);
     this.expandPathToGroup(group.id);
@@ -147,6 +204,14 @@ export class OntologyTreeBrowserComponent {
   }
 
   selectVariable(variable: NormalizedVariableNode): void {
+    const selectedGroup = this.selectedGroup();
+    if (variable.parentGroupId !== selectedGroup.id && variable.pathGroupIds.includes(selectedGroup.id)) {
+      this.selectedVariableId.set(variable.id);
+      this.keptVariableId = variable.id;
+      this.selectedNodeChange.emit(variable.original);
+      return;
+    }
+    this.keptVariableId = null;
     this.selectedGroupId.set(variable.parentGroupId);
     this.selectedVariableId.set(variable.id);
     this.expandPathToGroup(variable.parentGroupId);
@@ -154,7 +219,7 @@ export class OntologyTreeBrowserComponent {
   }
 
   openVariable(variable: NormalizedVariableNode): void {
-    if (this.isVariableUnavailable(variable)) return;
+    if (this.isVariablePartial(variable)) return;
     this.selectVariable(variable);
     this.nodeDoubleClicked.emit(variable.original);
   }
@@ -234,17 +299,23 @@ export class OntologyTreeBrowserComponent {
     });
   }
 
-  /** Row click selects; a click on the Add/Remove affordance also toggles the pool. */
+  /** Row click selects; a click on the Add/Remove affordance also toggles the pool.
+   *  A partially available variable is only viewed: it never toggles the pool. */
   onVariableRowClick(event: MouseEvent, variable: NormalizedVariableNode): void {
-    if (this.isVariableUnavailable(variable)) return;
     this.selectVariable(variable);
+    if (this.isVariablePartial(variable)) return;
     if ((event.target as HTMLElement).closest('.row-add, .row-remove')) {
       this.variablePoolToggle.emit(variable.original);
     }
   }
 
-  isVariableUnavailable(variable: NormalizedVariableNode): boolean {
+  isVariablePartial(variable: NormalizedVariableNode): boolean {
     return this.unavailableTooltip(variable) !== '';
+  }
+
+  /** Datasets lacking the variable, e.g. for the "Missing in N datasets" badge. */
+  partialDatasetCount(variable: NormalizedVariableNode): number {
+    return unavailableDatasetsFor(this.unavailableVariables(), { code: variable.code }).length;
   }
 
   /** "Not available in: …" for an unavailable variable, '' otherwise. */
@@ -257,6 +328,20 @@ export class OntologyTreeBrowserComponent {
     return unavailable ? `${variable.label}\n${unavailable}` : variable.label;
   }
 
+  /** Variables of the group's whole subtree that are already in the experiment pool. */
+  pooledCount(group: NormalizedGroupNode): number {
+    return this.pooledCountByGroupId().get(group.id) ?? 0;
+  }
+
+  /** Width (0-100) of the group's size bar: its variable count against the largest listed sibling. */
+  shareOf(group: NormalizedGroupNode): number {
+    const max = this.selectedChildGroups().reduce(
+      (largest, child) => Math.max(largest, child.totalVariableCount),
+      0
+    );
+    return max === 0 ? 0 : Math.round((group.totalVariableCount / max) * 100);
+  }
+
   treePadding(depth: number): number {
     return 10 + depth * 16;
   }
@@ -265,6 +350,10 @@ export class OntologyTreeBrowserComponent {
     const index = this.index();
     const variable = findVariableByNode(index, node);
     if (variable) {
+      if (variable.id === this.keptVariableId) {
+        this.selectedVariableId.set(variable.id);
+        return;
+      }
       this.selectedGroupId.set(variable.parentGroupId);
       this.selectedVariableId.set(variable.id);
       this.expandPathToGroup(variable.parentGroupId);

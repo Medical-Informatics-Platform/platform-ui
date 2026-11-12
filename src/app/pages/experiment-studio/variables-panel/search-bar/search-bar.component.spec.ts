@@ -215,26 +215,4 @@ describe('SearchBarComponent', () => {
     expect(active.getAttribute('role')).toBe('option');
     expect(active.getAttribute('aria-selected')).toBe('true');
   });
-
-  it('grays an unavailable variable result, explains why and refuses to pick it', () => {
-    const { fixture, component } = setupComponent();
-    fixture.componentRef.setInput('unavailableVariables', new Map([['gender', ['Dataset B']]]));
-    let selected: MetadataSearchResult | undefined;
-    component.searchResultSelected.subscribe((item) => (selected = item));
-
-    component.onSearchFocus();
-    component.handleSearch('Gender');
-    fixture.detectChanges();
-
-    const item = component.filteredItems[0];
-    expect(component.isUnavailable(item)).toBe(true);
-    expect(component.generateTooltip(item)).toContain('Not available in: Dataset B');
-    const row = fixture.nativeElement.querySelector('.search-result-item') as HTMLElement;
-    expect(row.classList).toContain('is-unavailable');
-    expect(row.getAttribute('aria-disabled')).toBe('true');
-
-    row.click();
-    component.onSearchKeydown(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect(selected).toBeUndefined();
-  });
 });

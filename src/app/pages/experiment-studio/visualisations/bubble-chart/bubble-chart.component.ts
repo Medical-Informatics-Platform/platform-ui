@@ -17,7 +17,11 @@ import {
   input
 } from '@angular/core';
 import { observeSize } from '../../../../core/observe-resize.util';
-import { createZoomableCirclePacking, DEFAULT_BUBBLE_COLORS } from './zoomable-circle-packing';
+import {
+  createZoomableCirclePacking,
+  DEFAULT_BUBBLE_COLORS,
+  BubbleColorConfig,
+} from './zoomable-circle-packing';
 import { ExperimentStudioGuideStateService } from '../../guide/experiment-studio-guide-state.service';
 import {
   EMPTY_UNAVAILABLE_VARIABLES,
@@ -46,14 +50,8 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   readonly selectedFilters = input<any[]>([]);
   /** Variables grayed out and not selectable for the current datasets. */
   readonly unavailableVariables = input<UnavailableVariablesMap>(EMPTY_UNAVAILABLE_VARIABLES);
-  readonly bubbleColors = input<Partial<{
-    variable: string;
-    covariate: string;
-    filter: string;
-    selected: string;
-    groupStart: string;
-    groupEnd: string;
-}>>();
+  /** The app's selection palette: the renderer draws the selected bubble in --primary-color. */
+  readonly bubbleColors = input<Partial<BubbleColorConfig>>();
 
   readonly selectedNodeChange = output<any>();
   readonly nodeDoubleClicked = output<any>();
@@ -77,14 +75,27 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   readonly error = signal<string | null>(null); // Holds the current error message
   readonly COLORBLIND_PALETTE = { ...DEFAULT_BUBBLE_COLORS };
 
-  colors: {
-    variable: string;
-    covariate: string;
-    filter: string;
-    selected: string;
-    groupStart: string;
-    groupEnd: string;
-  } = { ...this.COLORBLIND_PALETTE };
+  colors: BubbleColorConfig = {
+    ...this.COLORBLIND_PALETTE,
+    ...this.selectionColors(),
+  };
+
+  /**
+   * The selection fill and ring come from the app tokens, so the bubble matches the
+   * primary-blue selection the rest of the step already uses. The renderer draws SVG
+   * in the DOM, so it reads the token once at render; the charter hexes are the fallback.
+   */
+  private selectionColors(): Partial<BubbleColorConfig> {
+    return {
+      selected: this.cssToken('--primary-color', DEFAULT_BUBBLE_COLORS.selected),
+      selectedRing: this.cssToken('--primary-dark', DEFAULT_BUBBLE_COLORS.selectedRing),
+    };
+  }
+
+  private cssToken(name: string, fallback: string): string {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
 
   constructor() {
     effect(() => {
@@ -204,14 +215,7 @@ export class BubbleChartComponent implements OnInit, OnChanges, AfterViewInit, O
   private buildRefreshOptions(): {
     selectedVariables: any[];
     selectedFilters: any[];
-    colors: {
-      variable: string;
-      covariate: string;
-      filter: string;
-      selected: string;
-      groupStart: string;
-      groupEnd: string;
-    };
+    colors: BubbleColorConfig;
     tutorialHighlightCode: string | null;
     tutorialHighlightColor: string;
     unavailableVariables: UnavailableVariablesMap;

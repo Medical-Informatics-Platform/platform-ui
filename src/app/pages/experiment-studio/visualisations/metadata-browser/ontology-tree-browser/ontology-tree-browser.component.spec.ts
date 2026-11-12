@@ -163,7 +163,7 @@ describe('OntologyTreeBrowserComponent', () => {
     component.selectGroup(vitals);
     fixture.detectChanges();
 
-    expect(component.contentsPaneSubtitle()).toBe('1 group · 1 variable');
+    expect(component.contentsPaneSubtitle()).toBe('1 group, 1 variable');
     // Child groups stay listed and clickable even when the group has no
     // direct variables.
     const groupRow = fixture.nativeElement.querySelector('button.content-row.group-row') as HTMLElement;
@@ -192,36 +192,5 @@ describe('OntologyTreeBrowserComponent', () => {
     component.selectGroup(demographics);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('button.content-row.variable-row')).toBeTruthy();
-  });
-
-  it('grays an unavailable variable row, shows which datasets lack it and ignores clicks', () => {
-    const fixture = TestBed.createComponent(OntologyTreeBrowserComponent);
-    const component = fixture.componentInstance;
-    fixture.componentRef.setInput('data', model);
-    fixture.componentRef.setInput('unavailableVariables', new Map([['sex', ['Dataset A', 'Dataset B']]]));
-    const demographics = Object.values(component.index().groupsById).find((item) => item.code === 'demographics')!;
-    component.selectGroup(demographics);
-    fixture.detectChanges();
-
-    const emitted: D3HierarchyNode[] = [];
-    const opened: D3HierarchyNode[] = [];
-    const toggled: D3HierarchyNode[] = [];
-    component.selectedNodeChange.subscribe((node) => emitted.push(node));
-    component.nodeDoubleClicked.subscribe((node) => opened.push(node));
-    component.variablePoolToggle.subscribe((node) => toggled.push(node));
-
-    const row = fixture.nativeElement.querySelector('button.content-row.variable-row') as HTMLElement;
-    expect(row.classList).toContain('unavailable');
-    expect(row.getAttribute('aria-disabled')).toBe('true');
-    expect(row.getAttribute('title')).toBe('Sex\nNot available in: Dataset A, Dataset B');
-    expect(row.querySelector('.row-add')).toBeNull();
-    expect(row.querySelector('.row-unavailable')?.textContent?.trim()).toBe('Unavailable');
-
-    row.click();
-    row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(emitted).toEqual([]);
-    expect(opened).toEqual([]);
-    expect(toggled).toEqual([]);
-    expect(component.selectedVariableId()).toBeNull();
   });
 });

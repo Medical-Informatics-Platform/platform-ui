@@ -9,8 +9,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
+  background: var(--bg-neutral);
   color: var(--text-main);
 }
 
@@ -43,10 +42,6 @@
   width: 100%;
   height: 100%;
   cursor: grab;
-  background:
-    linear-gradient(rgba(226, 232, 240, 0.48) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.48) 1px, transparent 1px);
-  background-size: 28px 28px;
 }
 
 :host ::ng-deep .collapsible-tree-svg:active {
@@ -56,7 +51,7 @@
 :host ::ng-deep .tree-link {
   fill: none;
   stroke: #cbd5e1;
-  stroke-width: 1.7px;
+  stroke-width: 1.25px;
 }
 
 :host ::ng-deep .collapsible-node {
@@ -95,28 +90,18 @@
   stroke: var(--accent-color);
 }
 
-/* Not present in every selected dataset: grayed out and inert (see variable-availability.utils). */
-:host ::ng-deep .collapsible-node.unavailable-variable {
-  cursor: not-allowed;
-  opacity: var(--unavailable-opacity);
-}
-
-:host ::ng-deep .collapsible-node.unavailable-variable .node-card,
-:host ::ng-deep .collapsible-node.unavailable-variable:hover .node-card,
-:host ::ng-deep .collapsible-node.unavailable-variable:focus-visible .node-card {
-  fill: var(--unavailable-fill);
-  stroke: var(--unavailable-border);
+/* Missing from some selected datasets: amber, clickable to view, never addable (see variable-availability.utils). */
+:host ::ng-deep .collapsible-node.partial-variable .node-card,
+:host ::ng-deep .collapsible-node.partial-variable:hover .node-card,
+:host ::ng-deep .collapsible-node.partial-variable:focus-visible .node-card {
+  fill: #fff7e6;
+  stroke: #d99a00;
   stroke-width: 1px;
   stroke-dasharray: 4 3;
 }
 
-:host ::ng-deep .collapsible-node.unavailable-variable .node-anchor {
-  fill: var(--unavailable-border);
-}
-
-:host ::ng-deep .collapsible-node.unavailable-variable .node-label,
-:host ::ng-deep .collapsible-node.unavailable-variable .node-meta {
-  fill: var(--unavailable-text);
+:host ::ng-deep .collapsible-node.partial-variable .node-anchor {
+  fill: #fbd38d;
 }
 
 :host ::ng-deep .node-anchor {
@@ -133,15 +118,15 @@
 
 :host ::ng-deep .node-label {
   fill: var(--text-main);
-  font-size: 11px;
-  font-weight: 760;
+  font-size: 12px;
+  font-weight: 600;
   pointer-events: none;
 }
 
 :host ::ng-deep .node-meta {
-  fill: #64748b;
-  font-size: 9px;
-  font-weight: 620;
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
   pointer-events: none;
 }
 
