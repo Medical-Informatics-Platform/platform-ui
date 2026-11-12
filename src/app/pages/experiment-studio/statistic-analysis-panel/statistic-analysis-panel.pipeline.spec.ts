@@ -623,6 +623,141 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         expect(component.sectionOpen().source).toBe(false);
     });
 
+    it('keeps raw data outside the pipeline chain without a connector and preserves toggle behavior', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        const root = fixture.nativeElement as HTMLElement;
+        const sourceRegion = root.querySelector<HTMLElement>('.analysis-source-region');
+        const sourceNode = root.querySelector<HTMLElement>('[data-guide="analysis-source-data"]');
+        const filtersNode = root.querySelector<HTMLElement>('[data-guide="analysis-filtering"]');
+
+        expect(sourceRegion).not.toBeNull();
+        expect(sourceNode).not.toBeNull();
+        expect(filtersNode).not.toBeNull();
+
+        // The element following the raw data region is not a connector (it is the pipeline shell).
+        const followingElement = sourceRegion!.nextElementSibling;
+        expect(followingElement?.classList.contains('pipeline-connector')).toBe(false);
+        expect(followingElement?.classList.contains('pipeline-canvas-shell')).toBe(true);
+
+        // No .pipeline-connector exists between the raw data card and the cohort filtering card.
+        expect(sourceRegion!.querySelector('.pipeline-connector')).toBeNull();
+        expect(filtersNode!.previousElementSibling?.classList.contains('pipeline-connector') ?? false).toBe(false);
+
+        // The raw data band still toggles open.
+        const toggle = sourceNode!.querySelector<HTMLButtonElement>('.pipeline-source-band-toggle')!;
+        expect(component.isStepOpen('source')).toBe(false);
+        toggle.click();
+        fixture.detectChanges();
+        expect(component.isStepOpen('source')).toBe(true);
+        expect(component.sectionOpen().source).toBe(true);
+
+        toggle.click();
+        fixture.detectChanges();
+        expect(component.isStepOpen('source')).toBe(false);
+        expect(component.sectionOpen().source).toBe(false);
+    });
+
+    it('renders Raw data as a flat source band with title and caption and no kicker', () => {
+        const root = fixture.nativeElement as HTMLElement;
+        const band = root.querySelector<HTMLElement>('[data-guide="analysis-source-data"]')!;
+
+        expect(band.classList.contains('pipeline-source-band')).toBe(true);
+        expect(band.classList.contains('pipeline-node')).toBe(false);
+        expect(band.querySelector('h3')?.textContent?.trim()).toBe('Raw data');
+        expect(band.querySelector('.pipeline-source-band-caption')?.textContent?.trim())
+            .toBe('As loaded, before any step');
+        expect(band.querySelector('.pipeline-node-kicker')).toBeNull();
+        expect(band.textContent).not.toContain('Before data handling');
+        expect(getComputedStyle(band).boxShadow === 'none' || getComputedStyle(band).boxShadow === '').toBe(true);
+    });
+
+    it('shows the three source facts for the fixture and omits unknown records', () => {
+        const factMap = () => {
+            const items = Array.from(
+                (fixture.nativeElement as HTMLElement).querySelectorAll('.pipeline-source-fact'),
+            ) as HTMLElement[];
+            return Object.fromEntries(items.map((item) => [
+                item.querySelector('dt')?.textContent?.trim(),
+                item.querySelector('dd')?.textContent?.trim(),
+            ]));
+        };
+
+        expect(component.recordsOut.source).toBeNull();
+        expect(factMap()).toEqual({ variables: '0', dataset: '1' });
+
+        const sex = { code: 'sex', label: 'Sex', type: 'nominal' };
+        (mockExpService.selectedVariables as any).set([age, sex]);
+        (mockExpService.selectedDatasets as any).set(['dataset-a', 'dataset-b', 'dataset-c']);
+        (component as any).sourceSummary = {
+            ...(component as any).createEmptySummary(false),
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: 289788 } }],
+        };
+        fixture.detectChanges();
+
+        expect(factMap()).toEqual({
+            records: (289788).toLocaleString(),
+            variables: '2',
+            datasets: '3',
+        });
+
+        (component as any).sourceSummary = {
+            ...(component as any).createEmptySummary(false),
+            featurewiseRows: [{ dataset: 'all datasets', data: { num_total: 1 } }],
+        };
+        (mockExpService.selectedVariables as any).set([age]);
+        (mockExpService.selectedDatasets as any).set(['dataset-a']);
+        fixture.detectChanges();
+
+        expect(factMap()).toEqual({
+            record: '1',
+            variable: '1',
+            dataset: '1',
+        });
+    });
+
+    it('flips the statistics button and mounts the workspace only when the band is open', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        const band = (fixture.nativeElement as HTMLElement)
+            .querySelector<HTMLElement>('[data-guide="analysis-source-data"]')!;
+        const toggle = band.querySelector<HTMLButtonElement>('.pipeline-source-band-toggle')!;
+        const openBody = () => band.querySelector('.workflow-section-body.open');
+
+        expect(toggle.textContent).toContain('View statistics');
+        expect(toggle.getAttribute('aria-expanded')).toBe('false');
+        expect(toggle.getAttribute('aria-controls')).toBe('sourceSection');
+        expect(openBody()).toBeNull();
+        expect(band.querySelector('.how-to-strip')).toBeNull();
+        expect(band.querySelectorAll('[aria-expanded]').length).toBe(1);
+
+        toggle.click();
+        fixture.detectChanges();
+
+        expect(toggle.textContent).toContain('Hide statistics');
+        expect(toggle.getAttribute('aria-expanded')).toBe('true');
+        expect(component.isStepOpen('source')).toBe(true);
+        expect(openBody()).not.toBeNull();
+        expect(openBody()!.querySelector('.how-to-strip')).not.toBeNull();
+        expect(band.querySelector('#sourceSection')).not.toBeNull();
+    });
+
+    it('toggles the source band from the statistics button exactly once', () => {
+        (mockExpService.selectedVariables as any).set([age]);
+        fixture.detectChanges();
+        const spy = vi.spyOn(component, 'toggleStep');
+        const toggle = (fixture.nativeElement as HTMLElement)
+            .querySelector<HTMLButtonElement>('[data-guide="analysis-source-data"] .pipeline-source-band-toggle')!;
+
+        toggle.click();
+        fixture.detectChanges();
+
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith('source');
+        expect(component.isStepOpen('source')).toBe(true);
+        expect(component.sectionOpen().source).toBe(true);
+    });
+
     it('renders un-added optional steps collapsed, with no editor mounted', () => {
         (mockExpService.selectedVariables as any).set([age]);
         (mockExpService.filterLogic as any).set(null);
@@ -644,8 +779,13 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
         (mockExpService.selectedVariables as any).set([age]);
         (mockExpService.filterLogic as any).set(null);
         fixture.detectChanges();
-        const toggle = (guide: string) => (fixture.nativeElement as HTMLElement)
-            .querySelector(`[data-guide="${guide}"] .pipeline-node-toggle`) as HTMLButtonElement;
+        const toggle = (guide: string) => {
+            const root = fixture.nativeElement as HTMLElement;
+            const selector = guide === 'analysis-source-data'
+                ? '.pipeline-source-band-toggle'
+                : '.pipeline-node-toggle';
+            return root.querySelector(`[data-guide="${guide}"] ${selector}`) as HTMLButtonElement;
+        };
 
         for (const [guide, isOpen] of [
             ['analysis-source-data', () => component.sectionOpen().source],
@@ -943,7 +1083,9 @@ describe('StatisticAnalysisPanelComponent pipeline presence', () => {
                 .toEqual(['1', '2']);
 
             const ghost = section?.querySelector('.transformation-rules-list .transformation-add-category') as HTMLButtonElement | null;
-            expect(ghost?.nextElementSibling?.classList.contains('transformation-rule-fallback')).toBe(true);
+            // The "Otherwise" fallback row was removed; the ghost button is now the
+            // last element of the rules list and no fallback row may follow it.
+            expect(section?.querySelector('.transformation-rule-fallback')).toBeNull();
 
             const before = (component as any).transformationDrafts[0].rules.length as number;
             (ghost as HTMLButtonElement).click();

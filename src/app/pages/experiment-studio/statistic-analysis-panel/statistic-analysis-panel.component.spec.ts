@@ -618,7 +618,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         // nested in their owning nodes, so they only appear once those steps
         // are added (e.g. after opening Filtering or Preprocessing).
         const guides = (Array.from(
-            fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node')
+            fixture.nativeElement.querySelectorAll('.workflow-section, .pipeline-node, .pipeline-source-band')
         ) as HTMLElement[]).map((section) => section.getAttribute('data-guide'));
         expect(guides).toEqual([
             'analysis-source-data',
@@ -2133,7 +2133,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.setSummaryTab('raw', 'Histogram');
         const block = component.selectedStatisticBlock('raw')!;
 
-        expect(component.canSplitSummaryHistogram('raw', block)).toBe(true);
+        expect(component.canSplitSummaryHistogram(block)).toBe(true);
         expect(component.histogramSplitOptions(block).map((option) => option.code)).toEqual(['dataset', 'sex', 'site']);
         expect(component.histogramSplitOptions(block).find((option) => option.code === 'site')?.disabled).toBe(true);
         expect(component.histogramSplitValue('raw', block)).toBe('');
@@ -2159,7 +2159,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(component.histogramSplitOptions(block).find((option) => option.code === 'dataset')?.disabled).toBe(false);
     });
 
-    it('hides histogram split controls for nominal variables', () => {
+    it('offers histogram split controls for nominal variables', () => {
         const aspiration = {
             code: 'aspiration',
             label: 'Aspiration',
@@ -2182,7 +2182,7 @@ describe('StatisticAnalysisPanelComponent', () => {
         component.setSummaryTab('raw', 'Histogram');
         const block = component.selectedStatisticBlock('raw')!;
 
-        expect(component.canSplitSummaryHistogram('raw', block)).toBe(false);
+        expect(component.canSplitSummaryHistogram(block)).toBe(true);
         expect(mockExpService.getAlgorithmResults).not.toHaveBeenCalled();
     });
 
@@ -2368,6 +2368,10 @@ describe('StatisticAnalysisPanelComponent', () => {
         expect(draft.code).toBe('mrs_good_outcome');
         expect(draft.defaultEnumeration).toBe('unknown');
         expect(draft.rules).toEqual([{ value: 'good', filter }]);
+        // A stored column hydrates folded, with no rule editor open: the user opens
+        // the card, a hydration re-run must not pop it back up over the stage.
+        expect(draft.open).toBe(false);
+        expect(draft.openRuleIndex).toBeNull();
         expect(component.transformationStatusLabel).toBe('Applied');
         expect(component.cards().map((step) => step.parameters)).toEqual([transformation]);
     });
@@ -2787,6 +2791,27 @@ describe('StatisticAnalysisPanelComponent', () => {
             expect(html).toContain(
                 '<span class="preprocessing-doc-desc">Mean fills missing numerical values with the local mean.</span>'
             );
+        });
+    });
+
+    describe('pipeline step numbering', () => {
+        it('presents Raw data as the input and numbers the real steps from 1', () => {
+            const host = fixture.nativeElement as HTMLElement;
+            const band = host.querySelector('[data-guide="analysis-source-data"]');
+            expect(band?.querySelector('h3')?.textContent?.trim()).toBe('Raw data');
+            expect(band?.querySelector('.pipeline-node-kicker')).toBeNull();
+
+            const kickers = Array.from(
+                host.querySelectorAll<HTMLElement>('.pipeline-node > .pipeline-node-header .pipeline-node-kicker'),
+            ).map((el) => el.textContent?.trim());
+
+            // The steps the user configures are numbered from 1. Raw data is the
+            // input band above them and carries no step kicker.
+            expect(kickers).toEqual([
+                'Step 1 · Optional',
+                'Step 2 · Always on',
+                'Step 3 · Optional',
+            ]);
         });
     });
 

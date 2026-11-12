@@ -1,12 +1,5 @@
 <div class="stats-panel-shell" data-guide="analysis-section">
   <div class="modal-content">
-    <div class="pipeline-canvas-shell" data-guide="analysis-progress-rail">
-      <header class="pipeline-canvas-header">
-        <div class="pipeline-header-title-group">
-          <h2>Data Handling Pipeline</h2>
-          <p>Get your records ready for analysis. Stages run top to bottom — Raw data is a read-only preview, Preprocessing always runs, and Filtering and Transformations are optional.</p>
-        </div>
-      </header>
 
       <!-- Shared summary workspace: all three Data Handling surfaces (step-0 snapshot, Raw
            preview, Processed preview) render one template - variable browser, statistics,
@@ -63,23 +56,31 @@
           @if (!summary.isLoading) {
           <section class="summary-workspace">
             @if (summary.data.length > 0) {
-            @if (filteredStatisticBlocks(kind).length > 0) {
             <section class="statistics-workspace">
               <aside class="statistics-browser" [attr.aria-label]="summaryKindLabel(kind) + ' summary variables'">
                 <div class="statistics-browser-header">
-                  <span>Variables</span>
-                  <small>{{ filteredStatisticBlocks(kind).length }} shown · missing</small>
+                  <span class="statistics-rail-count">{{ statisticsCountLabel(kind) }}</span>
+                  <button
+                    type="button"
+                    class="statistics-sort-btn"
+                    [attr.aria-pressed]="statisticsSort[kind] === 'missing'"
+                    [title]="statisticsSort[kind] === 'missing' ? 'Back to selection order' : 'Show the most missing first'"
+                    (click)="toggleStatisticsSort(kind)">
+                    Missing
+                    <i class="fas fa-arrow-down-wide-short" aria-hidden="true"></i>
+                  </button>
                 </div>
                 <div class="search-inline chart-search">
                   <i class="fas fa-search search-inline-icon" aria-hidden="true"></i>
                   <input class="preprocessing-search" type="search" placeholder="Search variables..." [attr.aria-label]="'Search ' + summaryKindLabel(kind).toLowerCase() + ' summary variables'" [(ngModel)]="statisticsSearch[kind]" />
                 </div>
 
+                <div class="statistics-variable-list" (keydown)="onStatisticRailKeydown(kind, $event)">
                 @if (statisticBlocks(kind, 'numeric').length > 0) {
                 <div class="statistics-variable-group">
                   <div class="statistics-variable-group-title">Numerical <span>{{ statisticBlocks(kind, 'numeric').length }}</span></div>
                   @for (block of statisticBlocks(kind, 'numeric'); track block.code ?? block.name) {
-                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" (click)="selectStatisticBlock(kind, block)">
+                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" [attr.aria-current]="isStatisticBlockSelected(kind, block) ? 'true' : null" (click)="selectStatisticBlock(kind, block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
                       @if (blockCoverage(block); as coverage) {
@@ -100,7 +101,7 @@
                 <div class="statistics-variable-group">
                   <div class="statistics-variable-group-title">Categorical <span>{{ statisticBlocks(kind, 'nominal').length }}</span></div>
                   @for (block of statisticBlocks(kind, 'nominal'); track block.code ?? block.name) {
-                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" (click)="selectStatisticBlock(kind, block)">
+                  <button type="button" class="statistics-variable-btn" [class.active]="isStatisticBlockSelected(kind, block)" [attr.aria-current]="isStatisticBlockSelected(kind, block) ? 'true' : null" (click)="selectStatisticBlock(kind, block)">
                     <span>{{ block.name }}</span>
                     <span class="statistics-variable-meta">
                       @if (blockCoverage(block); as coverage) {
@@ -116,6 +117,8 @@
                   }
                 </div>
                 }
+                </div>
+                <p class="statistics-rail-hint">↑ ↓ move between variables</p>
                 @if (selectionCoverage(kind); as pooled) {
                 <div class="statistics-browser-foot">
                   <span class="statistics-browser-foot-label">All shown variables</span>
@@ -161,7 +164,7 @@
                         Histogram
                       </button>
                     </div>
-                    @if (summary.activeTab === 'Histogram' && canSplitSummaryHistogram(kind, selectedBlock)) {
+                    @if (summary.activeTab === 'Histogram' && canSplitSummaryHistogram(selectedBlock)) {
                     <label class="histogram-split">
                       <span>Split by</span>
                       <select
@@ -208,12 +211,12 @@
 
                 <div class="statistics-panel" [attr.data-guide]="summaryGuideAnchor(kind, 'details')">
                   @if (summary.activeTab === 'Statistics') {
-                  <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType(kind, selectedBlock) === 'numeric'">
+                  <div class="table-wrapper statistics-table-wrapper" [class.statistics-table-wrapper--numeric]="selectedSummaryChartType(kind, selectedBlock) === 'numeric'" [style.--summary-cols]="summaryColumns(selectedBlock).length">
                     <table class="data-table pivot-table statistics-table">
                       <thead>
                         <tr>
                           <th>Metric</th>
-                          @for (ds of selectedBlock.columns; track ds) {
+                          @for (ds of summaryColumns(selectedBlock); track ds) {
                           <th [class.statistics-col-rollup]="isRollupColumn(ds)">
                             {{ datasetLabel(ds) }}
                           </th>
@@ -224,12 +227,12 @@
                         @for (r of selectedBlock.rows; track r.metric; let ri = $index) {
                         @if (metricGroupLabel(selectedBlock.rows, ri); as groupLabel) {
                         <tr class="statistics-metric-group">
-                          <td [attr.colspan]="selectedBlock.columns.length + 1">{{ groupLabel }}</td>
+                          <td [attr.colspan]="summaryColumns(selectedBlock).length + 1">{{ groupLabel }}</td>
                         </tr>
                         }
                         <tr>
                           <td class="metric-cell">{{ r.metric }}</td>
-                          @for (ds of selectedBlock.columns; track ds) {
+                          @for (ds of summaryColumns(selectedBlock); track ds) {
                           <td [class.statistics-col-rollup]="isRollupColumn(ds)">{{ displayNumber(r.values[ds]) }}@if (missingShareNote(selectedBlock, r, ds); as share) {<span class="statistics-cell-note">{{ share }}</span>}
                           </td>
                           }
@@ -291,16 +294,15 @@
                   }
                   }
                 </div>
+                } @else {
+                <div class="empty-state-block compact-empty statistics-no-match">
+                  <i class="fa fa-search"></i>
+                  <p>No variable matches “{{ statisticsSearch[kind].trim() }}”.</p>
+                  <button type="button" class="panel-secondary-btn statistics-search-clear" (click)="clearStatisticsSearch(kind)">Clear search</button>
+                </div>
                 }
               </div>
             </section>
-            } @else {
-            <div class="empty-state-block compact-empty">
-              <i class="fa fa-search"></i>
-              <p>No variables match the current search.</p>
-              <span>Clear the search field to show all statistics.</span>
-            </div>
-            }
             }
             @else {
             <div class="empty-state-block">
@@ -436,32 +438,57 @@
             </div>
       </ng-template>
 
-      <!-- NODE 0: SOURCE DATA - read-only snapshot, never part of the request -->
-      <section
-        class="pipeline-node is-readonly"
-        [class.is-active]="sectionOpen().source"
-        data-guide="analysis-source-data"
-      >
-        <header class="pipeline-node-header" (click)="onStepHeaderClick('source', $event)">
-          <div class="pipeline-node-header-left">
-            <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
-            <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 1</span>
-              <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('source')" (click)="toggleStep('source')">Raw data</button></h3>
-              <span class="pipeline-node-subtitle">Look at your selected variables exactly as stored. Nothing is changed here.</span>
+      <header class="pipeline-canvas-header">
+        <div class="pipeline-header-title-group">
+          <h2>Data Handling Pipeline</h2>
+          <p>Get your selected data ready for analysis. Raw data is shown first as the starting point, then the steps run top to bottom — filter (optional), preprocess, and transform (optional) as you want. Updated descriptive statistics are shown at each step when you click Preview.</p>
+        </div>
+      </header>
+
+      <section class="analysis-source-region" [class.is-open]="sectionOpen().source">
+        <!-- Raw data is the pipeline input, not a numbered step: a flat band of facts. -->
+        <section
+          class="pipeline-source-band"
+          [class.is-open]="sectionOpen().source"
+          data-guide="analysis-source-data"
+        >
+          <header class="pipeline-source-band-header" (click)="onStepHeaderClick('source', $event)">
+            <div class="pipeline-source-band-identity">
+              <div class="pipeline-node-icon"><i class="fas fa-database" aria-hidden="true"></i></div>
+              <div class="pipeline-source-band-title-group">
+                <h3>Raw data</h3>
+                <p class="pipeline-source-band-caption">As loaded, before any step</p>
+              </div>
             </div>
-          </div>
-          <div class="pipeline-node-header-right">
-            @if (recordsOut.source !== null) {
-            <span class="pipeline-records-out"><span class="pipeline-records-out-label">Records out</span><span class="pipeline-records-out-value">{{ recordsOut.source!.toLocaleString() }}</span></span>
-            }
-            <span class="pipeline-status-badge readonly"><i class="fas fa-lock" aria-hidden="true"></i> Read only</span>
-            <i class="fas fa-chevron-down pipeline-node-chevron" [class.is-open]="isStepOpen('source')" aria-hidden="true"></i>
-          </div>
-        </header>
-        <div class="pipeline-node-body">
+            <dl class="pipeline-source-facts">
+              @if (recordsOut.source !== null) {
+              <div class="pipeline-source-fact">
+                <dt>{{ recordsOut.source === 1 ? 'record' : 'records' }}</dt>
+                <dd>{{ recordsOut.source!.toLocaleString() }}</dd>
+              </div>
+              }
+              <div class="pipeline-source-fact">
+                <dt>{{ sourceVariableCount === 1 ? 'variable' : 'variables' }}</dt>
+                <dd>{{ sourceVariableCount }}</dd>
+              </div>
+              <div class="pipeline-source-fact">
+                <dt>{{ sourceDatasetCount === 1 ? 'dataset' : 'datasets' }}</dt>
+                <dd>{{ sourceDatasetCount }}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              class="pipeline-source-band-toggle"
+              [attr.aria-expanded]="isStepOpen('source')"
+              aria-controls="sourceSection"
+              (click)="toggleStep('source')"
+            >
+              {{ isStepOpen('source') ? 'Hide statistics' : 'View statistics' }}
+              <i class="fas fa-chevron-down" [class.is-open]="isStepOpen('source')" aria-hidden="true"></i>
+            </button>
+          </header>
           <!-- STEP 0 PREVIEW: the shared summary workspace, fed by an unfiltered describe -->
-          <div #sourceSection class="workflow-section" data-guide="analysis-source-summary">
+          <div #sourceSection id="sourceSection" class="workflow-section" data-guide="analysis-source-summary">
             <div class="workflow-section-body" [class.open]="sectionOpen().source">
               <!-- Rendered only while open: a hidden second workspace would double every count-based DOM query
                    and hand the tour or a shared toggle the wrong surface. -->
@@ -473,16 +500,11 @@
               }
             </div>
           </div>
-        </div>
+        </section>
       </section>
 
-      <!-- CONNECTOR 0 -> 1 -->
-      <div class="pipeline-connector" aria-hidden="true">
-        <div class="pipeline-connector-line" [class.is-active]="sectionOpen().source"></div>
-        <div class="pipeline-connector-arrow"><i class="fas fa-chevron-down"></i></div>
-      </div>
-
-      <!-- NODE 1: COHORT FILTERING -->
+      <div class="pipeline-canvas-shell" data-guide="analysis-progress-rail">
+        <!-- NODE 1: COHORT FILTERING -->
       <section
         #filtersSection
         class="pipeline-node filter-workflow-section"
@@ -493,7 +515,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-filter" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 2 · Optional</span>
+<span class="pipeline-node-kicker">Step 1 · Optional</span>
               <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('filters')" (click)="toggleStep('filters')">Cohort filtering</button></h3>
               <span class="pipeline-node-subtitle">Keep only the patient records you want — for example, age 60 and over.</span>
             </div>
@@ -620,7 +642,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-sliders" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 3 · Always on</span>
+<span class="pipeline-node-kicker">Step 2 · Always on</span>
               <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('setup')" (click)="toggleStep('setup')">Preprocessing</button></h3>
               <span class="pipeline-node-subtitle">Decide what happens to missing values, and optionally cap outliers.</span>
             </div>
@@ -1455,7 +1477,7 @@
           <div class="pipeline-node-header-left">
             <div class="pipeline-node-icon"><i class="fas fa-code-branch" aria-hidden="true"></i></div>
             <div class="pipeline-node-title-group">
-<span class="pipeline-node-kicker">Step 4 · Optional</span>
+<span class="pipeline-node-kicker">Step 3 · Optional</span>
               <h3><button type="button" class="pipeline-node-toggle" [attr.aria-expanded]="isStepOpen('transformation')" (click)="toggleStep('transformation')">Data transformations</button></h3>
               <span class="pipeline-node-subtitle">Create a new variable from rules — for example, group MMSE scores into ‘impaired’ and ‘normal’.</span>
             </div>
@@ -1554,7 +1576,7 @@
                 [statusLabel]="transformationDraftStatus(draft).label"
                 [status]="transformationDraftStatus(draft).tone"
                 [open]="draft.open"
-                (openChange)="toggleTransformationDraft(draft)">
+                (openChange)="toggleTransformationDraft(draft, $event)">
                 <button
                   type="button"
                   class="btn-remove-step-node"
@@ -1604,7 +1626,7 @@
                         @if (draft.openRuleIndex != null) {
                         Editing category {{ draft.openRuleIndex + 1 }} of {{ draft.rules.length }}
                         } @else {
-                        {{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }} + fallback
+                        {{ draft.rules.length }} {{ draft.rules.length === 1 ? 'category' : 'categories' }}
                         }
                       </span>
                     </div>
@@ -1667,23 +1689,9 @@
                         <i class="fas fa-plus" aria-hidden="true"></i>
                         <span>{{ draft.rules.length ? 'Add category' : 'Add the first category, then define the rule that selects its records' }}</span>
                       </button>
-                      <div class="transformation-rule-row transformation-rule-fallback">
-                        <span class="transformation-rule-number">↳</span>
-                        <input
-                          type="text"
-                          [ngModel]="draft.defaultEnumeration"
-                          (ngModelChange)="draft.defaultEnumeration = $event; onTransformationInput()"
-                          placeholder="unknown"
-                          class="transformation-rule-value input"
-                        />
-                        <span class="transformation-rule-summary">Otherwise — records that match no rule</span>
-                        <span class="transformation-rule-record-count">{{ transformationCount(draft, draft.defaultEnumeration) }}</span>
-                        <span></span>
-                      </div>
                     </div>
                     <p class="transformation-rules-foot">
-                      Rules are checked top to bottom; the first match wins ·
-                      {{ draft.defaultEnumeration ? 'the fallback covers every other record' : 'records matching no rule get no value' }}
+                      Rules are checked top to bottom; the first match wins · records matching no rule get no value
                     </p>
                   </div>
                   </section>

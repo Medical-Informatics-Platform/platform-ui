@@ -459,8 +459,8 @@ test.describe('statistics previews', () => {
 
   test('raw data preview shows the Exaflow describe statistics', async ({ page }) => {
     await openAgeAndSex(page);
-    await page.locator('[data-guide="analysis-source-data"] .pipeline-node-toggle').click();
-    const raw = page.locator('section.pipeline-node').first();
+    await page.locator('[data-guide="analysis-source-data"] .pipeline-source-band-toggle').click();
+    const raw = page.locator('[data-guide="analysis-source-data"]');
     const cells = (metric: RegExp) => raw.getByRole('row', { name: metric }).locator('th, td');
     // Two datasets, then the federated "all datasets" column Exaflow adds.
     await expect(raw.getByRole('row').first()).toContainText(/CHUV.*ADNI.*All datasets/s);

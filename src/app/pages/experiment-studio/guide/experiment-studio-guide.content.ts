@@ -164,7 +164,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
     id: 'analysis-intro',
     section: 'Analysis',
     title: 'Data Handling',
-    body: 'Data Handling is optional: Filtering, Preprocessing, and Transformation, plus a read-only Raw data preview. Click a step header to open or fold it. A chip reading <strong>In run</strong> or <strong>Applied</strong> means the step is in the run; <strong>Not in run yet</strong> means it changes nothing. Tour the stations next or skip with <strong>Next</strong>, then <strong>Continue to Algorithm Selection</strong>.',
+    body: 'Data Handling starts with a read-only Raw data preview, then optional Filtering, Preprocessing, and Transformation. Click a step header to open or fold it. A chip reading <strong>In run</strong> or <strong>Applied</strong> means the step is in the run; <strong>Not in run yet</strong> means it changes nothing. Tour the stations next or skip with <strong>Next</strong>, then <strong>Continue to Algorithm Selection</strong>.',
     selector: '[data-guide="analysis-section"]',
     allowTargetInteraction: true,
   },
@@ -179,7 +179,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-raw-statistics',
     section: 'Analysis',
-    title: '2. Raw Data Summary',
+    title: 'Raw Data Summary',
     body: 'Optional — use Filtering <strong>Preview data</strong> for tables/charts, then <strong>Close</strong>. Press <strong>Next</strong> if you do not need this view.',
     selector: '[data-guide="analysis-raw-summary"]',
     allowTargetInteraction: true,
@@ -187,7 +187,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-preprocessing',
     section: 'Analysis',
-    title: '3. Preprocessing',
+    title: '2. Preprocessing',
     body: 'Optional — missing values are already dropped (<strong>Default</strong>). Open the card to change imputation or add outlier clipping, or press <strong>Next</strong> to keep defaults.',
     selector: '[data-guide="analysis-preprocessing"]',
     allowTargetInteraction: true,
@@ -195,7 +195,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-processed-summary',
     section: 'Analysis',
-    title: '4. Processed Data Summary',
+    title: 'Processed Data Summary',
     body: 'Optional — Preprocessing <strong>Preview data</strong> shows processed tables after defaults/edits. Press <strong>Next</strong> to continue.',
     selector: '[data-guide="analysis-processed-summary"]',
     allowTargetInteraction: true,
@@ -203,7 +203,7 @@ export const EXPERIMENT_STUDIO_GUIDE_STEPS: ExperimentStudioGuideStep[] = [
   {
     id: 'analysis-transformation',
     section: 'Analysis',
-    title: '5. Transformation',
+    title: '3. Transformation',
     body: 'Optional — pick a column type to create a derived column, or press <strong>Next</strong> to skip. Then choose <strong>Continue to Algorithm Selection</strong>.',
     selector: '[data-guide="analysis-transformation"]',
     allowTargetInteraction: true,

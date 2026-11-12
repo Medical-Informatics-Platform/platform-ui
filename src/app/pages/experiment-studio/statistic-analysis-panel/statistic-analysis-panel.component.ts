@@ -83,6 +83,13 @@ import {
   newStepId,
   stepOutputNames as stepOutputNamesOf,
 } from '../../../core/transformation-steps.utils';
+import {
+  RailOrder,
+  orderByMissing,
+  railCountLabel,
+  railStep,
+  visibleSummaryColumns,
+} from '../../../core/summary-rail.utils';
 
 type TabKey = 'Statistics' | 'Charts' | 'Histogram';
 type SummaryKind = 'source' | 'raw' | 'processed';
@@ -237,6 +244,7 @@ interface HistogramPreviewData {
   variableType?: string;
   groups?: HistogramGroupSeries[];
   splitLabel?: string;
+  splitCode?: string;
 }
 
 interface PreprocessingRule {
@@ -359,6 +367,12 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     source: '',
     raw: '',
     processed: '',
+  };
+  /** Rail order per summary surface; the "Missing" column header of the rail toggles it. */
+  statisticsSort: Record<string, RailOrder> = {
+    source: 'selection',
+    raw: 'selection',
+    processed: 'selection',
   };
   isExporting = false;
   isLoading = true;
@@ -800,13 +814,23 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const name = this.resolveCreatorName(kind);
     const id = newStepId();
     this.expStudioService.upsertTransformation({ id, name, parameters: {} });
+    // The freshly chosen card is the only open one: everything already on the
+    // stage folds so the new editor is the single thing in focus.
+    for (const draft of this.transformationDrafts) draft.open = false;
     if (name === 'categorical_column_creator') {
       this.transformationDrafts = [
         ...this.transformationDrafts.filter((draft) => this.isDraftShown(draft)),
         { ...emptyTransformationDraft(id), chosen: true, open: true },
       ];
     }
-    this.cardOpenState.update((state) => ({ ...state, [id]: true }));
+    this.cardOpenState.update((state) => {
+      const next = { ...state };
+      for (const step of this.cards()) {
+        if (step.id !== id) next[step.id] = false;
+      }
+      next[id] = true;
+      return next;
+    });
     this.cdr.markForCheck();
   }
 
@@ -985,6 +1009,16 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     const source = this.getSummaryTotalRows(this.sourceSummary)
       ?? (this.filterRuleCount() === 0 ? filtered : null);
     return { source, filtered, processed: this.getSummaryTotalRows(this.processedSummary) };
+  }
+
+  /** Unique selected variables the raw source summary describes. */
+  get sourceVariableCount(): number {
+    return this.preprocessingVariables.length;
+  }
+
+  /** Selected datasets the raw source summary describes. */
+  get sourceDatasetCount(): number {
+    return this.expStudioService.selectedDatasets().length;
   }
 
   /** Collapsed Cohort filtering: one row per top-level rule of the stored filter. */
@@ -1615,7 +1649,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   }
 
   statisticBlocks(kind: SummaryKind, type: StatisticVariableType): PivotBlock[] {
-    return this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+    const blocks = this.filteredStatisticBlocks(kind).filter((block) => this.statisticBlockType(kind, block) === type);
+    if (this.statisticsSort[kind] !== 'missing') return blocks;
+    return orderByMissing(blocks, (block) => this.blockCoverage(block)?.share ?? null);
   }
 
   selectStatisticBlock(kind: SummaryKind, block: PivotBlock): void {
@@ -1636,6 +1672,48 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   isStatisticBlockSelected(kind: SummaryKind, block: PivotBlock): boolean {
     const selected = this.selectedStatisticBlock(kind);
     return !!selected && this.statisticBlockKey(selected) === this.statisticBlockKey(block);
+  }
+
+  // ---- Summary rail and table (helpers in core/summary-rail.utils.ts)
+
+  /** Rail header text: "4 variables", or "1 of 4 variables" while the search hides some. */
+  statisticsCountLabel(kind: SummaryKind): string {
+    return railCountLabel(this.filteredStatisticBlocks(kind).length, this.getSummary(kind).data.length);
+  }
+
+  /** Switches the rail between selection order and most missing first. */
+  toggleStatisticsSort(kind: SummaryKind): void {
+    this.statisticsSort[kind] = this.statisticsSort[kind] === 'missing' ? 'selection' : 'missing';
+    this.cdr.markForCheck();
+  }
+
+  /** Empties the rail search of one surface. */
+  clearStatisticsSearch(kind: SummaryKind): void {
+    this.statisticsSearch[kind] = '';
+    this.cdr.markForCheck();
+  }
+
+  /** Rail rows in the order they are drawn: the numerical group, then the categorical group. */
+  railBlocks(kind: SummaryKind): PivotBlock[] {
+    return [...this.statisticBlocks(kind, 'numeric'), ...this.statisticBlocks(kind, 'nominal')];
+  }
+
+  /** Arrow keys, Home and End walk the rail: select the row and move focus to it. */
+  onStatisticRailKeydown(kind: SummaryKind, event: KeyboardEvent): void {
+    const blocks = this.railBlocks(kind);
+    const index = blocks.findIndex((block) => this.isStatisticBlockSelected(kind, block));
+    const next = railStep(event.key, index, blocks.length);
+    if (next === null) return;
+    event.preventDefault();
+    this.selectStatisticBlock(kind, blocks[next]);
+    const list = event.currentTarget as HTMLElement;
+    list.querySelectorAll<HTMLElement>('.statistics-variable-btn')[next]?.focus();
+    this.cdr.markForCheck();
+  }
+
+  /** Columns the statistics table draws for a block (no pooled column beside a single dataset). */
+  summaryColumns(block: PivotBlock): string[] {
+    return visibleSummaryColumns(block.columns, (column) => this.isRollupColumn(column));
   }
 
   statisticBlockVariable(block: PivotBlock): VariableRow | null {
@@ -1703,8 +1781,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return this.getSummary(kind).histogramErrorByVariable[this.histogramLookupKey(kind, block, code)] ?? '';
   }
 
-  canSplitSummaryHistogram(kind: SummaryKind, block: PivotBlock): boolean {
-    return this.selectedSummaryChartType(kind, block) === 'numeric';
+  canSplitSummaryHistogram(block: PivotBlock): boolean {
+    // Numeric and nominal blocks both split; only an unresolvable block has no split.
+    return !!this.variableCodeForBlock(block);
   }
 
   histogramSplitOptions(block: PivotBlock): HistogramSplitOption[] {
@@ -1732,7 +1811,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** The block's split, or none once it is no longer offered or enabled. */
   histogramSplitValue(kind: SummaryKind, block: PivotBlock): string {
-    if (!this.canSplitSummaryHistogram(kind, block)) return HISTOGRAM_SPLIT_NONE;
+    if (!this.canSplitSummaryHistogram(block)) return HISTOGRAM_SPLIT_NONE;
     const code = this.variableCodeForBlock(block);
     if (!code) return HISTOGRAM_SPLIT_NONE;
     const split = this.getSummary(kind).histogramSplitByVariable[code] ?? HISTOGRAM_SPLIT_NONE;
@@ -2128,8 +2207,8 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
     return inUse.length ? `Used by a later step: ${inUse.join(', ')}` : null;
   }
 
-  toggleTransformationDraft(draft: TransformationColumnDraft): void {
-    draft.open = !draft.open;
+  toggleTransformationDraft(draft: TransformationColumnDraft, open: boolean): void {
+    draft.open = open;
     this.cdr.markForCheck();
   }
 
@@ -3704,6 +3783,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         variableName: block.name,
         variableType: this.statisticBlockType(kind, block),
         splitLabel,
+        splitCode: groupingCode ?? undefined,
       },
       error: '',
     };
@@ -3750,9 +3830,9 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         ...(response as Record<string, unknown>),
         result: {
           ...((response as { result?: Record<string, unknown> })?.result ?? {}),
-          featurewise: featurewise.filter(
-            (row: any) => row.variable === v.code && row.dataset !== 'all datasets'
-          ),
+          // The pooled "all datasets" row stays in: buildBoxPlotChart draws it
+          // as the pooled box next to the per-dataset ones.
+          featurewise: featurewise.filter((row: any) => row.variable === v.code),
           dataset_labels: datasetLabels,
         },
       };
@@ -4468,16 +4548,26 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
 
   /** One editable card per stored categorical step, keyed by the step id. */
   private hydrateAppliedTransformation(): void {
+    // Hydration re-runs on every applied-config write, so the fold state a user
+    // set must survive it: `open`/`openRuleIndex` are carried over by id. A card
+    // with no previous state (a stored column restored from the experiment) comes
+    // back folded instead of popping open over the stage.
+    const previous = new Map(this.transformationDrafts.map((draft) => [draft.id, draft]));
     this.transformationDrafts = this.cards()
       .filter((step) => step.name === 'categorical_column_creator')
-      .map((step) => ({
-        ...this.draftFromCreatorConfig(step.parameters as {
-          new_column_names?: unknown;
-          rules?: Record<string, CategoryFilter>;
-          default_enumeration?: unknown;
-        }, step.id),
-        chosen: true,
-      }));
+      .map((step) => {
+        const prior = previous.get(step.id);
+        return {
+          ...this.draftFromCreatorConfig(step.parameters as {
+            new_column_names?: unknown;
+            rules?: Record<string, CategoryFilter>;
+            default_enumeration?: unknown;
+          }, step.id),
+          open: prior?.open ?? false,
+          openRuleIndex: prior?.openRuleIndex ?? null,
+          chosen: true,
+        };
+      });
   }
 
   /** Rebuild one editable card from a persisted categorical_column_creator config. */
@@ -4499,7 +4589,7 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
         value,
         filter: filter ?? null,
       })),
-      open: true,
+      open: false,
     };
   }
 

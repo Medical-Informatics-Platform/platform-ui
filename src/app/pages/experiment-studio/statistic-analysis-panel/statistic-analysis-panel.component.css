@@ -1,11 +1,17 @@
 .workflow-section,
-.pipeline-node {
+.pipeline-node,
+.pipeline-source-band {
   scroll-margin-top: calc(
     var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
   );
 }
 
+/* The pipeline node cards read the studio card tokens, and the station cards
+   inside inherit them too; the defaults on :root are too faint for the Data
+   Handling steps, so the panel root re-points them. */
 .stats-panel-shell {
+  --studio-card-header-bg: #eef1fd;
+  --studio-card-border: rgba(43, 51, 233, 0.28);
   --panel-success-bg: #dfefe4;
   --panel-success-text: #166534;
   --panel-warning-text: color-mix(in srgb, var(--primary-color) 70%, var(--accent-color) 30%);
@@ -35,6 +41,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Wraps: the actions drop under the variable name instead of overflowing. */
+  flex-wrap: wrap;
   gap: 12px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--studio-card-header-border);
@@ -45,7 +53,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  flex-shrink: 0;
+  min-width: 0;
 }
 
 .histogram-split {
@@ -163,6 +171,24 @@
   gap: 0;
 }
 
+/* Collapsed source band matches the collapsed step cards (860px, centred).
+   Open (`is-open` when the summary workspace is showing) it stretches to the
+   same rail width an open step uses. Gap to Step 1 is 24px — a pause, not a
+   chain link, so there is no connector between them. */
+.analysis-source-region {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, var(--studio-pipeline-overview-max, 860px));
+  max-width: 100%;
+  margin: 0 auto 24px;
+  gap: 0;
+}
+
+.analysis-source-region.is-open {
+  width: min(100%, var(--studio-step-max, 1160px));
+}
+
 /* Every step renders as a solid card; one that adds nothing to the next run says so
    in its status chip. A collapsed step (`is-compact`) shows only its overview rail,
    so it reads as a compact flowchart at `--studio-pipeline-overview-max`. An open
@@ -176,17 +202,18 @@
   max-width: var(--studio-pipeline-overview-max, 860px);
 }
 
-/* The header titles the whole rail rather than one step, so it is not a card:
-   one hairline under the title, no frame or shadow, and the stage chips sit on
-   that line instead of in a badge box. */
+/* Page title for the Data Handling step. Capped to the same column as the
+   collapsed cards (`--studio-pipeline-overview-max`) so the hairline and the
+   cards share one left edge; it is not a full-rail 1160px rule. */
 .pipeline-canvas-header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   box-sizing: border-box;
-  width: 100%;
+  width: min(100%, var(--studio-pipeline-overview-max, 860px));
+  max-width: 100%;
   min-height: 0;
-  margin-bottom: 18px;
+  margin: 0 auto 18px;
   padding: 4px 2px 18px;
   background: transparent;
   border: 0;
@@ -194,6 +221,10 @@
   border-radius: 0;
   box-shadow: none;
   gap: 16px;
+}
+
+.pipeline-header-title-group {
+  min-width: 0;
 }
 
 .pipeline-header-title-group h2 {
@@ -209,7 +240,7 @@
   color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
-  max-width: 62ch;
+  max-width: min(62ch, 100%);
   text-wrap: pretty;
 }
 
@@ -223,23 +254,138 @@
   overflow: hidden;
 }
 
-/* Step 0 is permanent, so it borrows the compact width of the collapsed rows
-   rather than the full rail; only its snapshot needs the wide pivot table, and
-   widening then keeps the card and the table on the same two edges. */
-.pipeline-node.is-readonly {
-  align-self: center;
-  width: 100%;
-  max-width: var(--studio-pipeline-overview-max, 860px);
+/* Raw data is the pipeline input, not a raised step card: a flat inset band. */
+.pipeline-source-band {
+  box-sizing: border-box;
+  min-width: 0;
+  background: var(--bg-neutral);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: none;
+  overflow: hidden;
 }
 
-.pipeline-node.is-readonly.is-active {
-  align-self: stretch;
-  max-width: 100%;
+.pipeline-source-band-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px 20px;
+  padding: 12px 16px;
+  background: var(--bg-neutral);
+  border: 0;
+  cursor: pointer;
 }
 
-/* No body to divide from while the snapshot is hidden. */
-.pipeline-node.is-readonly:not(.is-active) .pipeline-node-header {
-  border-bottom: none;
+.pipeline-source-band.is-open .pipeline-source-band-header {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pipeline-source-band-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pipeline-source-band-title-group {
+  min-width: 0;
+}
+
+.pipeline-source-band-title-group h3 {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.pipeline-source-band-caption {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.pipeline-source-facts {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  margin: 0;
+  min-width: 0;
+}
+
+.pipeline-source-fact {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pipeline-source-fact dt {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.pipeline-source-fact dd {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pipeline-source-band-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md, 8px);
+  color: var(--primary-color);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pipeline-source-band-toggle:hover {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+}
+
+.pipeline-source-band-toggle:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.pipeline-source-band-toggle i {
+  font-size: 0.72rem;
+  color: var(--primary-color);
+}
+
+.pipeline-source-band-toggle i.is-open {
+  transform: rotate(180deg);
+}
+
+.pipeline-source-band .workflow-section-body {
+  padding: 0;
+  background: var(--card-bg);
+}
+
+.pipeline-source-band .workflow-section .statistics-workspace {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .btn-add-step {
@@ -415,17 +561,6 @@
 .pipeline-status-badge.pending {
   background: color-mix(in srgb, var(--accent-color) 16%, white);
   color: #78350f;
-}
-
-/* Read only: plain label, no pill. */
-.pipeline-status-badge.readonly {
-  padding: 0;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.pipeline-status-badge.readonly i {
-  font-size: 0.66rem;
 }
 
 .pipeline-node-body {
@@ -838,6 +973,20 @@
     width: 100%;
     justify-content: space-between;
   }
+  .pipeline-source-band-header {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+  }
+  .pipeline-source-facts {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .pipeline-source-fact {
+    align-items: flex-start;
+  }
+  .pipeline-source-band-toggle {
+    width: 100%;
+  }
   .pipeline-terminal-card {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
@@ -867,10 +1016,6 @@
    it sat flush on the node border and the two 1px lines vibrated as one. */
 .pipeline-node .workflow-section-body {
   padding-inline: 16px;
-}
-
-.pipeline-node.is-readonly .workflow-section-body {
-  padding: 0;
 }
 
 /* Summary workspaces nested inside a pipeline node inherit the node's frame;
