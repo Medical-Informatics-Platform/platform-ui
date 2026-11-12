@@ -127,15 +127,29 @@ export class FilterConfigModalComponent {
     this.activeBlockId.update((current) => current === blockId ? null : blockId);
   }
 
+  readonly connectors: GroupCondition[] = ['AND', 'OR'];
+
   groupCondition(group: FilterGroupBlock): GroupCondition {
     const secondRule = group.rules[1];
     return secondRule?.connector ?? 'AND';
   }
 
-  setGroupCondition(groupId: string, condition: GroupCondition): void {
-    this.updateGroup(groupId, (group) => ({
+  /**
+   * Per-row AND/OR: which operator joins this block (condition or group) to the one above it.
+   * Rows may mix connectors; `groupToBackendLogic` folds left to right, so
+   * `A OR B AND C` is stored as `{AND: [{OR: [A, B]}, C]}`. `mapConditions` only reaches
+   * conditions, so a group block goes through the recursive `mapGroups` id match inside
+   * `updateGroup`; exactly one of the two helpers finds the block and both clear
+   * `filterError` on the way.
+   */
+  setConnector(blockId: string, connector: GroupCondition): void {
+    this.updateGroup(blockId, (group) => ({
       ...group,
-      rules: group.rules.map((block, index) => index === 0 ? block : { ...block, connector: condition }),
+      connector,
+    }));
+    this.updateCondition(blockId, (block) => ({
+      ...block,
+      connector,
     }));
   }
 
@@ -426,7 +440,27 @@ export class FilterConfigModalComponent {
         ...this.backendToBlock(rule),
         connector: index === 0 ? undefined : condition,
       }));
-    return this.ensureGroupConnectors({ kind: 'group', id: this.nextId(), rules });
+    return this.ensureGroupConnectors({
+      kind: 'group',
+      id: this.nextId(),
+      rules: this.unfoldLeftFold(rules, condition),
+    });
+  }
+
+  /**
+   * A stored left fold opens flat: `A OR B AND C` is stored as `{AND: [{OR: [A, B]}, C]}`,
+   * so a leading group is spliced into its parent's row list — its rows keep their own
+   * connectors and the row right after it joins with the group's own condition. A group
+   * further down the list keeps standing as a group.
+   */
+  private unfoldLeftFold(rules: FilterBlock[], condition: GroupCondition): FilterBlock[] {
+    const first = rules[0];
+    if (!first || first.kind !== 'group') return rules;
+    const inner = this.unfoldLeftFold(first.rules, this.groupCondition(first));
+    const rest = rules.slice(1);
+    return rest.length
+      ? [...inner, { ...rest[0], connector: condition }, ...rest.slice(1)]
+      : inner;
   }
 
   private backendCondition(node: any): GroupCondition {
