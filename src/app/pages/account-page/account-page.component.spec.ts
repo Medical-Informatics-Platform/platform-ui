@@ -50,27 +50,28 @@ describe('AccountPageComponent', () => {
     expect(el.querySelector('.remote-access')).toBeNull();
   });
 
-  it('explains both ways to sign in and never sends users to the JupyterHub token page', () => {
+  it('keeps only the access token and a way to the setup instructions, never the JupyterHub token page', () => {
     const el: HTMLElement = render().nativeElement;
 
-    const text = el.querySelector('.remote-access')!.textContent!;
-    expect(text).toContain('mip login --token');
-    expect(text).toContain('MIP_API_TOKEN');
-    expect(text).toContain('mip logout');
-    expect(text).not.toContain('custom:mip-platform-token');
+    const section = el.querySelector('.remote-access')!;
+    expect(section.querySelector('h3')!.textContent).toBe('Access token');
+    expect(section.querySelector('.create-token-btn')).not.toBeNull();
+    expect(section.querySelector('.guide-link')!.getAttribute('href')).toBe('/account/remote-access');
+    expect(section.textContent).not.toContain('pip install');
+    expect(section.textContent).not.toContain('custom:mip-platform-token');
     expect(el.querySelector('a[href*="/hub/token"]')).toBeNull();
     expect(el.querySelector('.token-value')).toBeNull();
   });
 
-  it('links to the Keycloak applications page wherever it offers to remove computers', () => {
-    const links = (render().nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>('.account-link');
+  it('links to the Keycloak applications page next to the shown token', () => {
+    const fixture = render();
+    fixture.componentInstance.cliToken.set('offline-token');
+    fixture.detectChanges();
 
-    expect(links.length).toBeGreaterThanOrEqual(2);
-    links.forEach((link) => {
-      expect(link.getAttribute('href')).toBe('https://idp.example/realms/MIP/account/applications');
-      expect(link.target).toBe('_blank');
-      expect(link.rel).toBe('noopener');
-    });
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a.account-link')!;
+    expect(link.getAttribute('href')).toBe('https://idp.example/realms/MIP/account/applications');
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toBe('noopener');
   });
 
   it('warns above the button that the token is a 180-day password kept only in mip login --token', () => {
@@ -180,40 +181,5 @@ describe('AccountPageComponent', () => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     fixture.detectChanges();
     expect(button.disabled).toBe(false);
-  });
-
-  it('copies a setup snippet built from the current origin, with no real token', async () => {
-    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
-    const fixture = render();
-
-    (fixture.nativeElement.querySelector('.snippet-copy-btn') as HTMLButtonElement).click();
-    await fixture.whenStable();
-
-    expect(writeText).toHaveBeenCalledWith(
-      `pip install mip-client\nexport MIP_URL=${window.location.origin}`,
-    );
-    expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Copied');
-  });
-
-  it('clears the copy status so the next copy is announced again', async () => {
-    vi.useFakeTimers();
-    vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
-    const fixture = render();
-
-    const page = fixture.componentInstance;
-    await page.copy(page.setupSnippet, page.copyStatus);
-    expect(page.copyStatus()).toBe('Copied');
-    vi.advanceTimersByTime(2400);
-    expect(page.copyStatus()).toBe('');
-  });
-
-  it('tells the user to copy by hand when the clipboard refuses', async () => {
-    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
-    const fixture = render();
-
-    (fixture.nativeElement.querySelector('.snippet-copy-btn') as HTMLButtonElement).click();
-    await fixture.whenStable();
-
-    expect(fixture.nativeElement.querySelector('.copy-status').textContent).toContain('Could not copy');
   });
 });

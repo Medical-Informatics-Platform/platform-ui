@@ -205,7 +205,7 @@ export async function applyFilters(page: Page, { female = false } = {}) {
   await page.locator('.filter-workflow-section').getByRole('button', { name: 'Apply filters' }).click();
 }
 
-export async function addNominalColumn(page: Page, code: string, category: string, fallback: string) {
+export async function addNominalColumn(page: Page, code: string, category: string) {
   await page.getByTitle('Add and open a derived column').click();
   await page.getByRole('button', { name: /Nominal column from rules/ }).click();
   await page.getByPlaceholder('e.g. mrs_good_outcome').fill(code);
@@ -216,7 +216,6 @@ export async function addNominalColumn(page: Page, code: string, category: strin
   await fields.getByPlaceholder('Type to find a variable').fill('Sex');
   await fields.locator('select.filter-field-input').last().selectOption({ label: 'Female' });
   await editor.getByRole('button', { name: 'Done' }).click();
-  await page.getByPlaceholder('unknown').fill(fallback);
   await expect(page.getByText('Sex is Female')).toBeVisible();
 }
 
