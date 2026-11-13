@@ -363,11 +363,14 @@ test.describe('filters and transformations', () => {
 
   test('nominal column and k-means cluster column together', async ({ page, api }) => {
     await openAgeAndSex(page);
-    await addNominalColumn(page, 'sex_group', 'female', 'other');
+    await addNominalColumn(page, 'sex_group', 'female');
     await addKMeansColumn(page, { stepAdded: true });
     await expect(page.getByText('Nominal column · sex_group')).toBeVisible();
     await expect(page.locator('app-station-card', { hasText: 'Nominal column · sex_group' })).toContainText('Applied');
     await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
+    // Choosing the K-means card folds the nominal one; opening it again shows its rule.
+    await expect(page.getByText('Sex is Female')).toBeHidden();
+    await page.getByRole('button', { name: /^Nominal column · sex_group/ }).click();
     await expect(page.getByText('Sex is Female')).toBeVisible();
 
     const steps = lastRequest(api, 'POST', PREVIEW, 'describe').analysis.preprocessing;
@@ -377,7 +380,6 @@ test.describe('filters and transformations', () => {
         new_column_names: ['sex_group'],
         strategy: 'filter_rules',
         rules: { female: { condition: 'AND', rules: [expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' })], valid: true } },
-        default_enumeration: 'other',
       },
     });
     expect(steps).toContainEqual({
