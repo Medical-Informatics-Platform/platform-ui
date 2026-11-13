@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal, WritableSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule, Location } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
@@ -6,6 +6,7 @@ import { RouterModule } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { AuthService } from "../../services/auth.service";
 import { AuthConfig, cliTokenSignInUrl, finishCliTokenSignIn, isSignInReturn } from './cli-token';
+import { copyToClipboard } from './copy-to-clipboard';
 
 @Component({
   selector: 'app-account-page',
@@ -23,7 +24,7 @@ export class AccountPageComponent implements OnDestroy {
   userEmail = computed(() => this.authService.authState().user?.email ?? '');
 
   // The platform's public Keycloak client for the mip client; the backend answers 404
-  // when there is none, and the remote access guide stays hidden.
+  // when there is none, and the access token section stays hidden.
   readonly authConfig = toSignal(
     this.http.get<AuthConfig>('/services/auth-config').pipe(catchError(() => of(null))),
     { initialValue: null },
@@ -35,8 +36,7 @@ export class AccountPageComponent implements OnDestroy {
   readonly tokenError = signal('');
   readonly creatingToken = signal(false);
   readonly tokenCopyStatus = signal('');
-  readonly setupSnippet = ['pip install mip-client', `export MIP_URL=${window.location.origin}`].join('\n');
-  readonly copyStatus = signal('');
+  readonly copy = copyToClipboard;
 
   constructor() {
     const query = new URLSearchParams(window.location.search);
@@ -82,16 +82,5 @@ export class AccountPageComponent implements OnDestroy {
 
   goBack(): void {
     this.location.back();
-  }
-
-  async copy(text: string, status: WritableSignal<string>): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      status.set('Copied');
-    } catch {
-      status.set('Could not copy, select the text instead');
-    }
-    // Cleared after a while so the live region changes, and is announced, on every click.
-    setTimeout(() => status.set(''), 2400);
   }
 }

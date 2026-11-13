@@ -46,83 +46,42 @@
 
       @if (authConfig()) {
         <section class="info-section remote-access">
-          <h3>Use MIP from your own computer</h3>
-
-          <p class="remote-text">Install the client and point it at this portal:</p>
-          <div class="snippet">
-            <pre><code>{{ setupSnippet }}</code></pre>
-            <button class="copy-btn snippet-copy-btn" type="button" (click)="copy(setupSnippet, copyStatus)"
-                    aria-label="Copy setup commands">
-              <i class="fas fa-copy"></i>
-              <span>Copy</span>
-            </button>
-          </div>
-          <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
-          <p class="remote-note">In Windows PowerShell, write <code>$env:MIP_URL = "…"</code> instead of <code>export</code>.</p>
-
-          <p class="remote-text">Then sign in, one of two ways:</p>
-          <div class="remote-options">
-            <div class="remote-option">
-              <h4>No browser on that machine</h4>
-              <p class="remote-note">
-                This token works like your password for up to 180 days. Keep it only in
-                <code>mip login --token</code>; never put it in notebooks, <code>.env</code> files,
-                repositories or chat. Lost it or your computer?
-                <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
-                   rel="noopener">See and remove computers signed in to MIP</a>.
-              </p>
-              <button class="create-token-btn" type="button" (click)="createToken()" [disabled]="creatingToken()">
-                <i class="fas fa-key"></i>
-                <span>{{ creatingToken() ? 'Creating…' : 'Create access token' }}</span>
-              </button>
-              <p class="remote-note">You confirm with your MIP sign-in. The token is shown only once.</p>
-              @if (tokenError()) {
-                <p class="token-error" role="alert">{{ tokenError() }}</p>
-              }
-              @if (cliToken()) {
-                <div class="snippet">
-                  <pre class="token-value"><code>{{ cliToken() }}</code></pre>
-                  <button class="copy-btn token-copy-btn" type="button" (click)="copy(cliToken(), tokenCopyStatus)"
-                          aria-label="Copy access token">
-                    <i class="fas fa-copy"></i>
-                    <span>Copy</span>
-                  </button>
-                </div>
-                <span class="copy-status" aria-live="polite">{{ tokenCopyStatus() }}</span>
-                <p class="remote-note">
-                  It lasts up to 180 days, or until it is unused for 30 days, or until you run
-                  <code>mip logout</code>. Lost it or your computer?
-                  <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
-                     rel="noopener">See and remove computers signed in to MIP</a>.
-                </p>
-              }
-              <p class="remote-text">
-                On that machine, run <code>mip login --token</code> and paste it. Scripts can set
-                <code>MIP_API_TOKEN</code> instead, but every program started from there, AI assistants
-                included, can read it.
-              </p>
-            </div>
-
-            <div class="remote-option">
-              <h4>A browser on any device</h4>
-              <p class="remote-text">
-                Run <code>mip login</code>. It shows a link and a code: open the link, sign in, check
-                that the page shows the same code, and approve.
-              </p>
-              <p class="remote-note">Never approve a code that someone else sent you.</p>
-            </div>
-          </div>
-
-          <p class="remote-text">Then, in Python:</p>
-          <pre><code>import mip
-client = mip.Client.from_env()</code></pre>
+          <h3>Access token</h3>
           <p class="remote-note">
-            Each sign-in lasts at most 180 days, and ends after 30 days without use. To end it sooner,
-            run <code>mip logout</code> on that computer. Without that computer, remove
-            "MIP command line" under Applications in your
-            <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
-               rel="noopener">sign-in account</a>: that ends every computer's sign-in.
+            Signs in the MIP client on a computer without a browser. This token works like your
+            password for up to 180 days. Keep it only in <code>mip login --token</code>; never put it
+            in notebooks, <code>.env</code> files, repositories or chat.
           </p>
+          <button class="create-token-btn" type="button" (click)="createToken()" [disabled]="creatingToken()">
+            <i class="fas fa-key"></i>
+            <span>{{ creatingToken() ? 'Creating…' : 'Create access token' }}</span>
+          </button>
+          <p class="remote-note">You confirm with your MIP sign-in. The token is shown only once.</p>
+          @if (tokenError()) {
+            <p class="token-error" role="alert">{{ tokenError() }}</p>
+          }
+          @if (cliToken()) {
+            <div class="snippet">
+              <pre class="token-value"><code>{{ cliToken() }}</code></pre>
+              <button class="copy-btn token-copy-btn" type="button" (click)="copy(cliToken(), tokenCopyStatus)"
+                      aria-label="Copy access token">
+                <i class="fas fa-copy"></i>
+                <span>Copy</span>
+              </button>
+            </div>
+            <span class="copy-status" aria-live="polite">{{ tokenCopyStatus() }}</span>
+            <p class="remote-note">
+              It lasts up to 180 days, or until it is unused for 30 days, or until you run
+              <code>mip logout</code>. Lost it or your computer?
+              <a class="account-link" [href]="authConfig()!.issuer + '/account/applications'" target="_blank"
+                 rel="noopener">See and remove computers signed in to MIP</a>.
+            </p>
+          }
+          <a class="guide-link" routerLink="/account/remote-access">
+            <i class="fas fa-book-open"></i>
+            <span>Setup instructions</span>
+            <i class="fas fa-arrow-right"></i>
+          </a>
         </section>
       }
     </section>

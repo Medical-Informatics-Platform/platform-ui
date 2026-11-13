@@ -1,0 +1,88 @@
+<div class="account-page">
+  <div class="account-card">
+    <header class="account-header">
+      <div class="title-group">
+        <h1>Use MIP from your own computer</h1>
+        <p class="subtitle">Set up the MIP Python client and sign in</p>
+      </div>
+      <div class="header-actions">
+        <a class="back-btn" routerLink="/account">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back to profile</span>
+        </a>
+      </div>
+    </header>
+
+    <section class="account-main remote-access">
+      @if (authConfig(); as config) {
+        <div class="platform-tabs" role="group" aria-label="Operating system">
+          @for (option of platforms; track option.id) {
+            <button type="button" class="platform-tab" [class.active]="platform() === option.id"
+                    [attr.aria-pressed]="platform() === option.id" (click)="platform.set(option.id)">
+              <i [class]="option.icon" aria-hidden="true"></i>
+              <span>{{ option.label }}</span>
+            </button>
+          }
+        </div>
+
+        <ol class="guide-steps">
+          <li>
+            <h3>Install the client and point it at this portal</h3>
+            <p class="remote-note">Run in {{ shellName() }}:</p>
+            <div class="snippet">
+              <pre><code>{{ setupSnippet() }}</code></pre>
+              <button class="copy-btn snippet-copy-btn" type="button" (click)="copy(setupSnippet(), copyStatus)"
+                      aria-label="Copy setup commands">
+                <i class="fas fa-copy"></i>
+                <span>Copy</span>
+              </button>
+            </div>
+            <span class="copy-status" aria-live="polite">{{ copyStatus() }}</span>
+          </li>
+
+          <li>
+            <h3>Sign in, one of two ways</h3>
+            <div class="remote-options">
+              <div class="remote-option">
+                <h4>No browser on that machine</h4>
+                <p class="remote-text">
+                  <a class="account-link" routerLink="/account">Create an access token on your profile page</a>.
+                  On that machine, run <code>mip login --token</code> and paste it.
+                </p>
+                <p class="remote-note">
+                  Scripts can set <code>{{ tokenVariable() }}</code> instead, but every program started
+                  from there, AI assistants included, can read it.
+                </p>
+              </div>
+
+              <div class="remote-option">
+                <h4>A browser on any device</h4>
+                <p class="remote-text">
+                  Run <code>mip login</code>. It shows a link and a code: open the link, sign in, check
+                  that the page shows the same code, and approve.
+                </p>
+                <p class="remote-note">Never approve a code that someone else sent you.</p>
+              </div>
+            </div>
+          </li>
+
+          <li>
+            <h3>Use it in Python</h3>
+            <pre><code>import mip
+client = mip.Client.from_env()</code></pre>
+          </li>
+        </ol>
+
+        <p class="remote-note guide-footnote">
+          Each sign-in lasts at most 180 days, and ends after 30 days without use. To end it sooner,
+          run <code>mip logout</code> on that computer. Without that computer, remove
+          "MIP command line" under Applications in your
+          <a class="account-link" [href]="config.issuer + '/account/applications'" target="_blank"
+             rel="noopener">sign-in account</a>: that ends every computer's sign-in.
+        </p>
+      } @else if (authConfig() === null) {
+        <p class="remote-text" role="status">This portal does not offer access from your own computer.</p>
+      }
+    </section>
+  </div>
+</div>

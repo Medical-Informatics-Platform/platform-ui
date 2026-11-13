@@ -30,6 +30,11 @@ export const appRoutes: Routes = [
     canActivate: [AuthGuard, TermsGuard],
   },
   {
+    path: 'account/remote-access',
+    loadComponent: () => import('./pages/account-page/remote-access-guide/remote-access-guide.component').then(m => m.RemoteAccessGuideComponent),
+    canActivate: [AuthGuard, TermsGuard],
+  },
+  {
     path: 'experiment-studio',
     loadComponent: () => import('./pages/experiment-studio/experiment-studio.component').then(m => m.ExperimentStudioComponent),
     canActivate: [AuthGuard, TermsGuard],
