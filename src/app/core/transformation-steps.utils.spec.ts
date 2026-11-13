@@ -183,12 +183,12 @@ describe('fitVariablePool / fitSelectedCodes', () => {
     { id: 'late', name: 'pca_column_creator', parameters: { new_column_names: ['late_pc1'] } },
   ];
   const candidates = [
-    { code: 'age', type: 'real' },
+    { code: 'age', type: 'continuous' },
     { code: 'sex', type: 'nominal' },
-    { code: 'pca_pc1', type: 'real', isCreatedColumn: true },
-    { code: 'km_score', type: 'real', isCreatedColumn: true },
-    { code: 'late_pc1', type: 'real', isCreatedColumn: true },
-    { code: 'age', type: 'real' },
+    { code: 'pca_pc1', type: 'continuous', isCreatedColumn: true },
+    { code: 'km_score', type: 'continuous', isCreatedColumn: true },
+    { code: 'late_pc1', type: 'continuous', isCreatedColumn: true },
+    { code: 'age', type: 'continuous' },
   ];
 
   it('keeps numerical CDEs and earlier outputs, not own, later, nominal or repeated codes', () => {

@@ -444,7 +444,7 @@ export class ExperimentStudioService {
           label: names[i],
           name: names[i],
           // Without a resolved spec (catalog pending or failed) PCA scores are still numerical.
-          type: (column ? column.stattype === 'numerical' : step.name === 'pca_column_creator') ? 'real' : 'nominal',
+          type: (column ? column.stattype === 'numerical' : step.name === 'pca_column_creator') ? 'continuous' : 'nominal',
           enumerations: ExperimentStudioService.dedupeEnumerations(column?.enumerations ?? []),
           isCreatedColumn: true,
         });

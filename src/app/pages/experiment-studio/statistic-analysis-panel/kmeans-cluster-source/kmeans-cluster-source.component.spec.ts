@@ -388,12 +388,12 @@ describe('KMeansClusterSourceComponent', () => {
 
   it('fit mode stores variables without reusable_preprocessing', () => {
     studio.selectedVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
-      { code: 'bmi', label: 'BMI', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
+      { code: 'bmi', label: 'BMI', type: 'continuous' },
     ]);
     studio.algorithmAssignableVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
-      { code: 'bmi', label: 'BMI', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
+      { code: 'bmi', label: 'BMI', type: 'continuous' },
     ]);
 
     fixture.detectChanges();
@@ -422,10 +422,10 @@ describe('KMeansClusterSourceComponent', () => {
       { id: 'pca-step', name: 'pca_column_creator', parameters: { new_column_names: ['pca_pc1'] } },
       { id: 'kmeans-step-1', name: 'kmeans_cluster_creator', parameters: {} },
     ]);
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     studio.algorithmAssignableVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
-      { code: 'pca_pc1', label: 'pca_pc1', type: 'real', isCreatedColumn: true },
+      { code: 'age', label: 'Age', type: 'continuous' },
+      { code: 'pca_pc1', label: 'pca_pc1', type: 'continuous', isCreatedColumn: true },
     ]);
 
     fixture.detectChanges();
@@ -439,9 +439,9 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('two fit-mode components with different stepId values write two steps', () => {
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     studio.algorithmAssignableVariables.mockReturnValue([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
     ]);
 
     fixture.detectChanges();
@@ -475,7 +475,7 @@ describe('KMeansClusterSourceComponent', () => {
   });
 
   it('renaming a cluster column a later step reads is refused', () => {
-    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'real' }]);
+    studio.selectedVariables.mockReturnValue([{ code: 'age', label: 'Age', type: 'continuous' }]);
     studio.outputsInUse.mockImplementation((id: string, next: string[]) =>
       id === 'kmeans-step-1' && !next.includes('km') ? ['km'] : [],
     );

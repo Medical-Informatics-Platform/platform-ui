@@ -2378,7 +2378,7 @@ describe('ExperimentStudioService', () => {
       });
 
       const node = service.algorithmAssignableVariables().find((v) => v.code === 'pca_pc1');
-      expect(node?.type).toBe('real');
+      expect(node?.type).toBe('continuous');
     });
 
     it('clears every transformation step in one write', () => {

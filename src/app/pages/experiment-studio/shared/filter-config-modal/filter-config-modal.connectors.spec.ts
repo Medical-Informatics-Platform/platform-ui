@@ -19,7 +19,7 @@ describe('FilterConfigModalComponent row connectors', () => {
         code: 'dm',
         label: 'Data model',
         variables: [
-          { code: 'age', label: 'Age', type: 'real' },
+          { code: 'age', label: 'Age', type: 'continuous' },
           {
             code: 'sex',
             label: 'Sex',
@@ -41,8 +41,8 @@ describe('FilterConfigModalComponent row connectors', () => {
             { code: 'male', label: 'Male' },
           ],
         },
-        { code: 'mrs_score', label: 'mRS score', type: 'integer' },
-        { code: 'notes', label: 'Notes', type: 'text' },
+        { code: 'mrs_score', label: 'mRS score', type: 'discrete' },
+        { code: 'notes', label: 'Notes', type: 'nominal' },
       ]),
       setFilters: vi.fn(),
       setFilterLogic: vi.fn(),
@@ -61,7 +61,7 @@ describe('FilterConfigModalComponent row connectors', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
     component.allFilterVariables.set([
-      { code: 'age', label: 'Age', type: 'real' },
+      { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
