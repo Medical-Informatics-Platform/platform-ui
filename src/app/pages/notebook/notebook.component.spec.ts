@@ -63,11 +63,6 @@ describe('NotebookComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
-    // The Hub-login redirect navigates via window.location and would pull the Vitest
-    // browser iframe away from the harness ("Cannot connect to the iframe"), killing
-    // the whole run when CI timing lets a wait exhaust. Throttle it for every test —
-    // none of them expects the redirect; they expect ready or a spawn error.
-    sessionStorage.setItem('mip_notebook_hub_login_redirect_ts', String(Date.now()));
     (window as Window & { __env?: Record<string, string> }).__env = {
       JUPYTER_CONTEXT_PATH: '/notebook',
     };
@@ -94,6 +89,12 @@ describe('NotebookComponent', () => {
 
     fixture = TestBed.createComponent(NotebookComponent);
     component = fixture.componentInstance;
+    // The Hub-login redirect navigates via window.location and would pull the Vitest browser
+    // iframe away from the harness ("Cannot connect to the iframe"), killing the whole run
+    // when a Hub wait exhausts. No test expects it (they expect ready or a spawn error), so
+    // tell the component its page is gone: ensureHubSession then answers 'failed' instead.
+    // A sessionStorage throttle is not enough, spec files share it and clear it mid-run.
+    (component as unknown as { active: boolean }).active = false;
   });
 
     afterEach(() => {
@@ -245,7 +246,6 @@ describe('NotebookComponent', () => {
   });
 
   it('shows an error when the Hub session never becomes available', async () => {
-    sessionStorage.setItem('mip_notebook_hub_login_redirect_ts', String(Date.now()));
     fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes('/hub/api/user') || url.includes('/hub/home')) {
