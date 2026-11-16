@@ -236,8 +236,8 @@ describe('AlgorithmPanelComponent', () => {
       minCount: 1,
       maxCount: null,
       required: false,
-      types: ['real'],
-      stattypes: [],
+      types: ['numerical'],
+      acceptedTypes: ['numerical'],
       messages: [],
       satisfied: true,
     };
@@ -245,7 +245,7 @@ describe('AlgorithmPanelComponent', () => {
       ...algorithm,
       name: 'kmeans_like',
       label: 'K-means',
-      inputdata: { x: { types: ['real'], required: true, min_count: 1 } } as any,
+      inputdata: { x: { types: ['numerical'], required: true, min_count: 1 } } as any,
       availability: { available: true, summary: '', details: [xDetail] },
       configSchema: [
         { key: 'k', label: 'Number of clusters (k)', type: 'number', default: 4, required: true },
@@ -311,11 +311,11 @@ describe('AlgorithmPanelComponent', () => {
             minCount: 2,
             maxCount: 3,
             required: true,
-            types: ['real'],
-            stattypes: ['nominal'],
+            types: ['binary'],
+            acceptedTypes: ['binary'],
             messages: [
               'Outcome needs at least 2, selected 1.',
-              'Outcome type must be one of real.',
+              'Outcome must be binary (Stage is nominal).',
             ],
             satisfied: false,
           },
@@ -343,13 +343,13 @@ describe('AlgorithmPanelComponent', () => {
     expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome needs at least 2, selected 1.');
     expect(nativeElement.textContent).toContain('Availability');
     expect(nativeElement.textContent).toContain('Outcome: 2-3, selected 1');
-    expect(nativeElement.textContent).toContain('type: real');
-    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome type must be one of real.');
+    expect(nativeElement.textContent).toContain('type: binary');
+    expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome must be binary (Stage is nominal).');
     expect(nativeElement.textContent).not.toContain('type: nominal');
-    expect(nativeElement.textContent).not.toContain('stattypes: nominal');
+    expect(nativeElement.textContent).not.toContain('types: binary');
   });
 
-  it('displays text availability types as nominal in requirement tips', () => {
+  it('lists the exact accepted CDE types in requirement tips, never the value types', () => {
     const text = fixture.componentInstance.availabilityRequirementText({
       role: 'x',
       label: 'Predictor',
@@ -357,14 +357,15 @@ describe('AlgorithmPanelComponent', () => {
       minCount: 1,
       maxCount: null,
       required: true,
-      types: ['real', 'int', 'text'],
-      stattypes: [],
+      types: ['numerical', 'nominal', 'binary'],
+      acceptedTypes: ['numerical', 'nominal', 'binary'],
       messages: [],
       satisfied: true,
     });
 
-    expect(text).toContain('type: real, int, nominal');
+    expect(text).toContain('type: numerical, nominal, binary');
     expect(text).not.toContain('text');
+    expect(text).not.toContain('int');
   });
 
   it('shows type availability reasons on algorithm cards', async () => {
@@ -375,7 +376,7 @@ describe('AlgorithmPanelComponent', () => {
       isDisabled: true,
       availability: {
         available: false,
-        summary: 'Outcome type must be one of real.',
+        summary: 'Outcome must be numerical (Stage is binary).',
         details: [
           {
             role: 'y',
@@ -384,9 +385,9 @@ describe('AlgorithmPanelComponent', () => {
             minCount: 1,
             maxCount: 1,
             required: true,
-            types: ['real'],
-            stattypes: [],
-            messages: ['Outcome type must be one of real.'],
+            types: ['numerical'],
+            acceptedTypes: [],
+            messages: ['Outcome must be numerical (Stage is binary).'],
             satisfied: false,
           },
         ],
@@ -403,7 +404,7 @@ describe('AlgorithmPanelComponent', () => {
 
     const algorithmItem = fixture.nativeElement.querySelector('.algo-tile') as HTMLElement;
     expect(algorithmItem.textContent).toContain('Type Only Algorithm');
-    expect(algorithmItem.querySelector('.algo-why')?.textContent).toContain('Outcome type must be one of real.');
+    expect(algorithmItem.querySelector('.algo-why')?.textContent).toContain('Outcome must be numerical (Stage is binary).');
   });
 
   it('selects unavailable algorithms as a read-only preview with expandable documentation', async () => {
@@ -418,7 +419,7 @@ describe('AlgorithmPanelComponent', () => {
       ],
       availability: {
         available: false,
-        summary: 'Outcome type must be one of text.',
+        summary: 'Outcome must be binary (Stage is nominal).',
         details: [],
       },
     };
@@ -460,8 +461,8 @@ describe('AlgorithmPanelComponent', () => {
     const fieldset = runRoot.querySelector('.algorithm-readonly-fieldset') as HTMLFieldSetElement;
     const requirementsPanel = runRoot.querySelector('.algorithm-requirements-panel') as HTMLElement;
     expect(requirementsPanel?.textContent).toContain('Complete before running');
-    expect(requirementsPanel?.textContent).toContain('Outcome type must be one of nominal.');
-    expect(requirementsPanel?.textContent).not.toContain('text');
+    expect(requirementsPanel?.textContent).toContain('Outcome must be binary (Stage is nominal).');
+    expect(requirementsPanel?.textContent).not.toContain('type must be one of');
     expect(fieldset).toBeTruthy();
     expect(fieldset.disabled).toBe(true);
     expect(getComputedStyle(fieldset).pointerEvents).toBe('none');
@@ -521,6 +522,51 @@ describe('AlgorithmPanelComponent', () => {
     expect(select).toBeTruthy();
     expect(select.textContent).toContain('Event status');
     expect(select.textContent).toContain('Age');
+  });
+
+  it('offers only binary variables for an event_var that requires variable_types binary', async () => {
+    const coxAlgorithm: AlgorithmConfig = {
+      name: 'cox_regression_classical',
+      label: 'Cox Regression Classical',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['real'],
+      covariate: ['real', 'text'],
+      configSchema: [
+        {
+          key: 'event_var',
+          label: 'Event indicator variable',
+          desc: 'Variable from x to use as the binary event indicator.',
+          type: 'select',
+          enumType: 'input_var_names',
+          enumSource: ['x'],
+          variableTypes: ['binary'],
+          required: true,
+          options: [],
+        },
+      ],
+      isDisabled: false,
+    };
+
+    analysisStudioService.selectedAlgorithm.set(coxAlgorithm);
+    analysisStudioService.backendAlgorithms.set({ cox_regression_classical: coxAlgorithm });
+    analysisStudioService.availableGroupedAlgorithms.set({ Regression: [coxAlgorithm] });
+    analysisStudioService.algorithmX.set([
+      { code: 'event_status', label: 'Event status', type: 'binary' },
+      { code: 'stage', label: 'Stage', type: 'nominal' },
+      { code: 'grade', label: 'Grade', type: 'ordinal' },
+      { code: 'age', label: 'Age', type: 'continuous' },
+    ]);
+
+    fixture.componentInstance.setStudioSubstep('parameters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector('select.config-select') as HTMLSelectElement;
+    expect(select.textContent).toContain('Event status');
+    expect(select.textContent).not.toContain('Stage');
+    expect(select.textContent).not.toContain('Grade');
+    expect(select.textContent).not.toContain('Age');
   });
 
   it('lists positive_class options from the selected event indicator variable', async () => {
@@ -801,7 +847,7 @@ describe('AlgorithmPanelComponent', () => {
           maxCount: 1,
           required: true,
           types: [],
-          stattypes: [],
+          acceptedTypes: [],
           messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,
         }],
@@ -848,7 +894,7 @@ describe('AlgorithmPanelComponent', () => {
           maxCount: 1,
           required: true,
           types: [],
-          stattypes: [],
+          acceptedTypes: [],
           messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,
         }],

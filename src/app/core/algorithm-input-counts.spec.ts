@@ -15,8 +15,8 @@ describe('algorithm input counts', () => {
 
   it('applies Binary GLMM fallback bounds when counts are missing', () => {
     const inputdata = applyFallbackInputCounts({
-      y: { label: 'Y', desc: '', types: ['int'], required: true },
-      x: { label: 'X', desc: '', types: ['real'], required: true },
+      y: { label: 'Y', desc: '', types: ['numerical'], required: true },
+      x: { label: 'X', desc: '', types: ['numerical'], required: true },
     }, 'glmm_binary');
 
     expect(inputdata['y']).toEqual(expect.objectContaining({ max_count: 1 }));

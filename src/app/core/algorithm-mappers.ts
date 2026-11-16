@@ -100,7 +100,7 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
       required: normalizeBool(param.required),
       multiple: isMultiple,
       types: param.types ?? [],
-      stattypes: param.stattypes ?? [],
+      ...(param.variable_types?.length ? { variableTypes: param.variable_types } : {}),
       ...(enumType ? { enumType } : {}),
       ...(enumSource.length ? { enumSource } : {}),
       ...(min !== undefined ? { min } : {}),

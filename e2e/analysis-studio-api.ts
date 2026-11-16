@@ -32,11 +32,15 @@ const inputField = (types: string[], extra: Record<string, unknown> = {}) => ({
 
 /** Catalog entries the algorithm panel groups by CATEGORY_MAPPING. */
 function algorithmSpecs() {
-  const yReal = inputField(['real'], { required: true, max_count: 1 });
-  const yNominal = inputField(['text'], { required: true, max_count: 1 });
-  const xRealOrNominal = inputField(['real', 'text'], { required: true, min_count: 1, max_count: 1 });
-  const xNominal = inputField(['text'], { required: true, min_count: 1, max_count: 1 });
-  const yRealMany = inputField(['real'], { required: true, min_count: 1 });
+  // Slots declare the statistical `types` that match the CDE type one-to-one.
+  const NUMERICAL = ['numerical'];
+  const CATEGORICAL = ['nominal', 'ordinal', 'binary'];
+  const yReal = inputField(NUMERICAL, { required: true, max_count: 1 });
+  const yNominal = inputField(CATEGORICAL, { required: true, max_count: 1 });
+  const yBinary = inputField(['binary'], { required: true, max_count: 1 });
+  const xRealOrNominal = inputField([...NUMERICAL, ...CATEGORICAL], { required: true, min_count: 1, max_count: 1 });
+  const xNominal = inputField(CATEGORICAL, { required: true, min_count: 1, max_count: 1 });
+  const yRealMany = inputField(NUMERICAL, { required: true, min_count: 1 });
 
   const spec = (
     name: string,
@@ -57,20 +61,20 @@ function algorithmSpecs() {
   });
 
   return [
-    spec('linear_regression', 'Linear regression', yReal, inputField(['real', 'text'], { min_count: 0 }), {
+    spec('linear_regression', 'Linear regression', yReal, inputField([...NUMERICAL, ...CATEGORICAL], { min_count: 0 }), {
       alpha: { label: 'Alpha', desc: 'Regularisation strength', types: ['real'], required: false, default: 0.05 },
     }),
-    spec('logistic_regression', 'Logistic regression', yNominal, inputField(['real', 'text'], { required: true, min_count: 1 })),
+    spec('logistic_regression', 'Logistic regression', yBinary, inputField([...NUMERICAL, ...CATEGORICAL], { required: true, min_count: 1 })),
     spec('pearson_correlation', 'Pearson correlation', yReal, xRealOrNominal),
     spec('ttest_independent', 'Independent t-test', yReal, xNominal),
     spec('anova_oneway', 'One-way ANOVA', yReal, xNominal),
     spec('chi_squared', 'Chi-squared', yNominal, xNominal),
-    spec('naive_bayes_gaussian', 'Naive Bayes gaussian', yNominal, inputField(['real'], { required: true, min_count: 1 })),
-    spec('naive_bayes_categorical', 'Naive Bayes categorical', yNominal, inputField(['text'], { required: true, min_count: 1 })),
+    spec('naive_bayes_gaussian', 'Naive Bayes gaussian', yNominal, inputField(NUMERICAL, { required: true, min_count: 1 })),
+    spec('naive_bayes_categorical', 'Naive Bayes categorical', yNominal, inputField(CATEGORICAL, { required: true, min_count: 1 })),
     spec('kmeans', 'K-means', yRealMany),
     spec('pca', 'PCA', yRealMany),
-    spec('describe', 'Describe', inputField(['real', 'text'], { required: true, min_count: 1 })),
-    spec('histogram', 'Histogram', inputField(['real', 'text'], { required: true })),
+    spec('describe', 'Describe', inputField([...NUMERICAL, ...CATEGORICAL], { required: true, min_count: 1 })),
+    spec('histogram', 'Histogram', inputField([...NUMERICAL, ...CATEGORICAL], { required: true })),
   ];
 }
 

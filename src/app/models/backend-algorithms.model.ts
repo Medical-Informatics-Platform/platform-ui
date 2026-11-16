@@ -4,8 +4,8 @@ import { PreprocessingOutputs } from '../core/preprocessing-outputs.utils';
 interface RawIOField {
   label: string;
   desc: string;
+  /** Statistical types the slot accepts: numerical, nominal, ordinal, binary. */
   types: string[];
-  stattypes?: string[];
   required?: boolean | string;
   min_count?: number | string;
   max_count?: number | string;
@@ -15,7 +15,8 @@ export interface RawParameter {
   label: string;
   desc: string;
   types: string[];
-  stattypes?: number;
+  /** Only on parameters that pick an input variable (`enums.type` input_var_names): the CDE types it may have, matched exactly. */
+  variable_types?: string[];
   required?: boolean | string;
   multiple?: boolean | string;
   default_value?: string | number | boolean;

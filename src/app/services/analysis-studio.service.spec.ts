@@ -6,6 +6,7 @@ import { SessionStorageService } from './session-storage.service';
 import { ErrorService } from './error.service';
 import { DataModel } from '../models/data-model.interface';
 import { AnalysisPreprocessingStep } from '../models/backend-algorithms.model';
+import { mapSpecificationsToAlgorithmConfigs } from '../core/algorithm-mappers';
 import { CreatorName } from '../core/transformation-steps.utils';
 
 /** Store creator cards the way the Transformation stage does: one step per card, ids by position. */
@@ -25,8 +26,8 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true, max_count: 1 },
-      x: { label: '', desc: '', types: ['real'] },
+      y: { label: '', desc: '', types: ['numerical'], required: true, max_count: 1 },
+      x: { label: '', desc: '', types: ['numerical'] },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 }
     },
     parameters: {
@@ -48,8 +49,8 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['text'], required: true },
-      x: { label: '', desc: '', types: ['text'] },
+      y: { label: '', desc: '', types: ['nominal', 'ordinal', 'binary'], required: true },
+      x: { label: '', desc: '', types: ['nominal', 'ordinal', 'binary'] },
       filter: { label: '', desc: '', types: [] }
     },
     parameters: {}
@@ -63,8 +64,8 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'] },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'] },
       filter: { label: '', desc: '', types: [] }
     },
     parameters: {},
@@ -87,8 +88,8 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'], required: false },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'], required: false },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
     },
     parameters: {},
@@ -102,8 +103,8 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'], required: true },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
     },
     parameters: {},
@@ -117,7 +118,7 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      y: { label: 'Variables', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [] },
     },
     parameters: {
@@ -142,7 +143,7 @@ describe('AnalysisStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      y: { label: 'Variables', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [] },
     },
     parameters: {},
@@ -513,8 +514,8 @@ describe('AnalysisStudioService', () => {
           data_model: { label: '', desc: '', types: [] },
           datasets: { label: '', desc: '', types: [] },
           validation_datasets: { label: '', desc: '', types: [] },
-          y: { label: '', desc: '', types: ['real'], max_count: 1 },
-          x: { label: '', desc: '', types: ['real'] },
+          y: { label: '', desc: '', types: ['numerical'], max_count: 1 },
+          x: { label: '', desc: '', types: ['numerical'] },
           filter: { label: '', desc: '', types: [] },
         },
       } as any,
@@ -1282,8 +1283,8 @@ describe('AnalysisStudioService', () => {
         label: 'Binned Mann-Whitney U Test',
         description: '',
         inputdata: {
-          y: { label: 'Outcome', desc: '', types: ['real', 'int'], required: true, max_count: 1 },
-          x: { label: 'Grouping variable', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
+          y: { label: 'Outcome', desc: '', types: ['numerical'], required: true, max_count: 1 },
+          x: { label: 'Grouping variable', desc: '', types: ['nominal'], required: true, max_count: 1 },
         },
         configSchema: [
           { key: 'alt_hypothesis', label: 'Alternative hypothesis', type: 'select', options: ['two-sided', 'less', 'greater'], required: true },
@@ -2475,6 +2476,31 @@ describe('AnalysisStudioService', () => {
       expect(loaded[0].variables[1].enumerations).toEqual([{ code: 'M', label: 'Male' }]);
       expect(service.cdeMetadataIssues().map((issue) => issue.variable)).toEqual(['age', 'age', 'age', 'sex', 'sex', 'sex']);
       expect(TestBed.inject(ErrorService).error()).toContain('does not follow the current CDE format');
+    });
+  });
+  describe('algorithmEnabled', () => {
+    it('matches categorical variables to slots one-to-one', () => {
+      const field = { label: '', desc: '', types: ['text'] };
+      const slot = (types: string[]) => ({ label: '', desc: '', types, required: true });
+      const spec = (name: string, y: any) => ({
+        name, label: name, desc: '', y, requires_validation_datasets: false, parameters: {}, required_preprocessing: [],
+      });
+      service.backendAlgorithms.set(
+        mapSpecificationsToAlgorithmConfigs(
+          { data_model: field, datasets: field, filters: field, variables: field },
+          [],
+          [
+            spec('needs_binary', slot(['binary'])),
+            spec('needs_ordinal', slot(['ordinal'])),
+            spec('any_categorical', slot(['nominal', 'ordinal', 'binary'])),
+          ] as any
+        )
+      );
+
+      expect(service.algorithmEnabled('binary')).toEqual(['needs_binary', 'any_categorical']);
+      expect(service.algorithmEnabled('ordinal')).toEqual(['needs_ordinal', 'any_categorical']);
+      expect(service.algorithmEnabled('nominal')).toEqual(['any_categorical']);
+      expect(service.algorithmEnabled('continuous')).toEqual([]);
     });
   });
 });

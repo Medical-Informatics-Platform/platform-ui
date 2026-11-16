@@ -6,9 +6,15 @@ import {
     AlgorithmConfig,
 } from '../models/algorithm-definition.model';
 import { D3HierarchyNode } from '../models/data-model.interface';
-import { VariableTypes, AlgorithmRoles } from '../core/constants/algorithm.constants';
+import { AlgorithmRoles } from '../core/constants/algorithm.constants';
 import { resolveInputMaxCount, resolveInputMinCount } from '../core/algorithm-input-counts';
-import { isFreeTextCde, specificationAcceptsVariableType } from '../core/data-model.utils';
+import {
+    acceptedVariableTypes,
+    describeVariableType,
+    formatSlotStatTypes,
+    isFreeTextCde,
+    specificationAcceptsVariableType,
+} from '../core/data-model.utils';
 
 type SelectionRole = 'y' | 'x';
 type AvailabilitySelections = Record<SelectionRole, D3HierarchyNode[]>;
@@ -76,7 +82,6 @@ export class AlgorithmRulesService {
         const minCount = resolveInputMinCount(field, role, algo.name);
         const maxCount = resolveInputMaxCount(field, role, algo.name);
         const types = this.normalizeStringList(field?.types);
-        const stattypes = this.normalizeStringList(field?.stattypes);
         const messages: string[] = [];
 
         if (selected.length < minCount) {
@@ -95,30 +100,21 @@ export class AlgorithmRulesService {
             messages.push(label + ' contains duplicate selections.');
         }
 
-        if (selected.length > 0 && types.length > 0) {
+        // Slots match CDE types one-to-one: a nominal variable never fills a binary or ordinal slot.
+        const acceptedTypes = acceptedVariableTypes(field);
+        if (selected.length > 0 && acceptedTypes.length > 0) {
             const invalid = selected.find((node) => {
                 const type = (node as any).type;
-                return !!type && !specificationAcceptsVariableType(types, type);
+                return !!type && !specificationAcceptsVariableType(field, type);
             });
             if (invalid) {
-                this.pushUnique(messages, this.typeRequirementMessage(label, types));
+                this.pushUnique(messages, this.typeRequirementMessage(label, acceptedTypes, invalid));
             }
         }
 
         // Derived columns get their categories from the creator config, not the CDE.
         if (selected.some((node) => !(node as any).isCreatedColumn && isFreeTextCde(node as any))) {
             messages.push(label + ' contains a free-text variable, which cannot be analysed.');
-        }
-
-        if (selected.length > 0 && stattypes.length > 0) {
-            const reqStatTypes = stattypes.map((type) => this.normalizeStatType(type));
-            const invalid = selected.find((node) => {
-                const normalized = this.normalizeStatType((node as any).stattype ?? (node as any).statType ?? (node as any).stat_type);
-                return !!normalized && !reqStatTypes.includes(normalized);
-            });
-            if (invalid) {
-                this.pushUnique(messages, this.typeRequirementMessage(label, stattypes));
-            }
         }
 
         return {
@@ -129,7 +125,7 @@ export class AlgorithmRulesService {
             maxCount,
             required: minCount > 0 || this.isFieldRequired(field),
             types,
-            stattypes,
+            acceptedTypes,
             messages,
             satisfied: messages.length === 0,
         };
@@ -148,7 +144,7 @@ export class AlgorithmRulesService {
             maxCount: 0,
             required: false,
             types: [],
-            stattypes: [],
+            acceptedTypes: [],
             messages: [label + ' is not accepted by this algorithm.'],
             satisfied: false,
         };
@@ -170,46 +166,17 @@ export class AlgorithmRulesService {
         return role === 'y' ? 'Outcome' : 'Predictor';
     }
 
-    private typeRequirementMessage(label: string, types: string[]): string {
-        if (types.length > 0) {
-            return label + ' type must be one of ' + this.formatDisplayTypes(types).join(', ') + '.';
-        }
-        return label + ' type is not accepted by this algorithm.';
-    }
-
-    private formatDisplayTypes(types: string[]): string[] {
-        return Array.from(new Set(
-            types
-                .map((type) => this.normalizeDisplayType(type))
-                .filter((type): type is string => !!type)
-        ));
-    }
-
-    private normalizeDisplayType(type: string | undefined | null): string | undefined {
-        const normalized = String(type ?? '').trim().toLowerCase();
-        if (!normalized) return undefined;
-
-        switch (normalized) {
-            case VariableTypes.TEXT:
-            case 'polynominal':
-            case 'ordinal':
-                return VariableTypes.NOMINAL;
-            case VariableTypes.INTEGER:
-                return VariableTypes.INT;
-            default:
-                return normalized;
-        }
+    /** `Outcome must be binary (sex is nominal).` — the accepted CDE types, then what was selected. */
+    private typeRequirementMessage(label: string, acceptedTypes: string[], offender: D3HierarchyNode): string {
+        const name = String((offender as any).label ?? (offender as any).code ?? '').trim();
+        const found = describeVariableType((offender as any).type);
+        return label + ' must be ' + formatSlotStatTypes(acceptedTypes) + (name ? ' (' + name + ' is ' + found + ')' : '') + '.';
     }
 
     private pushUnique(messages: string[], message: string): void {
         if (!messages.includes(message)) {
             messages.push(message);
         }
-    }
-
-    private normalizeStatType(t: string | undefined | null): string | undefined {
-        if (!t) return undefined;
-        return String(t).trim().toLowerCase() || undefined;
     }
 
     private normalizeBool(value: boolean | string | undefined | null): boolean | null {

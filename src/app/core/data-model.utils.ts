@@ -66,14 +66,16 @@ export function countLeafNodes(node: unknown): number {
 export const NUMERICAL_VARIABLE_TYPES: readonly string[] = ['continuous', 'discrete'];
 export const CATEGORICAL_VARIABLE_TYPES: readonly string[] = ['nominal', 'ordinal', 'binary'];
 
-/** Algorithm specifications still declare input `types` as `real`, `int`, or `text`. */
-const SPECIFICATION_TYPE_BY_VARIABLE_TYPE: Readonly<Record<string, string>> = {
-  continuous: 'real',
-  discrete: 'int',
-  nominal: 'text',
-  ordinal: 'text',
-  binary: 'text',
-};
+/**
+ * Statistical types an algorithm input slot (`types`) can require. A slot matches a CDE
+ * one-to-one: `numerical` accepts continuous and discrete, and `nominal`, `ordinal` and `binary`
+ * each accept only their own CDE type. A nominal CDE never satisfies a binary or ordinal slot,
+ * and nothing is converted between the categorical types.
+ */
+export type SlotStatType = 'numerical' | 'nominal' | 'ordinal' | 'binary';
+
+export const CATEGORICAL_SLOT_STAT_TYPES: readonly SlotStatType[] = ['nominal', 'ordinal', 'binary'];
+const SLOT_STAT_TYPES: readonly SlotStatType[] = ['numerical', ...CATEGORICAL_SLOT_STAT_TYPES];
 
 function normalizeVariableType(type: unknown): string {
   return String(type ?? '').trim().toLowerCase();
@@ -87,6 +89,13 @@ export function isCategoricalVariableType(type: unknown): boolean {
   return CATEGORICAL_VARIABLE_TYPES.includes(normalizeVariableType(type));
 }
 
+/** The slot stattype a CDE type satisfies; null for a type the contract does not know. */
+export function slotStatTypeOf(type: unknown): SlotStatType | null {
+  const normalized = normalizeVariableType(type);
+  if (isNumericalVariableType(normalized)) return 'numerical';
+  return isCategoricalVariableType(normalized) ? (normalized as SlotStatType) : null;
+}
+
 /**
  * A categorical CDE without enumerations holds free text (e.g. a subject id).
  * Exaflow's request validator rejects it as an algorithm input.
@@ -95,12 +104,49 @@ export function isFreeTextCde(variable: { type?: unknown; enumerations?: unknown
   return isCategoricalVariableType(variable?.type) && !variable?.enumerations?.length;
 }
 
+/** The part of an algorithm input slot (`y` / `x` of a specification) that decides what it accepts. */
+export interface InputSlotSpec {
+  /** Statistical types the slot accepts: `numerical`, `nominal`, `ordinal`, `binary`. */
+  types?: readonly unknown[] | null;
+}
+
+function lowerCaseList(values: readonly unknown[] | null | undefined): string[] {
+  return Array.isArray(values)
+    ? values.map((value) => String(value ?? '').trim().toLowerCase()).filter((value) => value.length > 0)
+    : [];
+}
+
+/** The statistical types a slot accepts, as declared by its `types`; empty when it constrains nothing. */
+export function acceptedSlotStatTypes(slot: InputSlotSpec | null | undefined): SlotStatType[] {
+  const declared = lowerCaseList(slot?.types);
+  return SLOT_STAT_TYPES.filter((type) => declared.includes(type));
+}
+
 /**
- * Whether an algorithm input declaring `specTypes` accepts a CDE of `type`:
- * continuous → real, discrete → int (also accepted by real slots), categorical → text.
+ * Whether an algorithm input slot accepts a CDE of `type`: its statistical type must be one the
+ * slot lists (exactly; `numerical` takes continuous and discrete). A slot that declares nothing
+ * accepts any known type.
  */
-export function specificationAcceptsVariableType(specTypes: readonly string[], type: unknown): boolean {
-  const specType = SPECIFICATION_TYPE_BY_VARIABLE_TYPE[normalizeVariableType(type)];
-  if (!specType) return false;
-  return specTypes.includes(specType) || (specType === 'int' && specTypes.includes('real'));
+export function specificationAcceptsVariableType(slot: InputSlotSpec | null | undefined, type: unknown): boolean {
+  const stat = slotStatTypeOf(type);
+  if (!stat) return false;
+  const accepted = acceptedSlotStatTypes(slot);
+  return accepted.length === 0 || accepted.includes(stat);
+}
+
+/** The statistical types a slot takes, for requirement messages. Empty when the slot constrains nothing. */
+export function acceptedVariableTypes(slot: InputSlotSpec | null | undefined): string[] {
+  return acceptedSlotStatTypes(slot);
+}
+
+/** `numerical`, `nominal`, `ordinal`, `binary` as readable text: "numerical, nominal or binary". */
+export function formatSlotStatTypes(types: readonly string[]): string {
+  const list = [...types];
+  if (list.length <= 1) return list.join('');
+  return `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
+}
+
+/** What a variable of this type is called in a requirement message: its CDE type, or "unknown". */
+export function describeVariableType(type: unknown): string {
+  return normalizeVariableType(type) || 'unknown';
 }
