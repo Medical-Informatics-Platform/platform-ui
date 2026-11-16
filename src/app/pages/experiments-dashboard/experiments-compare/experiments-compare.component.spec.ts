@@ -125,6 +125,21 @@ describe('ExperimentsCompareComponent', () => {
     });
   });
 
+  describe('datasets', () => {
+    it('shows dataset names, not the numeric codes the experiment stores', async () => {
+      TestBed.inject(ExperimentLabelService).getLabelMap = async () => ({ '12': 'EDSD', '13': 'PPMI' });
+      showRuns([{ ...experiment('a'), domain: 'dementia:1', datasets: ['12', '13', '99'] }]);
+      await new Promise((resolve) => setTimeout(resolve));
+      root().querySelector<HTMLButtonElement>('.config-toggle')!.click();
+      fixture.detectChanges();
+
+      const tags = Array.from(root().querySelectorAll('.config-tags-row'))
+        .find((row) => row.querySelector('.k')?.textContent?.trim() === 'Datasets')!
+        .querySelectorAll('.tag');
+      expect(Array.from(tags).map((tag) => tag.textContent!.trim())).toEqual(['EDSD', 'PPMI', '99']);
+    });
+  });
+
   describe('columns', () => {
     it('gives every ungrouped run a column, grouped and ordered by its algorithm', () => {
       showRuns([

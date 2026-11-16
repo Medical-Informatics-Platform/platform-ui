@@ -236,6 +236,11 @@ export class ExperimentsCompareComponent implements OnDestroy {
     return this.withLabels((exp as any).variables, exp?.domain ?? null);
   }
 
+  /** Dataset codes are numeric; the tags show the dataset names. */
+  getDatasetsWithLabels(exp: Experiment) {
+    return this.withLabels(exp?.datasets, exp?.domain ?? null);
+  }
+
   getCovariatesWithLabels(exp: Experiment) {
     return this.withLabels((exp as any).covariates, exp?.domain ?? null);
   }

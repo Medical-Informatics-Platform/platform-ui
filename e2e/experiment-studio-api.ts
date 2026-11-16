@@ -326,7 +326,7 @@ export const LINEAR_REGRESSION_RESULT = {
   r_squared_adjusted: 0.0323,
   f_stat: 4.3082,
   f_pvalue: 0.04055,
-  indep_vars: ['Intercept', 'sex[M]'],
+  indep_vars: ['Intercept', 'sex[1]'],
   coefficients: [71.2041, 2.0512],
   std_err: [1.0213, 0.9882],
   t_stats: [69.7191, 2.0757],

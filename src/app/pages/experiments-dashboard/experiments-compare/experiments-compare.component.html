@@ -64,8 +64,8 @@
             <span class="k">Datasets</span>
             @if (column.item.exp.datasets?.length) {
             <div class="tag-list">
-              @for (d of column.item.exp.datasets; track d) {
-              <span class="tag">{{ d }}</span>
+              @for (d of getDatasetsWithLabels(column.item.exp); track d.code) {
+              <span class="tag">{{ d.label }}</span>
               }
             </div>
             } @else {

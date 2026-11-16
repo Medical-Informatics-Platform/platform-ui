@@ -255,6 +255,10 @@ export async function addKMeansOnColumns(page: Page, columns: string[], { stepAd
   const source = page.locator('app-kmeans-cluster-source').last();
   await source.getByRole('button', { name: 'Fit on selected variables' }).click();
   const keep = new Set(columns);
+  // Earlier steps' columns join the pool a tick after the card opens; list the buttons only once they are there.
+  for (const column of columns) {
+    await expect(source.locator('.kmeans-cluster-source-var', { hasText: column })).toBeVisible();
+  }
   for (const button of await source.locator('.kmeans-cluster-source-var').all()) {
     const label = (await button.innerText()).replace(/\s+/g, ' ').trim();
     const code = columns.find((candidate) => label.includes(candidate))

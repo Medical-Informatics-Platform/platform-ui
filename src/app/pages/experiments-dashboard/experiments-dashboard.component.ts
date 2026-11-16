@@ -18,6 +18,7 @@ import { ExperimentsDashboardGuideComponent } from './guide/experiments-dashboar
 import { ExperimentFolderComponent } from './experiment-folder/experiment-folder.component';
 import { ExperimentFoldersService } from '../../services/experiment-folders.service';
 import { readDashboardQuery, updateDashboardQuery } from './dashboard-query.utils';
+import { ExperimentLabelService } from '../../services/experiment-label.service';
 import { statusChip } from './shared/experiment-status/experiment-status.component';
 
 @Component({
@@ -43,6 +44,9 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private errorService = inject(ErrorService);
+  private labelService = inject(ExperimentLabelService);
+  /** Code → label per data model of the compared experiments, loaded on demand. */
+  private readonly labelsByDomain = signal<Record<string, Record<string, string>>>({});
   private titleService = inject(Title);
   readonly foldersService = inject(ExperimentFoldersService);
 
@@ -78,6 +82,15 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   constructor() {
+    effect(() => {
+      for (const domain of new Set(this.experimentsForCompare().map((experiment) => experiment.domain))) {
+        if (!domain || this.labelsByDomain()[domain]) continue;
+        void this.labelService.getLabelMap(domain).then((map) =>
+          this.labelsByDomain.update((current) => ({ ...current, [domain]: map }))
+        );
+      }
+    });
+
     // Folders belong to the signed-in user, and the session only resolves after the first render:
     // the service is told who to read for, and it reads them from PostgreSQL for that user.
     effect(() => {
@@ -324,7 +337,13 @@ export class ExperimentsDashboardComponent implements OnInit, OnDestroy {
       { k: 'Algorithm', value: (experiment) => this.getAlgorithmLabel(experiment.algorithmName) },
       { k: 'Outcome (y)', value: (experiment) => experiment.variables?.join(', ') || '—' },
       { k: 'Predictors (x)', value: (experiment) => experiment.covariates?.join(', ') || '—' },
-      { k: 'Datasets', value: (experiment) => experiment.datasets?.join(', ') || '—' },
+      {
+        k: 'Datasets',
+        value: (experiment) => {
+          const labels = this.labelsByDomain()[experiment.domain ?? ''] ?? {};
+          return experiment.datasets?.map((code) => labels[code] ?? code).join(', ') || '—';
+        },
+      },
       { k: 'Filters', value: (experiment) => experiment.filters?.length ? experiment.filters.join(', ') : 'None' },
       { k: 'Status', value: (experiment) => statusChip(experiment.status).label },
     ];
