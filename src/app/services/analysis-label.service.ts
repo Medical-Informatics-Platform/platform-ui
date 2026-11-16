@@ -27,6 +27,12 @@ export class AnalysisLabelService {
           }
         }
       }
+      // The catalog's dataset list: dataset codes are numeric, the readable name is the label.
+      for (const entry of Array.isArray(model.datasets) ? (model.datasets as unknown[]) : []) {
+        const dataset = entry as { code?: unknown; label?: unknown } | null;
+        const code = dataset && typeof dataset === 'object' ? String(dataset.code ?? '') : '';
+        if (code && dataset?.label) map[code] = String(dataset.label);
+      }
       return map;
     }, 'data models');
   }

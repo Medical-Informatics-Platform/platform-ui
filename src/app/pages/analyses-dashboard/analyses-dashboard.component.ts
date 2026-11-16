@@ -18,6 +18,7 @@ import { AnalysesDashboardGuideComponent } from './guide/analyses-dashboard-guid
 import { StudyComponent } from './study/study.component';
 import { StudiesService } from '../../services/studies.service';
 import { readDashboardQuery, updateDashboardQuery } from './dashboard-query.utils';
+import { AnalysisLabelService } from '../../services/analysis-label.service';
 import { statusChip } from './shared/analysis-status/analysis-status.component';
 
 @Component({
@@ -43,6 +44,9 @@ export class AnalysesDashboardComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private errorService = inject(ErrorService);
+  private labelService = inject(AnalysisLabelService);
+  /** Code → label per data model of the compared analyses, loaded on demand. */
+  private readonly labelsByDomain = signal<Record<string, Record<string, string>>>({});
   private titleService = inject(Title);
   readonly studiesService = inject(StudiesService);
 
@@ -78,6 +82,15 @@ export class AnalysesDashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   constructor() {
+    effect(() => {
+      for (const domain of new Set(this.analysesForCompare().map((analysis) => analysis.domain))) {
+        if (!domain || this.labelsByDomain()[domain]) continue;
+        void this.labelService.getLabelMap(domain).then((map) =>
+          this.labelsByDomain.update((current) => ({ ...current, [domain]: map }))
+        );
+      }
+    });
+
     // Studies belong to the signed-in user, and the session only resolves after the first render:
     // the service is told who to read for, and it reads them from PostgreSQL for that user.
     effect(() => {
@@ -324,7 +337,13 @@ export class AnalysesDashboardComponent implements OnInit, OnDestroy {
       { k: 'Algorithm', value: (analysis) => this.getAlgorithmLabel(analysis.algorithmName) },
       { k: 'Outcome (y)', value: (analysis) => analysis.variables?.join(', ') || '—' },
       { k: 'Predictors (x)', value: (analysis) => analysis.covariates?.join(', ') || '—' },
-      { k: 'Datasets', value: (analysis) => analysis.datasets?.join(', ') || '—' },
+      {
+        k: 'Datasets',
+        value: (analysis) => {
+          const labels = this.labelsByDomain()[analysis.domain ?? ''] ?? {};
+          return analysis.datasets?.map((code) => labels[code] ?? code).join(', ') || '—';
+        },
+      },
       { k: 'Filters', value: (analysis) => analysis.filters?.length ? analysis.filters.join(', ') : 'None' },
       { k: 'Status', value: (analysis) => statusChip(analysis.status).label },
     ];
