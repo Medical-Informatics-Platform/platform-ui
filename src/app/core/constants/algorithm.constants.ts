@@ -17,14 +17,6 @@ export const AlgorithmNames = {
     LINEAR_SVM: 'linear_svm',
 };
 
-export const VariableTypes = {
-    NOMINAL: 'nominal',
-    REAL: 'real',
-    INTEGER: 'integer',
-    INT: 'int',
-    TEXT: 'text',
-};
-
 export const HistogramBinningType = {
     WILKINSON: 'wilkinson',
 } as const;

@@ -1,4 +1,4 @@
-import { getOutputSchema } from './algorithm-mappers';
+import { getOutputSchema, mapSpecificationsToAlgorithmConfigs } from './algorithm-mappers';
 describe('algorithm mappers', () => {
   it('provides output schemas for new Exaflow algorithms', () => {
     ['lmm', 'glmm_binary', 'glmm_ordinal', 'chi_squared', 'fisher_exact', 'outlier_report', 'quartiles', 'binned_mann_whitney_u_test'].forEach((name) => {
@@ -6,5 +6,37 @@ describe('algorithm mappers', () => {
       expect(schema).toBeTruthy();
       expect(schema?.length).toBeGreaterThan(0);
     });
+  });
+
+  it('carries variable_stattypes of a variable-picking parameter into its config field', () => {
+    const field = { label: '', desc: '', types: ['text'] };
+    const configs = mapSpecificationsToAlgorithmConfigs(
+      { data_model: field, datasets: field, filters: field, variables: field },
+      [],
+      [
+        {
+          name: 'cox_regression_classical',
+          label: 'Cox',
+          desc: '',
+          y: { label: 'y', desc: '', types: ['real'], stattypes: ['numerical'] },
+          x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'ordinal', 'binary'] },
+          requires_validation_datasets: false,
+          required_preprocessing: [],
+          parameters: {
+            event_var: {
+              label: 'Event',
+              desc: '',
+              types: ['text'],
+              enums: { type: 'input_var_names', source: ['x'] },
+              variable_stattypes: ['binary'],
+            },
+          },
+        },
+      ],
+    );
+
+    const eventVar = configs['cox_regression_classical'].configSchema.find((entry) => entry.key === 'event_var');
+    expect(eventVar.variableStattypes).toEqual(['binary']);
+    expect(configs['cox_regression_classical'].inputdata?.x?.stattypes).toEqual(['numerical', 'nominal', 'ordinal', 'binary']);
   });
 });

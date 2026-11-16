@@ -101,6 +101,7 @@ function buildConfigSchema(parameters?: Record<string, RawParameter> | null): Ar
       multiple: isMultiple,
       types: param.types ?? [],
       stattypes: param.stattypes ?? [],
+      ...(param.variable_stattypes?.length ? { variableStattypes: param.variable_stattypes } : {}),
       ...(enumType ? { enumType } : {}),
       ...(enumSource.length ? { enumSource } : {}),
       ...(min !== undefined ? { min } : {}),

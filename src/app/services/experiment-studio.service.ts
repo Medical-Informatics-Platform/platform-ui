@@ -18,7 +18,7 @@ import { AlgorithmAvailability, AlgorithmConfig } from '../models/algorithm-defi
 import { BackendExperiment } from '../models/backend-experiment.model';
 import { ErrorService } from './error.service';
 import { AlgorithmRulesService } from './algorithm-rules.service';
-import { AlgorithmNames, HistogramBinningType, VariableTypes } from '../core/constants/algorithm.constants';
+import { AlgorithmNames, HistogramBinningType } from '../core/constants/algorithm.constants';
 import {
   omitEmptyOptionalParameters,
   parameterDefaultsFromSchema,
@@ -29,7 +29,6 @@ import { outlierStrategyLabel, outlierTailLabel } from '../core/outlier-rules';
 import {
   buildEnumMapForVariables,
   findDataModelByCodeVersion,
-  isCategoricalVariableType,
   isFreeTextCde,
   specificationAcceptsVariableType,
 } from '../core/data-model.utils';
@@ -524,52 +523,20 @@ export class ExperimentStudioService {
     this.clearDataExclusionWarnings();
   }
 
+  /**
+   * Names of the algorithms that can take a variable of this CDE type in at least one input slot.
+   * Slots match types one-to-one, so a nominal variable does not enable an algorithm whose only
+   * categorical slot is binary.
+   */
   algorithmEnabled(variableType: string): string[] {
     // Normalize to array because incoming variable metadata may be scalar or array.
     const varTypes = Array.isArray(variableType) ? variableType : [variableType];
-    const allAlgos = Object.values(this.backendAlgorithms());
-
-    // filter inputdata.y and add at least one of the varTypes in types list
-    const result = allAlgos
-      .filter(algo => {
-        const yReq = algo.inputdata?.y;
-        const xReq = algo.inputdata?.x;
-
-        if (!yReq || !Array.isArray(yReq.types)) {
-          return false;
-        }
-
-        const varIsNominal = varTypes.some(isCategoricalVariableType);
-
-        if (varIsNominal && yReq.stattypes?.includes(VariableTypes.NOMINAL)) {
-          return true;
-        }
-
-        const yExists = varTypes.some(t => specificationAcceptsVariableType(yReq.types, t));
-
-        if (!yExists) {
-          return false;
-        }
-
-        if (xReq && Array.isArray(xReq.types)) {
-          if (varTypes.length === 0) {
-            return false;
-          }
-
-          const xExists = varTypes.some(t => specificationAcceptsVariableType(xReq.types, t));
-          if (!xExists) {
-            return false;
-          }
-        }
-
-        if (varIsNominal && xReq?.stattypes?.includes(VariableTypes.NOMINAL)) {
-          return true;
-        }
-        return true;
+    return Object.values(this.backendAlgorithms())
+      .filter((algo) => {
+        const slots = [algo.inputdata?.y, algo.inputdata?.x].filter((slot) => !!slot);
+        return slots.some((slot) => varTypes.some((type) => specificationAcceptsVariableType(slot, type)));
       })
-      .map(algo => algo.name);
-    return result;
-
+      .map((algo) => algo.name);
   }
 
   // adds variables and adds enumerations for the algorithm panel

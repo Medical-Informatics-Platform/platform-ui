@@ -17,7 +17,8 @@ import { CsvExportService } from '../../../services/csv-export.service';
 import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
-import { AlgorithmNames, VariableTypes } from '../../../core/constants/algorithm.constants';
+import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
+import { specificationAcceptsVariableType } from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
 import {
@@ -145,7 +146,7 @@ export class AlgorithmPanelComponent {
   });
 
   needsRequirementText(detail: AlgorithmAvailabilityDetail): string {
-    const typeText = this.requirementTypeText(detail.types);
+    const typeText = this.requirementTypeText(detail.acceptedTypes);
 
     if (detail.role === 'y') {
       if (detail.minCount <= 0 && !detail.required) {
@@ -170,23 +171,15 @@ export class AlgorithmPanelComponent {
     return 'Predictors optional';
   }
 
-  private requirementTypeText(types: string[] | undefined | null): string {
-    if (!Array.isArray(types) || types.length === 0) return '';
-    const labels = new Set<string>();
-    types.forEach((type) => {
-      const normalized = String(type ?? '').trim().toLowerCase();
-      if (!normalized) return;
-      if (['real', 'int', 'integer', 'numeric', 'numerical'].includes(normalized)) {
-        labels.add('numerical');
-      } else if (
-        ['text', 'nominal', 'categorical', 'polynominal', 'ordinal', 'string'].includes(normalized)
-      ) {
-        labels.add('categorical');
-      } else {
-        labels.add(normalized);
-      }
-    });
-    return Array.from(labels).join(' or ');
+  /** `binary`, `nominal or binary`, `numerical or categorical`: the CDE types a slot takes, kept distinct. */
+  private requirementTypeText(acceptedTypes: string[] | undefined | null): string {
+    if (!Array.isArray(acceptedTypes) || acceptedTypes.length === 0) return '';
+    const labels = [...acceptedTypes];
+    const allCategorical = ['nominal', 'ordinal', 'binary'].every((type) => labels.includes(type));
+    const display = allCategorical
+      ? [...labels.filter((type) => !['nominal', 'ordinal', 'binary'].includes(type)), 'categorical']
+      : labels;
+    return display.join(' or ');
   }
 
   readonly readinessText = computed(() => {
@@ -217,7 +210,7 @@ export class AlgorithmPanelComponent {
     const algorithm = this.selectedAlgorithm();
     if (!algorithm || !this.selectedAlgorithmUnavailable()) return '';
     const summary = this.experimentStudioService.getAlgorithmAvailability(algorithm.name).summary ?? algorithm.availability?.summary ?? '';
-    return this.formatAvailabilityMessage(summary);
+    return summary;
   });
   readonly algorithmRunRequirements = computed((): AlgorithmRunRequirement[] => {
     const algorithm = this.selectedAlgorithm();
@@ -348,7 +341,10 @@ export class AlgorithmPanelComponent {
     return base;
   }
 
-  private variableOptionsForRoles(roles: string[]): Array<{ code: string; label: string }> {
+  private variableOptionsForRoles(
+    roles: string[],
+    variableStattypes: readonly string[] = []
+  ): Array<{ code: string; label: string }> {
     const roleList = roles.length ? roles : ['x'];
     return roleList.flatMap((role) => {
       const selected =
@@ -359,6 +355,7 @@ export class AlgorithmPanelComponent {
             : [];
 
       return selected
+        .filter((item: any) => (variableStattypes.length === 0 || specificationAcceptsVariableType({ stattypes: variableStattypes }, item?.type)))
         .map((item: any) => {
           const code = item?.code;
           if (code === null || code === undefined || code === '') return null;
@@ -703,7 +700,7 @@ export class AlgorithmPanelComponent {
       const enumSource = Array.isArray(field.enumSource) ? field.enumSource : [];
 
       if (field.enumType === 'input_var_names') {
-        options = this.variableOptionsForRoles(enumSource);
+        options = this.variableOptionsForRoles(enumSource, field.variableStattypes ?? []);
       } else if (field.enumType === 'input_var_CDE_enums') {
         options = this.enumOptionsForRole(enumSource[0]);
       } else if (field.key === 'category_order' && yVar?.enumerations?.length) {
@@ -942,12 +939,12 @@ export class AlgorithmPanelComponent {
   algorithmUnavailableReason(algorithm: AlgorithmConfig): string {
     const availability = this.experimentStudioService.getAlgorithmAvailability(algorithm.name);
     const summary = availability?.summary || algorithm.availability?.summary || '';
-    if (summary) return this.formatAvailabilityMessage(summary);
+    if (summary) return summary;
     const details = availability?.details?.length
       ? availability.details
       : (algorithm.availability?.details ?? []);
     const first = details.find((detail) => detail.messages.length > 0);
-    return first ? this.formatAvailabilityMessage(first.messages[0]) : 'Unavailable';
+    return first ? first.messages[0] : 'Unavailable';
   }
 
 
@@ -1471,27 +1468,14 @@ export class AlgorithmPanelComponent {
   availabilityRequirementText(detail: AlgorithmAvailabilityDetail): string {
     const count = this.formatAvailabilityCount(detail);
     const parts = [detail.label + ': ' + count + ', selected ' + detail.selectedCount];
-    const types = this.formatRequirementTypes(detail.types);
-    if (types) {
-      parts.push('type: ' + types.join(', '));
+    if (detail.acceptedTypes?.length) {
+      parts.push('type: ' + detail.acceptedTypes.join(', '));
     }
     return parts.join(' • ');
   }
 
   private formatAvailabilityCount(detail: AlgorithmAvailabilityDetail): string {
     return formatInputCountRange(detail.minCount, detail.maxCount);
-  }
-
-  private formatAvailabilityMessage(message: string): string {
-    return message.replace(
-      /((?:Outcome|Predictor) type must be one of )([^.]*)\./g,
-      (_match, prefix: string, types: string) => {
-        const displayTypes = this.formatRequirementTypes(
-          types.split(',').map((type) => type.trim())
-        );
-        return prefix + (displayTypes ?? []).join(', ') + '.';
-      }
-    );
   }
 
   resolveRunRequirement(requirement: AlgorithmRunRequirement): void {
@@ -1595,34 +1579,6 @@ export class AlgorithmPanelComponent {
     };
   }
 
-  private normalizeRequirementDisplayType(type: unknown): string | null {
-    const normalized = String(type ?? '').trim().toLowerCase();
-    if (!normalized) return null;
-
-    switch (normalized) {
-      case VariableTypes.TEXT:
-      case 'polynominal':
-      case 'ordinal':
-        return VariableTypes.NOMINAL;
-      case VariableTypes.INTEGER:
-        return VariableTypes.INT;
-      default:
-        return normalized;
-    }
-  }
-
-  private formatRequirementTypes(types: unknown): string[] | null {
-    if (!Array.isArray(types) || types.length === 0) {
-      return null;
-    }
-
-    const normalized = types
-      .map((type) => this.normalizeRequirementDisplayType(type))
-      .filter((type): type is string => !!type);
-
-    const unique = Array.from(new Set(normalized));
-    return unique.length ? unique : null;
-  }
 
   onExportResult(section: HTMLElement) {
     const payload = this.resultExportPayload();

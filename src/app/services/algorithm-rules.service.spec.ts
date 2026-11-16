@@ -180,15 +180,15 @@ describe('AlgorithmRulesService', () => {
   it('requires at least two covariates for Binary GLMM when min_count is omitted', () => {
     const algo = {
       ...buildAlgo({
-        y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['nominal'], required: true },
-        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal'], required: true },
+        y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['binary'], required: true },
+        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'ordinal', 'binary'], required: true },
       }),
       name: 'glmm_binary',
     } as AlgorithmConfig;
 
     const unavailable = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'outcome', label: 'Outcome', type: 'binary', stattype: 'nominal', enumerations: [{ code: 'a', label: 'A' }] } as any],
-      x: [{ code: 'age', label: 'Age', type: 'continuous', stattype: 'numerical' } as any],
+      y: [{ code: 'outcome', label: 'Outcome', type: 'binary', enumerations: [{ code: '0', label: 'A' }, { code: '1', label: 'B' }] } as any],
+      x: [{ code: 'age', label: 'Age', type: 'continuous' } as any],
     });
 
     expect(unavailable.available).toBe(false);
@@ -223,35 +223,87 @@ describe('AlgorithmRulesService', () => {
     })).toBe(false);
   });
 
-  it('displays nominal as the user-facing type when stattype validation fails for text inputs', () => {
+  it('requires a binary outcome to be binary, naming what was selected', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['binary'], required: true, max_count: 1 },
     });
+    const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
 
-    const result = service.evaluateAlgorithmAvailability(algo, {
-      y: [{ code: 'v1', label: 'var1', type: 'nominal', stattype: 'ordinal', enumerations: [{ code: 'a', label: 'A' }] } as any],
+    const nominal = service.evaluateAlgorithmAvailability(algo, {
+      y: [{ code: 'v1', label: 'Stage', type: 'nominal', enumerations } as any],
       x: [],
+    });
+    expect(nominal.available).toBe(false);
+    expect(nominal.summary).toBe('Outcome must be binary (Stage is nominal).');
+    expect(nominal.details[0].acceptedTypes).toEqual(['binary']);
+
+    const ordinal = service.evaluateAlgorithmAvailability(algo, {
+      y: [{ code: 'v1', label: 'Grade', type: 'ordinal', enumerations } as any],
+      x: [],
+    });
+    expect(ordinal.summary).toBe('Outcome must be binary (Grade is ordinal).');
+
+    expect(service.isAlgorithmAvailable(algo, {
+      y: [{ code: 'v2', label: 'Sex', type: 'binary', enumerations: [{ code: '0', label: 'M' }, { code: '1', label: 'F' }] } as any],
+      x: [],
+    })).toBe(true);
+  });
+
+  it('requires an ordinal outcome to be ordinal, not nominal or binary', () => {
+    const algo = buildAlgo({
+      y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['ordinal'], required: true, max_count: 1 },
+    });
+    const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
+    const accepts = (type: string) =>
+      service.isAlgorithmAvailable(algo, { y: [{ code: 'v', label: 'V', type, enumerations } as any], x: [] });
+
+    expect(accepts('ordinal')).toBe(true);
+    expect(accepts('nominal')).toBe(false);
+    expect(accepts('binary')).toBe(false);
+  });
+
+  it('lists every accepted type when a slot takes several', () => {
+    const algo = buildAlgo({
+      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'binary'], required: true },
+    });
+    const result = service.evaluateAlgorithmAvailability(algo, {
+      y: [],
+      x: [{ code: 'v1', label: 'Grade', type: 'ordinal', enumerations: [{ code: '1', label: 'A' }] } as any],
     });
 
     expect(result.available).toBe(false);
-    expect(result.summary).toBe('Outcome type must be one of nominal.');
+    expect(result.summary).toBe('Predictor must be numerical, nominal or binary (Grade is ordinal).');
   });
 
-  it('displays text as nominal in availability type errors', () => {
+  it('keeps accepting every categorical type for a slot that lists all of them', () => {
+    const algo = buildAlgo({
+      x: {
+        label: 'x', desc: '', types: ['real', 'int', 'text'],
+        stattypes: ['numerical', 'nominal', 'ordinal', 'binary'], required: true,
+      },
+    });
+    const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
+    for (const type of ['continuous', 'discrete', 'nominal', 'ordinal', 'binary']) {
+      expect(service.isAlgorithmAvailable(algo, { y: [], x: [{ code: 'v', label: 'V', type, enumerations } as any] })).toBe(true);
+    }
+  });
+
+  it('reads a spec without stattypes by its value types so older specs keep working', () => {
     const algo = buildAlgo({
       x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: true },
     });
+    const enumerations = [{ code: '1', label: 'A' }];
+    expect(service.isAlgorithmAvailable(algo, { y: [], x: [{ code: 'v', label: 'V', type: 'binary', enumerations } as any] })).toBe(true);
+    expect(service.isAlgorithmAvailable(algo, { y: [], x: [{ code: 'v', label: 'V', type: 'ordinal', enumerations } as any] })).toBe(true);
 
     const result = service.evaluateAlgorithmAvailability(algo, {
       y: [],
       x: [{ code: 'v1', label: 'var1', type: 'boolean' } as any],
     });
-
     expect(result.available).toBe(false);
-    expect(result.summary).toBe('Predictor type must be one of real, int, nominal.');
+    expect(result.summary).toBe('Predictor must be numerical, nominal, ordinal or binary (var1 is boolean).');
     expect(result.summary).not.toContain('text');
   });
-
 
   it('returns structured details for optional covariate max_count failures', () => {
     const algo = buildAlgo({

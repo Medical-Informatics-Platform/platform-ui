@@ -6,6 +6,7 @@ import { SessionStorageService } from './session-storage.service';
 import { ErrorService } from './error.service';
 import { DataModel } from '../models/data-model.interface';
 import { AnalysisPreprocessingStep } from '../models/backend-algorithms.model';
+import { mapSpecificationsToAlgorithmConfigs } from '../core/algorithm-mappers';
 import { CreatorName } from '../core/transformation-steps.utils';
 
 /** Store creator cards the way the Transformation stage does: one step per card, ids by position. */
@@ -2475,6 +2476,31 @@ describe('ExperimentStudioService', () => {
       expect(loaded[0].variables[1].enumerations).toEqual([{ code: 'M', label: 'Male' }]);
       expect(service.cdeMetadataIssues().map((issue) => issue.variable)).toEqual(['age', 'age', 'age', 'sex', 'sex', 'sex']);
       expect(TestBed.inject(ErrorService).error()).toContain('does not follow the current CDE format');
+    });
+  });
+  describe('algorithmEnabled', () => {
+    it('matches categorical variables to slots one-to-one', () => {
+      const field = { label: '', desc: '', types: ['text'] };
+      const slot = (stattypes: string[]) => ({ label: '', desc: '', types: ['int', 'text'], stattypes, required: true });
+      const spec = (name: string, y: any) => ({
+        name, label: name, desc: '', y, requires_validation_datasets: false, parameters: {}, required_preprocessing: [],
+      });
+      service.backendAlgorithms.set(
+        mapSpecificationsToAlgorithmConfigs(
+          { data_model: field, datasets: field, filters: field, variables: field },
+          [],
+          [
+            spec('needs_binary', slot(['binary'])),
+            spec('needs_ordinal', slot(['ordinal'])),
+            spec('any_categorical', slot(['nominal', 'ordinal', 'binary'])),
+          ] as any
+        )
+      );
+
+      expect(service.algorithmEnabled('binary')).toEqual(['needs_binary', 'any_categorical']);
+      expect(service.algorithmEnabled('ordinal')).toEqual(['needs_ordinal', 'any_categorical']);
+      expect(service.algorithmEnabled('nominal')).toEqual(['any_categorical']);
+      expect(service.algorithmEnabled('continuous')).toEqual([]);
     });
   });
 });
