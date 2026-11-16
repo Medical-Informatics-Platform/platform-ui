@@ -88,8 +88,8 @@ function strokeModel() {
         label: 'Dataset',
         type: 'nominal',
         enumerations: [
-          { code: 'chuv', label: 'CHUV' },
-          { code: 'adni', label: 'ADNI' },
+          { code: '1', label: 'CHUV' },
+          { code: '2', label: 'ADNI' },
         ],
       },
       {
@@ -97,18 +97,18 @@ function strokeModel() {
         label: 'Visit',
         type: 'nominal',
         enumerations: [
-          { code: 'bl', label: 'Baseline' },
-          { code: 'm12', label: 'Month 12' },
+          { code: '1', label: 'Baseline' },
+          { code: '2', label: 'Month 12' },
         ],
       },
       { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
-        type: 'nominal',
+        type: 'binary',
         enumerations: [
-          { code: 'M', label: 'Male' },
-          { code: 'F', label: 'Female' },
+          { code: '0', label: 'Male' },
+          { code: '1', label: 'Female' },
         ],
       },
     ],
@@ -139,7 +139,7 @@ function kmeansReport(variables: string[]) {
         centers: { '0': center(80), '1': center(60) },
         source_context: {
           data_model: 'dementia:1',
-          datasets: ['chuv', 'adni'],
+          datasets: ['1', '2'],
           input_fingerprint: 'mock',
         },
         available_outputs: [],
@@ -166,18 +166,18 @@ function dataModel() {
         label: 'Dataset',
         type: 'nominal',
         enumerations: [
-          { code: 'chuv', label: 'CHUV' },
-          { code: 'adni', label: 'ADNI' },
+          { code: '1', label: 'CHUV' },
+          { code: '2', label: 'ADNI' },
         ],
       },
       { code: 'age', label: 'Age', type: 'continuous' },
       {
         code: 'sex',
         label: 'Sex',
-        type: 'nominal',
+        type: 'binary',
         enumerations: [
-          { code: 'M', label: 'Male' },
-          { code: 'F', label: 'Female' },
+          { code: '0', label: 'Male' },
+          { code: '1', label: 'Female' },
         ],
       },
       {
@@ -185,8 +185,8 @@ function dataModel() {
         label: 'APOE',
         type: 'nominal',
         enumerations: [
-          { code: 'e3', label: 'e3' },
-          { code: 'e4', label: 'e4' },
+          { code: '1', label: 'e3' },
+          { code: '2', label: 'e4' },
         ],
       },
       { code: 'mmse', label: 'MMSE', type: 'continuous' },
@@ -214,21 +214,21 @@ interface NumericalStats {
  */
 const NUMERICAL_STATS: Record<string, Record<string, NumericalStats>> = {
   age: {
-    chuv: { num_dtps: 48, num_na: 2, num_total: 50, mean: 71.6, std: 7.9, min: 52, q1: 66, q2: 72, q3: 77, max: 91 },
-    adni: { num_dtps: 47, num_na: 3, num_total: 50, mean: 73.1, std: 8.4, min: 55, q1: 67, q2: 73, q3: 79, max: 94 },
+    '1': { num_dtps: 48, num_na: 2, num_total: 50, mean: 71.6, std: 7.9, min: 52, q1: 66, q2: 72, q3: 77, max: 91 },
+    '2': { num_dtps: 47, num_na: 3, num_total: 50, mean: 73.1, std: 8.4, min: 55, q1: 67, q2: 73, q3: 79, max: 94 },
   },
   mmse: {
-    chuv: { num_dtps: 45, num_na: 5, num_total: 50, mean: 24.6, std: 3.9, min: 13, q1: 22, q2: 25, q3: 28, max: 30 },
-    adni: { num_dtps: 49, num_na: 1, num_total: 50, mean: 25.3, std: 3.4, min: 15, q1: 23, q2: 26, q3: 28, max: 30 },
+    '1': { num_dtps: 45, num_na: 5, num_total: 50, mean: 24.6, std: 3.9, min: 13, q1: 22, q2: 25, q3: 28, max: 30 },
+    '2': { num_dtps: 49, num_na: 1, num_total: 50, mean: 25.3, std: 3.4, min: 15, q1: 23, q2: 26, q3: 28, max: 30 },
   },
 };
 
 /** Category counts per dataset, for nominal variables and the columns the studio derives. */
 const NOMINAL_COUNTS: Record<string, Record<string, Record<string, number>>> = {
-  sex: { chuv: { M: 22, F: 28 }, adni: { M: 24, F: 26 } },
-  apoe: { chuv: { e3: 36, e4: 14 }, adni: { e3: 33, e4: 17 } },
-  sex_group: { chuv: { female: 28, other: 22 }, adni: { female: 26, other: 24 } },
-  kmeans_cluster: { chuv: { '0': 23, '1': 25 }, adni: { '0': 22, '1': 25 } },
+  sex: { '1': { '0': 22, '1': 28 }, '2': { '0': 24, '1': 26 } },
+  apoe: { '1': { '1': 36, '2': 14 }, '2': { '1': 33, '2': 17 } },
+  sex_group: { '1': { female: 28, other: 22 }, '2': { female: 26, other: 24 } },
+  kmeans_cluster: { '1': { '0': 23, '1': 25 }, '2': { '0': 22, '1': 25 } },
 };
 
 /** The `all datasets` row: summed counts, pooled mean and standard deviation, no quartiles. */
@@ -265,7 +265,7 @@ function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inpu
     ? body.analysis.algorithm.y
     : body?.analysis?.inputdata?.variables ?? []
   ).filter((code) => code && code !== 'dataset');
-  const datasets = body?.analysis?.inputdata?.datasets?.length ? body.analysis.inputdata.datasets : ['chuv', 'adni'];
+  const datasets = body?.analysis?.inputdata?.datasets?.length ? body.analysis.inputdata.datasets : ['1', '2'];
 
   const perDataset: { variable: string; dataset: string; data: object | null }[] = [];
   const global: typeof perDataset = [];
@@ -297,7 +297,7 @@ function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inpu
  */
 const HISTOGRAMS: Record<string, { bins: (number | string)[]; counts: (number | null)[] }> = {
   age: { bins: [50, 55, 60, 65, 70, 75, 80, 85, 90, 95], counts: [null, 11, 14, 18, 20, 14, 10, null, null] },
-  sex: { bins: ['M', 'F'], counts: [46, 54] },
+  sex: { bins: ['0', '1'], counts: [46, 54] },
 };
 
 function histogramPayload(body: { analysis?: { algorithm?: { y?: string[] } } }) {
@@ -396,7 +396,7 @@ export function seedLinearExperiment(overrides: Partial<StoredExperiment> = {}):
     analysis: {
       inputdata: {
         data_model: 'dementia:1',
-        datasets: ['chuv', 'adni'],
+        datasets: ['1', '2'],
         filters: null,
         variables: ['age', 'sex'],
       },

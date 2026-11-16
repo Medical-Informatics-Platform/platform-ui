@@ -139,7 +139,7 @@ test.describe('experiment studio', () => {
     expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
     expect(body.name).toBe('Age by sex');
     expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
-    expect(body.analysis.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['chuv', 'adni'], filters: null });
+    expect(body.analysis.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['1', '2'], filters: null });
     expect(body.analysis.inputdata.variables).toEqual(expect.arrayContaining(['age', 'sex']));
     expect(body.analysis.preprocessing).toContainEqual({
       name: 'missing_values_handler',
@@ -301,7 +301,7 @@ test.describe('preprocessing', () => {
     test(`longitudinal: ${label}`, async ({ page, api }) => {
       await openLongitudinalAge(page);
       await applyLongitudinalStrategy(page, label);
-      expect(previewStep(api, 'longitudinal_transformer')).toEqual({ visit1: 'bl', visit2: 'm12', strategies: { age: strategy } });
+      expect(previewStep(api, 'longitudinal_transformer')).toEqual({ visit1: '1', visit2: '2', strategies: { age: strategy } });
       await page.getByRole('button', { name: /Longitudinal Comparison/ }).click();
       const card = page.locator('app-station-card', { hasText: 'Longitudinal Transformation' });
       await expect(card.locator('select').last().locator('option:checked')).toHaveText(label);
@@ -321,7 +321,7 @@ test.describe('filters and transformations', () => {
       condition: 'AND',
       rules: [
         expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 }),
-        expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' }),
+        expect.objectContaining({ field: 'sex', operator: 'equal', value: 1 }),
       ],
       valid: true,
     });
@@ -379,7 +379,7 @@ test.describe('filters and transformations', () => {
       parameters: {
         new_column_names: ['sex_group'],
         strategy: 'filter_rules',
-        rules: { female: { condition: 'AND', rules: [expect.objectContaining({ field: 'sex', operator: 'equal', value: 'F' })], valid: true } },
+        rules: { female: { condition: 'AND', rules: [expect.objectContaining({ field: 'sex', operator: 'equal', value: 1 })], valid: true } },
       },
     });
     expect(steps).toContainEqual({

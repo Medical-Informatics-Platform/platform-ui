@@ -2440,4 +2440,41 @@ describe('ExperimentStudioService', () => {
       expect(service.appliedTransformations()).toBe(before);
     });
   });
+  describe('catalog CDE metadata', () => {
+    it('keeps integer codes as strings and reports no issue for a current data model', () => {
+      let loaded: any[] = [];
+      service.loadAllDataModels().subscribe((models) => (loaded = models));
+      httpMock.expectOne('/services/data-models').flush([
+        {
+          uuid: 'u', label: 'Dementia', code: 'dementia', version: '1', released: true,
+          datasets: [{ code: '12', label: 'EDSD' }],
+          variables: [{ code: 'sex', label: 'Sex', type: 'binary', enumerations: [{ code: '0', label: 'Male' }, { code: 1, label: 'Female' }] }],
+        },
+      ]);
+      expect(loaded[0].variables[0].enumerations).toEqual([
+        { code: '0', label: 'Male' },
+        { code: '1', label: 'Female' },
+      ]);
+      expect(service.cdeMetadataIssues()).toEqual([]);
+      expect(TestBed.inject(ErrorService).error()).toBeNull();
+    });
+
+    it('converts the old sql_type/isCategorical shape and tells the user', () => {
+      let loaded: any[] = [];
+      service.loadAllDataModels().subscribe((models) => (loaded = models));
+      httpMock.expectOne('/services/data-models').flush([
+        {
+          uuid: 'u', label: 'Old', code: 'old', version: '1', released: true,
+          variables: [
+            { code: 'age', label: 'Age', type: 'real', sql_type: 'real', isCategorical: 'false' },
+            { code: 'sex', label: 'Sex', type: 'nominal', sql_type: 'text', isCategorical: 'true', enumerations: [{ code: 'M', label: 'Male' }] },
+          ],
+        },
+      ]);
+      expect(loaded[0].variables[0]).toEqual({ code: 'age', label: 'Age', type: 'continuous' });
+      expect(loaded[0].variables[1].enumerations).toEqual([{ code: 'M', label: 'Male' }]);
+      expect(service.cdeMetadataIssues().map((issue) => issue.variable)).toEqual(['age', 'age', 'age', 'sex', 'sex', 'sex']);
+      expect(TestBed.inject(ErrorService).error()).toContain('does not follow the current CDE format');
+    });
+  });
 });
