@@ -11,9 +11,14 @@ export interface Variable {
   maxValue?: number;
 }
 
+/**
+ * A level of a categorical CDE. Non-continuous CDEs carry integer codes (binary: 0 and 1),
+ * held as the string of the integer (`"1"`); `label` is the readable level shown to users.
+ * See core/enumeration-codes.utils.ts.
+ */
 interface EnumValue {
-  label: string;  // UI label
-  code: any;    //  backend value
+  label: string;
+  code: string;
 }
 
 // Interface for a Group in the data model

@@ -42,6 +42,11 @@ import {
   KMEANS_CLUSTER_CREATOR,
   kmeansCreatorVariables,
 } from '../core/kmeans-cluster-source.utils';
+import {
+  CdeMetadataIssue,
+  normalizeDataModelCdes,
+  summarizeCdeMetadataIssues,
+} from '../core/enumeration-codes.utils';
 import { resolvePreprocessingOutputs } from '../core/preprocessing-outputs.utils';
 import {
   CREATOR_NAMES,
@@ -188,6 +193,9 @@ export class AnalysisStudioService {
     );
   });
   private pathologyAccessWarningSignal = signal<PathologyAccessWarning | null>(null);
+  private readonly cdeMetadataIssuesSignal = signal<CdeMetadataIssue[]>([]);
+  /** Catalog metadata that does not follow the CDE contract (retired fields, non-integer codes). */
+  readonly cdeMetadataIssues = this.cdeMetadataIssuesSignal.asReadonly();
   readonly pathologyAccessWarning = this.pathologyAccessWarningSignal.asReadonly();
 
   private currentAnalysisUUIDSignal = signal<string | null>(null);
@@ -1675,6 +1683,7 @@ export class AnalysisStudioService {
 
     if (!this.dataModelsRequest$) {
       this.dataModelsRequest$ = this.http.get<any[]>(this.apiUrl).pipe(
+        map((models) => this.normalizeCatalogModels(models)),
         tap((models) => {
           this.pathologyAccessWarningSignal.set(null);
           this.dataModels = models;
@@ -1701,6 +1710,26 @@ export class AnalysisStudioService {
     }
 
     return this.dataModelsRequest$;
+  }
+
+  /**
+   * The catalog boundary for CDE metadata: converts retired type names and string/number codes to
+   * the current shape and tells the user once when the metadata does not follow the CDE contract.
+   */
+  private normalizeCatalogModels(models: any[]): any[] {
+    if (!Array.isArray(models)) return [];
+    const issues: CdeMetadataIssue[] = [];
+    const normalized = models.map((model) => {
+      const result = normalizeDataModelCdes(model);
+      issues.push(...result.issues);
+      return result.model;
+    });
+    this.cdeMetadataIssuesSignal.set(issues);
+    if (issues.length > 0) {
+      console.warn('Data model metadata does not follow the CDE contract:', issues);
+      this.errorService.setError(summarizeCdeMetadataIssues(issues));
+    }
+    return normalized;
   }
 
   private clearLoadedDataModelState(): void {

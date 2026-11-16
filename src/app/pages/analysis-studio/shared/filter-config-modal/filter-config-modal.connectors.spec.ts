@@ -9,8 +9,8 @@ describe('FilterConfigModalComponent row connectors', () => {
   let component: FilterConfigModalComponent;
   let analysisStudio: any;
 
-  const anaesthesiaA = { field: 'sex', operator: 'equal', value: 'female' };
-  const anaesthesiaB = { field: 'sex', operator: 'equal', value: 'male' };
+  const anaesthesiaA = { field: 'sex', operator: 'equal', value: 1 };
+  const anaesthesiaB = { field: 'sex', operator: 'equal', value: 2 };
   const ageBelow60 = { field: 'age', operator: 'less', value: 60 };
 
   beforeEach(async () => {
@@ -25,8 +25,8 @@ describe('FilterConfigModalComponent row connectors', () => {
             label: 'Sex',
             type: 'nominal',
             enumerations: [
-              { code: 'female', label: 'Female' },
-              { code: 'male', label: 'Male' },
+              { code: '1', label: 'Female' },
+              { code: '2', label: 'Male' },
             ],
           },
         ],
@@ -37,8 +37,8 @@ describe('FilterConfigModalComponent row connectors', () => {
           label: 'Sex',
           type: 'nominal',
           enumerations: [
-            { code: 'female', label: 'Female' },
-            { code: 'male', label: 'Male' },
+            { code: '1', label: 'Female' },
+            { code: '2', label: 'Male' },
           ],
         },
         { code: 'mrs_score', label: 'mRS score', type: 'discrete' },
@@ -67,8 +67,8 @@ describe('FilterConfigModalComponent row connectors', () => {
         label: 'Sex',
         type: 'nominal',
         enumerations: [
-          { code: 'female', label: 'Female' },
-          { code: 'male', label: 'Male' },
+          { code: '1', label: 'Female' },
+          { code: '2', label: 'Male' },
         ],
       },
     ]);

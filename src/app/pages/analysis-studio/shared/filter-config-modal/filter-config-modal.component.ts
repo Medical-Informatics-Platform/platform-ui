@@ -14,6 +14,7 @@ import {
 } from '../../../../core/filter-logic.utils';
 import { unavailableDatasetsFor, unavailableTooltipFor, unavailableVariableTooltip } from '../../../../core/variable-availability.utils';
 import { isCategoricalVariableType, isNumericalVariableType } from '../../../../core/data-model.utils';
+import { enumerationCodeAsInteger, isIntegerCoded } from '../../../../core/enumeration-codes.utils';
 
 type GroupCondition = 'AND' | 'OR';
 type FilterBlock = FilterGroupBlock | FilterConditionBlock;
@@ -541,7 +542,13 @@ export class FilterConfigModalComponent {
     };
   }
 
+  /**
+   * Exaflow type-checks a rule value against the column: numerical and integer-coded categorical
+   * columns (nominal, ordinal, binary, dataset) take JSON numbers, so a picked level code goes out
+   * as an integer; text-coded columns keep the string.
+   */
   private coerceValue(variable: any | null, value: string): unknown {
+    if (isIntegerCoded(variable)) return enumerationCodeAsInteger(value) ?? value;
     const numeric = Number(value);
     return isNumericalVariableType(variable?.type) && value.trim() !== '' && Number.isFinite(numeric)
       ? numeric
@@ -578,7 +585,7 @@ export class FilterConfigModalComponent {
 
   private detectType(field: string): 'string' | 'integer' | 'real' {
     const variable = this.allFilterVariables().find((entry) => entry.code === field);
-    if (variable?.type === 'discrete') return 'integer';
+    if (variable?.type === 'discrete' || isIntegerCoded(variable)) return 'integer';
     if (variable?.type === 'continuous') return 'real';
     return 'string';
   }

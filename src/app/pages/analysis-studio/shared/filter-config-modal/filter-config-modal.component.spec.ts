@@ -21,8 +21,8 @@ describe('FilterConfigModalComponent block builder', () => {
             label: 'Sex',
             type: 'nominal',
             enumerations: [
-              { code: 'female', label: 'Female' },
-              { code: 'male', label: 'Male' },
+              { code: '1', label: 'Female' },
+              { code: '2', label: 'Male' },
             ],
           },
         ],
@@ -33,8 +33,8 @@ describe('FilterConfigModalComponent block builder', () => {
           label: 'Sex',
           type: 'nominal',
           enumerations: [
-            { code: 'female', label: 'Female' },
-            { code: 'male', label: 'Male' },
+            { code: '1', label: 'Female' },
+            { code: '2', label: 'Male' },
           ],
         },
         { code: 'mrs_score', label: 'mRS score', type: 'discrete' },
@@ -63,8 +63,8 @@ describe('FilterConfigModalComponent block builder', () => {
         label: 'Sex',
         type: 'nominal',
         enumerations: [
-          { code: 'female', label: 'Female' },
-          { code: 'male', label: 'Male' },
+          { code: '1', label: 'Female' },
+          { code: '2', label: 'Male' },
         ],
       },
     ]);
@@ -75,7 +75,7 @@ describe('FilterConfigModalComponent block builder', () => {
       condition: 'OR',
       rules: [
         { field: 'age', operator: 'greater', value: 2 },
-        { condition: 'AND', rules: [{ field: 'sex', operator: 'equal', value: 'female' }] },
+        { condition: 'AND', rules: [{ field: 'sex', operator: 'equal', value: '1' }] },
       ],
     });
     fixture.detectChanges();
@@ -93,7 +93,7 @@ describe('FilterConfigModalComponent block builder', () => {
           condition: 'AND',
           rules: [
             { field: 'age', operator: 'greater', value: 2 },
-            { field: 'sex', operator: 'equal', value: 'female' },
+            { field: 'sex', operator: 'equal', value: '1' },
           ],
         },
         { field: 'mrs_score', operator: 'less', value: 5 },
@@ -114,8 +114,8 @@ describe('FilterConfigModalComponent block builder', () => {
     const condition = component.rootGroup().rules[0] as any;
     component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
     component.setConditionOperator(condition.id, 'IN');
-    component.toggleCategory(condition.id, 'female');
-    component.toggleCategory(condition.id, 'male');
+    component.toggleCategory(condition.id, '1');
+    component.toggleCategory(condition.id, '2');
 
     // Every edit replaces the block, so the summary is checked on the current one.
     expect(component.compactValueSummary(component.rootGroup().rules[0] as any)).toBe('Female, Male');
@@ -139,7 +139,7 @@ describe('FilterConfigModalComponent block builder', () => {
     component.addCondition(group.id, 0);
     condition = (component.rootGroup().rules[1] as any).rules[0];
     component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
-    component.setConditionValue(condition.id, 'female');
+    component.setConditionValue(condition.id, '1');
 
     component.saveFilters();
 
@@ -170,7 +170,7 @@ describe('FilterConfigModalComponent block builder', () => {
     component.addCondition(root.id, 0);
     const condition = component.rootGroup().rules[0] as any;
     component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
-    component.setConditionValue(condition.id, 'female');
+    component.setConditionValue(condition.id, '1');
 
     expect(component.previewExpression()).toContain('Sex = Female');
 
@@ -179,7 +179,7 @@ describe('FilterConfigModalComponent block builder', () => {
     expect(analysisStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
       rules: [expect.objectContaining({
         field: 'sex',
-        value: 'female',
+        value: 1,
       })],
     }));
   });
@@ -247,8 +247,8 @@ describe('FilterConfigModalComponent block builder', () => {
         {
           condition: 'OR',
           rules: [
-            { field: 'sex', operator: 'equal', value: 'female' },
-            { field: 'sex', operator: 'equal', value: 'male' },
+            { field: 'sex', operator: 'equal', value: '1' },
+            { field: 'sex', operator: 'equal', value: '2' },
           ],
         },
       ],
@@ -266,8 +266,8 @@ describe('FilterConfigModalComponent block builder', () => {
         expect.objectContaining({
           condition: 'OR',
           rules: expect.arrayContaining([
-            expect.objectContaining({ field: 'sex', value: 'female' }),
-            expect.objectContaining({ field: 'sex', value: 'male' }),
+            expect.objectContaining({ field: 'sex', value: 1 }),
+            expect.objectContaining({ field: 'sex', value: 2 }),
           ]),
         }),
       ],
@@ -351,14 +351,14 @@ describe('FilterConfigModalComponent block builder', () => {
     it('reads a stored in-rule back with its operator and every value picked', () => {
       fixture.componentRef.setInput('filterLogic', {
         condition: 'AND',
-        rules: [{ field: 'sex', operator: 'in', value: ['female', 'male'], type: 'string' }],
+        rules: [{ field: 'sex', operator: 'in', value: ['1', '2'], type: 'string' }],
       });
       fixture.detectChanges();
 
       const condition = component.rootGroup().rules[0] as any;
       expect(condition.operator).toBe('IN');
-      expect(condition.values).toEqual(['female', 'male']);
-      expect(component.isCategorySelected(condition, 'female')).toBe(true);
+      expect(condition.values).toEqual(['1', '2']);
+      expect(component.isCategorySelected(condition, '1')).toBe(true);
       expect(component.previewExpression()).toBe('Sex IN Female, Male');
     });
 
@@ -366,8 +366,8 @@ describe('FilterConfigModalComponent block builder', () => {
       fixture.componentRef.setInput('filterLogic', {
         condition: 'AND',
         rules: [
-          { field: 'sex', operator: 'in', value: ['female'], type: 'string' },
-          { field: 'sex', operator: 'not_in', value: ['male'], type: 'string' },
+          { field: 'sex', operator: 'in', value: ['1'], type: 'string' },
+          { field: 'sex', operator: 'not_in', value: ['2'], type: 'string' },
         ],
       });
       fixture.detectChanges();
@@ -377,8 +377,8 @@ describe('FilterConfigModalComponent block builder', () => {
       expect(component.filterError()).toBeNull();
       expect(analysisStudio.setFilterLogic).toHaveBeenCalledWith(expect.objectContaining({
         rules: [
-          expect.objectContaining({ field: 'sex', operator: 'in', value: ['female'] }),
-          expect.objectContaining({ field: 'sex', operator: 'not_in', value: ['male'] }),
+          expect.objectContaining({ field: 'sex', operator: 'in', value: [1] }),
+          expect.objectContaining({ field: 'sex', operator: 'not_in', value: [2] }),
         ],
       }));
     });
@@ -391,13 +391,13 @@ describe('FilterConfigModalComponent block builder', () => {
       condition = component.rootGroup().rules[0] as any;
       component.setConditionOperator(condition.id, 'IN');
 
-      component.toggleCategory(condition.id, 'female');
-      component.toggleCategory(condition.id, 'male');
-      expect((component.rootGroup().rules[0] as any).values).toEqual(['female', 'male']);
+      component.toggleCategory(condition.id, '1');
+      component.toggleCategory(condition.id, '2');
+      expect((component.rootGroup().rules[0] as any).values).toEqual(['1', '2']);
 
-      component.toggleCategory(condition.id, 'female');
+      component.toggleCategory(condition.id, '1');
       condition = component.rootGroup().rules[0] as any;
-      expect(condition.values).toEqual(['male']);
+      expect(condition.values).toEqual(['2']);
       expect(component.previewExpression()).toBe('Sex IN Male');
     });
 
@@ -440,22 +440,61 @@ describe('FilterConfigModalComponent block builder', () => {
       let condition = component.rootGroup().rules[0] as any;
       component.onConditionVariableTextChange(condition.id, 'Sex (nominal)');
       condition = component.rootGroup().rules[0] as any;
-      component.setConditionValue(condition.id, 'female');
+      component.setConditionValue(condition.id, '1');
       component.setConditionOperator(condition.id, 'IN');
 
       condition = component.rootGroup().rules[0] as any;
-      expect(condition.values).toEqual(['female']);
+      expect(condition.values).toEqual(['1']);
 
-      component.toggleCategory(condition.id, 'male');
+      component.toggleCategory(condition.id, '2');
       condition = component.rootGroup().rules[0] as any;
       component.setConditionOperator(condition.id, '=');
       condition = component.rootGroup().rules[0] as any;
-      expect(condition.values).toEqual(['female', 'male']);
+      expect(condition.values).toEqual(['1', '2']);
 
       // A single-value operator reads the first entry, so nothing had to be reshaped.
       component.saveFilters();
       const saved = (analysisStudio.setFilterLogic as Mock).mock.lastCall![0];
-      expect(saved.rules[0]).toEqual(expect.objectContaining({ field: 'sex', operator: 'equal', value: 'female' }));
+      expect(saved.rules[0]).toEqual(expect.objectContaining({ field: 'sex', operator: 'equal', value: 1 }));
+    });
+  });
+
+  describe('integer-coded categorical values', () => {
+    function exportedRule(variable: any, values: string[], operator = '=') {
+      component.allFilterVariables.set([variable]);
+      const root = component.rootGroup();
+      component.addCondition(root.id, 0);
+      const condition = component.rootGroup().rules[0] as any;
+      component.onConditionVariableTextChange(condition.id, variable.label);
+      const picked = component.rootGroup().rules[0] as any;
+      component.setConditionOperator(picked.id, operator);
+      values.forEach((value) => component.toggleCategory(picked.id, value));
+      return component.exportFilterLogic().rules[0];
+    }
+
+    it('sends a binary level as the integer 0 or 1, typed integer', () => {
+      const rule = exportedRule(
+        { code: 'sex', label: 'Sex', type: 'binary', enumerations: [{ code: '0', label: 'Male' }, { code: '1', label: 'Female' }] },
+        ['0']
+      );
+      expect(rule).toMatchObject({ field: 'sex', type: 'integer', input: 'select', value: 0 });
+    });
+
+    it('sends the picked dataset codes as integers for in', () => {
+      const rule = exportedRule(
+        { code: 'dataset', label: 'Dataset', type: 'nominal', enumerations: [{ code: '12', label: 'EDSD' }, { code: '13', label: 'PPMI' }] },
+        ['12', '13'],
+        'IN'
+      );
+      expect(rule).toMatchObject({ type: 'integer', value: [12, 13] });
+    });
+
+    it('keeps a text-coded categorical level a string', () => {
+      const rule = exportedRule(
+        { code: 'legacy', label: 'Legacy', type: 'nominal', enumerations: [{ code: 'M', label: 'Male' }] },
+        ['M']
+      );
+      expect(rule).toMatchObject({ type: 'string', value: 'M' });
     });
   });
 
