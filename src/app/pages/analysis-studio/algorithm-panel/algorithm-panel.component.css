@@ -1277,6 +1277,22 @@
   font-weight: 600;
 }
 
+/* A declared order (ordinal outcome levels): read-only, lowest first. */
+.fixed-order {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixed-order-level + .fixed-order-level::before {
+  content: '<';
+  margin-right: 6px;
+  color: var(--text-muted);
+}
+
 /* Advanced fields stay behind a disclosure, closed by default. */
 .config-advanced {
   border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));

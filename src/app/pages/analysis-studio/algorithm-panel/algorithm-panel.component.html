@@ -327,7 +327,7 @@
 
                 @if (field.key === 'positive_class' && selectedEventVarCode() && positiveClassOptions().length) {
                 <p class="config-field-hint">
-                  Select the event level mapped to 1; all other levels are mapped to 0.
+                  Select the level counted as the event (1); the other level counts as 0.
                 </p>
                 }
 
@@ -362,6 +362,12 @@
                   </option>
                   }
                 </select>
+                } @else if (field.type === 'multi-select' && field.fixedOrder) {
+                <ol class="fixed-order" [attr.aria-label]="prettyFieldLabel(field)">
+                  @for (opt of field.options; track opt) {
+                  <li class="fixed-order-level">{{ opt.label ?? opt.name ?? opt }}</li>
+                  }
+                </ol>
                 } @else if (field.type === 'multi-select') {
                 <div class="chip-picker" role="group" [attr.aria-label]="prettyFieldLabel(field)">
                   @for (opt of field.options; track opt) {
