@@ -15,7 +15,7 @@ const DATASET_VARIABLE_CODE = 'dataset';
  * Which variables of the data model cannot be used with the current dataset selection.
  *
  * A variable is unavailable when at least one selected dataset has an entry in
- * `datasetsVariables` and that entry does not list the variable. A selected dataset with
+ * `datasetsVariables` (under its code, or else its label) and that entry does not list the variable. A selected dataset with
  * no entry (or a model with no `datasetsVariables` at all) carries no information, so it
  * never makes a variable unavailable. An empty entry is strict: the dataset has no
  * variables, so every variable is unavailable there. The `dataset` variable is never
@@ -43,10 +43,13 @@ export function computeUnavailableVariables(
 
   const informative: Array<{ label: string; present: Set<string> }> = [];
   for (const code of new Set(selectedDatasets)) {
-    const listed = datasetsVariables[code];
+    const label = labelByCode.get(code);
+    // Keyed by the numeric dataset code; Exaflow's own /datasets_variables keys by label, so a
+    // backend that passes it through unchanged is read by label as well.
+    const listed = datasetsVariables[code] ?? (label ? datasetsVariables[label] : undefined);
     if (!Array.isArray(listed)) continue;
     informative.push({
-      label: labelByCode.get(code) ?? code,
+      label: label ?? code,
       present: new Set(listed),
     });
   }

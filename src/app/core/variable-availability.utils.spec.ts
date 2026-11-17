@@ -44,6 +44,14 @@ describe('computeUnavailableVariables', () => {
     expect(result.get('sex')).toEqual(['ds_x']);
   });
 
+  it('reads an entry keyed by the dataset label when none is keyed by its numeric code', () => {
+    const byLabel = { EDSD: ['dataset', 'age'], '13': ['dataset', 'sex'] };
+    const numeric = [{ code: '12', label: 'EDSD' }, { code: '13', label: 'ADNI' }];
+    const result = computeUnavailableVariables(byLabel, ['12', '13'], ['age', 'sex'], numeric);
+    expect(result.get('sex')).toEqual(['EDSD']);
+    expect(result.get('age')).toEqual(['ADNI']);
+  });
+
   it('treats missing datasetsVariables, no selection and unknown datasets as no information', () => {
     expect(computeUnavailableVariables(undefined, ['ds_a'], variables, labels).size).toBe(0);
     expect(computeUnavailableVariables(null, ['ds_a'], variables, labels).size).toBe(0);
