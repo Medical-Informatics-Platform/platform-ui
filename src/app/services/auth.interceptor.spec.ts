@@ -27,7 +27,7 @@ describe('withCredentialsInterceptor', () => {
   afterEach(() => httpMock.verify());
 
   /** Sends a request and answers it the way a dead session answers: no usable status. */
-  const failWith = (status: number, url = '/services/experiment-folders') => {
+  const failWith = (status: number, url = '/services/studies') => {
     let failed = false;
     http.get(url).subscribe({ error: () => (failed = true) });
     httpMock.expectOne(url).error(new ErrorEvent('network error'), { status, statusText: 'Session expired' });
@@ -35,8 +35,8 @@ describe('withCredentialsInterceptor', () => {
   };
 
   it('sends cookies on same-origin API calls', () => {
-    http.get('/services/experiment-folders').subscribe();
-    const request = httpMock.expectOne('/services/experiment-folders');
+    http.get('/services/studies').subscribe();
+    const request = httpMock.expectOne('/services/studies');
     expect(request.request.withCredentials).toBe(true);
     request.flush({});
   });

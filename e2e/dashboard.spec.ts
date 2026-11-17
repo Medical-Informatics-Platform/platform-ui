@@ -29,7 +29,7 @@ test.describe('experiments dashboard', () => {
     await editor.getByRole('button', { name: 'Save' }).click();
 
     await expect(page.getByRole('heading', { name: 'Age model v2' })).toBeVisible();
-    expect(lastRequest(api, 'PATCH', '/services/experiments/exp-seed-1')).toEqual({ name: 'Age model v2' });
+    expect(lastRequest(api, 'PATCH', '/services/analyses/exp-seed-1')).toEqual({ name: 'Age model v2' });
   });
 
   test('share an experiment', async ({ page, api }) => {
@@ -39,7 +39,7 @@ test.describe('experiments dashboard', () => {
     const share = page.locator('.share-btn');
     await expect(share).toHaveText('Shared');
     await expect(share).toHaveAttribute('title', 'Stop sharing');
-    expect(lastRequest(api, 'PATCH', '/services/experiments/exp-seed-1')).toEqual({ shared: true });
+    expect(lastRequest(api, 'PATCH', '/services/analyses/exp-seed-1')).toEqual({ shared: true });
   });
 
   test('delete an experiment', async ({ page, api }) => {
@@ -49,12 +49,12 @@ test.describe('experiments dashboard', () => {
     await page.locator('.dialog-actions').getByRole('button', { name: 'Delete' }).click();
 
     await expect(page.getByRole('option', { name: /Baseline age model/ })).toHaveCount(0);
-    expect(api.requests.some((request) => request.method === 'DELETE' && request.path === '/services/experiments/exp-seed-1')).toBe(true);
+    expect(api.requests.some((request) => request.method === 'DELETE' && request.path === '/services/analyses/exp-seed-1')).toBe(true);
     expect(api.experiments).toHaveLength(0);
   });
 
   test('a failed delete puts the experiment back', async ({ page }) => {
-    await page.route('**/services/experiments/exp-seed-1', (route) =>
+    await page.route('**/services/analyses/exp-seed-1', (route) =>
       route.request().method() === 'DELETE' ? route.fulfill({ status: 500, json: {} }) : route.fallback(),
     );
     await openExperiment(page, 'Baseline age model');
@@ -66,8 +66,8 @@ test.describe('experiments dashboard', () => {
   });
 
   test('compare two experiments side by side', async ({ page, api }) => {
-    api.experiments.push(seedLinearExperiment({ uuid: 'exp-seed-2', name: 'Strict age model', analysis: {
-      ...seedLinearExperiment().analysis,
+    api.experiments.push(seedLinearExperiment({ uuid: 'exp-seed-2', name: 'Strict age model', analysisRequest: {
+      ...seedLinearExperiment().analysisRequest,
       algorithm: { name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.01 } },
     } }));
     await page.goto('/experiments-dashboard');
@@ -94,9 +94,9 @@ test.describe('experiments dashboard', () => {
 
     // A new experiment is created; the original is not touched.
     const body = api.experiments[0] as any;
-    expect(body.analysis).toEqual(lastRequest(api, 'POST', '/services/experiments/runs', 'linear_regression').analysis);
+    expect(body.analysisRequest).toEqual(lastRequest(api, 'POST', '/services/analyses/runs', 'linear_regression').analysisRequest);
     expect(body.name).toBe('Copy of baseline');
-    expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.05 } });
+    expect(body.analysisRequest.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.05 } });
     expect(api.requests.some((request) => request.method === 'PATCH')).toBe(false);
     expect(api.experiments.map((experiment) => experiment.name)).toEqual(['Copy of baseline', 'Baseline age model']);
   });

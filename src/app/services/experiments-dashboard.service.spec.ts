@@ -5,7 +5,7 @@ import { BackendExperiment } from '../models/backend-experiment.model';
 import { Experiment } from '../models/experiments-dashboard.model';
 import { ExperimentsDashboardService } from './experiments-dashboard.service';
 
-const apiUrl = '/services/experiments';
+const apiUrl = '/services/analyses';
 
 const backendExperiment = (uuid: string, name: string) => ({
   uuid,
@@ -16,7 +16,7 @@ const backendExperiment = (uuid: string, name: string) => ({
   viewed: false,
   status: 'success',
   description: '',
-  analysis: { algorithm: { name: 'mock_anova', y: ['AGE'], x: [] } },
+  analysisRequest: { algorithm: { name: 'mock_anova', y: ['AGE'], x: [] } },
   createdBy: {
     username: 'mcurie',
     fullname: 'Marie Curie',
@@ -58,8 +58,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     it('keeps the client-filter snapshot for repeat views within a visit', () => {
       service.getUserExperiments(0, 10, true, { status: 'success' });
       httpMock.expectOne((request) => request.url === apiUrl).flush({
-        experiments: [backendExperiment('a', 'A'), backendExperiment('b', 'B')],
-        totalExperiments: 2,
+        analyses: [backendExperiment('a', 'A'), backendExperiment('b', 'B')],
+        totalAnalyses: 2,
         totalPages: 1,
         currentPage: 0,
       });
@@ -80,8 +80,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       const first = httpMock.expectOne((request) => request.url === apiUrl);
       expect(first.request.params.get('page')).toBe('0');
       first.flush({
-        experiments: [backendExperiment('a', 'A')],
-        totalExperiments: 2550,
+        analyses: [backendExperiment('a', 'A')],
+        totalAnalyses: 2550,
         totalPages: 51,
         currentPage: 0,
       });
@@ -89,8 +89,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       const rest = httpMock.match((request) => request.url === apiUrl);
       expect(rest.length).toBe(49);
       rest.forEach((request, index) => request.flush({
-        experiments: [],
-        totalExperiments: 2550,
+        analyses: [],
+        totalAnalyses: 2550,
         totalPages: 51,
         currentPage: index + 1,
       }));
@@ -102,8 +102,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     it('does not claim a truncated history the snapshot actually covered', () => {
       service.getUserExperiments(0, 10, true, { status: 'success' });
       httpMock.expectOne((request) => request.url === apiUrl).flush({
-        experiments: [backendExperiment('a', 'A')],
-        totalExperiments: 1,
+        analyses: [backendExperiment('a', 'A')],
+        totalAnalyses: 1,
         totalPages: 1,
         currentPage: 0,
       });
@@ -114,8 +114,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     it('invalidates the client-filter snapshot on demand', () => {
       service.getUserExperiments(0, 10, true, { status: 'success' });
       httpMock.expectOne((request) => request.url === apiUrl).flush({
-        experiments: [backendExperiment('a', 'A')],
-        totalExperiments: 1,
+        analyses: [backendExperiment('a', 'A')],
+        totalAnalyses: 1,
         totalPages: 1,
         currentPage: 0,
       });
@@ -124,8 +124,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       service.invalidateListCache();
       service.getUserExperiments(0, 10, true, { status: 'success' });
       httpMock.expectOne((request) => request.url === apiUrl).flush({
-        experiments: [backendExperiment('b', 'B')],
-        totalExperiments: 1,
+        analyses: [backendExperiment('b', 'B')],
+        totalAnalyses: 1,
         totalPages: 1,
         currentPage: 0,
       });
@@ -142,8 +142,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
       expect(request.request.params.get('mine')).toBe('true');
 
       request.flush({
-        experiments: [backendExperiment('a', 'A')],
-        totalExperiments: 1,
+        analyses: [backendExperiment('a', 'A')],
+        totalAnalyses: 1,
         totalPages: 1,
         currentPage: 0,
       });
@@ -166,8 +166,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     expect(req.request.params.get('notMine')).toBe('false');
 
     req.flush({
-      experiments: [{ uuid: 'u1' }],
-      totalExperiments: 1,
+      analyses: [{ uuid: 'u1' }],
+      totalAnalyses: 1,
       totalPages: 1,
       currentPage: 0,
     });
@@ -186,8 +186,8 @@ describe('ExperimentsDashboardService hydrateExperiments', () => {
     expect(req.request.params.get('notMine')).toBe('false');
 
     req.flush({
-      experiments: [{ uuid: 'pca-1' }],
-      totalExperiments: 1,
+      analyses: [{ uuid: 'pca-1' }],
+      totalAnalyses: 1,
       totalPages: 1,
       currentPage: 0,
     });

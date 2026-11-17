@@ -47,7 +47,7 @@ const nameKey = (name: string): string => name.replace(/\s+/g, ' ').trim().toLow
 /**
  * `FakeExperimentFoldersService` is the folder service as its components see it, minus the HTTP.
  *
- * `ExperimentFoldersService` speaks to `/services/experiment-folders` and answers every mutation
+ * `ExperimentFoldersService` speaks to `/services/studies` and answers every mutation
  * with an Observable, so a spec double can keep the synchronous feel the component specs were
  * written with: seeding is a plain call (`seedFolder`/`seedSet`), a component-triggered mutation
  * answers immediately, and a spec that wants to see the failure path asks for it with `failWith`.

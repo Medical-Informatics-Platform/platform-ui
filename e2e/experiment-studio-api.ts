@@ -17,7 +17,7 @@ export interface StoredExperiment {
   shared: boolean;
   viewed: boolean;
   status: string;
-  analysis: Record<string, unknown>;
+  analysisRequest: Record<string, unknown>;
   result?: unknown;
   createdBy: typeof STUDIO_USER;
 }
@@ -260,12 +260,12 @@ function nominalTotals(rows: { num_dtps: number; num_na: number; num_total: numb
 }
 
 /** Exaflow `describe`: one row per variable and dataset, then one `all datasets` row per variable. */
-function describePayload(body: { analysis?: { algorithm?: { y?: string[] }; inputdata?: { variables?: string[]; datasets?: string[] } } }) {
-  const codes = (body?.analysis?.algorithm?.y?.length
-    ? body.analysis.algorithm.y
-    : body?.analysis?.inputdata?.variables ?? []
+function describePayload(body: { analysisRequest?: { algorithm?: { y?: string[] }; inputdata?: { variables?: string[]; datasets?: string[] } } }) {
+  const codes = (body?.analysisRequest?.algorithm?.y?.length
+    ? body.analysisRequest.algorithm.y
+    : body?.analysisRequest?.inputdata?.variables ?? []
   ).filter((code) => code && code !== 'dataset');
-  const datasets = body?.analysis?.inputdata?.datasets?.length ? body.analysis.inputdata.datasets : ['chuv', 'adni'];
+  const datasets = body?.analysisRequest?.inputdata?.datasets?.length ? body.analysisRequest.inputdata.datasets : ['chuv', 'adni'];
 
   const perDataset: { variable: string; dataset: string; data: object | null }[] = [];
   const global: typeof perDataset = [];
@@ -300,8 +300,8 @@ const HISTOGRAMS: Record<string, { bins: (number | string)[]; counts: (number | 
   sex: { bins: ['M', 'F'], counts: [46, 54] },
 };
 
-function histogramPayload(body: { analysis?: { algorithm?: { y?: string[] } } }) {
-  const code = body?.analysis?.algorithm?.y?.[0] ?? 'age';
+function histogramPayload(body: { analysisRequest?: { algorithm?: { y?: string[] } } }) {
+  const code = body?.analysisRequest?.algorithm?.y?.[0] ?? 'age';
   const histogram = HISTOGRAMS[code] ?? HISTOGRAMS['age'];
   return { histogram: [{ var: code, grouping_var: null, grouping_enum: null, ...histogram }] };
 }
@@ -393,7 +393,7 @@ export function seedLinearExperiment(overrides: Partial<StoredExperiment> = {}):
     viewed: true,
     status: 'success',
     createdBy: STUDIO_USER,
-    analysis: {
+    analysisRequest: {
       inputdata: {
         data_model: 'dementia:1',
         datasets: ['chuv', 'adni'],
@@ -448,7 +448,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
   const requests: RecordedRequest[] = [];
   const unhandled: string[] = [];
   let sequence = 0;
-  const runs = new Map<string, { analysis: StoredExperiment['analysis']; result: StoredExperiment['result'] }>();
+  const runs = new Map<string, { analysisRequest: StoredExperiment['analysisRequest']; result: StoredExperiment['result'] }>();
   await page.route('**/services/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -475,8 +475,8 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       return json(route, { ...STUDIO_USER, agreeNDA: true });
     }
 
-    if (path === '/services/experiment-folders' && method === 'GET') {
-      return json(route, { folders: [] });
+    if (path === '/services/studies' && method === 'GET') {
+      return json(route, { studies: [] });
     }
 
     if (path === '/services/data-models' && method === 'GET') {
@@ -579,9 +579,9 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       return json(route, algorithmSpecs());
     }
 
-    if (path === '/services/experiments/preview' && method === 'POST') {
+    if (path === '/services/analyses/preview' && method === 'POST') {
       const body = readBody();
-      const name = body?.analysis?.algorithm?.name;
+      const name = body?.analysisRequest?.algorithm?.name;
       if (name === 'histogram') {
         return json(route, histogramPayload(body));
       }
@@ -590,27 +590,27 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
         return json(route, describePayload(body));
       }
       if (name === 'kmeans') {
-        const variables = body?.analysis?.algorithm?.y;
+        const variables = body?.analysisRequest?.algorithm?.y;
         return json(route, kmeansReport(Array.isArray(variables) ? variables : []));
       }
       return json(route, { status: 'success', result: resultFor(name) });
     }
 
     // Studio Run: like the backend, keep the successful result so Save can persist it as is.
-    if (path === '/services/experiments/runs' && method === 'POST') {
+    if (path === '/services/analyses/runs' && method === 'POST') {
       const body = readBody();
-      const name = String(body?.analysis?.algorithm?.name ?? 'unknown');
+      const name = String(body?.analysisRequest?.algorithm?.name ?? 'unknown');
       sequence += 1;
       const uuid = `run-${sequence}`;
       const result = name === 'describe' || name === 'outlier_report' ? describePayload(body) : resultFor(name);
-      runs.set(uuid, { analysis: body?.analysis ?? {}, result });
+      runs.set(uuid, { analysisRequest: body?.analysisRequest ?? {}, result });
       return json(route, { uuid, status: 'success', result });
     }
 
-    if (path === '/services/experiments' && method === 'GET') {
+    if (path === '/services/analyses' && method === 'GET') {
       return json(route, {
-        experiments,
-        totalExperiments: experiments.length,
+        analyses: experiments,
+        totalAnalyses: experiments.length,
         totalPages: experiments.length ? 1 : 0,
         currentPage: 0,
       });
@@ -618,7 +618,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
 
     // Save: persist a kept run by id. Like the backend, nothing runs again and the
     // response carries no result.
-    if (path === '/services/experiments' && method === 'POST') {
+    if (path === '/services/analyses' && method === 'POST') {
       const body = readBody();
       if (!body?.runId || !String(body?.name ?? '').trim()) {
         return json(route, { message: 'runId and name are required.' }, 400);
@@ -634,7 +634,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
         shared: false,
         viewed: false,
         status: 'success',
-        analysis: run.analysis,
+        analysisRequest: run.analysisRequest,
         result: run.result,
         createdBy: STUDIO_USER,
       };
@@ -642,7 +642,7 @@ export async function installExperimentStudioApi(page: Page): Promise<StudioApi>
       return json(route, { ...stored, result: null }, 201);
     }
 
-    const experimentMatch = path.match(/^\/services\/experiments\/([^/]+)$/);
+    const experimentMatch = path.match(/^\/services\/analyses\/([^/]+)$/);
     if (experimentMatch && method === 'GET') {
       const found = experiments.find((experiment) => experiment.uuid === experimentMatch[1]);
       if (!found) return json(route, { message: 'not found' }, 404);

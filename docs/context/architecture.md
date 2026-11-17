@@ -39,14 +39,14 @@ flowchart TD
   - `GET /services/specifications/inputdata`
   - `GET /services/specifications/preprocessing`
   - `GET /services/specifications/algorithms`
-  - `GET /services/experiments`
-  - `GET /services/experiments/:id`
-  - `POST /services/experiments` (`{ runId, name }`: Save experiment from a kept run, without re-running)
-  - `POST /services/experiments/preview` (stateless previews; nothing is stored)
-  - `POST /services/experiments/runs` (studio Run; keeps the result for saving)
-  - `PATCH /services/experiments/:id`
-  - `DELETE /services/experiments/:id`
-  - `GET|POST|PATCH|DELETE /services/experiment-folders/**` (folders, members, and sets)
+  - `GET /services/analyses`
+  - `GET /services/analyses/:id`
+  - `POST /services/analyses` (`{ runId, name }`: Save experiment from a kept run, without re-running)
+  - `POST /services/analyses/preview` (stateless previews; nothing is stored)
+  - `POST /services/analyses/runs` (studio Run; keeps the result for saving)
+  - `PATCH /services/analyses/:id`
+  - `DELETE /services/analyses/:id`
+  - `GET|POST|PATCH|DELETE /services/studies/**` (studies, members, and analysis groups)
 
 ## Authentication and Terms
 - `AuthService` checks the current session with `GET /services/activeUser`.

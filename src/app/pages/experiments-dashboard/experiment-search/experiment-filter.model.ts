@@ -10,7 +10,7 @@ export type ExperimentSort =
 
 /**
  * Every sort the list offers, once: the menu label plus the `orderBy`/`descending` pair
- * `/services/experiments` accepts (ExperimentOrderBy allows created/name/status/algorithm).
+ * `/services/analyses` accepts (the backend orderBy allows created/name/status/algorithm).
  * Insertion order is the menu order.
  */
 export const EXPERIMENT_SORTS: Record<ExperimentSort, { label: string; orderBy: string; descending: boolean }> = {

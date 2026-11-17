@@ -34,7 +34,7 @@ describe('ExperimentDetailsComponent', () => {
           useValue: {
             getExperimentResult: () => of({
               result: { t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, ci_upper: -0.6 },
-              analysis: { algorithm: { x: ['sex'], y: ['age'], parameters: { groupA: 'M', groupB: 'F' } } },
+              analysisRequest: { algorithm: { x: ['sex'], y: ['age'], parameters: { groupA: 'M', groupB: 'F' } } },
             }),
           },
         },

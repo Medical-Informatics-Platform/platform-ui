@@ -24,7 +24,7 @@ export { expect };
 /** The body of the latest request to `path` (and algorithm `name`, for runs and previews). */
 export function lastRequest(api: StudioApi, method: string, path: string, name?: string): RecordedRequest['body'] {
   const match = api.requests.filter(
-    (request) => request.method === method && request.path === path && (!name || request.body?.analysis?.algorithm?.name === name),
+    (request) => request.method === method && request.path === path && (!name || request.body?.analysisRequest?.algorithm?.name === name),
   );
   expect(match.length, `${method} ${path}${name ? ` (${name})` : ''} was sent`).toBeGreaterThan(0);
   return match[match.length - 1].body;

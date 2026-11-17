@@ -126,5 +126,5 @@ export interface AnalysisRequest {
 
 export interface ExperimentCreateRequest {
   name: string;
-  analysis: AnalysisRequest;
+  analysisRequest: AnalysisRequest;
 }

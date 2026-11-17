@@ -100,7 +100,7 @@ export function analysisSourceIsReusable(
   algorithmName: string,
   current: KMeansSourceContext,
 ): boolean {
-  const analysis = experiment?.analysis as unknown as
+  const analysis = experiment?.analysisRequest as unknown as
     | { algorithm?: { name?: unknown }; inputdata?: Record<string, unknown> }
     | undefined;
   const inputdata = analysis?.inputdata;

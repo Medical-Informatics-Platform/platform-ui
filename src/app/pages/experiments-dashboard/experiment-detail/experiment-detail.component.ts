@@ -75,12 +75,12 @@ export class ExperimentDetailsComponent {
   readonly enumMaps = this.enumMapsSignal.asReadonly();
   readonly labelMap = this.codeToLabelSignal.asReadonly();
   readonly yVar = computed(() => {
-    const y = this.fullExperimentSignal()?.analysis?.algorithm?.y;
+    const y = this.fullExperimentSignal()?.analysisRequest?.algorithm?.y;
     if (Array.isArray(y)) return y[0] ?? null;
     return y ?? null;
   });
   readonly xVar = computed(() => {
-    const x = this.fullExperimentSignal()?.analysis?.algorithm?.x;
+    const x = this.fullExperimentSignal()?.analysisRequest?.algorithm?.x;
     if (Array.isArray(x)) return x[0] ?? null;
     return x ?? null;
   });
@@ -230,13 +230,13 @@ export class ExperimentDetailsComponent {
 
   readonly filterPreview = computed(() =>
     formatFilterExpression(
-      this.fullExperimentSignal()?.analysis?.inputdata?.filters ?? this.selectedExperiment()?.filterLogic,
+      this.fullExperimentSignal()?.analysisRequest?.inputdata?.filters ?? this.selectedExperiment()?.filterLogic,
       { labelMap: this.labelMap(), enumMaps: this.enumMaps() }
     )
   );
   readonly preprocessingPreview = computed(() => {
     const preprocessing =
-      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
+      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysisRequest?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
     const summary = this.expStudioService.formatPreprocessingConfig(preprocessing, this.labelMap(), this.enumMaps());
@@ -245,7 +245,7 @@ export class ExperimentDetailsComponent {
 
   readonly preprocessingEntries = computed(() => {
     const preprocessing =
-      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysis?.preprocessing) ??
+      preprocessingStepsToRecord(this.fullExperimentSignal()?.analysisRequest?.preprocessing) ??
       this.selectedExperiment()?.preprocessing ??
       null;
     return this.expStudioService.formatPreprocessingEntries(preprocessing, this.labelMap(), this.enumMaps());
@@ -286,23 +286,23 @@ export class ExperimentDetailsComponent {
     );
   }
 
-  readonly runParameters = computed(() => this.fullExperimentSignal()?.analysis?.algorithm?.parameters ?? null);
+  readonly runParameters = computed(() => this.fullExperimentSignal()?.analysisRequest?.algorithm?.parameters ?? null);
 
   readonly hasStoredParameters = computed(() =>
-    Object.values(this.fullExperimentSignal()?.analysis?.algorithm?.parameters ?? {})
+    Object.values(this.fullExperimentSignal()?.analysisRequest?.algorithm?.parameters ?? {})
       .some((value) => !this.isEmptyParameterValue(value))
   );
 
   /** Stored parameters, or the schema defaults when the run saved none. */
   readonly parameterEntries = computed(() => {
     const fullExperiment = this.fullExperimentSignal();
-    const algoName = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const algoName = fullExperiment?.analysisRequest?.algorithm?.name ?? this.experimentalAlgorithmName();
     const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
     const labelByKey = new Map(
       schema.map((field: any) => [String(field.key), String(field.label ?? field.key)])
     );
     const params = this.hasStoredParameters()
-      ? fullExperiment?.analysis?.algorithm?.parameters ?? {}
+      ? fullExperiment?.analysisRequest?.algorithm?.parameters ?? {}
       : parameterDefaultsFromSchema(schema);
 
     return Object.entries(params)
@@ -354,7 +354,7 @@ export class ExperimentDetailsComponent {
     const baseName = this.selectedExperiment()?.name?.trim() || 'experiment results';
     const filename = baseName.replace(/\s+/g, '_');
 
-    const algoCode = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const algoCode = fullExperiment?.analysisRequest?.algorithm?.name ?? this.experimentalAlgorithmName();
     const algoConfig = this.expStudioService.backendAlgorithms()[algoCode];
     const algoLabel = algoConfig?.label || algoCode;
 
@@ -365,7 +365,7 @@ export class ExperimentDetailsComponent {
         createdBy: this.selectedExperiment()?.author ?? null,
         createdAt: this.selectedExperiment()?.dateCreated ?? null,
         algorithm: algoLabel,
-        params: fullExperiment?.analysis?.algorithm?.parameters ?? null,
+        params: fullExperiment?.analysisRequest?.algorithm?.parameters ?? null,
         preprocessing: this.preprocessingPreview() || 'none',
         domain: this.domainLabel(),
         datasets: (this.selectedExperiment()?.datasets ?? []).map(code => this.labelMap()[code] || code),
@@ -509,7 +509,7 @@ export class ExperimentDetailsComponent {
     }
 
     if (parameterKey === 'positive_class') {
-      const eventVar = this.fullExperimentSignal()?.analysis?.algorithm?.parameters?.['event_var'];
+      const eventVar = this.fullExperimentSignal()?.analysisRequest?.algorithm?.parameters?.['event_var'];
       if (typeof eventVar === 'string' && enumMaps[eventVar]?.[value]) {
         return enumMaps[eventVar][value];
       }
@@ -531,7 +531,7 @@ export class ExperimentDetailsComponent {
   private parameterSchemaField(parameterKey?: string): any | null {
     if (!parameterKey) return null;
     const fullExperiment = this.fullExperimentSignal();
-    const algoName = fullExperiment?.analysis?.algorithm?.name ?? this.experimentalAlgorithmName();
+    const algoName = fullExperiment?.analysisRequest?.algorithm?.name ?? this.experimentalAlgorithmName();
     const schema = this.expStudioService.backendAlgorithms()[algoName]?.configSchema ?? [];
     return schema.find((field: any) => String(field.key) === parameterKey) ?? null;
   }

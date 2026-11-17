@@ -17,19 +17,19 @@ side and `hub-http.ts` carries the Hub XSRF header.
 | specifications | GET | `/services/specifications/inputdata` | input DTO |
 | specifications | GET | `/services/specifications/preprocessing` | preprocessing step DTOs |
 | specifications | GET | `/services/specifications/algorithms` | algorithm catalog and config schema |
-| experiments | GET | `/services/experiments` | server page; `page,size,mine,notMine,includeShared,orderBy,descending[,algorithm,shared]` |
-| experiments | POST | `/services/experiments` | `{ runId, name }` Save experiment: persists the kept run, no re-run; 201 with `result: null`; 404 once expired (24h) |
-| experiments | POST | `/services/experiments/preview` | preview without storing |
-| experiments | POST | `/services/experiments/runs` | studio Run; the backend keeps a successful result, `uuid` is the run id |
-| experiments | GET | `/services/experiments/:uuid` | detail/compare |
-| experiments | PATCH | `/services/experiments/:uuid` | `{ name }` rename, `{ shared }` share |
-| experiments | DELETE | `/services/experiments/:uuid` | delete; folder membership prunes on 404 |
-| folders | GET, POST | `/services/experiment-folders` | list folders / create |
-| folders | PATCH, DELETE | `/services/experiment-folders/:folderId` | rename / delete |
-| folders | POST, DELETE | `/services/experiment-folders/:folderId/members[/:uuid]` | add / remove a run |
-| folders | PATCH | `/services/experiment-folders/:folderId/members/:uuid/set` | `{ setId }`, or `null` to unassign |
-| folders | POST | `/services/experiment-folders/:folderId/sets` | create a set |
-| folders | PATCH, DELETE | `/services/experiment-folders/:folderId/sets/:setId` | rename / delete a set |
+| analyses | GET | `/services/analyses` | server page `{ analyses, currentPage, totalPages, totalAnalyses }`; `page,size,mine,notMine,includeShared,orderBy,descending[,algorithm,shared]` |
+| analyses | POST | `/services/analyses` | `{ runId, name }` Save a kept run: no re-run; 201 with `result: null`; 404 once expired (24h) |
+| analyses | POST | `/services/analyses/preview` | body `{ name, analysisRequest }`; preview without storing |
+| analyses | POST | `/services/analyses/runs` | body `{ name, analysisRequest }`; studio Run; the backend keeps a successful result, `uuid` is the run id |
+| analyses | GET | `/services/analyses/:uuid` | detail/compare; item field is `analysisRequest` |
+| analyses | PATCH | `/services/analyses/:uuid` | `{ name }` rename, `{ shared }` share; `analysisRequest` is not editable |
+| analyses | DELETE | `/services/analyses/:uuid` | delete; study membership prunes on 404 |
+| studies | GET, POST | `/services/studies` | `{ studies }` / create `{ name, analysisId? }` |
+| studies | PATCH, DELETE | `/services/studies/:studyId` | rename / delete |
+| studies | POST, DELETE | `/services/studies/:studyId/members[/:analysisId]` | add `{ analysisId }` / remove a run |
+| studies | PATCH | `/services/studies/:studyId/members/:analysisId/group` | `{ groupId }`, or `null` to unassign |
+| studies | POST | `/services/studies/:studyId/groups` | create a group `{ name, analysisId? }` |
+| studies | PATCH, DELETE | `/services/studies/:studyId/groups/:groupId` | rename / delete a group |
 
 No `/services/algorithms` exists: the catalog is read from
 `/services/specifications/algorithms`.

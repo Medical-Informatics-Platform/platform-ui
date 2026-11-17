@@ -14,7 +14,7 @@ export interface ExperimentSet {
 /**
  * A user-curated set of experiments ("analysis set").
  *
- * The rows live in PostgreSQL behind `/services/experiment-folders`; this is the shape the client
+ * The rows live in PostgreSQL behind `/services/studies`; this is the shape the client
  * keeps them in. Both the folder and its sets hold member ids only, never experiment copies, so the
  * only drift risk is an id the experiment API no longer resolves. Ids are plain UUIDs the backend
  * minted — nothing here is generated in the browser.

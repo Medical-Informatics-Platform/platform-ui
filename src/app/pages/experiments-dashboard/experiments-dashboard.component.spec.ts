@@ -12,7 +12,7 @@ import { ExperimentFoldersService } from '../../services/experiment-folders.serv
 import { FakeExperimentFoldersService } from './experiment-folders.testing';
 import { ExperimentsDashboardComponent } from './experiments-dashboard.component';
 
-const apiUrl = '/services/experiments';
+const apiUrl = '/services/analyses';
 
 const experiment = (id: string, overrides: Partial<Experiment> = {}): Experiment => ({
   id,
@@ -35,7 +35,7 @@ const backendExperiment = (uuid: string) => ({
   viewed: false,
   status: 'success',
   description: '',
-  analysis: { algorithm: { name: 'mock_anova', y: ['AGE'], x: [] } },
+  analysisRequest: { algorithm: { name: 'mock_anova', y: ['AGE'], x: [] } },
   createdBy: {
     username: 'mcurie',
     fullname: 'Marie Curie',
@@ -233,7 +233,7 @@ describe('ExperimentsDashboardComponent folders', () => {
 
     // The cascade behind the experiment delete already dropped the membership rows: pruning the
     // mirror is a local edit, so the folder API must not see a single request here.
-    httpMock.expectNone('/services/experiment-folders');
+    httpMock.expectNone('/services/studies');
     expect(foldersService.folderById(first.id)?.experimentIds).toEqual(['off-page']);
     expect(foldersService.folderById(second.id)?.experimentIds).toEqual([]);
     expect(component.compareIds()).toEqual([]);

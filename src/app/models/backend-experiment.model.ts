@@ -10,7 +10,7 @@ export interface BackendExperiment {
   status: string;
   description?: string;
   mipVersion?: string;
-  analysis: AnalysisRequest;
+  analysisRequest: AnalysisRequest;
   createdBy: {
     username: string;
     fullname: string;

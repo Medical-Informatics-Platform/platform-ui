@@ -3,19 +3,19 @@ import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, map, of, throwError } from 'rxjs';
 
 import { ExperimentFolder, ExperimentSet } from '../models/experiment-folder.model';
-import { BackendExperimentFoldersResponse } from '../models/backend-experiment-folder.model';
+import { BackendStudiesResponse, BackendStudy } from '../models/backend-experiment-folder.model';
 import { User } from '../models/user.interface';
 
-/** The one backend surface for folders and the sets inside them; see `backend-experiment-folder.model.ts`. */
-const FOLDERS_URL = '/services/experiment-folders';
+/** The one backend surface for studies and the groups inside them; see `backend-experiment-folder.model.ts`. */
+const STUDIES_URL = '/services/studies';
 const MAX_NAME_LENGTH = 60;
 
-/** Every mutation answers with the folder itself (ExperimentFolderAPI returns a bare DTO). */
+/** Every mutation answers with the study itself (StudyAPI returns a bare DTO). */
 
 /**
  * Experiment folders ("analysis sets"): a named group of runs the user wants side by side.
  *
- * PostgreSQL is the store and `/services/experiment-folders` is the only way in or out. The signal
+ * PostgreSQL is the store and `/services/studies` is the only way in or out. The signal
  * below is a mirror of the server's rows, not a second source of truth: every mutation sends its
  * request, and only the folder the server returns is written back into the signal. Nothing is kept
  * in the browser, so a folder made here is a folder the next tab, device, or reload finds.
@@ -67,7 +67,7 @@ export class ExperimentFoldersService {
     }
 
     this.loading.set(true);
-    this.http.get<BackendExperimentFoldersResponse>(FOLDERS_URL).subscribe({
+    this.http.get<BackendStudiesResponse>(STUDIES_URL).subscribe({
       next: (response) => {
         if (token !== this.loadToken) return;
         this.loading.set(false);
@@ -87,9 +87,9 @@ export class ExperimentFoldersService {
     const cleanName = this.sanitizeName(name);
     if (!cleanName) return of(null);
 
-    return this.post(FOLDERS_URL, {
+    return this.post(STUDIES_URL, {
       name: cleanName,
-      ...(experimentId ? { experimentUuid: experimentId } : {}),
+      ...(experimentId ? { analysisId: experimentId } : {}),
     }).pipe(
       catchError((error) => this.nameTaken<ExperimentFolder | null>(error, null)),
     );
@@ -102,7 +102,7 @@ export class ExperimentFoldersService {
     if (!folderId) return this.invalid('renameFolder needs a folder id');
 
     return this.http
-      .patch<ExperimentFolder>(this.folderUrl(folderId), { name: cleanName })
+      .patch<BackendStudy>(this.folderUrl(folderId), { name: cleanName })
       .pipe(
         map((response) => this.confirmRename(response)),
         catchError((error) => this.nameTaken<boolean>(error, false)),
@@ -130,7 +130,7 @@ export class ExperimentFoldersService {
   addExperiment(folderId: string, experimentId: string): Observable<ExperimentFolder> {
     if (!folderId || !experimentId) return this.invalid('addExperiment needs a folder and a run');
 
-    return this.post(this.folderUrl(folderId, 'members'), { experimentUuid: experimentId });
+    return this.post(this.folderUrl(folderId, 'members'), { analysisId: experimentId });
   }
 
   /** Leaving the folder ends the membership outright: a set cannot keep a run the folder lost. */
@@ -138,7 +138,7 @@ export class ExperimentFoldersService {
     if (!folderId || !experimentId) return this.invalid('removeExperiment needs a folder and a run');
 
     return this.http
-      .delete<ExperimentFolder>(this.folderUrl(folderId, 'members', experimentId))
+      .delete<BackendStudy>(this.folderUrl(folderId, 'members', experimentId))
       .pipe(map((response) => this.applyFolder(response)));
   }
 
@@ -178,9 +178,9 @@ export class ExperimentFoldersService {
     const cleanName = this.sanitizeName(name);
     if (!folderId || !cleanName) return of(null);
 
-    return this.post(this.folderUrl(folderId, 'sets'), {
+    return this.post(this.folderUrl(folderId, 'groups'), {
       name: cleanName,
-      ...(experimentId ? { experimentUuid: experimentId } : {}),
+      ...(experimentId ? { analysisId: experimentId } : {}),
     }).pipe(
       catchError((error) => this.nameTaken<ExperimentFolder | null>(error, null)),
     );
@@ -192,7 +192,7 @@ export class ExperimentFoldersService {
     if (!folderId || !setId) return this.invalid('renameSet needs a folder and a set');
 
     return this.http
-      .patch<ExperimentFolder>(this.folderUrl(folderId, 'sets', setId), { name: cleanName })
+      .patch<BackendStudy>(this.folderUrl(folderId, 'groups', setId), { name: cleanName })
       .pipe(
         map((response) => this.confirmRename(response)),
         catchError((error) => this.nameTaken<boolean>(error, false)),
@@ -204,7 +204,7 @@ export class ExperimentFoldersService {
     if (!folderId || !setId) return this.invalid('deleteSet needs a folder and a set');
 
     return this.http
-      .delete<ExperimentFolder>(this.folderUrl(folderId, 'sets', setId))
+      .delete<BackendStudy>(this.folderUrl(folderId, 'groups', setId))
       .pipe(map((response) => this.applyFolder(response)));
   }
 
@@ -230,18 +230,18 @@ export class ExperimentFoldersService {
   /** Joining a set and leaving one are the same write: the member row's set id, set or cleared. */
   private assignSet(folderId: string, experimentId: string, setId: string | null): Observable<ExperimentFolder> {
     return this.http
-      .patch<ExperimentFolder>(this.folderUrl(folderId, 'members', experimentId, 'set'), { setId })
+      .patch<BackendStudy>(this.folderUrl(folderId, 'members', experimentId, 'group'), { groupId: setId })
       .pipe(map((response) => this.applyFolder(response)));
   }
 
   /** A rename answers with the renamed folder — the mirror takes it, and the caller gets a true. */
-  private confirmRename(payload: ExperimentFolder | null | undefined): boolean {
+  private confirmRename(payload: unknown): boolean {
     this.applyFolder(payload);
     return true;
   }
 
   private post(url: string, body: unknown): Observable<ExperimentFolder> {
-    return this.http.post<ExperimentFolder>(url, body).pipe(map((response) => this.applyFolder(response)));
+    return this.http.post<BackendStudy>(url, body).pipe(map((response) => this.applyFolder(response)));
   }
 
   /**
@@ -249,7 +249,7 @@ export class ExperimentFoldersService {
    * never seen — one created in this tab a moment ago — takes its place at the end of the list,
    * which is also where the server's own ordering puts it.
    */
-  private applyFolder(payload: ExperimentFolder | null | undefined): ExperimentFolder {
+  private applyFolder(payload: unknown): ExperimentFolder {
     const folder = this.folderFrom(payload);
     if (!folder) {
       throw new Error('[ExperimentFoldersService] The server answered a folder write without a folder');
@@ -264,7 +264,7 @@ export class ExperimentFoldersService {
   }
 
   private folderUrl(folderId: string, ...rest: string[]): string {
-    return [FOLDERS_URL, folderId, ...rest].join('/');
+    return [STUDIES_URL, folderId, ...rest].join('/');
   }
 
   /** A 409 is the server saying "a sibling already has that name", which the inline message speaks. */
@@ -297,22 +297,22 @@ export class ExperimentFoldersService {
    * "no members" or "no sets" instead of throwing inside a response handler. A row with neither an
    * id nor a name is not a folder and is dropped.
    */
-  private foldersFrom(response: BackendExperimentFoldersResponse | null): ExperimentFolder[] {
-    const value = response?.folders;
+  private foldersFrom(response: BackendStudiesResponse | null): ExperimentFolder[] {
+    const value = response?.studies;
     if (!Array.isArray(value)) return [];
 
     return value.map((folder) => this.folderFrom(folder)).filter((folder): folder is ExperimentFolder => !!folder);
   }
 
   private folderFrom(value: unknown): ExperimentFolder | null {
-    const candidate = value as Partial<ExperimentFolder> | null;
+    const candidate = value as { id?: unknown; name?: unknown; analysisIds?: unknown; groups?: unknown } | null;
     if (!candidate || typeof candidate.id !== 'string' || typeof candidate.name !== 'string') return null;
 
     return {
       id: candidate.id,
       name: candidate.name,
-      experimentIds: this.stringsFrom(candidate.experimentIds),
-      sets: this.setsFrom(candidate.sets),
+      experimentIds: this.stringsFrom(candidate.analysisIds),
+      sets: this.setsFrom(candidate.groups),
     };
   }
 
@@ -320,8 +320,9 @@ export class ExperimentFoldersService {
     if (!Array.isArray(value)) return [];
 
     return value
-      .filter((set): set is ExperimentSet => !!set && typeof set.id === 'string' && typeof set.name === 'string')
-      .map((set) => ({ id: set.id, name: set.name, experimentIds: this.stringsFrom(set.experimentIds) }));
+      .filter((group): group is { id: string; name: string; analysisIds?: unknown } =>
+        !!group && typeof group.id === 'string' && typeof group.name === 'string')
+      .map((group) => ({ id: group.id, name: group.name, experimentIds: this.stringsFrom(group.analysisIds) }));
   }
 
   private stringsFrom(value: unknown): string[] {

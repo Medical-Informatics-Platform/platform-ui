@@ -20,7 +20,7 @@ function pcaExperiment(uuid: string, overrides: Record<string, unknown> = {}): B
     shared: false,
     viewed: false,
     status: 'success',
-    analysis: {
+    analysisRequest: {
       inputdata: {
         data_model: CONTEXT.dataModel,
         datasets: CONTEXT.datasets,

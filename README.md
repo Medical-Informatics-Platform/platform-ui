@@ -33,12 +33,12 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 - `GET /services/activeUser` – current user/session.
 - `GET /services/algorithms` – algorithm catalog.
 - `GET /services/data-models` – available data models (used to build variable tree and datasets).
-- `POST /services/experiments/preview` – quick previews (histograms, descriptive stats); nothing stored.
-- `POST /services/experiments/runs` – run an experiment; the backend keeps the result for 24h under the returned `uuid`.
-- `POST /services/experiments` – `{ runId, name }`: save a kept run as an experiment without running it again.
-- `GET /services/experiments/:id` – fetch experiment (and results).
-- `PATCH /services/experiments/:id` – update name/description/shared flag.
-- `DELETE /services/experiments/:id` – delete experiment.
+- `POST /services/analyses/preview` – quick previews (histograms, descriptive stats); nothing stored.
+- `POST /services/analyses/runs` – run an experiment; the backend keeps the result for 24h under the returned `uuid`.
+- `POST /services/analyses` – `{ runId, name }`: save a kept run as an experiment without running it again.
+- `GET /services/analyses/:id` – fetch experiment (and results).
+- `PATCH /services/analyses/:id` – update name/description/shared flag.
+- `DELETE /services/analyses/:id` – delete experiment.
 
 ## Auth Flow
 - Routes are guarded (`AuthGuard` in `src/app/guards/auth.guard.ts`).

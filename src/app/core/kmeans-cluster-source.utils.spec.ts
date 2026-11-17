@@ -36,7 +36,7 @@ function experiment(overrides: {
     shared: false,
     viewed: false,
     status: overrides.status ?? 'success',
-    analysis: {
+    analysisRequest: {
       inputdata: {
         data_model: overrides.dataModel ?? 'Stroke:3.7',
         datasets: overrides.datasets ?? ['diabetes', 'hypertension'],
@@ -134,7 +134,7 @@ describe('kmeans-cluster-source.utils', () => {
     it('does not throw when the analysis is incomplete', () => {
       expect(analysisSourceIsReusable({ status: 'success' } as BackendExperiment, 'kmeans', current)).toBe(false);
       expect(analysisSourceIsReusable(
-        { status: 'success', analysis: { algorithm: { name: 'kmeans' } } } as BackendExperiment,
+        { status: 'success', analysisRequest: { algorithm: { name: 'kmeans' } } } as BackendExperiment,
         'kmeans',
         current,
       )).toBe(false);

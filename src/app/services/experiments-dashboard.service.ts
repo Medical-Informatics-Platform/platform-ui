@@ -13,9 +13,9 @@ import { Observable, Subscription, catchError, forkJoin, map, of, switchMap, tap
 import { ErrorService } from './error.service';
 import { isNotFoundError } from '../core/http-error.utils';
 
-interface ExperimentsPage {
-  experiments: BackendExperiment[];
-  totalExperiments: number;
+interface AnalysesPage {
+  analyses: BackendExperiment[];
+  totalAnalyses: number;
   totalPages: number;
   currentPage: number;
 }
@@ -51,7 +51,7 @@ const DEFAULT_FILTERS: ExperimentFilters = {
   providedIn: 'root',
 })
 export class ExperimentsDashboardService {
-  private apiUrl = '/services/experiments';
+  private apiUrl = '/services/analyses';
 
   experiments: WritableSignal<Experiment[]> = signal<Experiment[]>([]);
   totalExperiments = signal<number>(0);
@@ -108,7 +108,7 @@ export class ExperimentsDashboardService {
     }
 
     this.experimentsRequestSub = this.http
-      .get<ExperimentsPage>(this.apiUrl, {
+      .get<AnalysesPage>(this.apiUrl, {
         params: this.buildServerParams(page, size, onlyMine, sort, effectiveFilters),
       })
       .subscribe({
@@ -128,13 +128,13 @@ export class ExperimentsDashboardService {
    */
   listKMeansExperiments(): Observable<BackendExperiment[]> {
     return this.http
-      .get<ExperimentsPage>(this.apiUrl, {
+      .get<AnalysesPage>(this.apiUrl, {
         params: this.buildServerParams(0, 50, true, 'created-desc', {
           ...DEFAULT_FILTERS,
           algorithm: 'kmeans',
         }),
       })
-      .pipe(map((page) => page?.experiments ?? []));
+      .pipe(map((page) => page?.analyses ?? []));
   }
 
   /**
@@ -143,20 +143,20 @@ export class ExperimentsDashboardService {
    */
   listPcaExperiments(): Observable<BackendExperiment[]> {
     return this.http
-      .get<ExperimentsPage>(this.apiUrl, {
+      .get<AnalysesPage>(this.apiUrl, {
         params: this.buildServerParams(0, 50, true, 'created-desc', {
           ...DEFAULT_FILTERS,
           algorithm: 'pca',
         }),
       })
-      .pipe(map((page) => page?.experiments ?? []));
+      .pipe(map((page) => page?.analyses ?? []));
   }
 
-  private applyServerPage(response: ExperimentsPage | null): void {
+  private applyServerPage(response: AnalysesPage | null): void {
     this.isLoading.set(false);
-    const mappedExperiments = (response?.experiments || []).map(mapBackendToFrontend);
+    const mappedExperiments = (response?.analyses || []).map(mapBackendToFrontend);
     this.experiments.set(mappedExperiments);
-    this.totalExperiments.set(response?.totalExperiments || 0);
+    this.totalExperiments.set(response?.totalAnalyses || 0);
     this.totalPages.set(response?.totalPages || 0);
     this.currentPage.set(response?.currentPage || 0);
     // Server-paginated browsing never reads a capped snapshot.
@@ -231,13 +231,13 @@ export class ExperimentsDashboardService {
       return of(cached.experiments);
     }
 
-    const fetchPage = (page: number): Observable<{ page: ExperimentsPage; experiments: Experiment[] }> =>
+    const fetchPage = (page: number): Observable<{ page: AnalysesPage; experiments: Experiment[] }> =>
       this.http
-        .get<ExperimentsPage>(this.apiUrl, { params: this.buildFullLoadParams(page, onlyMine, sort) })
+        .get<AnalysesPage>(this.apiUrl, { params: this.buildFullLoadParams(page, onlyMine, sort) })
         .pipe(
           map((response) => ({
             page: response,
-            experiments: (response?.experiments || []).map(mapBackendToFrontend),
+            experiments: (response?.analyses || []).map(mapBackendToFrontend),
           })),
         );
 

@@ -190,7 +190,7 @@ export class ExperimentsCompareComponent implements OnDestroy {
             loading: false,
             error: null,
             result: res?.result ?? res,
-            parameters: res?.analysis?.algorithm?.parameters ?? null,
+            parameters: res?.analysisRequest?.algorithm?.parameters ?? null,
           },
         }));
       },

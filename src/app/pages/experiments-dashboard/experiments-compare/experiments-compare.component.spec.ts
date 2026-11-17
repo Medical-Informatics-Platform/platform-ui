@@ -116,7 +116,7 @@ describe('ExperimentsCompareComponent', () => {
     it('hands each run its own parameters, so a t-test column names the groups it compared', () => {
       dashboard.getExperimentResult = () => of({
         result: { t_stat: -3.9, df: 120, p: 0.0001, mean_diff: -1.2, ci_lower: -1.8, ci_upper: -0.6 },
-        analysis: { algorithm: { parameters: { groupA: 'M', groupB: 'F' } } },
+        analysisRequest: { algorithm: { parameters: { groupA: 'M', groupB: 'F' } } },
       });
       showRuns([experiment('a', 'ttest_independent')]);
       fixture.detectChanges();

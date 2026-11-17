@@ -8,7 +8,7 @@ import { User } from '../models/user.interface';
 import { ExperimentFoldersService } from './experiment-folders.service';
 
 /** The one surface the service speaks; see `backend-experiment-folder.model.ts` for the table. */
-const apiUrl = '/services/experiment-folders';
+const apiUrl = '/services/studies';
 
 const user = (username: string): User => ({
   username,
@@ -17,13 +17,22 @@ const user = (username: string): User => ({
   subjectId: `orcid-${username}`,
 });
 
-const folder = (overrides: Partial<ExperimentFolder> = {}): ExperimentFolder => ({
-  id: 'folder-1',
-  name: 'Q3 meta',
-  experimentIds: ['exp-1'],
-  sets: [],
-  ...overrides,
-});
+/** Frontend-shaped fixture, returned as the study the server actually sends. */
+const study = (overrides: Partial<ExperimentFolder> = {}) => {
+  const row: ExperimentFolder = {
+    id: 'folder-1',
+    name: 'Q3 meta',
+    experimentIds: ['exp-1'],
+    sets: [],
+    ...overrides,
+  };
+  return {
+    id: row.id,
+    name: row.name,
+    analysisIds: row.experimentIds,
+    groups: row.sets.map((set) => ({ id: set.id, name: set.name, analysisIds: set.experimentIds })),
+  };
+};
 
 describe('ExperimentFoldersService', () => {
   let service: ExperimentFoldersService;
@@ -64,7 +73,7 @@ describe('ExperimentFoldersService', () => {
       expect(service.loading()).toBe(true);
 
       read.flush({
-        folders: [folder(), folder({ id: 'folder-2', name: 'PCA', experimentIds: ['exp-2', 'exp-3'] })],
+        studies: [study(), study({ id: 'folder-2', name: 'PCA', experimentIds: ['exp-2', 'exp-3'] })],
       });
 
       expect(service.loading()).toBe(false);
@@ -75,7 +84,7 @@ describe('ExperimentFoldersService', () => {
 
     it('carries the sets across with the folder that holds them', () => {
       signIn().flush({
-        folders: [folder({ sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })],
+        studies: [study({ sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })],
       });
 
       expect(service.folders()[0].sets.map((set) => set.name)).toEqual(['T-tests']);
@@ -84,19 +93,19 @@ describe('ExperimentFoldersService', () => {
     });
 
     it('asks again for a different user, having forgotten the rows of the one before', () => {
-      signIn('mcurie').flush({ folders: [folder()] });
+      signIn('mcurie').flush({ studies: [study()] });
 
       service.setActiveUser(user('hermita'));
       expect(service.folders()).toEqual([]);
 
       const second = httpMock.expectOne(apiUrl);
-      second.flush({ folders: [folder({ id: 'folder-9', name: 'Stroke' })] });
+      second.flush({ studies: [study({ id: 'folder-9', name: 'Stroke' })] });
 
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['folder-9']);
     });
 
     it('does not read twice for the same user, however often the session is re-read', () => {
-      signIn('mcurie').flush({ folders: [folder()] });
+      signIn('mcurie').flush({ studies: [study()] });
 
       // The session object is replaced on every refresh; the username inside it is what matters.
       service.setActiveUser(user('mcurie'));
@@ -108,7 +117,7 @@ describe('ExperimentFoldersService', () => {
     });
 
     it('signing out empties the mirror without going looking for anything', () => {
-      signIn('mcurie').flush({ folders: [folder()] });
+      signIn('mcurie').flush({ studies: [study()] });
 
       service.setActiveUser(null);
 
@@ -131,8 +140,8 @@ describe('ExperimentFoldersService', () => {
       service.setActiveUser(user('hermita'));
       const current = httpMock.expectOne(apiUrl);
 
-      current.flush({ folders: [folder({ id: 'b', name: 'Hers' })] });
-      stale.flush({ folders: [folder({ id: 'a', name: 'Mine' })] });
+      current.flush({ studies: [study({ id: 'b', name: 'Hers' })] });
+      stale.flush({ studies: [study({ id: 'a', name: 'Mine' })] });
 
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['b']);
     });
@@ -147,7 +156,7 @@ describe('ExperimentFoldersService', () => {
 
     it('keeps a payload that lost a field from taking the whole read with it', () => {
       signIn().flush({
-        folders: [folder({ experimentIds: ['exp-1', 7, null] as unknown as string[] }), { name: 'no id' }, null],
+        studies: [study({ experimentIds: ['exp-1', 7, null] as unknown as string[] }), { name: 'no id' }, null],
       });
 
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['folder-1']);
@@ -157,7 +166,7 @@ describe('ExperimentFoldersService', () => {
 
   describe('folders', () => {
     beforeEach(() => {
-      signIn().flush({ folders: [folder()] });
+      signIn().flush({ studies: [study()] });
     });
 
     it('creates a folder with a normalised name and takes the signal from the answer', () => {
@@ -168,7 +177,7 @@ describe('ExperimentFoldersService', () => {
       expect(write.request.method).toBe('POST');
       expect(write.request.body).toEqual({ name: 'Q3 meta two' });
 
-      write.flush(folder({ id: 'folder-2', name: 'Q3 meta two', experimentIds: [] }));
+      write.flush(study({ id: 'folder-2', name: 'Q3 meta two', experimentIds: [] }));
 
       expect(created.values[0]).toEqual(expect.objectContaining({ id: 'folder-2', name: 'Q3 meta two' }));
       expect(service.folders().map((candidate) => candidate.id)).toEqual(['folder-1', 'folder-2']);
@@ -178,8 +187,8 @@ describe('ExperimentFoldersService', () => {
       service.createFolder('ANOVA', 'exp-7').subscribe();
 
       const write = httpMock.expectOne(apiUrl);
-      expect(write.request.body).toEqual({ name: 'ANOVA', experimentUuid: 'exp-7' });
-      write.flush(folder({ id: 'folder-2', name: 'ANOVA', experimentIds: ['exp-7'] }));
+      expect(write.request.body).toEqual({ name: 'ANOVA', analysisId: 'exp-7' });
+      write.flush(study({ id: 'folder-2', name: 'ANOVA', experimentIds: ['exp-7'] }));
 
       expect(service.folderById('folder-2')?.experimentIds).toEqual(['exp-7']);
     });
@@ -207,7 +216,7 @@ describe('ExperimentFoldersService', () => {
       expect(write.request.method).toBe('PATCH');
       expect(write.request.body).toEqual({ name: 'ANOVA one' });
 
-      write.flush(folder({ name: 'ANOVA one' }));
+      write.flush(study({ name: 'ANOVA one' }));
 
       expect(renamed.values).toEqual([true]);
       expect(service.folderById('folder-1')?.name).toBe('ANOVA one');
@@ -246,7 +255,7 @@ describe('ExperimentFoldersService', () => {
 
   describe('membership', () => {
     beforeEach(() => {
-      signIn().flush({ folders: [folder({ experimentIds: ['exp-1'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })] });
+      signIn().flush({ studies: [study({ experimentIds: ['exp-1'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })] });
     });
 
     it('adds a run to the folder it was dropped on', () => {
@@ -254,9 +263,9 @@ describe('ExperimentFoldersService', () => {
 
       const write = httpMock.expectOne(`${apiUrl}/folder-1/members`);
       expect(write.request.method).toBe('POST');
-      expect(write.request.body).toEqual({ experimentUuid: 'exp-2' });
+      expect(write.request.body).toEqual({ analysisId: 'exp-2' });
 
-      write.flush(folder({ experimentIds: ['exp-1', 'exp-2'] }));
+      write.flush(study({ experimentIds: ['exp-1', 'exp-2'] }));
 
       expect(added.values[0]).toEqual(expect.objectContaining({ id: 'folder-1' }));
       expect(service.folderById('folder-1')?.experimentIds).toEqual(['exp-1', 'exp-2']);
@@ -267,7 +276,7 @@ describe('ExperimentFoldersService', () => {
 
       const write = httpMock.expectOne(`${apiUrl}/folder-1/members/exp-1`);
       expect(write.request.method).toBe('DELETE');
-      write.flush(folder({ experimentIds: [], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: [] }] }));
+      write.flush(study({ experimentIds: [], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: [] }] }));
 
       expect(service.folderById('folder-1')?.experimentIds).toEqual([]);
       expect(service.folderById('folder-1')?.sets[0].experimentIds).toEqual([]);
@@ -275,12 +284,12 @@ describe('ExperimentFoldersService', () => {
 
     it('a row-menu tick goes whichever way the mirror says the run stands', () => {
       service.toggleExperiment('folder-1', 'exp-1').subscribe();
-      httpMock.expectOne(`${apiUrl}/folder-1/members/exp-1`).flush(folder({ experimentIds: [] }));
+      httpMock.expectOne(`${apiUrl}/folder-1/members/exp-1`).flush(study({ experimentIds: [] }));
 
       service.toggleExperiment('folder-1', 'exp-2').subscribe();
       const added = httpMock.expectOne(`${apiUrl}/folder-1/members`);
       expect(added.request.method).toBe('POST');
-      added.flush(folder({ experimentIds: ['exp-2'] }));
+      added.flush(study({ experimentIds: ['exp-2'] }));
 
       expect(service.isMember('folder-1', 'exp-1')).toBe(false);
       expect(service.isMember('folder-1', 'exp-2')).toBe(true);
@@ -299,18 +308,18 @@ describe('ExperimentFoldersService', () => {
 
   describe('sets', () => {
     beforeEach(() => {
-      signIn().flush({ folders: [folder({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })] });
+      signIn().flush({ studies: [study({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] })] });
     });
 
     it('creates a set with the run that asked for it', () => {
       const created = record(service.createSet('folder-1', '  Chi-squared  ', 'exp-2'));
 
-      const write = httpMock.expectOne(`${apiUrl}/folder-1/sets`);
+      const write = httpMock.expectOne(`${apiUrl}/folder-1/groups`);
       expect(write.request.method).toBe('POST');
-      expect(write.request.body).toEqual({ name: 'Chi-squared', experimentUuid: 'exp-2' });
+      expect(write.request.body).toEqual({ name: 'Chi-squared', analysisId: 'exp-2' });
 
       write.flush(
-        folder({
+        study({
           experimentIds: ['exp-1', 'exp-2'],
           sets: [
             { id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] },
@@ -326,7 +335,7 @@ describe('ExperimentFoldersService', () => {
     it('a set name a sibling took comes back null, with the partition untouched', () => {
       const created = record(service.createSet('folder-1', 't-TESTS', 'exp-2'));
 
-      httpMock.expectOne(`${apiUrl}/folder-1/sets`).flush('taken', { status: 409, statusText: 'Conflict' });
+      httpMock.expectOne(`${apiUrl}/folder-1/groups`).flush('taken', { status: 409, statusText: 'Conflict' });
 
       expect(created.values).toEqual([null]);
       expect(service.folderById('folder-1')?.sets.length).toBe(1);
@@ -342,11 +351,11 @@ describe('ExperimentFoldersService', () => {
     it('renames a set through PATCH on the set', () => {
       const renamed = record(service.renameSet('folder-1', 'set-1', ' Age tests '));
 
-      const write = httpMock.expectOne(`${apiUrl}/folder-1/sets/set-1`);
+      const write = httpMock.expectOne(`${apiUrl}/folder-1/groups/set-1`);
       expect(write.request.method).toBe('PATCH');
       expect(write.request.body).toEqual({ name: 'Age tests' });
 
-      write.flush(folder({ sets: [{ id: 'set-1', name: 'Age tests', experimentIds: ['exp-1'] }] }));
+      write.flush(study({ sets: [{ id: 'set-1', name: 'Age tests', experimentIds: ['exp-1'] }] }));
 
       expect(renamed.values).toEqual([true]);
       expect(service.folderById('folder-1')?.sets[0].name).toBe('Age tests');
@@ -355,7 +364,7 @@ describe('ExperimentFoldersService', () => {
     it('a sibling name on a rename is false', () => {
       const renamed = record(service.renameSet('folder-1', 'set-1', 'Chi-squared'));
 
-      httpMock.expectOne(`${apiUrl}/folder-1/sets/set-1`).flush('taken', { status: 409, statusText: 'Conflict' });
+      httpMock.expectOne(`${apiUrl}/folder-1/groups/set-1`).flush('taken', { status: 409, statusText: 'Conflict' });
 
       expect(renamed.values).toEqual([false]);
     });
@@ -363,9 +372,9 @@ describe('ExperimentFoldersService', () => {
     it('deleting a set returns the folder with its runs back ungrouped', () => {
       service.deleteSet('folder-1', 'set-1').subscribe();
 
-      const write = httpMock.expectOne(`${apiUrl}/folder-1/sets/set-1`);
+      const write = httpMock.expectOne(`${apiUrl}/folder-1/groups/set-1`);
       expect(write.request.method).toBe('DELETE');
-      write.flush(folder({ experimentIds: ['exp-1', 'exp-2'], sets: [] }));
+      write.flush(study({ experimentIds: ['exp-1', 'exp-2'], sets: [] }));
 
       expect(service.folderById('folder-1')?.sets).toEqual([]);
       expect(service.folderById('folder-1')?.experimentIds).toEqual(['exp-1', 'exp-2']);
@@ -374,11 +383,11 @@ describe('ExperimentFoldersService', () => {
     it('moves a run into a set by writing its set id', () => {
       const moved = record(service.moveToSet('folder-1', 'exp-2', 'set-1'));
 
-      const write = httpMock.expectOne(`${apiUrl}/folder-1/members/exp-2/set`);
+      const write = httpMock.expectOne(`${apiUrl}/folder-1/members/exp-2/group`);
       expect(write.request.method).toBe('PATCH');
-      expect(write.request.body).toEqual({ setId: 'set-1' });
+      expect(write.request.body).toEqual({ groupId: 'set-1' });
 
-      write.flush(folder({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1', 'exp-2'] }] }));
+      write.flush(study({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1', 'exp-2'] }] }));
 
       expect(moved.values[0]?.sets[0].experimentIds).toEqual(['exp-1', 'exp-2']);
       expect(service.setOf('folder-1', 'exp-2')).toBe('set-1');
@@ -387,11 +396,11 @@ describe('ExperimentFoldersService', () => {
     it('leaving a set is the same write with the set id cleared', () => {
       service.removeFromSets('folder-1', 'exp-1').subscribe();
 
-      const write = httpMock.expectOne(`${apiUrl}/folder-1/members/exp-1/set`);
+      const write = httpMock.expectOne(`${apiUrl}/folder-1/members/exp-1/group`);
       expect(write.request.method).toBe('PATCH');
-      expect(write.request.body).toEqual({ setId: null });
+      expect(write.request.body).toEqual({ groupId: null });
 
-      write.flush(folder({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: [] }] }));
+      write.flush(study({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: [] }] }));
 
       expect(service.setOf('folder-1', 'exp-1')).toBeNull();
       expect(service.isMember('folder-1', 'exp-1')).toBe(true);
@@ -401,9 +410,9 @@ describe('ExperimentFoldersService', () => {
   describe('pruning a run the experiment API has already lost', () => {
     it('clears the mirror without asking the folder API to do it', () => {
       signIn().flush({
-        folders: [
-          folder({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] }),
-          folder({ id: 'folder-2', name: 'PCA', experimentIds: ['exp-1'] }),
+        studies: [
+          study({ experimentIds: ['exp-1', 'exp-2'], sets: [{ id: 'set-1', name: 'T-tests', experimentIds: ['exp-1'] }] }),
+          study({ id: 'folder-2', name: 'PCA', experimentIds: ['exp-1'] }),
         ],
       });
 

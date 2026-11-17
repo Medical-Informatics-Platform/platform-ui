@@ -49,7 +49,7 @@ export function mapBackendToFrontend(backend: BackendExperiment): Experiment {
   console.groupCollapsed('[Mapper] BackendExperiment → Experiment');
   console.groupEnd();
 
-  const analysis = backend.analysis;
+  const analysis = backend.analysisRequest;
   const input = analysis?.inputdata || {};
   const filtersLogic = input.filters ?? null;
 

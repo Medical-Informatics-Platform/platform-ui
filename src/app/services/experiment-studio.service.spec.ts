@@ -300,18 +300,18 @@ describe('ExperimentStudioService', () => {
     const body = service.buildRequestBody('histogram', ['var1']);
 
     // Assert
-    expect(body.analysis.algorithm.name).toBe('histogram');
-    expect(body.analysis.inputdata.data_model).toBe('dm:1');
-    expect(body.analysis.inputdata.datasets).toEqual(['ds1']);
-    expect(body.analysis.algorithm.y).toEqual(['var1']);
-    expect(body.analysis.inputdata.variables).toEqual(['var1']);
-    expect(body.analysis.inputdata.filters).toBeNull();
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.algorithm.name).toBe('histogram');
+    expect(body.analysisRequest.inputdata.data_model).toBe('dm:1');
+    expect(body.analysisRequest.inputdata.datasets).toEqual(['ds1']);
+    expect(body.analysisRequest.algorithm.y).toEqual(['var1']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['var1']);
+    expect(body.analysisRequest.inputdata.filters).toBeNull();
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { var1: 'drop' },
       },
     }));
-    expect(body.analysis.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
+    expect(body.analysisRequest.algorithm.parameters).toEqual({ histogram_type: 'wilkinson' });
     expect(body.mipVersion).toBeUndefined();
   });
 
@@ -321,8 +321,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['inr']);
 
-    expect(body.analysis.algorithm.y).toEqual(['inr']);
-    expect(body.analysis.inputdata.variables).toEqual(['inr']);
+    expect(body.analysisRequest.algorithm.y).toEqual(['inr']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['inr']);
   });
 
   it('sends histogram grouping as algorithm.x without a drop strategy for the grouping variable', () => {
@@ -330,19 +330,19 @@ describe('ExperimentStudioService', () => {
     service.setSelectedDatasets(['ds1']);
 
     const byDataset = service.buildRequestBody('histogram', ['age'], ['dataset']);
-    expect(byDataset.analysis.algorithm.y).toEqual(['age']);
-    expect(byDataset.analysis.algorithm.x).toEqual(['dataset']);
-    expect(byDataset.analysis.inputdata.variables).toEqual(['age', 'dataset']);
-    expect(byDataset.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(byDataset.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(byDataset.analysisRequest.algorithm.x).toEqual(['dataset']);
+    expect(byDataset.analysisRequest.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(byDataset.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
     }));
 
     const bySex = service.buildRequestBody('histogram', ['age'], ['sex']);
-    expect(bySex.analysis.algorithm.x).toEqual(['sex']);
-    expect(bySex.analysis.inputdata.variables).toEqual(['age', 'sex']);
-    expect(bySex.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(bySex.analysisRequest.algorithm.x).toEqual(['sex']);
+    expect(bySex.analysisRequest.inputdata.variables).toEqual(['age', 'sex']);
+    expect(bySex.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
@@ -362,11 +362,11 @@ describe('ExperimentStudioService', () => {
       ['dataset']
     ).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.algorithm.x).toEqual(['dataset']);
-    expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
-    expect(req.request.body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
-    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps({
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.algorithm.x).toEqual(['dataset']);
+    expect(req.request.body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(req.request.body.analysisRequest.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(req.request.body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
@@ -380,9 +380,9 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['dataset']);
 
-    expect(body.analysis.algorithm.y).toEqual(['dataset']);
-    expect(body.analysis.inputdata.variables).toEqual(['dataset']);
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.algorithm.y).toEqual(['dataset']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['dataset']);
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { dataset: 'drop' },
       },
@@ -396,8 +396,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['inr']);
 
-    expect(body.analysis.inputdata.variables).toEqual(['age', 'inr']);
-    expect(body.analysis.algorithm.y).toEqual(['inr']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['age', 'inr']);
+    expect(body.analysisRequest.algorithm.y).toEqual(['inr']);
   });
 
   it('does not apply stored descriptive preprocessing to histogram preview requests without an override', () => {
@@ -411,7 +411,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { var1: 'drop' },
       },
@@ -429,7 +429,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, applied);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('filters applied descriptive preprocessing to histogram y variables only', () => {
@@ -448,7 +448,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['age'], null, null, null, null, applied);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
@@ -471,7 +471,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1'], null, null, null, null, null);
 
-    expect(body.analysis.preprocessing).toBeNull();
+    expect(body.analysisRequest.preprocessing).toBeNull();
   });
 
   it('does not send validation_datasets for histogram when inputdata spec includes validation_datasets slot', () => {
@@ -492,7 +492,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('histogram', ['var1']);
 
-    expect(body.analysis.inputdata.validation_datasets).toBeNull();
+    expect(body.analysisRequest.inputdata.validation_datasets).toBeNull();
   });
 
   it('builds spec-driven inputdata with array roles and validation datasets', () => {
@@ -527,14 +527,14 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('validation_algo', ['y1'], ['x1']);
 
-    expect(body.analysis.inputdata).toEqual(expect.objectContaining({
+    expect(body.analysisRequest.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: ['ds1'],
       validation_datasets: ['ds1'],
       variables: ['y1', 'x1'],
       filters: null,
     }));
-    expect(body.analysis.algorithm).toEqual(expect.objectContaining({
+    expect(body.analysisRequest.algorithm).toEqual(expect.objectContaining({
       y: ['y1'],
       x: ['x1'],
     }));
@@ -546,7 +546,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['var1'], ['cov1']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: {
           var1: 'drop',
@@ -566,10 +566,10 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['age'], ['dataset']);
 
-    expect(body.analysis.algorithm.y).toEqual(['age']);
-    expect(body.analysis.algorithm.x).toEqual(['dataset']);
-    expect(body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(body.analysisRequest.algorithm.x).toEqual(['dataset']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['age', 'dataset']);
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop', dataset: 'drop' },
       },
@@ -582,7 +582,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('describe', ['var1']);
 
-    expect(body.analysis.preprocessing).toBeNull();
+    expect(body.analysisRequest.preprocessing).toBeNull();
   });
 
   it('does not add default preprocessing for outlier_report requests', () => {
@@ -592,8 +592,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('outlier_report', ['age']);
 
-    expect(body.analysis.algorithm.name).toBe('outlier_report');
-    expect(body.analysis.preprocessing).toBeNull();
+    expect(body.analysisRequest.algorithm.name).toBe('outlier_report');
+    expect(body.analysisRequest.preprocessing).toBeNull();
   });
 
   it('excludes histogram, describe, outlier_report, and linear_svm from the algorithm picker', () => {
@@ -644,9 +644,9 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age']).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.algorithm.name).toBe('describe');
-    expect(req.request.body.analysis.preprocessing).toBeNull();
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.algorithm.name).toBe('describe');
+    expect(req.request.body.analysisRequest.preprocessing).toBeNull();
     req.flush({ result: { featurewise: [] } });
   });
 
@@ -660,9 +660,9 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age', 'dataset']).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.algorithm.y).toEqual(['age', 'dataset']);
-    expect(req.request.body.analysis.inputdata.variables).toEqual(['age', 'dataset']);
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.algorithm.y).toEqual(['age', 'dataset']);
+    expect(req.request.body.analysisRequest.inputdata.variables).toEqual(['age', 'dataset']);
     req.flush({ result: { featurewise: [] } });
   });
 
@@ -673,18 +673,18 @@ describe('ExperimentStudioService', () => {
     service.setFilterLogic({ condition: 'AND', rules: [{ field: 'site', operator: 'equal', value: 'A' }] } as any);
 
     service.loadDescriptiveOverview(['age']).subscribe();
-    const rawReq = httpMock.expectOne('/services/experiments/preview');
-    expect(rawReq.request.body.analysis.inputdata.filters).not.toBeNull();
-    expect(rawReq.request.body.analysis.inputdata.variables).toContain('site');
+    const rawReq = httpMock.expectOne('/services/analyses/preview');
+    expect(rawReq.request.body.analysisRequest.inputdata.filters).not.toBeNull();
+    expect(rawReq.request.body.analysisRequest.inputdata.variables).toContain('site');
     rawReq.flush({ result: { featurewise: [] } });
 
     // Step 0 describes the data as selected: no filter payload, and the filter
     // field is no longer dragged into the input pool.
     service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
-    const sourceReq = httpMock.expectOne('/services/experiments/preview');
-    expect(sourceReq.request.body.analysis.inputdata.filters).toBeNull();
-    expect(sourceReq.request.body.analysis.inputdata.variables).not.toContain('site');
-    expect(sourceReq.request.body.analysis.preprocessing).toBeNull();
+    const sourceReq = httpMock.expectOne('/services/analyses/preview');
+    expect(sourceReq.request.body.analysisRequest.inputdata.filters).toBeNull();
+    expect(sourceReq.request.body.analysisRequest.inputdata.variables).not.toContain('site');
+    expect(sourceReq.request.body.analysisRequest.preprocessing).toBeNull();
     sourceReq.flush({ result: { featurewise: [] } });
   });
 
@@ -697,23 +697,23 @@ describe('ExperimentStudioService', () => {
 
     // The Cohort Filtering preview sends what the editor holds, unapplied.
     service.loadDescriptiveOverview(['age'], null, null, pending).subscribe();
-    const pendingReq = httpMock.expectOne('/services/experiments/preview');
-    expect(pendingReq.request.body.analysis.inputdata.filters).toEqual(pending);
-    expect(pendingReq.request.body.analysis.inputdata.variables).toContain('score');
-    expect(pendingReq.request.body.analysis.inputdata.variables).not.toContain('site');
+    const pendingReq = httpMock.expectOne('/services/analyses/preview');
+    expect(pendingReq.request.body.analysisRequest.inputdata.filters).toEqual(pending);
+    expect(pendingReq.request.body.analysisRequest.inputdata.variables).toContain('score');
+    expect(pendingReq.request.body.analysisRequest.inputdata.variables).not.toContain('site');
     pendingReq.flush({ result: { featurewise: [] } });
 
     // An explicit null is "no rules", not "fall back to the store".
     service.loadDescriptiveOverview(['age'], null, null, null).subscribe();
-    const clearedReq = httpMock.expectOne('/services/experiments/preview');
-    expect(clearedReq.request.body.analysis.inputdata.filters).toBeNull();
-    expect(clearedReq.request.body.analysis.inputdata.variables).not.toContain('site');
+    const clearedReq = httpMock.expectOne('/services/analyses/preview');
+    expect(clearedReq.request.body.analysisRequest.inputdata.filters).toBeNull();
+    expect(clearedReq.request.body.analysisRequest.inputdata.variables).not.toContain('site');
     clearedReq.flush({ result: { featurewise: [] } });
 
     // Leaving the override alone keeps the stored cohort.
     service.loadDescriptiveOverview(['age']).subscribe();
-    const storedReq = httpMock.expectOne('/services/experiments/preview');
-    expect(storedReq.request.body.analysis.inputdata.filters).toEqual(stored);
+    const storedReq = httpMock.expectOne('/services/analyses/preview');
+    expect(storedReq.request.body.analysisRequest.inputdata.filters).toEqual(stored);
     storedReq.flush({ result: { featurewise: [] } });
 
     // Previewing never writes the cohort.
@@ -738,8 +738,8 @@ describe('ExperimentStudioService', () => {
       pending
     );
 
-    expect(body.analysis.inputdata.filters).toEqual(pending);
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(defaultDrop));
+    expect(body.analysisRequest.inputdata.filters).toEqual(pending);
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps(defaultDrop));
   });
 
   it('forwards the cohort override from getAlgorithmResults to the preview request', () => {
@@ -756,8 +756,8 @@ describe('ExperimentStudioService', () => {
       pending
     ).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.inputdata.filters).toEqual(pending);
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.inputdata.filters).toEqual(pending);
     req.flush({ result: { histogram: [] } });
   });
 
@@ -772,8 +772,8 @@ describe('ExperimentStudioService', () => {
 
     service.loadDescriptiveOverview(['age'], preprocessing).subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps(preprocessing));
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.preprocessing).toEqual(preprocessingSteps(preprocessing));
     req.flush({ result: { featurewise: [] } });
   });
 
@@ -786,12 +786,12 @@ describe('ExperimentStudioService', () => {
         strategies: { age: 'mean' },
       },
     }).subscribe();
-    const previewReq = httpMock.expectOne('/services/experiments/preview');
+    const previewReq = httpMock.expectOne('/services/analyses/preview');
     previewReq.flush({ result: { featurewise: [] } });
 
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'drop' },
       },
@@ -810,7 +810,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('keeps the drop default ahead of a created column when no missing-value step was applied', () => {
@@ -824,7 +824,7 @@ describe('ExperimentStudioService', () => {
     setCreators(service, 'categorical_column_creator', [creator]);
 
     const body = service.buildRequestBody('mock_algo', ['sex_group'], ['age']);
-    const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+    const steps = body.analysisRequest.preprocessing as AnalysisPreprocessingStep[];
 
     // The created column is not a CDE, so only the real covariate gets a strategy.
     expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'categorical_column_creator']);
@@ -851,7 +851,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age'], ['sex']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('forwards applied outlier preprocessing together with missing values', () => {
@@ -871,7 +871,7 @@ describe('ExperimentStudioService', () => {
     service.setAppliedDescriptivePreprocessing(applied);
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps(applied));
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps(applied));
   });
 
   it('summarizes preprocessing with variable labels and human-readable actions', () => {
@@ -947,9 +947,9 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/preview');
+    const req = httpMock.expectOne('/services/analyses/preview');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
+    expect(req.request.body.analysisRequest.algorithm).toEqual(expect.objectContaining({
       name: 'outlier_report',
       y: ['age'],
       x: ['bmi'],
@@ -959,13 +959,13 @@ describe('ExperimentStudioService', () => {
         folds: { age: 1.5, bmi: 0.05 },
       },
     }));
-    expect(req.request.body.analysis.inputdata).toEqual(expect.objectContaining({
+    expect(req.request.body.analysisRequest.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: [],
       filters: null,
       variables: expect.arrayContaining(['age', 'bmi']),
     }));
-    expect(req.request.body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(req.request.body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: { age: 'median' },
       },
@@ -991,15 +991,15 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/preview');
+    const req = httpMock.expectOne('/services/analyses/preview');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.analysis.inputdata).toEqual(expect.objectContaining({
+    expect(req.request.body.analysisRequest.inputdata).toEqual(expect.objectContaining({
       data_model: 'dm:1',
       datasets: [],
       filters: null,
       variables: ['age'],
     }));
-    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
+    expect(req.request.body.analysisRequest.algorithm).toEqual(expect.objectContaining({
       y: ['age'],
       x: null,
     }));
@@ -1023,8 +1023,8 @@ describe('ExperimentStudioService', () => {
       done();
     });
 
-    const req = httpMock.expectOne('/services/experiments/preview');
-    expect(req.request.body.analysis.algorithm).toEqual(expect.objectContaining({
+    const req = httpMock.expectOne('/services/analyses/preview');
+    expect(req.request.body.analysisRequest.algorithm).toEqual(expect.objectContaining({
       y: ['age'],
       x: null,
     }));
@@ -1142,9 +1142,9 @@ describe('ExperimentStudioService', () => {
 
     service.runSelectedAlgorithm()!.subscribe((res) => (response = res));
 
-    const req = httpMock.expectOne('/services/experiments/runs');
+    const req = httpMock.expectOne('/services/analyses/runs');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body.analysis.algorithm.name).toBe('mock_algo');
+    expect(req.request.body.analysisRequest.algorithm.name).toBe('mock_algo');
     req.flush({ uuid: 'run-1', status: 'success', result: { value: 1 } });
     expect(response).toEqual({ uuid: 'run-1', status: 'success', result: { value: 1 } });
   });
@@ -1157,8 +1157,8 @@ describe('ExperimentStudioService', () => {
 
     service.runSelectedAlgorithm()!.subscribe();
 
-    const req = httpMock.expectOne('/services/experiments/runs');
-    expect(req.request.body.analysis.algorithm.name).toBe('describe');
+    const req = httpMock.expectOne('/services/analyses/runs');
+    expect(req.request.body.analysisRequest.algorithm.name).toBe('describe');
     req.flush({ uuid: 'run-describe', status: 'success', result: { featurewise: [] } });
   });
 
@@ -1169,7 +1169,7 @@ describe('ExperimentStudioService', () => {
     service.saveRun('My experiment');
 
     expect(service.isSaving()).toBe(true);
-    const req = httpMock.expectOne('/services/experiments');
+    const req = httpMock.expectOne('/services/analyses');
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({ runId: 'run-1', name: 'My experiment' });
     req.flush({ uuid: 'experiment-1', shared: false, status: 'success', result: null });
@@ -1185,7 +1185,7 @@ describe('ExperimentStudioService', () => {
 
     service.saveRun('My experiment');
     httpMock
-      .expectOne('/services/experiments')
+      .expectOne('/services/analyses')
       .flush({ message: 'gone' }, { status: 404, statusText: 'Not Found' });
 
     expect(service.isSaving()).toBe(false);
@@ -1198,7 +1198,7 @@ describe('ExperimentStudioService', () => {
 
     service.saveRun('My experiment');
 
-    httpMock.expectNone('/services/experiments');
+    httpMock.expectNone('/services/analyses');
     expect(service.saveError()).toContain('Run the experiment');
   });
 
@@ -1221,7 +1221,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['age']);
 
-    expect(body.analysis.algorithm.parameters.alpha).toBe(0.05);
+    expect(body.analysisRequest.algorithm.parameters.alpha).toBe(0.05);
   });
 
   it('keeps enum select parameter strings even when their schema type is int', () => {
@@ -1256,7 +1256,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.analysis.algorithm.parameters.positive_class).toBe('1');
+    expect(body.analysisRequest.algorithm.parameters.positive_class).toBe('1');
   });
 
   it('omits unset positive_class from experiment request parameters', () => {
@@ -1268,8 +1268,8 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.analysis.algorithm.parameters.positive_class).toBeUndefined();
-    expect(body.analysis.algorithm.parameters.alpha).toBe(0.05);
+    expect(body.analysisRequest.algorithm.parameters.positive_class).toBeUndefined();
+    expect(body.analysisRequest.algorithm.parameters.alpha).toBe(0.05);
   });
 
   it('builds binned Mann-Whitney requests with group enum codes and missing-value preprocessing', () => {
@@ -1316,16 +1316,16 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('binned_mann_whitney_u_test', ['age'], ['sex']);
 
-    expect(body.analysis.algorithm.name).toBe('binned_mann_whitney_u_test');
-    expect(body.analysis.algorithm.y).toEqual(['age']);
-    expect(body.analysis.algorithm.x).toEqual(['sex']);
-    expect(body.analysis.algorithm.parameters).toEqual({
+    expect(body.analysisRequest.algorithm.name).toBe('binned_mann_whitney_u_test');
+    expect(body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(body.analysisRequest.algorithm.x).toEqual(['sex']);
+    expect(body.analysisRequest.algorithm.parameters).toEqual({
       alt_hypothesis: 'two-sided',
       groupA: '0',
       groupB: '1',
       num_bins: 40,
     });
-    expect(body.analysis.preprocessing).toEqual(preprocessingSteps({
+    expect(body.analysisRequest.preprocessing).toEqual(preprocessingSteps({
       missing_values_handler: {
         strategies: {
           age: 'drop',
@@ -1367,7 +1367,7 @@ describe('ExperimentStudioService', () => {
 
     const body = service.buildRequestBody('mock_algo', ['acute_treat_evt']);
 
-    expect(body.analysis.algorithm.parameters.category_order).toEqual(['0', '1', '9']);
+    expect(body.analysisRequest.algorithm.parameters.category_order).toEqual(['0', '1', '9']);
   });
 
   it('hydrates edit state with filters and applied preprocessing from backend experiment', () => {
@@ -1402,7 +1402,7 @@ describe('ExperimentStudioService', () => {
       shared: true,
       viewed: false,
       status: 'success',
-      analysis: {
+      analysisRequest: {
         inputdata: {
           data_model: 'dm:1',
           datasets: ['ds1'],
@@ -1449,7 +1449,7 @@ describe('ExperimentStudioService', () => {
       rules: { m: { condition: 'AND', rules: [{ id: 'sex', field: 'sex', type: 'string', input: 'select', operator: 'equal', value: '1' }] } },
     };
     setCreators(service, 'categorical_column_creator', [creator]);
-    const steps = service.buildRequestBody('mock_algo').analysis.preprocessing as AnalysisPreprocessingStep[];
+    const steps = service.buildRequestBody('mock_algo').analysisRequest.preprocessing as AnalysisPreprocessingStep[];
     expect(steps.find((step) => step.name === 'categorical_column_creator')?.parameters).toEqual(creator);
   });
 
@@ -1491,11 +1491,11 @@ describe('ExperimentStudioService', () => {
     ]);
 
     const body = service.buildRequestBody('mock_algo');
-    expect(body.analysis.algorithm.y).toEqual(['age']);
-    expect(body.analysis.algorithm.x).toEqual(['derived_col']);
+    expect(body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(body.analysisRequest.algorithm.x).toEqual(['derived_col']);
     // Derived column codes are stripped from the source CDE list.
-    expect(body.analysis.inputdata.variables).toEqual(['age']);
-    expect(body.analysis.inputdata.variables).not.toContain('derived_col');
+    expect(body.analysisRequest.inputdata.variables).toEqual(['age']);
+    expect(body.analysisRequest.inputdata.variables).not.toContain('derived_col');
   });
 
   it('sends two applied creators as two steps of the same name', () => {
@@ -1543,7 +1543,7 @@ describe('ExperimentStudioService', () => {
       .toEqual(['mrs', 'age', 'mrs_good_outcome', 'mrs_bad_outcome']);
 
     const body = service.buildRequestBody('mock_algo');
-    const creators = (body.analysis.preprocessing as AnalysisPreprocessingStep[])
+    const creators = (body.analysisRequest.preprocessing as AnalysisPreprocessingStep[])
       .filter((step) => step.name === 'categorical_column_creator');
     // The engine takes the repeated step name in draft order.
     expect(creators.map((step) => step.parameters['new_column_names'])).toEqual([
@@ -1552,11 +1552,11 @@ describe('ExperimentStudioService', () => {
     ]);
     expect(creators[1].parameters['default_enumeration']).toBe('unknown');
 
-    expect(body.analysis.algorithm.y).toEqual(['age']);
-    expect(body.analysis.algorithm.x).toEqual(['mrs_good_outcome', 'mrs_bad_outcome']);
+    expect(body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(body.analysisRequest.algorithm.x).toEqual(['mrs_good_outcome', 'mrs_bad_outcome']);
     // Both derived codes are stripped from the source CDE list; their rule
     // sources are still sent.
-    expect(body.analysis.inputdata.variables).toEqual(['mrs', 'age']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['mrs', 'age']);
   });
 
   it('keeps a stored cohort filter tree exactly as stored', () => {
@@ -1568,7 +1568,7 @@ describe('ExperimentStudioService', () => {
       shared: false,
       viewed: false,
       status: 'success',
-      analysis: {
+      analysisRequest: {
         inputdata: {
           data_model: 'dm:1',
           datasets: ['ds1'],
@@ -1605,7 +1605,7 @@ describe('ExperimentStudioService', () => {
     service.setAlgorithmY([{ code: 'age', label: 'Age' }]);
     service.setAlgorithmX([{ code: 'sex', label: 'Sex' }]);
 
-    const sentRules = service.buildRequestBody('mock_algo').analysis.inputdata.filters.rules as any[];
+    const sentRules = service.buildRequestBody('mock_algo').analysisRequest.inputdata.filters.rules as any[];
     expect(sentRules[0].value).toEqual(['1', '2']);
     expect('value' in sentRules[1]).toBe(false);
   });
@@ -1622,7 +1622,7 @@ describe('ExperimentStudioService', () => {
       shared: false,
       viewed: false,
       status: 'success',
-      analysis: {
+      analysisRequest: {
         inputdata: {
           data_model: 'dm:1',
           datasets: ['ds1'],
@@ -1681,10 +1681,10 @@ describe('ExperimentStudioService', () => {
     const body = service.buildRequestBody('mock_algo');
     // 'mrs' is in the pool and referenced by the transformation rule filters, so
     // it must be sent as a source CDE even though it is not assigned to y/x.
-    expect(body.analysis.inputdata.variables).toEqual(['mrs', 'age']);
-    expect(body.analysis.inputdata.variables).not.toContain('mrs_good_outcome');
-    expect(body.analysis.algorithm.y).toEqual(['age']);
-    expect(body.analysis.algorithm.x).toEqual(['mrs_good_outcome']);
+    expect(body.analysisRequest.inputdata.variables).toEqual(['mrs', 'age']);
+    expect(body.analysisRequest.inputdata.variables).not.toContain('mrs_good_outcome');
+    expect(body.analysisRequest.algorithm.y).toEqual(['age']);
+    expect(body.analysisRequest.algorithm.x).toEqual(['mrs_good_outcome']);
   });
 
   it('drops a renamed created column from roles when the transformation code changes', () => {
@@ -1723,7 +1723,7 @@ describe('ExperimentStudioService', () => {
       shared: false,
       viewed: false,
       status: 'success',
-      analysis: {
+      analysisRequest: {
         inputdata: {
           data_model: 'dm:1',
           datasets: ['ds1'],
@@ -1772,7 +1772,7 @@ describe('ExperimentStudioService', () => {
       shared: false,
       viewed: false,
       status: 'success',
-      analysis: {
+      analysisRequest: {
         inputdata: { data_model: 'dm:1', datasets: ['ds1'], variables: ['age'] },
         preprocessing: preprocessingSteps({
           categorical_column_creator: {
@@ -1836,7 +1836,7 @@ describe('ExperimentStudioService', () => {
     });
 
     function stepNames(body: any): string[] {
-      return (body.analysis.preprocessing as AnalysisPreprocessingStep[]).map((step) => step.name);
+      return (body.analysisRequest.preprocessing as AnalysisPreprocessingStep[]).map((step) => step.name);
     }
 
     it('exposes the cluster column in the assignable pool and reads back the applied creator', () => {
@@ -1897,8 +1897,8 @@ describe('ExperimentStudioService', () => {
       service.setAlgorithmY([{ code: 'km_fit', label: 'km_fit', isCreatedColumn: true }]);
 
       const body = service.buildRequestBody('mock_algo');
-      expect(body.analysis.inputdata.variables).toEqual(['a', 'b']);
-      const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      expect(body.analysisRequest.inputdata.variables).toEqual(['a', 'b']);
+      const steps = body.analysisRequest.preprocessing as AnalysisPreprocessingStep[];
       expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'kmeans_cluster_creator']);
       expect(steps[1].parameters['variables']).toEqual(['a', 'b']);
       expect(steps[1].parameters).not.toHaveProperty('reusable_preprocessing');
@@ -1916,15 +1916,15 @@ describe('ExperimentStudioService', () => {
 
       const body = service.buildRequestBody('mock_algo');
 
-      expect(body.analysis.algorithm.y).toEqual(['kmeans_cluster']);
-      expect(body.analysis.inputdata.variables).toEqual(['a', 'b']);
-      expect(body.analysis.inputdata.variables).not.toContain('kmeans_cluster');
+      expect(body.analysisRequest.algorithm.y).toEqual(['kmeans_cluster']);
+      expect(body.analysisRequest.inputdata.variables).toEqual(['a', 'b']);
+      expect(body.analysisRequest.inputdata.variables).not.toContain('kmeans_cluster');
 
       const names = stepNames(body);
       expect(names.indexOf('missing_values_handler'))
         .toBeLessThan(names.indexOf('kmeans_cluster_creator'));
 
-      const missingStep = (body.analysis.preprocessing as AnalysisPreprocessingStep[])
+      const missingStep = (body.analysisRequest.preprocessing as AnalysisPreprocessingStep[])
         .find((step) => step.name === 'missing_values_handler');
       // The user's own strategy for 'a' survives; 'b' gets the required drop.
       expect(missingStep?.parameters['strategies']).toEqual({ a: 'mean', b: 'drop' });
@@ -1943,7 +1943,7 @@ describe('ExperimentStudioService', () => {
 
       const body = service.buildRequestBody('mock_algo');
 
-      const steps = body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      const steps = body.analysisRequest.preprocessing as AnalysisPreprocessingStep[];
       expect(steps.map((step) => step.name)).toEqual(['missing_values_handler', 'kmeans_cluster_creator']);
       expect(steps[0].parameters['strategies']).toEqual({ a: 'drop', b: 'drop' });
       expect(steps[1].parameters['new_column_names']).toEqual(['kmeans_cluster']);
@@ -2064,16 +2064,16 @@ describe('ExperimentStudioService', () => {
       expect(request$).toBeTruthy();
       request$!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      expect(req.request.body.analysis.algorithm.name).toBe('kmeans');
-      expect(req.request.body.analysis.algorithm.y).toEqual(['age']);
-      expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
+      const req = httpMock.expectOne('/services/analyses/preview');
+      expect(req.request.body.analysisRequest.algorithm.name).toBe('kmeans');
+      expect(req.request.body.analysisRequest.algorithm.y).toEqual(['age']);
+      expect(req.request.body.analysisRequest.algorithm.parameters).toEqual(expect.objectContaining({
         k_selection: 'manual',
         k: 4,
         maxiter: 100,
         tol: 0.0001,
       }));
-      expect(req.request.body.analysis.preprocessing).toEqual([
+      expect(req.request.body.analysisRequest.preprocessing).toEqual([
         { name: 'missing_values_handler', parameters: { strategies: { age: 'drop' } } },
       ]);
       req.flush({ status: 'success', result: {} });
@@ -2086,8 +2086,8 @@ describe('ExperimentStudioService', () => {
       }]);
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      const steps = req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      const req = httpMock.expectOne('/services/analyses/preview');
+      const steps = req.request.body.analysisRequest.preprocessing as AnalysisPreprocessingStep[];
       expect(steps.map((step) => step.name)).toContain('missing_values_handler');
       expect(steps.find((step) => step.name === 'missing_values_handler')?.parameters['strategies'])
         .toEqual({ age: 'drop' });
@@ -2102,8 +2102,8 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      const missing = (req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[])
+      const req = httpMock.expectOne('/services/analyses/preview');
+      const missing = (req.request.body.analysisRequest.preprocessing as AnalysisPreprocessingStep[])
         .find((step) => step.name === 'missing_values_handler');
       expect(missing?.parameters['strategies']).toEqual({ age: 'mean' });
       req.flush({ status: 'success', result: {} });
@@ -2112,9 +2112,9 @@ describe('ExperimentStudioService', () => {
     it('lets an explicit parameter override the spec default', () => {
       service.loadKMeansReport(['age'], { k: 3 })!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      expect(req.request.body.analysis.algorithm.parameters.k).toBe(3);
-      expect(req.request.body.analysis.algorithm.parameters.k_selection).toBe('manual');
+      const req = httpMock.expectOne('/services/analyses/preview');
+      expect(req.request.body.analysisRequest.algorithm.parameters.k).toBe(3);
+      expect(req.request.body.analysisRequest.algorithm.parameters.k_selection).toBe('manual');
       req.flush({ status: 'success', result: {} });
     });
 
@@ -2143,8 +2143,8 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      const steps = req.request.body.analysis.preprocessing as AnalysisPreprocessingStep[];
+      const req = httpMock.expectOne('/services/analyses/preview');
+      const steps = req.request.body.analysisRequest.preprocessing as AnalysisPreprocessingStep[];
       expect(steps.map((step) => step.name)).toEqual([
         'missing_values_handler',
         'categorical_column_creator',
@@ -2161,8 +2161,8 @@ describe('ExperimentStudioService', () => {
       });
       service.loadKMeansReport(['age'])!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      expect(req.request.body.analysis.algorithm.parameters).toEqual(expect.objectContaining({
+      const req = httpMock.expectOne('/services/analyses/preview');
+      expect(req.request.body.analysisRequest.algorithm.parameters).toEqual(expect.objectContaining({
         k_selection: 'elbow',
         k_min: 2,
         k_max: 5,
@@ -2186,10 +2186,10 @@ describe('ExperimentStudioService', () => {
       expect(request$).toBeTruthy();
       request$!.subscribe();
 
-      const req = httpMock.expectOne('/services/experiments/preview');
-      expect(req.request.body.analysis.algorithm.name).toBe('pca');
-      expect(req.request.body.analysis.algorithm.y).toEqual(['age', 'bmi']);
-      expect(req.request.body.analysis.preprocessing).toEqual([
+      const req = httpMock.expectOne('/services/analyses/preview');
+      expect(req.request.body.analysisRequest.algorithm.name).toBe('pca');
+      expect(req.request.body.analysisRequest.algorithm.y).toEqual(['age', 'bmi']);
+      expect(req.request.body.analysisRequest.preprocessing).toEqual([
         { name: 'missing_values_handler', parameters: { strategies: { age: 'drop', bmi: 'drop' } } },
       ]);
       req.flush({ status: 'success', result: {} });
@@ -2233,7 +2233,7 @@ describe('ExperimentStudioService', () => {
       service.upsertTransformation(kmeansOnPcaA);
 
       const body = service.buildRequestBody('mock_algo');
-      expect(body.analysis.preprocessing.map((s: AnalysisPreprocessingStep) => s.name)).toEqual([
+      expect(body.analysisRequest.preprocessing.map((s: AnalysisPreprocessingStep) => s.name)).toEqual([
         'missing_values_handler',
         'pca_column_creator',
         'categorical_column_creator',
@@ -2248,12 +2248,12 @@ describe('ExperimentStudioService', () => {
       service.upsertTransformation(kmeansOnPcaA);
 
       const body = service.buildRequestBody('mock_algo');
-      expect(body.analysis.inputdata.variables).toEqual(
+      expect(body.analysisRequest.inputdata.variables).toEqual(
         expect.arrayContaining(['lefthippocampus', 'righthippocampus']),
       );
       // The K-means sources are the PCA outputs, so they are not re-sent as CDEs.
-      expect(body.analysis.inputdata.variables).not.toContain('pca_a1');
-      const missing = body.analysis.preprocessing.find(
+      expect(body.analysisRequest.inputdata.variables).not.toContain('pca_a1');
+      const missing = body.analysisRequest.preprocessing.find(
         (s: AnalysisPreprocessingStep) => s.name === 'missing_values_handler',
       );
       expect(Object.keys(missing!.parameters['strategies'] as object)).not.toContain('pca_a1');
@@ -2285,19 +2285,19 @@ describe('ExperimentStudioService', () => {
 
       service.loadDescriptiveOverview(['km'], steps, service.transformationSourceCodesForInput())
         .subscribe();
-      const req = httpMock.expectOne('/services/experiments/preview');
+      const req = httpMock.expectOne('/services/analyses/preview');
       const body = req.request.body;
-      expect(body.analysis.preprocessing.map((s: AnalysisPreprocessingStep) => s.name)).toEqual([
+      expect(body.analysisRequest.preprocessing.map((s: AnalysisPreprocessingStep) => s.name)).toEqual([
         'missing_values_handler',
         'pca_column_creator',
         'kmeans_cluster_creator',
       ]);
-      expect(body.analysis.inputdata.variables).toEqual(
+      expect(body.analysisRequest.inputdata.variables).toEqual(
         expect.arrayContaining(['lefthippocampus', 'righthippocampus']),
       );
-      expect(body.analysis.inputdata.variables).not.toContain('pca_a1');
-      expect(body.analysis.inputdata.variables).not.toContain('pca_a2');
-      const previewMissing = body.analysis.preprocessing.find(
+      expect(body.analysisRequest.inputdata.variables).not.toContain('pca_a1');
+      expect(body.analysisRequest.inputdata.variables).not.toContain('pca_a2');
+      const previewMissing = body.analysisRequest.preprocessing.find(
         (s: AnalysisPreprocessingStep) => s.name === 'missing_values_handler',
       );
       expect(Object.keys(previewMissing!.parameters['strategies'] as object)).not.toContain('pca_a1');
@@ -2364,7 +2364,7 @@ describe('ExperimentStudioService', () => {
       );
 
       const body = service.buildRequestBody('mock_algo');
-      const creators = (body.analysis.preprocessing as AnalysisPreprocessingStep[])
+      const creators = (body.analysisRequest.preprocessing as AnalysisPreprocessingStep[])
         .filter((step) => step.name !== 'missing_values_handler')
         .map((step) => step.parameters['new_column_names']);
       expect(creators).toEqual([['grp']]);

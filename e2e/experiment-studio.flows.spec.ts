@@ -35,20 +35,20 @@ import {
  * Payload checks read the request the studio sent, since that is what Exaflow runs.
  */
 
-const PREVIEW = '/services/experiments/preview';
-const RUNS = '/services/experiments/runs';
+const PREVIEW = '/services/analyses/preview';
+const RUNS = '/services/analyses/runs';
 
 /** Save must persist the kept run by id, never post the analysis to be run a second time. */
 function expectNoRerun(api: StudioApi) {
-  const saves = api.requests.filter((request) => request.method === 'POST' && request.path === '/services/experiments');
+  const saves = api.requests.filter((request) => request.method === 'POST' && request.path === '/services/analyses');
   expect(saves.length).toBeGreaterThan(0);
-  expect(saves.every((request) => request.body?.runId && !request.body?.analysis)).toBe(true);
+  expect(saves.every((request) => request.body?.runId && !request.body?.analysisRequest)).toBe(true);
 }
 
 /** One preprocessing step from the latest Data review preview (`describe`). */
 function previewStep(api: StudioApi, name: string) {
   const steps: { name: string; parameters: Record<string, any> }[] =
-    lastRequest(api, 'POST', PREVIEW, 'describe').analysis.preprocessing ?? [];
+    lastRequest(api, 'POST', PREVIEW, 'describe').analysisRequest.preprocessing ?? [];
   const step = steps.find((candidate) => candidate.name === name);
   expect(step, `preview sends ${name}`).toBeTruthy();
   return step!.parameters;
@@ -96,10 +96,10 @@ test.describe('experiment studio', () => {
     expectNoRerun(api);
     const body = api.experiments[0] as any;
     expect(body.name).toBe('Edited age model');
-    expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
-    expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
+    expect(body.analysisRequest).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysisRequest);
+    expect(body.analysisRequest.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
     // The saved preprocessing comes back unchanged.
-    expect(body.analysis.preprocessing).toContainEqual({
+    expect(body.analysisRequest.preprocessing).toContainEqual({
       name: 'missing_values_handler',
       parameters: { strategies: { age: 'drop', sex: 'drop' } },
     });
@@ -133,15 +133,15 @@ test.describe('experiment studio', () => {
 
     // Save sends only the run id and name; the kept run supplies the analysis and result.
     expectNoRerun(api);
-    const save = api.requests.find((request) => request.method === 'POST' && request.path === '/services/experiments');
+    const save = api.requests.find((request) => request.method === 'POST' && request.path === '/services/analyses');
     expect(save?.body).toEqual({ runId: expect.stringMatching(/^run-/), name: 'Age by sex' });
     const body = api.experiments[0] as any;
-    expect(body.analysis).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysis);
+    expect(body.analysisRequest).toEqual(lastRequest(api, 'POST', RUNS, 'linear_regression').analysisRequest);
     expect(body.name).toBe('Age by sex');
-    expect(body.analysis.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
-    expect(body.analysis.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['chuv', 'adni'], filters: null });
-    expect(body.analysis.inputdata.variables).toEqual(expect.arrayContaining(['age', 'sex']));
-    expect(body.analysis.preprocessing).toContainEqual({
+    expect(body.analysisRequest.algorithm).toMatchObject({ name: 'linear_regression', y: ['age'], x: ['sex'], parameters: { alpha: 0.2 } });
+    expect(body.analysisRequest.inputdata).toMatchObject({ data_model: 'dementia:1', datasets: ['chuv', 'adni'], filters: null });
+    expect(body.analysisRequest.inputdata.variables).toEqual(expect.arrayContaining(['age', 'sex']));
+    expect(body.analysisRequest.preprocessing).toContainEqual({
       name: 'missing_values_handler',
       parameters: { strategies: { age: 'drop', sex: 'drop' } },
     });
@@ -317,7 +317,7 @@ test.describe('filters and transformations', () => {
     await expect(page.getByText('Sex is Female')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Continue to Algorithm Selection' }).last()).toBeEnabled();
 
-    expect(lastRequest(api, 'POST', PREVIEW, 'describe').analysis.inputdata.filters).toEqual({
+    expect(lastRequest(api, 'POST', PREVIEW, 'describe').analysisRequest.inputdata.filters).toEqual({
       condition: 'AND',
       rules: [
         expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 }),
@@ -345,7 +345,7 @@ test.describe('filters and transformations', () => {
     await expect(page.getByText('Age >= 60 · 1 rule')).toBeVisible();
     await expect(page.getByText('Age: median imputation, Sex: remove rows')).toBeVisible();
 
-    const run = lastRequest(api, 'POST', RUNS, 'linear_regression').analysis;
+    const run = lastRequest(api, 'POST', RUNS, 'linear_regression').analysisRequest;
     expect(run.algorithm).toMatchObject({ y: ['age'], x: ['sex'] });
     expect(run.inputdata.filters.rules).toEqual([expect.objectContaining({ field: 'age', operator: 'greater_or_equal', value: 60 })]);
     expect(run.preprocessing).toContainEqual({
@@ -358,7 +358,7 @@ test.describe('filters and transformations', () => {
     await openAgeAndSex(page);
     await addKMeansColumn(page);
     await expect(page.getByText('Column kmeans_cluster')).toBeVisible();
-    expect(lastRequest(api, 'POST', PREVIEW, 'kmeans').analysis.algorithm.y).toEqual(['age']);
+    expect(lastRequest(api, 'POST', PREVIEW, 'kmeans').analysisRequest.algorithm.y).toEqual(['age']);
   });
 
   test('nominal column and k-means cluster column together', async ({ page, api }) => {
@@ -373,7 +373,7 @@ test.describe('filters and transformations', () => {
     await page.getByRole('button', { name: /^Nominal column · sex_group/ }).click();
     await expect(page.getByText('Sex is Female')).toBeVisible();
 
-    const steps = lastRequest(api, 'POST', PREVIEW, 'describe').analysis.preprocessing;
+    const steps = lastRequest(api, 'POST', PREVIEW, 'describe').analysisRequest.preprocessing;
     expect(steps).toContainEqual({
       name: 'categorical_column_creator',
       parameters: {
@@ -410,7 +410,7 @@ test.describe('filters and transformations', () => {
     await expectAlgorithm(page, 'Logistic regression', 'Regression');
     await runExperiment(page);
 
-    const run = lastRequest(api, 'POST', RUNS, 'logistic_regression').analysis;
+    const run = lastRequest(api, 'POST', RUNS, 'logistic_regression').analysisRequest;
     const names = (run.preprocessing ?? []).map((step: { name: string }) => step.name);
     const pcaIndex = names.indexOf('pca_column_creator');
     const kmeansIndex = names.indexOf('kmeans_cluster_creator');
@@ -455,7 +455,7 @@ test.describe('statistics previews', () => {
       await page.locator('#search-bar').fill(label);
       await page.locator('.search-result-item', { hasText: label }).first().click();
       for (const tick of ticks) await expect(histogram).toContainText(tick);
-      expect(lastRequest(api, 'POST', PREVIEW, 'histogram').analysis.algorithm.y).toEqual([label.toLowerCase()]);
+      expect(lastRequest(api, 'POST', PREVIEW, 'histogram').analysisRequest.algorithm.y).toEqual([label.toLowerCase()]);
     }
   });
 
@@ -483,7 +483,7 @@ test.describe('run and save lifecycle', () => {
 
   /** Answer the save of the kept run with `status`, as the backend does when it fails or the run expired. */
   async function failSave(page: Page, status: number) {
-    await page.route('**/services/experiments', (route) =>
+    await page.route('**/services/analyses', (route) =>
       route.request().method() === 'POST' ? route.fulfill({ status, json: {} }) : route.fallback(),
     );
   }
@@ -508,8 +508,8 @@ test.describe('run and save lifecycle', () => {
   });
 
   test('run shows the engine error', async ({ page }) => {
-    await page.route('**/services/experiments/runs', (route) =>
-      route.request().postDataJSON()?.analysis?.algorithm?.name === 'linear_regression'
+    await page.route('**/services/analyses/runs', (route) =>
+      route.request().postDataJSON()?.analysisRequest?.algorithm?.name === 'linear_regression'
         ? route.fulfill({ json: { status: 'error', result: { message: 'Singular matrix' } } })
         : route.fallback(),
     );

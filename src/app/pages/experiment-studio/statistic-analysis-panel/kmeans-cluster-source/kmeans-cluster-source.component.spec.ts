@@ -20,7 +20,7 @@ function kmeansExperiment(uuid: string, overrides: Record<string, unknown> = {})
     shared: false,
     viewed: false,
     status: 'success',
-    analysis: {
+    analysisRequest: {
       inputdata: {
         data_model: CONTEXT.dataModel,
         datasets: CONTEXT.datasets,
@@ -119,9 +119,9 @@ describe('KMeansClusterSourceComponent', () => {
       of([
         kmeansExperiment('a'),
         // Different datasets → hidden.
-        kmeansExperiment('b', { analysis: { inputdata: { data_model: CONTEXT.dataModel, datasets: ['other'], filters: null, variables: [] }, algorithm: { name: 'kmeans' } } }),
+        kmeansExperiment('b', { analysisRequest: { inputdata: { data_model: CONTEXT.dataModel, datasets: ['other'], filters: null, variables: [] }, algorithm: { name: 'kmeans' } } }),
         // Different data model → hidden.
-        kmeansExperiment('c', { analysis: { inputdata: { data_model: 'Other:1', datasets: CONTEXT.datasets, filters: null, variables: [] }, algorithm: { name: 'kmeans' } } }),
+        kmeansExperiment('c', { analysisRequest: { inputdata: { data_model: 'Other:1', datasets: CONTEXT.datasets, filters: null, variables: [] }, algorithm: { name: 'kmeans' } } }),
       ]),
     );
 

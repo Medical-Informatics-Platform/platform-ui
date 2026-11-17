@@ -80,7 +80,7 @@ export class ExperimentStudioService {
   private algorithmRulesService = inject(AlgorithmRulesService);
 
   private apiUrl = '/services/data-models';
-  private experimentUrl = '/services/experiments';
+  private experimentUrl = '/services/analyses';
   private dataModels: any[] = [];
   private dataModelsLoaded = false;
   private dataModelsRequest$: Observable<any[]> | null = null;
@@ -152,9 +152,9 @@ export class ExperimentStudioService {
 
   private selectedDatasetsSignal = signal<string[]>(this.sessionStorage.getItem('selectedDatasets') || []);
   /** Stateless previews: computed and returned, nothing kept. */
-  private previewUrl = '/services/experiments/preview';
+  private previewUrl = '/services/analyses/preview';
   /** Studio runs: the backend keeps a successful result here so saving never re-executes it. */
-  private runsUrl = '/services/experiments/runs';
+  private runsUrl = '/services/analyses/runs';
 
   lastUsedAlgorithm = signal<string | null>(this.sessionStorage.getItem('lastUsedAlgorithm') || null);
   selectedDatasets = computed(() => this.selectedDatasetsSignal());
@@ -1025,7 +1025,7 @@ export class ExperimentStudioService {
   ): ExperimentCreateRequest {
     return {
       name,
-      analysis,
+      analysisRequest: analysis,
     };
   }
 
@@ -2013,16 +2013,16 @@ export class ExperimentStudioService {
       if (!algoConfig) {
         throw new Error(`No algorithm config found for ${algorithmName}`);
       }
-      const algorithm = requestBody?.analysis?.algorithm ?? {};
+      const algorithm = requestBody?.analysisRequest?.algorithm ?? {};
       // Add the drops to the run's own ordered steps: regrouping them by name would move a
       // creator ahead of the creator whose column it reads.
-      const preprocessing = [...(requestBody?.analysis?.preprocessing ?? [])];
+      const preprocessing = [...(requestBody?.analysisRequest?.preprocessing ?? [])];
       const codes = [...new Set(
         variableCodes.map((code) => String(code).trim()).filter((code) => code && code !== 'dataset'),
       )];
       this.addTransformationDrops(preprocessing, codes);
-      requestBody.analysis = {
-        ...requestBody.analysis,
+      requestBody.analysisRequest = {
+        ...requestBody.analysisRequest,
         preprocessing,
         algorithm: {
           ...algorithm,
@@ -2146,7 +2146,7 @@ export class ExperimentStudioService {
   }
 
   updateExperimentName(uuid: string, newName: string) {
-    return this.http.patch(`/services/experiments/${uuid}`, { name: newName });
+    return this.http.patch(`${this.experimentUrl}/${uuid}`, { name: newName });
   }
 
   get filterLogic() {
@@ -2222,7 +2222,7 @@ export class ExperimentStudioService {
   }
 
   hydrateFromBackendExperiment(exp: BackendExperiment): void {
-    if (!exp?.analysis?.algorithm) {
+    if (!exp?.analysisRequest?.algorithm) {
       console.warn('hydrateFromBackendExperiment called with invalid exp:', exp);
       return;
     }
@@ -2231,7 +2231,7 @@ export class ExperimentStudioService {
     this.setEditingExistingExperiment(true);
     this.currentExperimentUUIDSignal.set(exp.uuid ?? null);
 
-    const analysis = exp.analysis;
+    const analysis = exp.analysisRequest;
     const algoName = analysis.algorithm.name;
     const input = analysis.inputdata || {};
     const params = analysis.algorithm.parameters || {};
