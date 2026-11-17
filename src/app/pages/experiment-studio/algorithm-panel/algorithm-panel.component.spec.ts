@@ -631,7 +631,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(positiveSelect.textContent).toContain('Extracranial stent');
     expect(positiveSelect.textContent).not.toContain('None (optional)');
     expect(positiveSelect.textContent).toContain('-- Select --');
-    expect(root.textContent).toContain('Select the event level mapped to 1');
+    expect(root.textContent).toContain('Select the level counted as the event (1)');
 
     const component = fixture.componentInstance;
     expect(component.visibleConfigSchema().find((field) => field.key === 'positive_class')?.required).toBe(true);
@@ -640,6 +640,56 @@ describe('AlgorithmPanelComponent', () => {
       component.visibleConfigSchema()
     );
     expect(values.positive_class).toBe('yes');
+  });
+
+  it('shows the declared ordinal order for category_order and ignores a stored order', async () => {
+    const glmmOrdinal: AlgorithmConfig = {
+      name: 'glmm_ordinal',
+      label: 'GLMM Ordinal',
+      description: '',
+      category: 'Regression',
+      requiredVariable: ['text'],
+      covariate: ['real'],
+      configSchema: [
+        {
+          key: 'category_order',
+          label: 'Ordinal category order',
+          desc: 'Ordered outcome levels from lowest to highest.',
+          type: 'multi-select',
+          multiple: true,
+          required: false,
+          options: [],
+        },
+      ],
+      isDisabled: false,
+    };
+
+    experimentStudioService.selectedAlgorithm.set(glmmOrdinal);
+    experimentStudioService.algorithmY.set([
+      {
+        code: 'stage',
+        label: 'Stage',
+        type: 'ordinal',
+        enumerations: [
+          { code: '1', label: 'Mild' },
+          { code: '2', label: 'Moderate' },
+          { code: '3', label: 'Severe' },
+        ],
+      },
+    ]);
+    // An older run reordered the levels; Exaflow now rejects anything but the declared order.
+    experimentStudioService.algorithmConfigurations.set({ glmm_ordinal: { category_order: ['3', '1', '2'] } });
+
+    fixture.componentInstance.setStudioSubstep('parameters');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const levels = Array.from(root.querySelectorAll('.fixed-order .fixed-order-level')).map((el) => el.textContent?.trim());
+    expect(levels).toEqual(['Mild', 'Moderate', 'Severe']);
+    expect(root.querySelector('.chip-picker-option')).toBeNull();
+    expect(root.textContent).toContain('in the order the data model declares');
+    expect(fixture.componentInstance.configForm().get('category_order')?.value).toEqual(['1', '2', '3']);
   });
 
   it('blocks Cox runs when positive_class is unset', async () => {

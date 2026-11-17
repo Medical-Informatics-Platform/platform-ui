@@ -574,7 +574,8 @@ export class AlgorithmPanelComponent {
         // backend default
         let backendDefault =
           field.default !== undefined ? field.default : null;
-        const storedValue = stored?.[field.key];
+        // A fixed order comes from the data model; a stored order from an older run is not kept.
+        const storedValue = field.fixedOrder ? undefined : stored?.[field.key];
 
         // special treatment for alpha
         if ((backendDefault === null || backendDefault === undefined) && field.key === 'alpha') {
@@ -730,6 +731,9 @@ export class AlgorithmPanelComponent {
         options = [...yVar.enumerations];
       }
 
+      // Exaflow orders an ordinal outcome as the data model declares it and rejects any other
+      // category_order, so the declared order is shown and sent as is, not edited.
+      const fixedOrder = field.key === 'category_order' && !!yVar?.enumerations?.length;
       const defaultValue = field.key === 'category_order' && Array.isArray(options) && options.length > 0
         ? options.map((opt: any) => this.optionValue(opt))
         : field.default;
@@ -738,8 +742,10 @@ export class AlgorithmPanelComponent {
       const label = field.label?.trim() || toHumanLabel(field.key);
       const desc =
         field.key === 'positive_class' && isCox
-          ? 'Event level mapped to 1; other observed levels are mapped to 0.'
-          : field.desc ?? field.description ?? '';
+          ? 'Level of the binary event variable counted as the event (1); the other level is 0.'
+          : fixedOrder
+            ? 'Outcome levels from lowest to highest, in the order the data model declares.'
+            : field.desc ?? field.description ?? '';
       const type =
         field.key === 'positive_class' && positiveClassOptions.length
           ? 'select'
@@ -750,7 +756,7 @@ export class AlgorithmPanelComponent {
         String(field.required ?? '').trim().toLowerCase() === 'true';
 
       // Return enriched field
-      return { ...field, label, desc, options, default: defaultValue, type, required };
+      return { ...field, label, desc, options, default: defaultValue, type, required, ...(fixedOrder ? { fixedOrder } : {}) };
     });
 
     if (this.crossValidationEnabled() && this.canToggleCrossValidation()) {

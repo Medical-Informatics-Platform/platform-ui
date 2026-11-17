@@ -126,3 +126,19 @@ describe('datasetLabelsOf', () => {
     expect(datasetLabelsOf({ uuid: 'm', label: 'M', released: true, datasets: ['12'] }).size).toBe(0);
   });
 });
+
+describe('Exaflow PR 674 categorical slots', () => {
+  // Categorical slots now list both value types (`text`, `int`): codes are integers, stored as text.
+  const binaryOutcome = { types: ['text', 'int'], stattypes: ['binary'] };
+  const ordinalOutcome = { types: ['text', 'int'], stattypes: ['ordinal'] };
+
+  it('keeps an int value type from letting numerical CDEs into a binary or ordinal slot', () => {
+    expect(specificationAcceptsVariableType(binaryOutcome, 'binary')).toBe(true);
+    expect(specificationAcceptsVariableType(binaryOutcome, 'discrete')).toBe(false);
+    expect(specificationAcceptsVariableType(binaryOutcome, 'nominal')).toBe(false);
+    expect(specificationAcceptsVariableType(ordinalOutcome, 'ordinal')).toBe(true);
+    expect(specificationAcceptsVariableType(ordinalOutcome, 'nominal')).toBe(false);
+    expect(specificationAcceptsVariableType(ordinalOutcome, 'discrete')).toBe(false);
+    expect(acceptedVariableTypes(binaryOutcome)).toEqual(['binary']);
+  });
+});
