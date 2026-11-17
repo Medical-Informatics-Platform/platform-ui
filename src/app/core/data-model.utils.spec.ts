@@ -1,4 +1,5 @@
 import {
+  datasetLabelsOf,
   acceptedSlotStatTypes,
   acceptedVariableTypes,
   formatSlotStatTypes,
@@ -96,5 +97,32 @@ describe('CDE variable types', () => {
     expect(isFreeTextCde({ type: 'nominal', enumerations: [{ code: 'M' }] })).toBe(false);
     expect(isFreeTextCde({ type: 'continuous' })).toBe(false);
     expect(isFreeTextCde(null)).toBe(false);
+  });
+});
+
+describe('datasetLabelsOf', () => {
+  it('maps numeric dataset codes to labels from the dataset list and the dataset CDE', () => {
+    const labels = datasetLabelsOf({
+      uuid: 'm',
+      label: 'M',
+      released: true,
+      datasets: [{ code: '12', label: 'EDSD' }] as unknown as string[],
+      groups: [
+        {
+          code: 'g',
+          label: 'G',
+          variables: [
+            { code: 'dataset', label: 'Dataset', type: 'nominal', enumerations: [{ code: '12', label: 'Ignored' }, { code: '13', label: 'ADNI' }] },
+          ],
+        },
+      ],
+    } as any);
+
+    expect([...labels]).toEqual([['12', 'EDSD'], ['13', 'ADNI']]);
+  });
+
+  it('is empty for a missing model or a plain list of dataset codes', () => {
+    expect(datasetLabelsOf(null).size).toBe(0);
+    expect(datasetLabelsOf({ uuid: 'm', label: 'M', released: true, datasets: ['12'] }).size).toBe(0);
   });
 });

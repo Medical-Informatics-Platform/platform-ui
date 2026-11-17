@@ -1,4 +1,4 @@
-import { Injectable, signal, WritableSignal, inject } from '@angular/core';
+import { Injectable, Injector, signal, WritableSignal, inject } from '@angular/core';
 import { Experiment } from '../models/experiments-dashboard.model';
 import { HttpClient } from '@angular/common/http';
 import { BackendExperiment, BackendExperimentWithResult } from '../models/backend-experiment.model';
@@ -12,6 +12,13 @@ import {
 import { Observable, Subscription, catchError, forkJoin, map, of, switchMap, tap, throwError } from 'rxjs';
 import { ErrorService } from './error.service';
 import { isNotFoundError } from '../core/http-error.utils';
+import { datasetLabelsOf, findDataModelByCodeVersion } from '../core/data-model.utils';
+import { DataModel } from '../models/data-model.interface';
+import { ExperimentStudioService } from './experiment-studio.service';
+
+/** Data model ("code:version") → dataset code → dataset label. */
+type DatasetLabelIndex = ReadonlyMap<string, ReadonlyMap<string, string>>;
+const NO_DATASET_LABELS: DatasetLabelIndex = new Map();
 
 interface ExperimentsPage {
   experiments: BackendExperiment[];
@@ -75,6 +82,8 @@ export class ExperimentsDashboardService {
   }
 
   private errorService = inject(ErrorService);
+  /** Read on demand: the studio service loads algorithm specs when it is created. */
+  private injector = inject(Injector);
 
   constructor() { }
 
@@ -100,8 +109,12 @@ export class ExperimentsDashboardService {
     this.isLoading.set(true);
 
     if (this.needsClientFiltering(effectiveFilters)) {
-      this.experimentsRequestSub = this.loadAllExperiments(onlyMine, sort).subscribe({
-        next: (all) => this.applyClientView(all, page, size, effectiveFilters),
+      this.experimentsRequestSub = this.loadAllExperiments(onlyMine, sort).pipe(
+        switchMap((all) =>
+          this.datasetLabelIndex(all, effectiveFilters).pipe(map((labels) => ({ all, labels }))),
+        ),
+      ).subscribe({
+        next: ({ all, labels }) => this.applyClientView(all, page, size, effectiveFilters, labels),
         error: (err) => this.handleListError(err),
       });
       return;
@@ -170,9 +183,10 @@ export class ExperimentsDashboardService {
     page: number,
     size: number,
     filters: ExperimentFilters,
+    datasetLabels: DatasetLabelIndex = NO_DATASET_LABELS,
   ): void {
     this.isLoading.set(false);
-    const sorted = all.filter((experiment) => this.matchesFilters(experiment, filters));
+    const sorted = all.filter((experiment) => this.matchesFilters(experiment, filters, datasetLabels));
     const total = sorted.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / size);
     const safePage = total === 0 ? 0 : Math.min(page, Math.max(0, totalPages - 1));
@@ -276,8 +290,36 @@ export class ExperimentsDashboardService {
     );
   }
 
-  private matchesFilters(experiment: Experiment, filters: ExperimentFilters): boolean {
-    if (!this.matchesQuery(experiment, filters.query)) return false;
+  /**
+   * Dataset labels for the data models of the searched experiments. Experiments store numeric
+   * dataset codes, so a search for "EDSD" needs the catalog to know that "12" is EDSD. Only a
+   * text query needs it; the catalog is cached, and a failed load leaves the codes searchable.
+   */
+  private datasetLabelIndex(all: Experiment[], filters: ExperimentFilters): Observable<DatasetLabelIndex> {
+    const domains = new Set(
+      all.filter((experiment) => experiment.datasets?.length && experiment.domain).map((experiment) => experiment.domain!),
+    );
+    if (!filters.query?.trim() || !domains.size) return of(NO_DATASET_LABELS);
+
+    return this.injector.get(ExperimentStudioService).loadAllDataModels().pipe(
+      map((models: DataModel[]) => {
+        const index = new Map<string, ReadonlyMap<string, string>>();
+        for (const domain of domains) {
+          const labels = datasetLabelsOf(findDataModelByCodeVersion(domain, models ?? []));
+          if (labels.size) index.set(domain, labels);
+        }
+        return index;
+      }),
+      catchError(() => of(NO_DATASET_LABELS)),
+    );
+  }
+
+  private matchesFilters(
+    experiment: Experiment,
+    filters: ExperimentFilters,
+    datasetLabels: DatasetLabelIndex = NO_DATASET_LABELS,
+  ): boolean {
+    if (!this.matchesQuery(experiment, filters.query, datasetLabels)) return false;
     if (filters.algorithm && experiment.algorithmName !== filters.algorithm) return false;
     if (filters.author && !this.normalize(experiment.author).includes(this.normalize(filters.author))) return false;
     if (filters.variable && !this.matchesVariable(experiment, filters.variable)) return false;
@@ -288,9 +330,14 @@ export class ExperimentsDashboardService {
     return true;
   }
 
-  private matchesQuery(experiment: Experiment, query: string): boolean {
+  private matchesQuery(experiment: Experiment, query: string, datasetLabels: DatasetLabelIndex): boolean {
     const needle = this.normalize(query);
     if (!needle) return true;
+
+    const labelsOfModel = experiment.domain ? datasetLabels.get(experiment.domain) : undefined;
+    const datasetNames = labelsOfModel
+      ? (experiment.datasets ?? []).map((code) => labelsOfModel.get(String(code)) ?? '')
+      : [];
 
     const fields = [
       experiment.name,
@@ -299,6 +346,7 @@ export class ExperimentsDashboardService {
       experiment.algorithmName,
       experiment.domain,
       ...(experiment.datasets ?? []),
+      ...datasetNames,
       ...(experiment.variables ?? []),
       ...(experiment.covariates ?? []),
     ];

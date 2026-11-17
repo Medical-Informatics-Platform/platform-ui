@@ -185,3 +185,30 @@ export function formatSlotStatTypes(types: readonly string[]): string {
 export function describeVariableType(type: unknown): string {
   return normalizeVariableType(type) || 'unknown';
 }
+
+/**
+ * Dataset code → readable label for one data model, from the catalog's `datasets` list and the
+ * `dataset` CDE enumerations. Dataset codes are numeric ("12"); the label ("EDSD") is the name
+ * users know, so anything that shows or searches datasets goes through this map.
+ */
+export function datasetLabelsOf(model: DataModel | null | undefined): Map<string, string> {
+  const labels = new Map<string, string>();
+  const add = (entry: unknown): void => {
+    if (!entry || typeof entry !== 'object') return;
+    const { code, label } = entry as { code?: unknown; label?: unknown };
+    const key = code == null ? '' : String(code).trim();
+    const text = label == null ? '' : String(label).trim();
+    if (key && text && !labels.has(key)) labels.set(key, text);
+  };
+  const visit = (variables: unknown, groups: unknown): void => {
+    for (const variable of Array.isArray(variables) ? variables : []) {
+      if (String(variable?.code ?? '').toLowerCase() === 'dataset') {
+        (Array.isArray(variable.enumerations) ? variable.enumerations : []).forEach(add);
+      }
+    }
+    for (const group of Array.isArray(groups) ? groups : []) visit(group?.variables, group?.groups);
+  };
+  (Array.isArray(model?.datasets) ? (model.datasets as unknown[]) : []).forEach(add);
+  visit(model?.variables, model?.groups);
+  return labels;
+}
