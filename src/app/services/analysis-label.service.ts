@@ -3,7 +3,7 @@ import { AnalysisStudioService } from './analysis-studio.service';
 import { DataModel } from '../models/data-model.interface';
 import { firstValueFrom } from 'rxjs';
 import { EnumMaps } from '../core/algorithm-result-enum-mapper';
-import { buildEnumMapForVariables, findDataModelByCodeVersion } from '../core/data-model.utils';
+import { buildEnumMapForVariables, datasetLabelsOf, findDataModelByCodeVersion } from '../core/data-model.utils';
 
 @Injectable({ providedIn: 'root' })
 export class AnalysisLabelService {
@@ -18,21 +18,10 @@ export class AnalysisLabelService {
     return this.cached(domain, this.cache, this.inflight, {}, (model, converted) => {
       const map: Record<string, string> = { [domain!]: model.label || domain! };
       for (const v of converted.allVariables) {
-        if (!v?.code) continue;
-        map[v.code] = v.label || v.code;
-        if (v.code.toLowerCase() === 'dataset' && Array.isArray(v.enumerations)) {
-          for (const e of v.enumerations) {
-            const eCode = e?.code ?? e?.label ?? e?.name;
-            if (eCode) map[eCode] = e.label || e.name || eCode;
-          }
-        }
+        if (v?.code) map[v.code] = v.label || v.code;
       }
-      // The catalog's dataset list: dataset codes are numeric, the readable name is the label.
-      for (const entry of Array.isArray(model.datasets) ? (model.datasets as unknown[]) : []) {
-        const dataset = entry as { code?: unknown; label?: unknown } | null;
-        const code = dataset && typeof dataset === 'object' ? String(dataset.code ?? '') : '';
-        if (code && dataset?.label) map[code] = String(dataset.label);
-      }
+      // Dataset codes are numeric; the readable name is the dataset label.
+      for (const [code, label] of datasetLabelsOf(model)) map[code] = label;
       return map;
     }, 'data models');
   }

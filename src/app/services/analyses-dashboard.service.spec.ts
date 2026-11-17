@@ -3,6 +3,9 @@ import { TestBed } from '@angular/core/testing';
 
 import { BackendAnalysis } from '../models/backend-analysis.model';
 import { Analysis } from '../models/analyses-dashboard.model';
+import { Observable, of, throwError } from 'rxjs';
+
+import { AnalysisStudioService } from './analysis-studio.service';
 import { AnalysesDashboardService } from './analyses-dashboard.service';
 
 const apiUrl = '/services/analyses';
@@ -245,5 +248,98 @@ describe('AnalysesDashboardService hydrateAnalyses', () => {
 
     expect((error as { status?: number } | undefined)?.status).toBe(500);
     expect(service.analyses().map((analysis) => analysis.id)).toEqual(['a']);
+  });
+});
+
+describe('AnalysesDashboardService search by dataset', () => {
+  let service: AnalysesDashboardService;
+  let httpMock: HttpTestingController;
+  let loadAllDataModels: ReturnType<typeof vi.fn>;
+
+  const catalog = [
+    {
+      uuid: 'm1',
+      code: 'dementia',
+      version: '0.1',
+      label: 'Dementia',
+      released: true,
+      datasets: [
+        { code: '12', label: 'EDSD' },
+        { code: '13', label: 'ADNI' },
+      ],
+    },
+  ];
+
+  const withDatasets = (uuid: string, datasets: string[], dataModel = 'dementia:0.1') => ({
+    ...backendAnalysis(uuid, uuid.toUpperCase()),
+    analysisRequest: {
+      inputdata: { data_model: dataModel, datasets },
+      algorithm: { name: 'mock_anova', y: ['AGE'], x: [] },
+    },
+  });
+
+  const flushHistory = () =>
+    httpMock.expectOne((request) => request.url === apiUrl).flush({
+      analyses: [withDatasets('a', ['12']), withDatasets('b', ['13']), withDatasets('c', ['12'], 'stroke:1.0')],
+      totalAnalyses: 3,
+      totalPages: 1,
+      currentPage: 0,
+    });
+
+  let models: Observable<unknown[]>;
+  const setup = (next: Observable<unknown[]>) => {
+    models = next;
+  };
+
+  beforeEach(() => {
+    models = of(catalog);
+    loadAllDataModels = vi.fn(() => models);
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        AnalysesDashboardService,
+        { provide: AnalysisStudioService, useValue: { loadAllDataModels } },
+      ],
+    });
+    service = TestBed.inject(AnalysesDashboardService);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  it('finds analyses by the label of their numeric dataset code', () => {
+    setup(of(catalog));
+    service.getUserAnalyses(0, 10, true, { query: 'edsd' });
+    flushHistory();
+
+    // "c" stores code 12 too, but in a data model where 12 is not EDSD.
+    expect(service.analyses().map((analysis) => analysis.id)).toEqual(['a']);
+  });
+
+  it('still finds analyses by the dataset code itself', () => {
+    setup(of(catalog));
+    service.getUserAnalyses(0, 10, true, { query: '13' });
+    flushHistory();
+
+    expect(service.analyses().map((analysis) => analysis.id)).toEqual(['b']);
+  });
+
+  it('falls back to codes when the catalog cannot be loaded', () => {
+    setup(throwError(() => new Error('offline')));
+    service.getUserAnalyses(0, 10, true, { query: 'edsd' });
+    flushHistory();
+    expect(service.analyses()).toEqual([]);
+
+    service.getUserAnalyses(0, 10, true, { query: '12' });
+    expect(service.analyses().map((analysis) => analysis.id)).toEqual(['a', 'c']);
+  });
+
+  it('reads the catalog only for a text query', () => {
+    setup(of(catalog));
+    service.getUserAnalyses(0, 10, true, { status: 'success' });
+    flushHistory();
+
+    expect(loadAllDataModels).not.toHaveBeenCalled();
+    expect(service.analyses()).toHaveLength(3);
   });
 });

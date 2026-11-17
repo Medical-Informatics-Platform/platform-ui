@@ -1,4 +1,4 @@
-import { Injectable, signal, WritableSignal, inject } from '@angular/core';
+import { Injectable, Injector, signal, WritableSignal, inject } from '@angular/core';
 import { Analysis } from '../models/analyses-dashboard.model';
 import { HttpClient } from '@angular/common/http';
 import { BackendAnalysis, BackendAnalysisWithResult } from '../models/backend-analysis.model';
@@ -12,6 +12,13 @@ import {
 import { Observable, Subscription, catchError, forkJoin, map, of, switchMap, tap, throwError } from 'rxjs';
 import { ErrorService } from './error.service';
 import { isNotFoundError } from '../core/http-error.utils';
+import { datasetLabelsOf, findDataModelByCodeVersion } from '../core/data-model.utils';
+import { DataModel } from '../models/data-model.interface';
+import { AnalysisStudioService } from './analysis-studio.service';
+
+/** Data model ("code:version") → dataset code → dataset label. */
+type DatasetLabelIndex = ReadonlyMap<string, ReadonlyMap<string, string>>;
+const NO_DATASET_LABELS: DatasetLabelIndex = new Map();
 
 interface AnalysesPage {
   analyses: BackendAnalysis[];
@@ -75,6 +82,8 @@ export class AnalysesDashboardService {
   }
 
   private errorService = inject(ErrorService);
+  /** Read on demand: the studio service loads algorithm specs when it is created. */
+  private injector = inject(Injector);
 
   constructor() { }
 
@@ -100,8 +109,12 @@ export class AnalysesDashboardService {
     this.isLoading.set(true);
 
     if (this.needsClientFiltering(effectiveFilters)) {
-      this.analysesRequestSub = this.loadAllAnalyses(onlyMine, sort).subscribe({
-        next: (all) => this.applyClientView(all, page, size, effectiveFilters),
+      this.analysesRequestSub = this.loadAllAnalyses(onlyMine, sort).pipe(
+        switchMap((all) =>
+          this.datasetLabelIndex(all, effectiveFilters).pipe(map((labels) => ({ all, labels }))),
+        ),
+      ).subscribe({
+        next: ({ all, labels }) => this.applyClientView(all, page, size, effectiveFilters, labels),
         error: (err) => this.handleListError(err),
       });
       return;
@@ -170,9 +183,10 @@ export class AnalysesDashboardService {
     page: number,
     size: number,
     filters: AnalysisFilters,
+    datasetLabels: DatasetLabelIndex = NO_DATASET_LABELS,
   ): void {
     this.isLoading.set(false);
-    const sorted = all.filter((analysis) => this.matchesFilters(analysis, filters));
+    const sorted = all.filter((analysis) => this.matchesFilters(analysis, filters, datasetLabels));
     const total = sorted.length;
     const totalPages = total === 0 ? 0 : Math.ceil(total / size);
     const safePage = total === 0 ? 0 : Math.min(page, Math.max(0, totalPages - 1));
@@ -276,8 +290,36 @@ export class AnalysesDashboardService {
     );
   }
 
-  private matchesFilters(analysis: Analysis, filters: AnalysisFilters): boolean {
-    if (!this.matchesQuery(analysis, filters.query)) return false;
+  /**
+   * Dataset labels for the data models of the searched analyses. Analyses store numeric
+   * dataset codes, so a search for "EDSD" needs the catalog to know that "12" is EDSD. Only a
+   * text query needs it; the catalog is cached, and a failed load leaves the codes searchable.
+   */
+  private datasetLabelIndex(all: Analysis[], filters: AnalysisFilters): Observable<DatasetLabelIndex> {
+    const domains = new Set(
+      all.filter((analysis) => analysis.datasets?.length && analysis.domain).map((analysis) => analysis.domain!),
+    );
+    if (!filters.query?.trim() || !domains.size) return of(NO_DATASET_LABELS);
+
+    return this.injector.get(AnalysisStudioService).loadAllDataModels().pipe(
+      map((models: DataModel[]) => {
+        const index = new Map<string, ReadonlyMap<string, string>>();
+        for (const domain of domains) {
+          const labels = datasetLabelsOf(findDataModelByCodeVersion(domain, models ?? []));
+          if (labels.size) index.set(domain, labels);
+        }
+        return index;
+      }),
+      catchError(() => of(NO_DATASET_LABELS)),
+    );
+  }
+
+  private matchesFilters(
+    analysis: Analysis,
+    filters: AnalysisFilters,
+    datasetLabels: DatasetLabelIndex = NO_DATASET_LABELS,
+  ): boolean {
+    if (!this.matchesQuery(analysis, filters.query, datasetLabels)) return false;
     if (filters.algorithm && analysis.algorithmName !== filters.algorithm) return false;
     if (filters.author && !this.normalize(analysis.author).includes(this.normalize(filters.author))) return false;
     if (filters.variable && !this.matchesVariable(analysis, filters.variable)) return false;
@@ -288,9 +330,14 @@ export class AnalysesDashboardService {
     return true;
   }
 
-  private matchesQuery(analysis: Analysis, query: string): boolean {
+  private matchesQuery(analysis: Analysis, query: string, datasetLabels: DatasetLabelIndex): boolean {
     const needle = this.normalize(query);
     if (!needle) return true;
+
+    const labelsOfModel = analysis.domain ? datasetLabels.get(analysis.domain) : undefined;
+    const datasetNames = labelsOfModel
+      ? (analysis.datasets ?? []).map((code) => labelsOfModel.get(String(code)) ?? '')
+      : [];
 
     const fields = [
       analysis.name,
@@ -299,6 +346,7 @@ export class AnalysesDashboardService {
       analysis.algorithmName,
       analysis.domain,
       ...(analysis.datasets ?? []),
+      ...datasetNames,
       ...(analysis.variables ?? []),
       ...(analysis.covariates ?? []),
     ];
