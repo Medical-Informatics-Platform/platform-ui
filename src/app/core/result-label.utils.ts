@@ -1,4 +1,4 @@
-/** Shared helpers for labeling and enriching experiment results in the dashboard. */
+/** Shared helpers for labeling and enriching analysis results in the dashboard. */
 
 export interface LabeledItem {
   code: string;

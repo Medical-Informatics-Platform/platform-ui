@@ -240,7 +240,7 @@ export interface LinearRegressionCVResult {
     indep_vars: string[];
     n_obs: number[];
     root_mean_sq_error: BasicStats;
-    /** Pre-rename name of the same RMSE value; still present in stored experiments. */
+    /** Pre-rename name of the same RMSE value; still present in stored analyses. */
     mean_sq_error?: BasicStats;
     r_squared: BasicStats;
     mean_abs_error: BasicStats;

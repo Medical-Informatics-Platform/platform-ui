@@ -231,7 +231,7 @@ select:required:valid {
   background-color: color-mix(in srgb, var(--success) 10%, white);
 }
 
-/* The one count recipe — compare buttons, folder chips, row menus, canvas headers and the
+/* The one count recipe — compare buttons, study chips, row menus, canvas headers and the
    studio variable pool. Tabular so a count does not jitter as it changes. */
 .count-badge {
   background: var(--primary-color);
@@ -250,16 +250,16 @@ select:required:valid {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .experiment-studio-page .config-field,
-  .experiment-studio-page .workflow-section-body.open > *,
-  .experiment-studio-page .summary-workspace,
-  .experiment-studio-page .result-section,
-  .experiment-studio-page .empty-state-block i,
-  .experiment-studio-page .statistics-variable-btn.active,
-  .experiment-studio-page .preprocessing-state-chip,
-  .experiment-studio-page .studio-skeleton-line,
-  .experiment-studio-page .studio-skeleton-bar,
-  .experiment-studio-page .studio-skeleton-cell {
+  .analysis-studio-page .config-field,
+  .analysis-studio-page .workflow-section-body.open > *,
+  .analysis-studio-page .summary-workspace,
+  .analysis-studio-page .result-section,
+  .analysis-studio-page .empty-state-block i,
+  .analysis-studio-page .statistics-variable-btn.active,
+  .analysis-studio-page .preprocessing-state-chip,
+  .analysis-studio-page .studio-skeleton-line,
+  .analysis-studio-page .studio-skeleton-bar,
+  .analysis-studio-page .studio-skeleton-cell {
     animation: none;
   }
 }
@@ -268,9 +268,9 @@ select:required:valid {
 
 }
 
-.experiment-studio-page input:not([type='checkbox']):not([type='radio']),
-.experiment-studio-page select,
-.experiment-studio-page textarea {
+.analysis-studio-page input:not([type='checkbox']):not([type='radio']),
+.analysis-studio-page select,
+.analysis-studio-page textarea {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
@@ -291,7 +291,7 @@ select:required:valid {
     transform 0.12s ease;
 }
 
-.experiment-studio-page select:not([multiple]) {
+.analysis-studio-page select:not([multiple]) {
   padding-right: 34px;
   background-image:
     linear-gradient(45deg, transparent 50%, var(--primary-color) 50%),
@@ -303,21 +303,21 @@ select:required:valid {
   background-repeat: no-repeat;
 }
 
-.experiment-studio-page select[multiple] {
+.analysis-studio-page select[multiple] {
   min-height: 112px;
   padding-right: 11px;
 }
 
-.experiment-studio-page input:not([type='checkbox']):not([type='radio']):hover,
-.experiment-studio-page select:hover,
-.experiment-studio-page textarea:hover {
+.analysis-studio-page input:not([type='checkbox']):not([type='radio']):hover,
+.analysis-studio-page select:hover,
+.analysis-studio-page textarea:hover {
   border-color: rgba(43, 51, 233, 0.28);
   background-color: rgba(255, 255, 255, 0.9);
 }
 
-.experiment-studio-page input:not([type='checkbox']):not([type='radio']):focus,
-.experiment-studio-page select:focus,
-.experiment-studio-page textarea:focus {
+.analysis-studio-page input:not([type='checkbox']):not([type='radio']):focus,
+.analysis-studio-page select:focus,
+.analysis-studio-page textarea:focus {
   outline: none;
   border-color: var(--primary-color);
   background-color: #ffffff;
@@ -326,18 +326,18 @@ select:required:valid {
     0 6px 14px rgba(43, 51, 233, 0.06);
 }
 
-.experiment-studio-page input[type='number'] {
+.analysis-studio-page input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 
-.experiment-studio-page input[type='number']::-webkit-outer-spin-button,
-.experiment-studio-page input[type='number']::-webkit-inner-spin-button {
+.analysis-studio-page input[type='number']::-webkit-outer-spin-button,
+.analysis-studio-page input[type='number']::-webkit-inner-spin-button {
   margin: 0;
   -webkit-appearance: none;
 }
 
-.experiment-studio-page input[type='checkbox'],
-.experiment-studio-page input[type='radio'] {
+.analysis-studio-page input[type='checkbox'],
+.analysis-studio-page input[type='radio'] {
   appearance: none;
   -webkit-appearance: none;
   display: inline-grid;
@@ -352,63 +352,63 @@ select:required:valid {
   flex: 0 0 auto;
 }
 
-.experiment-studio-page input[type='checkbox'] {
+.analysis-studio-page input[type='checkbox'] {
   border-radius: 5px;
 }
 
-.experiment-studio-page input[type='radio'] {
+.analysis-studio-page input[type='radio'] {
   border-radius: 50%;
 }
 
-.experiment-studio-page input[type='checkbox']::before,
-.experiment-studio-page input[type='radio']::before {
+.analysis-studio-page input[type='checkbox']::before,
+.analysis-studio-page input[type='radio']::before {
   content: '';
   transform: scale(0);
   transition: transform 0.12s ease-in-out;
 }
 
-.experiment-studio-page input[type='checkbox']::before {
+.analysis-studio-page input[type='checkbox']::before {
   width: 10px;
   height: 10px;
   border-radius: 3px;
   background: var(--primary-color);
 }
 
-.experiment-studio-page input[type='radio']::before {
+.analysis-studio-page input[type='radio']::before {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--primary-color);
 }
 
-.experiment-studio-page input[type='checkbox']:checked::before,
-.experiment-studio-page input[type='radio']:checked::before {
+.analysis-studio-page input[type='checkbox']:checked::before,
+.analysis-studio-page input[type='radio']:checked::before {
   transform: scale(1);
 }
 
-.experiment-studio-page input:disabled,
-.experiment-studio-page select:disabled,
-.experiment-studio-page textarea:disabled {
+.analysis-studio-page input:disabled,
+.analysis-studio-page select:disabled,
+.analysis-studio-page textarea:disabled {
   cursor: not-allowed;
   opacity: 0.58;
   background-color: rgba(241, 245, 249, 0.82);
 }
 
-.experiment-studio-page .config-field,
-.experiment-studio-page .workflow-section-body.open > *,
-.experiment-studio-page .summary-workspace,
-.experiment-studio-page .result-section {
+.analysis-studio-page .config-field,
+.analysis-studio-page .workflow-section-body.open > *,
+.analysis-studio-page .summary-workspace,
+.analysis-studio-page .result-section {
   animation: studioSoftReveal 0.28s ease both;
 }
 
-.experiment-studio-page .statistics-variable-btn.active,
-.experiment-studio-page .preprocessing-state-chip {
+.analysis-studio-page .statistics-variable-btn.active,
+.analysis-studio-page .preprocessing-state-chip {
   animation: studioBadgePop 0.22s ease both;
 }
 
 /* Selectable chip pickers (pathology, datasets). A chip is either a button or a
    label wrapping a hidden native input that carries selection/keyboard state. */
-.experiment-studio-page .studio-chip-group {
+.analysis-studio-page .studio-chip-group {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
@@ -417,7 +417,7 @@ select:required:valid {
   font-family: inherit;
 }
 
-.experiment-studio-page .studio-chip-label {
+.analysis-studio-page .studio-chip-label {
   font-size: 0.72rem;
   font-weight: 750;
   letter-spacing: 0.05em;
@@ -426,7 +426,7 @@ select:required:valid {
   line-height: 1;
 }
 
-.experiment-studio-page .studio-chip-row {
+.analysis-studio-page .studio-chip-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -435,7 +435,7 @@ select:required:valid {
   min-width: 0;
 }
 
-.experiment-studio-page .studio-chip {
+.analysis-studio-page .studio-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -458,31 +458,31 @@ select:required:valid {
     box-shadow 0.15s ease, color 0.15s ease;
 }
 
-.experiment-studio-page .studio-chip:hover {
+.analysis-studio-page .studio-chip:hover {
   border-color: rgba(43, 51, 233, 0.35);
   background: #f8fbff;
 }
 
-.experiment-studio-page .studio-chip.is-selected {
+.analysis-studio-page .studio-chip.is-selected {
   border-color: var(--primary-color, #2b33e9);
   background: var(--primary-color, #2b33e9);
   color: #ffffff;
 }
 
-.experiment-studio-page .studio-chip:focus-visible,
-.experiment-studio-page .studio-chip:has(input:focus-visible) {
+.analysis-studio-page .studio-chip:focus-visible,
+.analysis-studio-page .studio-chip:has(input:focus-visible) {
   outline: none;
   border-color: var(--primary-color, #2b33e9);
   box-shadow: 0 0 0 3px rgba(43, 51, 233, 0.18);
 }
 
 @media (max-width: 960px) {
-  .experiment-studio-page .studio-chip {
+  .analysis-studio-page .studio-chip {
     font-size: 0.78rem;
   }
 }
 
-.experiment-studio-page .panel-secondary-btn {
+.analysis-studio-page .panel-secondary-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -501,12 +501,12 @@ select:required:valid {
     transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-.experiment-studio-page .panel-secondary-btn i {
+.analysis-studio-page .panel-secondary-btn i {
   font-size: 0.78rem;
   color: var(--primary-color, #2b33e9);
 }
 
-.experiment-studio-page .panel-secondary-btn:hover {
+.analysis-studio-page .panel-secondary-btn:hover {
   background: rgba(43, 51, 233, 0.06);
   border-color: rgba(43, 51, 233, 0.45);
   color: var(--primary-color, #2b33e9);
@@ -514,12 +514,12 @@ select:required:valid {
   box-shadow: 0 8px 18px rgba(43, 51, 233, 0.08);
 }
 
-.experiment-studio-page .panel-secondary-btn:focus-visible {
+.analysis-studio-page .panel-secondary-btn:focus-visible {
   outline: 2px solid var(--primary-color, #2b33e9);
   outline-offset: 2px;
 }
 
-.experiment-studio-page .studio-skeleton-card {
+.analysis-studio-page .studio-skeleton-card {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -532,9 +532,9 @@ select:required:valid {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 18px 42px rgba(43, 51, 233, 0.05);
 }
 
-.experiment-studio-page .studio-skeleton-line,
-.experiment-studio-page .studio-skeleton-bar,
-.experiment-studio-page .studio-skeleton-cell {
+.analysis-studio-page .studio-skeleton-line,
+.analysis-studio-page .studio-skeleton-bar,
+.analysis-studio-page .studio-skeleton-cell {
   overflow: hidden;
   border-radius: 999px;
   background: linear-gradient(
@@ -548,31 +548,31 @@ select:required:valid {
   animation: studioSkeletonShimmer 1.7s ease-in-out infinite;
 }
 
-.experiment-studio-page .studio-skeleton-line {
+.analysis-studio-page .studio-skeleton-line {
   height: 12px;
 }
 
-.experiment-studio-page .studio-skeleton-line.short { width: 28%; }
-.experiment-studio-page .studio-skeleton-line.medium { width: 52%; }
-.experiment-studio-page .studio-skeleton-line.long { width: 74%; }
+.analysis-studio-page .studio-skeleton-line.short { width: 28%; }
+.analysis-studio-page .studio-skeleton-line.medium { width: 52%; }
+.analysis-studio-page .studio-skeleton-line.long { width: 74%; }
 
-.experiment-studio-page .studio-skeleton-table {
+.analysis-studio-page .studio-skeleton-table {
   display: grid;
   grid-template-columns: 1.25fr repeat(3, minmax(72px, 0.6fr));
   gap: 12px;
   width: 100%;
 }
 
-.experiment-studio-page .studio-skeleton-cell {
+.analysis-studio-page .studio-skeleton-cell {
   height: 14px;
 }
 
-.experiment-studio-page .studio-skeleton-cell.head {
+.analysis-studio-page .studio-skeleton-cell.head {
   height: 10px;
   opacity: 0.7;
 }
 
-.experiment-studio-page .studio-skeleton-chart {
+.analysis-studio-page .studio-skeleton-chart {
   display: flex;
   align-items: end;
   justify-content: center;
@@ -582,12 +582,12 @@ select:required:valid {
   border-bottom: 1px solid rgba(43, 51, 233, 0.12);
 }
 
-.experiment-studio-page .studio-skeleton-bar {
+.analysis-studio-page .studio-skeleton-bar {
   width: clamp(18px, 8vw, 52px);
   border-radius: 8px 8px 2px 2px;
 }
 
-.experiment-studio-page .empty-state-block {
+.analysis-studio-page .empty-state-block {
   position: relative;
 }
 
@@ -1347,7 +1347,7 @@ select:required:valid {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.experiment-panel-workspace {
+.analysis-panel-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 20px;
@@ -1355,16 +1355,16 @@ select:required:valid {
   align-items: start;
 }
 
-.experiment-panel-main {
+.analysis-panel-main {
   min-width: 0;
 }
 
-.experiment-panel-workspace--result {
+.analysis-panel-workspace--result {
   grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
   align-items: start;
 }
 
-.experiment-panel-workspace--result .result-section {
+.analysis-panel-workspace--result .result-section {
   margin: 0;
   min-width: 0;
 }
@@ -1530,11 +1530,11 @@ select:required:valid {
 
 
 @media (max-width: 1100px) {
-  .experiment-panel-workspace {
+  .analysis-panel-workspace {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .experiment-panel-main {
+  .analysis-panel-main {
     order: 1;
   }
 }

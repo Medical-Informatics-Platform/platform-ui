@@ -80,7 +80,7 @@ export class AuthService {
     );
   }
 
-  login(redirectUrl: string = '/experiments-dashboard'): void {
+  login(redirectUrl: string = '/analyses-dashboard'): void {
     const normalizedPath = this.normalizeRedirectPath(redirectUrl);
     const target = `${window.location.origin}${normalizedPath}`;
     localStorage.setItem(this.redirectUrlKey, target);
@@ -140,14 +140,14 @@ export class AuthService {
       try {
         const parsed = new URL(stored);
         if (parsed.origin !== window.location.origin) {
-          this.router.navigateByUrl('/experiments-dashboard').catch(() => {
-            window.location.href = '/experiments-dashboard';
+          this.router.navigateByUrl('/analyses-dashboard').catch(() => {
+            window.location.href = '/analyses-dashboard';
           });
           return;
         }
         stored = `${parsed.pathname}${parsed.search}${parsed.hash}`;
       } catch {
-        stored = '/experiments-dashboard';
+        stored = '/analyses-dashboard';
       }
     }
 
@@ -159,20 +159,20 @@ export class AuthService {
   }
 
   private normalizeRedirectPath(redirectUrl: string | null | undefined): string {
-    if (!redirectUrl) return '/experiments-dashboard';
+    if (!redirectUrl) return '/analyses-dashboard';
 
     const trimmed = redirectUrl.trim();
-    if (!trimmed) return '/experiments-dashboard';
+    if (!trimmed) return '/analyses-dashboard';
 
     if (/^https?:\/\//i.test(trimmed)) {
       try {
         const parsed = new URL(trimmed);
         if (parsed.origin !== window.location.origin) {
-          return '/experiments-dashboard';
+          return '/analyses-dashboard';
         }
-        return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/experiments-dashboard';
+        return `${parsed.pathname}${parsed.search}${parsed.hash}` || '/analyses-dashboard';
       } catch {
-        return '/experiments-dashboard';
+        return '/analyses-dashboard';
       }
     }
 

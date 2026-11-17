@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test';
-import { installExperimentStudioApi, RecordedRequest, StudioApi } from './experiment-studio-api';
+import { installAnalysisStudioApi, RecordedRequest, StudioApi } from './analysis-studio-api';
 
 /**
  * Every test gets a page whose `/services` calls go to the in-browser mock (`api`).
@@ -13,7 +13,7 @@ export const test = base.extend<{ api: StudioApi }>({
       localStorage.setItem('mip.guide.experiment-studio.seen', 'true');
       localStorage.setItem('mip.guide.experiment-studio.autostarted', 'true');
     });
-    const api = await installExperimentStudioApi(page);
+    const api = await installAnalysisStudioApi(page);
     await use(api);
     expect(api.unhandled, 'calls to /services the mock does not answer').toEqual([]);
   }, { auto: true }],

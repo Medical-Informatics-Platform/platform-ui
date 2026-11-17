@@ -1,10 +1,10 @@
 # Medical Informatics Platform (MIP) - Platform UI
 
-The Platform UI for the Medical Informatics Platform (MIP). An Angular 22 standalone frontend application for composing, running, and analyzing data science experiments, featuring algorithmic configurations. It integrates with a backend over `/services` (proxied in dev) and uses Keycloak for robust OAuth2 authentication.
+The Platform UI for the Medical Informatics Platform (MIP). An Angular 22 standalone frontend application for composing, running, and analyzing data science analyses, featuring algorithmic configurations. It integrates with a backend over `/services` (proxied in dev) and uses Keycloak for robust OAuth2 authentication.
 
 ## Highlights
-- **Experiment Studio** (`src/app/pages/experiment-studio`): select data models/datasets, pick variables and filters, configure algorithms, run jobs, view charts/tables.
-- **Experiments Dashboard** (`src/app/pages/experiments-dashboard`): list/search/paginate, share links, compare results side by side, export to PDF.
+- **Analysis Studio** (`src/app/pages/analysis-studio`): select data models/datasets, pick variables and filters, configure algorithms, run jobs, view charts/tables.
+- **Analyses Dashboard** (`src/app/pages/analyses-dashboard`): list/search/paginate, share links, compare results side by side, export to PDF.
 - **Auth**: Keycloak-based session via `/services/activeUser`; guard protects routes and redirects to login if unauthenticated.
 
 ## Requirements
@@ -34,11 +34,11 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 - `GET /services/algorithms` – algorithm catalog.
 - `GET /services/data-models` – available data models (used to build variable tree and datasets).
 - `POST /services/analyses/preview` – quick previews (histograms, descriptive stats); nothing stored.
-- `POST /services/analyses/runs` – run an experiment; the backend keeps the result for 24h under the returned `uuid`.
-- `POST /services/analyses` – `{ runId, name }`: save a kept run as an experiment without running it again.
-- `GET /services/analyses/:id` – fetch experiment (and results).
+- `POST /services/analyses/runs` – run an analysis; the backend keeps the result for 24h under the returned `uuid`.
+- `POST /services/analyses` – `{ runId, name }`: save a kept run as an analysis without running it again.
+- `GET /services/analyses/:id` – fetch analysis (and results).
 - `PATCH /services/analyses/:id` – update name/description/shared flag.
-- `DELETE /services/analyses/:id` – delete experiment.
+- `DELETE /services/analyses/:id` – delete analysis.
 
 ## Auth Flow
 - Routes are guarded (`AuthGuard` in `src/app/guards/auth.guard.ts`).
@@ -48,11 +48,11 @@ See `src/app/core/algorithm-result-enum-mapper.md` for detailed mapping behavior
 ## Project Structure
 - `src/main.ts` – bootstraps app with router, HTTP client, credentials interceptor, ECharts.
 - `src/app/app.component.*` – shell with header/footer.
-- `src/app/services/` – auth/session/error handling, experiment studio orchestration, dashboard data, PDF export, label resolver, HTTP interceptor.
-- `src/app/models/` – experiment, algorithm, data-model, filters, user interfaces.
+- `src/app/services/` – auth/session/error handling, analysis studio orchestration, dashboard data, PDF export, label resolver, HTTP interceptor.
+- `src/app/models/` – analysis, algorithm, data-model, filters, user interfaces.
 - `src/app/core/algorithm-mappers.ts` – backend → UI algorithm config and output schemas.
-- `src/app/pages/experiment-studio/` – variables panel, filter modal, algorithm panel, visualisations (charts/histograms/bubble).
-- `src/app/pages/experiments-dashboard/` – list/search, detail, compare, mapper.
+- `src/app/pages/analysis-studio/` – variables panel, filter modal, algorithm panel, visualisations (charts/histograms/bubble).
+- `src/app/pages/analyses-dashboard/` – list/search, detail, compare, mapper.
 - `src/app/pages/account-page/` – basic profile view.
 - `src/app/pages/shared/` – header/footer/spinner utilities.
 - `src/styles.css` – global styles; assets in `src/assets/`.
@@ -75,7 +75,7 @@ Nginx always proxies `/${PLATFORM_BACKEND_CONTEXT}/` to the backend.
 
 ## Testing
 - Unit: `npm test` (Vitest, headless Chromium).
-- Manual: run `npm start`, authenticate, and exercise Experiment Studio and Dashboard against a running backend.
+- Manual: run `npm start`, authenticate, and exercise Analysis Studio and Dashboard against a running backend.
 
 ## Notes
 - Many features require authenticated backend access; unauthenticated calls will trigger login redirect.

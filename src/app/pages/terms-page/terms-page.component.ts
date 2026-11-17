@@ -51,7 +51,7 @@ export class TermsPageComponent implements OnInit {
     }
 
     const navigateToDashboard = () => {
-      const redirect = this.termsService.consumeRedirectUrl() || '/experiments-dashboard';
+      const redirect = this.termsService.consumeRedirectUrl() || '/analyses-dashboard';
       this.router.navigateByUrl(redirect).then((navigated) => {
         if (!navigated) {
           this.submitting = false;

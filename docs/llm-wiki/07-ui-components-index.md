@@ -18,8 +18,8 @@ Use for component behavior, templates, CSS, charts, tables, and export UI.
 | Area | Path |
 |---|---|
 | app shell | `src/app/app.component.*` |
-| Experiment Studio | `src/app/pages/experiment-studio/` |
-| Dashboard | `src/app/pages/experiments-dashboard/` |
+| Analysis Studio | `src/app/pages/analysis-studio/` |
+| Dashboard | `src/app/pages/analyses-dashboard/` |
 | account/terms/notebook | corresponding page folder |
 | shared layout | `src/app/pages/shared/` |
 

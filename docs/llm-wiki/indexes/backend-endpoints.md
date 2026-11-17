@@ -44,8 +44,8 @@ No `/services/algorithms` exists: the catalog is read from
 | hub | GET | `/notebook/hub/login?next=...` | full-page login redirect |
 | lab | GET | `/notebook/user/:username/lab` | iframe target |
 
-Only `auth.service.ts`, `experiment-studio.service.ts`,
-`experiments-dashboard.service.ts`, `experiment-folders.service.ts`,
+Only `auth.service.ts`, `analysis-studio.service.ts`,
+`analyses-dashboard.service.ts`, `studies.service.ts`,
 `terms-page.component.ts` and `src/app/pages/notebook/hub-*.ts` hit the network.
 
 Search exact endpoint strings before opening services.

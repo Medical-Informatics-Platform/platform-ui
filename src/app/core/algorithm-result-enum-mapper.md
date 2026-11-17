@@ -4,7 +4,7 @@ This documents how the frontend maps categorical **codes → labels** for algori
 metadata enumerations and variable labels. The implementation lives in:
 
 - `src/app/core/algorithm-result-enum-mapper.ts`
-- Applied by `src/app/pages/experiment-studio/algorithm-panel/algorithm-result/algorithm-result.component.ts`
+- Applied by `src/app/pages/analysis-studio/algorithm-panel/algorithm-result/algorithm-result.component.ts`
 
 ## Data sources
 
@@ -12,8 +12,8 @@ metadata enumerations and variable labels. The implementation lives in:
 - **Label maps** (variable codes → labels) come from data model variable labels.
 - **Y/X variables** are derived from:
   - Studio: algorithm y / x roles and the assignable pool.
-  - Dashboard detail: experiment algorithm input `y` / `x`.
-  - Compare view: experiment variables / covariates.
+  - Dashboard detail: analysis algorithm input `y` / `x`.
+  - Compare view: analysis variables / covariates.
 
 ## Implemented mappings
 

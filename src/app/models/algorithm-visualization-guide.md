@@ -4,8 +4,8 @@ This document describes what the frontend currently renders for each algorithm a
 
 ## Scope
 
-- Charts are configured in `src/app/pages/experiment-studio/visualisations/charts/chart-registry.ts`.
-- Tabular rendering is configured in `src/app/pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry.ts`.
+- Charts are configured in `src/app/pages/analysis-studio/visualisations/charts/chart-registry.ts`.
+- Tabular rendering is configured in `src/app/pages/analysis-studio/visualisations/auto-renderer/algorithm-table-registry.ts`.
 - Result enum/label mapping is handled in `src/app/core/algorithm-result-enum-mapper.ts`.
 
 ## Implemented Coverage

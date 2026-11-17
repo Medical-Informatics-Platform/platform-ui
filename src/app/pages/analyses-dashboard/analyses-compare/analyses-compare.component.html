@@ -1,0 +1,137 @@
+@if (analyses().length) {
+<header class="compare-header">
+  <div class="compare-heading">
+    @if (originStudyName(); as studyName) {
+    <!-- Back to the study that opened this compare. The dashboard keeps the study
+         selected and restores the list selection the compare replaced. -->
+    <button type="button" class="compare-back-btn" (click)="backToStudy.emit()"
+      [title]="'Back to the ' + studyName + ' study'">
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      Back to {{ studyName }}
+    </button>
+    }
+    <h3>Compare analyses</h3>
+    <p>{{ compareHeadline() }}</p>
+  </div>
+</header>
+
+<!-- Two runs side by side, read left to right: analysis-group runs first, then the algorithm
+     groups. Any remaining runs wrap underneath. -->
+<div class="compare-columns">
+  @for (column of columns(); track column.item.analysis.id) {
+  <section class="compare-column">
+    <header class="column-header">
+      <span class="run-index">{{ column.number }}</span>
+      <div class="column-id">
+        <span class="column-name" [title]="column.item.analysis.name">
+          {{ column.item.analysis.name || 'Untitled Investigation' }}
+        </span>
+        <span class="run-meta">
+          <span class="run-algo">
+            <i class="fas fa-flask"></i>{{ algorithmLabel(column.item.analysis.algorithmName) }}
+          </span>
+          <app-analysis-status [status]="column.item.analysis.status" />
+          <span class="run-date">{{ column.item.analysis.dateCreated | date : "mediumDate" }}</span>
+        </span>
+      </div>
+      @if (column.groupTag; as groupTag) {
+      <span class="column-group-tag" [title]="'In group ' + groupTag">{{ groupTag }}</span>
+      }
+    </header>
+
+    <div class="column-body">
+      <div class="compare-config">
+        <button type="button" class="config-toggle" (click)="toggleConfig(column.item.analysis.id)">
+          <span>{{ isConfigExpanded(column.item.analysis.id) ? "Hide Configuration" : "Show Configuration" }}</span>
+          <i class="fas" [class.fa-chevron-down]="!isConfigExpanded(column.item.analysis.id)"
+            [class.fa-chevron-up]="isConfigExpanded(column.item.analysis.id)"></i>
+        </button>
+
+        @if (isConfigExpanded(column.item.analysis.id)) {
+        <div class="config-body">
+          <div class="config-kv-grid">
+            <div class="kv">
+              <span class="k">Algorithm</span>
+              <span class="v">{{ column.item.analysis.algorithmName }}</span>
+            </div>
+            <div class="kv">
+              <span class="k">Domain</span>
+              <span class="v">{{ column.item.analysis.domain || '—' }}</span>
+            </div>
+          </div>
+
+          <div class="config-tags-row">
+            <span class="k">Datasets</span>
+            @if (column.item.analysis.datasets?.length) {
+            <div class="tag-list">
+              @for (d of column.item.analysis.datasets; track d) {
+              <span class="tag">{{ d }}</span>
+              }
+            </div>
+            } @else {
+            <span class="v">—</span>
+            }
+          </div>
+
+          <div class="config-tags-row">
+            <span class="k">Variables</span>
+            @if (getVariablesWithLabels(column.item.analysis).length) {
+            <div class="tag-list">
+              @for (opt of getVariablesWithLabels(column.item.analysis); track opt.code) {
+              <span class="tag" [title]="opt.code">{{ opt.label }}</span>
+              }
+            </div>
+            } @else {
+            <span class="v">—</span>
+            }
+          </div>
+
+          <div class="config-tags-row">
+            <span class="k">Covariates</span>
+            @if (getCovariatesWithLabels(column.item.analysis).length) {
+            <div class="tag-list">
+              @for (opt of getCovariatesWithLabels(column.item.analysis); track opt.code) {
+              <span class="tag" [title]="opt.code">{{ opt.label }}</span>
+              }
+            </div>
+            } @else {
+            <span class="v">—</span>
+            }
+          </div>
+
+          <div class="config-tags-row">
+            <span class="k">Filters</span>
+            @if (getFiltersWithLabels(column.item.analysis).length) {
+            <div class="tag-list">
+              @for (opt of getFiltersWithLabels(column.item.analysis); track opt.code) {
+              <span class="tag" [title]="opt.code">{{ opt.label }}</span>
+              }
+            </div>
+            } @else {
+            <span class="v">—</span>
+            }
+          </div>
+        </div>
+        }
+      </div>
+
+      <div class="compare-results">
+        @if (column.item.state.loading) {
+        <span class="muted-text">Loading results…</span>
+        } @else if (column.item.state.error) {
+        <span class="error-text">{{ column.item.state.error }}</span>
+        } @else if (column.item.state.result) {
+        <app-algorithm-result [result]="enrichResult(column.item.analysis, column.item.state.result)"
+          [schema]="getOutputSchemaFor(column.item.analysis)" [algorithm]="column.item.analysis.algorithmName"
+          [enumMaps]="getEnumMapsFor(column.item.analysis)" [yVar]="getYVarFor(column.item.analysis)"
+          [xVar]="getXVarFor(column.item.analysis)" [labelMap]="getLabelMapFor(column.item.analysis)"
+          [parameters]="column.item.state.parameters ?? null"></app-algorithm-result>
+        } @else {
+        <span class="muted-text">No results available.</span>
+        }
+      </div>
+    </div>
+  </section>
+  }
+</div>
+}

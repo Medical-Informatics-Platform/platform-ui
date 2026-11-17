@@ -1,6 +1,6 @@
 <header class="header" [class.header--scrolled]="isScrolled()">
   <!-- SLOT 1 — branding. One asset, one size, on every route. -->
-  <a class="branding" href="/experiments-dashboard" (click)="goHome($event)" aria-label="Go to home">
+  <a class="branding" href="/analyses-dashboard" (click)="goHome($event)" aria-label="Go to home">
     <img src="assets/mip-logo-short.png" alt="MIP logo" class="logo" width="480" height="162" />
   </a>
 
@@ -11,16 +11,16 @@
   <div class="header-nav-slot">
     <nav class="header-nav" aria-label="Primary">
       <a
-        href="/experiments-dashboard"
+        href="/analyses-dashboard"
         [attr.aria-current]="isDashboardRoute() ? 'page' : null"
         class="header-nav-link header-nav-link--dashboard"
         data-guide="dashboard-nav"
         (click)="goHome($event)"
       >
-        <span class="header-nav-link__title">My experiments</span>
+        <span class="header-nav-link__title">My analyses</span>
       </a>
       <a
-        routerLink="/experiment-studio"
+        routerLink="/analysis-studio"
         [attr.aria-current]="isStudioRoute() ? 'page' : null"
         class="header-nav-link header-nav-link--studio"
       >

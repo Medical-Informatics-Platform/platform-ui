@@ -35,5 +35,5 @@ algorithms or the targeted search is inconclusive.
 
 Names are now used exactly as the backend sends them: the `anova` ->
 `anova_twoway` rewrite and the `histogram_sql` /
-`logistic_regression_cv_fedaverage` entries are gone, so check stored experiment
+`logistic_regression_cv_fedaverage` entries are gone, so check stored analysis
 compatibility before removing or adding an alias.

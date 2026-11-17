@@ -1,22 +1,22 @@
 import { Router } from '@angular/router';
 
 /**
- * Build an absolute share URL for an experiment, pointing back at the
- * experiments dashboard with the experiment id in the query string.
+ * Build an absolute share URL for an analysis, pointing back at the
+ * analyses dashboard with the analysis id in the query string.
  */
-export function buildExperimentShareUrl(router: Router, experimentId: string): string {
-  const tree = router.createUrlTree(['/experiments-dashboard'], {
-    queryParams: { experiment: experimentId },
+export function buildAnalysisShareUrl(router: Router, analysisId: string): string {
+  const tree = router.createUrlTree(['/analyses-dashboard'], {
+    queryParams: { analysis: analysisId },
   });
   const relative = router.serializeUrl(tree);
   return window.location.origin + relative;
 }
 
 /**
- * Whether the given user owns the experiment (matching the author's email).
+ * Whether the given user owns the analysis (matching the author's email).
  * Returns false when either email is unavailable.
  */
-export function isExperimentOwner(
+export function isAnalysisOwner(
   currentUserEmail: string | null | undefined,
   authorEmail: string | null | undefined
 ): boolean {
@@ -33,8 +33,8 @@ export const SHARE_TOAST = {
   copied: 'Link copied to clipboard',
   copyFailed: 'Could not copy link — check console.',
   clipboardUnavailable: 'Clipboard not available — check console log.',
-  nowShared: 'Experiment is now shared',
-  noLongerShared: 'Experiment is no longer shared',
+  nowShared: 'Analysis is now shared',
+  noLongerShared: 'Analysis is no longer shared',
   toggleFailed: 'Failed to update share state',
 } as const;
 

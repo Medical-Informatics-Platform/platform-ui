@@ -4,7 +4,7 @@ Source: MIP Charte graphique (Donovan Studio / CHUV, 2023-10-02) plus the tokens
 
 **If charter and code disagree, live CSS tokens win** for app chrome (neutrals, danger/success, studio cards). Charter still wins for logo geometry and approved logo colorways.
 
-Do not invent a new palette, display serif, or animation library. Reuse CSS variables. Match adjacent Experiment Studio panels (variables, algorithm, statistic analysis).
+Do not invent a new palette, display serif, or animation library. Reuse CSS variables. Match adjacent Analysis Studio panels (variables, algorithm, statistic analysis).
 
 ## Brand
 
@@ -79,23 +79,23 @@ Chrome is Angular Material plus these tokens. Component CSS for feature layout; 
 
 ## Density and surfaces
 
-Experiment Studio is a dense product workspace, not a marketing site. No landing heroes, no new type pairing, no GSAP/Lenis/custom cursors. Cards only when grouping is real. Use `--studio-card-*` for studio panels.
+Analysis Studio is a dense product workspace, not a marketing site. No landing heroes, no new type pairing, no GSAP/Lenis/custom cursors. Cards only when grouping is real. Use `--studio-card-*` for studio panels.
 
-### Folder chips and the folder canvas
+### Study chips and the study canvas
 
-- The chip strip is the `.experiments-tabs` / `.tab-btn` segmented recipe re-used, not a new chip: the tray carries the surface and the ring, the chips sit transparent inside it, hover is `rgba(148, 163, 184, 0.1)`, selected is the same white pill in `--primary-color` with `--shadow-sm`. The ghost "+ New" chip is the resting chip with a plus.
-- Selection on a chip is primary-blue because that is the idiom already within 40px of it (the active tab, the selected experiment row). `--accent-color` marks nothing selected on this page; an orange third reading of "chosen" fails the adjacent-panel test.
-- Chips carry no layered edge. A 2px layer is noise at chip height, so the one memorable element sits on the folder canvas instead: its header card wears a single slab behind it, the set read as a stack of runs. The canvas' two other gestures are numbered member rows and an "N algorithms · M domains" line.
-- `fa-object-group` is an analysis set. `fa-layer-group` already means domain/data-model in the same pane and is the compare placeholder, so it stays away from folders.
+- The chip strip is the `.analyses-tabs` / `.tab-btn` segmented recipe re-used, not a new chip: the tray carries the surface and the ring, the chips sit transparent inside it, hover is `rgba(148, 163, 184, 0.1)`, selected is the same white pill in `--primary-color` with `--shadow-sm`. The ghost "+ New" chip is the resting chip with a plus.
+- Selection on a chip is primary-blue because that is the idiom already within 40px of it (the active tab, the selected analysis row). `--accent-color` marks nothing selected on this page; an orange third reading of "chosen" fails the adjacent-panel test.
+- Chips carry no layered edge. A 2px layer is noise at chip height, so the one memorable element sits on the study canvas instead: its header card wears a single slab behind it, the study read as a stack of runs. The canvas' two other gestures are numbered member rows and an "N algorithms · M domains" line.
+- `fa-object-group` is a study. `fa-layer-group` already means domain/data-model in the same pane and is the compare placeholder, so it stays away from studies.
 - `.count-badge` is the one count recipe — compare button, chips, row menu, canvas header — with tabular numbers.
-- Dragging a row onto a folder is a third way in, beside the row menu and the chip strip; the menu stays the keyboard path, so the drag may stay an affordance. The canvas rings its member stack and a chip rings itself, both with an outline or shadow ring rather than a border: a real border reflows the strip, and a box past the canvas edge clips in a scrolling pane.
+- Dragging a row onto a study is a third way in, beside the row menu and the chip strip; the menu stays the keyboard path, so the drag may stay an affordance. The canvas rings its member stack and a chip rings itself, both with an outline or shadow ring rather than a border: a real border reflows the strip, and a box past the canvas edge clips in a scrolling pane.
 - A drop adds; it never toggles. Re-dropping a member is a misaim, not a request to remove it, so the canvas says "Already in …" in its header pill instead of quietly lowering the count, and the row it just added breathes primary once.
 
 ### Compare columns
 
-- Compare is columns side by side, one per run, read left to right in the order the grouping defines: folder-set runs first, then one group per algorithm label for the runs nobody grouped. A column is a header — number, name, algorithm, status pill, date, plus a set-name pill when a folder set claimed the run — then the collapsed configuration, then the result rendered in place.
+- Compare is columns side by side, one per run, read left to right in the order the grouping defines: analysis-group runs first, then one group per algorithm label for the runs nobody grouped. A column is a header — number, name, algorithm, status pill, date, plus a group-name pill when an analysis group claimed the run — then the collapsed configuration, then the result rendered in place.
 - Columns are `minmax(360px, 1fr)`: two or three fill the width evenly, past that the strip scrolls sideways instead of squeezing every result into a sliver. Headers are `position: sticky` inside the strip, so names stay visible while a tall result scrolls; a wide table scrolls sideways inside its column and nothing scales down.
-- Numbering runs once across the whole comparison, so "run 7" is one column whichever group it landed in; the set's name rides the header as a tag instead of a section heading.
+- Numbering runs once across the whole comparison, so "run 7" is one column whichever group it landed in; the group's name rides the header as a tag instead of a section heading.
 - ≤900px the strip stacks one column per run — side-by-side is unusable at that width.
 
 ### Component recipes

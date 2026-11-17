@@ -1,0 +1,712 @@
+import { CommonModule, DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import {
+  ANALYSIS_STUDIO_GUIDE_LABELS,
+  ANALYSIS_STUDIO_GUIDE_STEPS,
+  AnalysisStudioGuideStep,
+  GuideSection,
+} from './analysis-studio-guide.content';
+import { AnalysisStudioService } from '../../../services/analysis-studio.service';
+import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
+import { GuideLauncherService, GuideLauncher } from '../../../services/guide-launcher.service';
+import { AnalysisStudioGuideStateService } from './analysis-studio-guide-state.service';
+import { computeGuideBlockingRects, measureGuideInteractionRect } from './analysis-studio-guide-mask.util';
+import { escapeHtml } from '../../../core/html.utils';
+import { isTypingTarget } from '../../../core/keyboard.utils';
+
+interface GuideRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  right: number;
+  bottom: number;
+}
+
+@Component({
+  selector: 'app-analysis-studio-guide',
+  imports: [CommonModule],
+  templateUrl: './analysis-studio-guide.component.html',
+  styleUrl: './analysis-studio-guide.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(window:resize)': 'onViewportChange()',
+    '(window:scroll)': 'onViewportChange()',
+    '(window:keydown)': 'onWindowKeydown($event)',
+    '(document:click)': 'onDocumentClick($event)',
+  },
+})
+export class AnalysisStudioGuideComponent implements OnInit, OnDestroy {
+  private readonly document = inject(DOCUMENT);
+  private readonly router = inject(Router);
+  private readonly analysisStudioService = inject(AnalysisStudioService);
+  private readonly guideOnboarding = inject(GuideOnboardingService);
+  private readonly guideLauncher = inject(GuideLauncherService);
+  private readonly guideState = inject(AnalysisStudioGuideStateService);
+  private layoutTimer: number | null = null;
+  private autoAdvanceTimer: number | null = null;
+  private targetRetryTimer: number | null = null;
+  private targetResizeObserver: ResizeObserver | null = null;
+  private observedTarget: HTMLElement | null = null;
+  private domMutationObserver: MutationObserver | null = null;
+
+  /** The bar draws this (see GuideLauncherService); the launcher button used to be a
+   *  fixed circle floating over the header at z 10001. */
+  private readonly launcherHandle: GuideLauncher = {
+    label: ANALYSIS_STUDIO_GUIDE_LABELS.launcher,
+    start: () => this.startGuide(),
+  };
+
+  /**
+   * View-activation hook provided by the studio shell. The guide must activate a
+   * rail-switched view before querying/measuring a target inside it, because hidden
+   * views are display:none and report zero dimensions. The step id lets the shell
+   * additionally open the relevant sub-tab inside the activated view (e.g. an
+   * Analysis tour step opens its statistics sub-tab before the guide measures it).
+   */
+  @Input() activateGuideTarget?: (view: GuideSection, stepId?: string) => void;
+
+  @ViewChild('guideCard')
+  private guideCard?: ElementRef<HTMLElement>;
+
+  readonly labels = ANALYSIS_STUDIO_GUIDE_LABELS;
+  readonly guideCovariateLabel = this.guideState.guideCovariate.label;
+  readonly guideVariableLabel = this.guideState.guideVariable.label;
+  readonly isOpen = signal(false);
+  readonly activeSteps = signal<AnalysisStudioGuideStep[]>([]);
+  readonly currentIndex = signal(0);
+  readonly highlightRect = signal<GuideRect | null>(null);
+  readonly interactionCutouts = signal<GuideRect[]>([]);
+  readonly blockingMaskRects = signal<GuideRect[]>([]);
+  readonly isCollapsed = signal(false);
+  private readonly domRevision = signal(0);
+  private readonly analysisSaveBaselineUuid = signal<string | null | undefined>(undefined);
+  private readonly pendingStudioResetOnContinue = signal(false);
+
+  readonly currentStep = computed(() => this.activeSteps()[this.currentIndex()] ?? null);
+  readonly previousStep = computed(() => this.activeSteps()[this.currentIndex() - 1] ?? null);
+  readonly totalSteps = computed(() => this.activeSteps().length);
+  readonly currentStepNumber = computed(() => (this.currentStep() ? this.currentIndex() + 1 : 0));
+  readonly progressPercent = computed(() => {
+    const total = this.totalSteps();
+    return total ? (this.currentStepNumber() / total) * 100 : 0;
+  });
+  readonly hasPrevious = computed(() => this.currentIndex() > 0);
+  readonly canGoToPrevious = computed(() => this.hasPrevious() && !this.previousStep()?.requirement);
+  readonly isLastStep = computed(() => this.currentIndex() >= this.totalSteps() - 1);
+  readonly canGoToNext = computed(() => this.isStepRequirementSatisfied(this.currentStep()));
+  readonly stepNeedsAction = computed(() => !!this.currentStep()?.requirement && !this.canGoToNext());
+  readonly isDashboardStep = computed(() => this.currentStep()?.id === 'analysis-finish');
+  readonly nextButtonLabel = computed(() =>
+    this.stepNeedsAction()
+      ? 'Action required'
+      : this.isDashboardStep()
+        ? this.labels.moveToDashboard
+        : this.isLastStep()
+          ? this.labels.done
+          : this.labels.next
+  );
+  readonly studioResetWarning = computed(() => {
+    if (this.currentStep()?.id !== 'launcher' || !this.pendingStudioResetOnContinue()) {
+      return null;
+    }
+
+    return 'Warning: continuing past this step will reset your current session, including variables, covariates, preprocessing, and algorithm selection.';
+  });
+  readonly pendingRequirementHint = computed(() => {
+    const step = this.currentStep();
+    if (!step?.requirement || this.canGoToNext()) {
+      return null;
+    }
+
+    switch (step.requirement) {
+      case 'selected-sex':
+        return this.replaceGuideTargets('Either use the search bar to find the Sex variable or click the green-highlighted variable through the bubble chart to continue.');
+      case 'variable-sex':
+        return 'Click Add to put ' + this.guideCovariateLabel + ' into the analysis. The Variables in this analysis card below the details panel keeps the list visible.';
+      case 'selected-age':
+        return this.replaceGuideTargets('Either use the search bar to find the Age variable or click the green-highlighted variable through the bubble chart to continue. You can also explore the chart and details on the right.');
+      case 'variable-age':
+        return 'Click Add to put ' + this.guideVariableLabel + ' into the analysis. The Variables in this analysis card below the details panel keeps the list visible.';
+      case 'roles-assigned':
+        return 'Assign each added variable as an outcome (Variables / y) or a predictor (Covariates / x) on the algorithm panel to continue.';
+      case 'algorithm-selected':
+        return 'Select any available algorithm with a green tick to continue.';
+      case 'analysis-result-ready':
+        return 'Run the analysis and wait for the result view to load before continuing.';
+      case 'save-as-opened':
+        return 'Click Save as to open the save form and continue.';
+      case 'analysis-saved-as':
+        return 'Enter a name and click Save. The guide continues automatically once the analysis has been saved.';
+      default:
+        return null;
+    }
+  });
+
+  constructor() {
+    effect(() => {
+      this.guideState.setActiveStep(this.isOpen() ? this.currentStep()?.id ?? null : null);
+    });
+
+    effect(() => {
+      const step = this.currentStep();
+
+      if (!this.isOpen() || step?.requirement !== 'analysis-saved-as') {
+        this.analysisSaveBaselineUuid.set(undefined);
+        return;
+      }
+
+      const currentUuid = this.analysisStudioService.currentAnalysisUUID();
+      if (this.analysisSaveBaselineUuid() === undefined) {
+        this.analysisSaveBaselineUuid.set(currentUuid);
+      }
+    });
+
+    effect(() => {
+      this.analysisStudioService.selectedVariables();
+      this.analysisStudioService.algorithmY();
+      this.analysisStudioService.algorithmX();
+      this.analysisStudioService.selectedAlgorithm();
+      this.analysisStudioService.runResult();
+      this.analysisStudioService.currentAnalysisUUID();
+      this.guideState.selectedHierarchyNode();
+      const step = this.currentStep();
+
+      if (
+        !this.isOpen() ||
+        !step?.requirement ||
+        !this.shouldAutoAdvance(step) ||
+        !this.isStepRequirementSatisfied(step)
+      ) {
+        this.clearAutoAdvanceTimer();
+        return;
+      }
+
+      this.clearAutoAdvanceTimer();
+      this.autoAdvanceTimer = window.setTimeout(() => {
+        if (this.isOpen() && this.currentStep()?.id === step.id && this.isStepRequirementSatisfied(step)) {
+          this.goToNextStep();
+        }
+      }, 320);
+    });
+  }
+
+  ngOnInit(): void {
+    this.guideLauncher.register(this.launcherHandle);
+  }
+
+  ngOnDestroy(): void {
+    this.guideLauncher.unregister(this.launcherHandle);
+    this.disconnectTargetObserver();
+    this.disconnectDomObserver();
+    this.clearLayoutTimer();
+    this.clearTargetRetryTimer();
+    this.clearAutoAdvanceTimer();
+  }
+
+  startGuide(): void {
+    this.pendingStudioResetOnContinue.set(
+      this.guideOnboarding.hasSeenStudioGuide()
+      && this.analysisStudioService.hasPersistedStudioWork(),
+    );
+
+    const warning = this.analysisStudioService.pathologyAccessWarning();
+    let resolvedSteps: AnalysisStudioGuideStep[];
+
+    if (warning) {
+      resolvedSteps = [{
+        id: 'no-pathology-access',
+        section: 'Explore',
+        title: 'No Access to Federation Pathologies',
+        body: '',
+        selector: '.pathology-warning-banner',
+        allowTargetInteraction: false
+      }];
+    } else {
+      resolvedSteps = this.resolveSteps();
+      if (!resolvedSteps.length) {
+        return;
+      }
+    }
+
+    this.activeSteps.set(resolvedSteps);
+    this.currentIndex.set(0);
+    this.isCollapsed.set(false);
+    this.isOpen.set(true);
+    this.startDomObserver();
+    this.syncStepLayout();
+  }
+
+  closeGuide(): void {
+    this.guideOnboarding.markStudioGuideSeen();
+    this.pendingStudioResetOnContinue.set(false);
+    this.isOpen.set(false);
+    this.isCollapsed.set(false);
+    this.activeSteps.set([]);
+    this.currentIndex.set(0);
+    this.highlightRect.set(null);
+    this.interactionCutouts.set([]);
+    this.blockingMaskRects.set([]);
+    this.disconnectTargetObserver();
+    this.disconnectDomObserver();
+    this.clearLayoutTimer();
+    this.clearTargetRetryTimer();
+    this.clearAutoAdvanceTimer();
+  }
+
+  goToNextStep(): void {
+    if (!this.canGoToNext()) {
+      return;
+    }
+
+    const step = this.currentStep();
+    if (step?.id === 'launcher' && this.pendingStudioResetOnContinue()) {
+      this.analysisStudioService.resetStudioStateForGuide();
+      this.pendingStudioResetOnContinue.set(false);
+    }
+
+    if (this.isDashboardStep()) {
+      this.closeGuide();
+      void this.router.navigate(['/analyses-dashboard']);
+      return;
+    }
+
+    if (this.isLastStep()) {
+      this.closeGuide();
+      return;
+    }
+
+    const nextIndex = this.currentIndex() + 1;
+    this.currentIndex.set(nextIndex);
+    this.syncStepLayout();
+  }
+
+  goToPreviousStep(): void {
+    if (!this.canGoToPrevious()) {
+      return;
+    }
+
+    const previousIndex = this.currentIndex() - 1;
+    this.currentIndex.set(previousIndex);
+    this.syncStepLayout();
+  }
+
+  toggleCollapsed(): void {
+    this.isCollapsed.update((collapsed) => !collapsed);
+    this.scheduleLayoutUpdate(0);
+  }
+
+  onViewportChange(): void {
+    if (!this.isOpen()) {
+      return;
+    }
+
+    this.scheduleLayoutUpdate(0);
+  }
+
+  onWindowKeydown(event: KeyboardEvent): void {
+    if (!this.isOpen()) {
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.closeGuide();
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      this.goToNextStep();
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      this.goToPreviousStep();
+    }
+  }
+
+  onDocumentClick(event: MouseEvent): void {
+    const step = this.currentStep();
+    if (!this.isOpen() || !step?.advanceOnTargetClick || !step.selector) {
+      return;
+    }
+
+    const clickedNode = event.target;
+    if (!(clickedNode instanceof Node)) {
+      return;
+    }
+
+    const target = this.findTarget(step.selector);
+    if (!target || !target.contains(clickedNode)) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      if (this.isOpen() && this.currentStep()?.id === step.id) {
+        this.goToNextStep();
+      }
+    }, 260);
+  }
+
+  private resolveSteps(): AnalysisStudioGuideStep[] {
+    return ANALYSIS_STUDIO_GUIDE_STEPS.map((step) => ({
+      ...step,
+      title: this.replaceGuideTargets(step.title),
+      body: this.replaceGuideTargets(step.body),
+    }));
+  }
+
+  private replaceGuideTargets(text: string): string {
+    // Labels come from runtime env and land in strings bound with [innerHTML],
+    // so escape them; the static step HTML keeps its markup.
+    const covariateLabel = escapeHtml(this.guideCovariateLabel);
+    const variableLabel = escapeHtml(this.guideVariableLabel);
+
+    return text
+      .replace(/\bSex\b/g, covariateLabel)
+      .replace(/\bAge\b/g, variableLabel)
+      .replace(/\{\{GUIDE_COVARIATE\}\}/g, covariateLabel)
+      .replace(/\{\{GUIDE_VARIABLE\}\}/g, variableLabel);
+  }
+
+  private syncStepLayout(): void {
+    const step = this.currentStep();
+    if (!step) {
+      return;
+    }
+
+    // A step change must never let a pending retry apply to the new step.
+    this.clearTargetRetryTimer();
+
+    // Reveal the owning view before measuring the target (hidden views have no size).
+    this.activateViewForStep(step);
+
+    const target = step.selector ? this.findTarget(step.selector) : null;
+    this.focusStepTarget(step, target);
+
+    // The owning view may not be rendered yet after activation, so retry the
+    // target scroll on a bounded schedule until the view has appeared.
+    if (!target && step.selector) {
+      this.scheduleTargetRetry(step);
+    }
+  }
+
+  /**
+   * Observes and scrolls to the step target, then lets the smooth scroll settle
+   * before the spotlight is re-measured.
+   */
+  private focusStepTarget(step: AnalysisStudioGuideStep, target: HTMLElement | null): void {
+    this.observeTarget(target);
+    if (target) {
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: this.getScrollBlock(step),
+        inline: 'nearest',
+      });
+    }
+    this.scheduleLayoutUpdate(target ? 260 : 0, true);
+  }
+
+  /**
+   * Bounded retry for a step whose target is not measurable yet because its view
+   * is still rendering. Stops when the target appears, the step changes, or the
+   * attempts run out (then the spotlight simply stays off, as for any no-selector step).
+   */
+  private scheduleTargetRetry(step: AnalysisStudioGuideStep, left = 12): void {
+    this.clearTargetRetryTimer();
+
+    this.targetRetryTimer = window.setTimeout(() => {
+      this.targetRetryTimer = null;
+      if (!this.isOpen() || this.currentStep()?.id !== step.id || !step.selector) {
+        return;
+      }
+
+      const target = this.findTarget(step.selector);
+      if (target) {
+        this.focusStepTarget(step, target);
+      } else if (left > 1) {
+        this.scheduleTargetRetry(step, left - 1);
+      }
+    }, 150);
+  }
+
+  private clearTargetRetryTimer(): void {
+    if (this.targetRetryTimer !== null) {
+      window.clearTimeout(this.targetRetryTimer);
+      this.targetRetryTimer = null;
+    }
+  }
+
+  private scheduleLayoutUpdate(delayMs: number, focusGuideCard = false): void {
+    this.clearLayoutTimer();
+    this.layoutTimer = window.setTimeout(() => this.updateLayout(focusGuideCard), delayMs);
+  }
+
+  private clearLayoutTimer(): void {
+    if (this.layoutTimer !== null) {
+      window.clearTimeout(this.layoutTimer);
+      this.layoutTimer = null;
+    }
+  }
+
+  private clearAutoAdvanceTimer(): void {
+    if (this.autoAdvanceTimer !== null) {
+      window.clearTimeout(this.autoAdvanceTimer);
+      this.autoAdvanceTimer = null;
+    }
+  }
+
+  private observeTarget(target: HTMLElement | null): void {
+    if (this.observedTarget === target) {
+      return;
+    }
+
+    this.disconnectTargetObserver();
+    this.observedTarget = target;
+
+    if (!target || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    this.targetResizeObserver = new ResizeObserver(() => {
+      if (this.isOpen()) {
+        this.scheduleLayoutUpdate(0);
+      }
+    });
+    this.targetResizeObserver.observe(target);
+  }
+
+  private disconnectTargetObserver(): void {
+    this.targetResizeObserver?.disconnect();
+    this.targetResizeObserver = null;
+    this.observedTarget = null;
+  }
+
+  private startDomObserver(): void {
+    if (this.domMutationObserver || typeof MutationObserver === 'undefined') {
+      return;
+    }
+
+    const root = this.document.querySelector('.studio-main');
+    if (!(root instanceof HTMLElement)) {
+      return;
+    }
+
+    this.domMutationObserver = new MutationObserver(() => {
+      this.domRevision.update((revision) => revision + 1);
+      if (this.isOpen()) {
+        this.scheduleLayoutUpdate(0);
+      }
+    });
+
+    this.domMutationObserver.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+  }
+
+  private disconnectDomObserver(): void {
+    this.domMutationObserver?.disconnect();
+    this.domMutationObserver = null;
+  }
+
+  private updateLayout(focusGuideCard = false): void {
+    const step = this.currentStep();
+    if (!step) {
+      return;
+    }
+
+    // Ensure the owning view is active so the target is measurable.
+    this.activateViewForStep(step);
+
+    const target = step.selector ? this.findTarget(step.selector) : null;
+    if (target) {
+      // The target appeared on its own, so there is nothing left to poll for.
+      this.clearTargetRetryTimer();
+    }
+    this.highlightRect.set(target ? this.expandRect(target.getBoundingClientRect()) : null);
+
+    const cutoutTargets = step.allowTargetInteraction
+      ? this.getInteractionSelectors(step)
+        .map((selector) => this.findTarget(selector))
+        .filter((element): element is HTMLElement => !!element)
+      : [];
+    const cutouts = cutoutTargets.map((element) => measureGuideInteractionRect(element));
+    this.interactionCutouts.set(cutouts);
+    this.blockingMaskRects.set(computeGuideBlockingRects(cutouts));
+
+    if (focusGuideCard && this.canFocusGuideCard()) {
+      window.setTimeout(() => this.guideCard?.nativeElement.focus(), 0);
+    }
+  }
+
+  private getInteractionSelectors(step: AnalysisStudioGuideStep): string[] {
+    return [
+      step.selector,
+      ...(step.interactionSelectors ?? []),
+    ].filter((selector, index, selectors): selector is string =>
+      !!selector && selectors.indexOf(selector) === index
+    );
+  }
+
+  private canFocusGuideCard(): boolean {
+    return !isTypingTarget(this.document.activeElement);
+  }
+
+  /**
+   * Activates the studio view that owns this guide step so its target is visible,
+   * and opens the relevant sub-tab for steps inside a tabbed view. Steps are
+   * grouped by section: Explore -> variables, Analysis -> statistics,
+   * Algorithm -> algorithm, Results -> execution.
+   */
+  private activateViewForStep(step: AnalysisStudioGuideStep): void {
+    if (!this.activateGuideTarget) {
+      return;
+    }
+    this.activateGuideTarget(step.section, step.id);
+  }
+
+  private getScrollBlock(step: AnalysisStudioGuideStep): ScrollLogicalPosition {
+    const selector = step.selector ?? '';
+    if (
+      (selector.includes('analysis-')
+        && !selector.includes('analysis-raw-summary')
+        && !selector.includes('analysis-raw-details')
+        && !selector.includes('analysis-processed-summary')
+        && !selector.includes('analysis-processed-details'))
+      || selector === '[data-guide="analysis-workspace"]'
+      || selector === '[data-guide="analysis-section"]'
+    ) {
+      return 'start';
+    }
+    return 'center';
+  }
+
+  private expandRect(rect: DOMRect, padding = 10): GuideRect {
+    const left = rect.left - padding;
+    const top = rect.top - padding;
+    const right = rect.right + padding;
+    const bottom = rect.bottom + padding;
+
+    return {
+      top,
+      left,
+      right,
+      bottom,
+      width: Math.max(right - left, 0),
+      height: Math.max(bottom - top, 0),
+    };
+  }
+
+  private findTarget(selector: string): HTMLElement | null {
+    const target = this.document.querySelector(selector);
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    return target;
+  }
+
+  private isStepRequirementSatisfied(step: AnalysisStudioGuideStep | null): boolean {
+    if (!step?.requirement) {
+      return true;
+    }
+
+    this.domRevision();
+
+    switch (step.requirement) {
+      case 'selected-sex':
+        return this.hasSelectedHierarchyNode(this.guideState.guideCovariate.value);
+      case 'variable-sex':
+        return this.hasVariable(this.guideState.guideCovariate.value);
+      case 'selected-age':
+        return this.hasVariable(this.guideState.guideCovariate.value)
+          && this.hasSelectedHierarchyNode(this.guideState.guideVariable.value);
+      case 'variable-age':
+        return this.hasVariable(this.guideState.guideCovariate.value)
+          && this.hasVariable(this.guideState.guideVariable.value);
+      case 'roles-assigned':
+        // The guide 'variable' target (e.g. age) must be assigned to y and the
+        // guide 'covariate' target (e.g. sex) to x, so the tutorial stays on a
+        // mapping compatible with the available algorithms (y max 1).
+        return this.hasRoleVariable(this.guideState.guideVariable.value)
+          && this.hasRoleCovariate(this.guideState.guideCovariate.value);
+      case 'algorithm-selected':
+        return !!this.analysisStudioService.selectedAlgorithm();
+      case 'analysis-result-ready':
+        // Prefer service state: the Execution view can be display:none while the
+        // Run step still owns Algorithm Selection, so a DOM size check would miss it.
+        return !!this.analysisStudioService.runResult();
+      case 'save-as-opened':
+        return !!this.findTarget('[data-guide="save-as-form"]');
+      case 'analysis-saved-as': {
+        const baselineUuid = this.analysisSaveBaselineUuid();
+        const currentUuid = this.analysisStudioService.currentAnalysisUUID();
+        // Saving no longer re-runs the analysis, so the result stays on screen: the new
+        // analysis id alone marks a successful save.
+        return baselineUuid !== undefined
+          && !!currentUuid
+          && currentUuid !== baselineUuid;
+      }
+      default:
+        // Compile-time net: a requirement added to the union without a case fails the build.
+        return step.requirement satisfies never;
+    }
+  }
+
+  private shouldAutoAdvance(step: AnalysisStudioGuideStep | null): boolean {
+    return step?.requirement === 'selected-sex'
+      || step?.requirement === 'variable-sex'
+      || step?.requirement === 'selected-age'
+      || step?.requirement === 'variable-age'
+      || step?.requirement === 'roles-assigned'
+      || step?.requirement === 'algorithm-selected'
+      || step?.requirement === 'analysis-result-ready'
+      || step?.requirement === 'save-as-opened'
+      || step?.requirement === 'analysis-saved-as';
+  }
+
+  /**
+   * Pool membership: does the code exist in the variables-panel pool
+   * (selectedVariables). Used by the Explore add-to-pool steps.
+   */
+  private hasVariable(expected: string): boolean {
+    return this.analysisStudioService.selectedVariables().some((node) =>
+      this.guideState.matchesTutorialCovariate(node, expected)
+    );
+  }
+
+  /** Role membership: code assigned as outcome (algorithmY). */
+  private hasRoleVariable(expected: string): boolean {
+    return this.analysisStudioService.algorithmY().some((node) =>
+      this.guideState.matchesTutorialCovariate(node, expected)
+    );
+  }
+
+  /** Role membership: code assigned as predictor/covariate (algorithmX). */
+  private hasRoleCovariate(expected: string): boolean {
+    return this.analysisStudioService.algorithmX().some((node) =>
+      this.guideState.matchesTutorialCovariate(node, expected)
+    );
+  }
+
+  private hasSelectedHierarchyNode(expected: string): boolean {
+    return this.guideState.matchesTutorialCovariate(this.guideState.selectedHierarchyNode(), expected);
+  }
+
+}

@@ -5,9 +5,9 @@ describe('isRoutePath', () => {
     expect(isRoutePath('/notebook', '/notebook')).toBe(true);
     expect(isRoutePath('/notebook/launch', '/notebook')).toBe(true);
     expect(isRoutePath('/notebook?session=1#top', '/notebook')).toBe(true);
-    expect(isRoutePath('/experiments?experiment=7', '/notebook')).toBe(false);
+    expect(isRoutePath('/analyses?analysis=7', '/notebook')).toBe(false);
     expect(isRoutePath('/notebookish', '/notebook')).toBe(false);
-    expect(isRoutePath('/experiments-dashboard', '/experiments')).toBe(false);
-    expect(isRoutePath('/experiments-dashboard', '/experiments-dashboard')).toBe(true);
+    expect(isRoutePath('/analyses-dashboard', '/analyses')).toBe(false);
+    expect(isRoutePath('/analyses-dashboard', '/analyses-dashboard')).toBe(true);
   });
 });

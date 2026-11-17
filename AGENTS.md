@@ -1,17 +1,17 @@
 # Agent Instructions
 
 ## Project Overview
-This repository contains `fl-platform`, the Angular 22 standalone frontend for the Medical Informatics Platform (MIP). The app lets authenticated users compose and run experiments, configure algorithms, integrate with JupyterHub when enabled, and review/export experiment results from a backend exposed under `/services`.
+This repository contains `fl-platform`, the Angular 22 standalone frontend for the Medical Informatics Platform (MIP). The app lets authenticated users compose and run analyses, configure algorithms, integrate with JupyterHub when enabled, and review/export analysis results from a backend exposed under `/services`.
 
 ## Repository Layout
 - `src/main.ts`: Angular bootstrap entrypoint.
 - `src/app/app.component.*`, `src/app/app.routes.ts`, `src/app/app.config.ts`: app shell, routing, providers, HTTP, XSRF, zoneless change detection, and ECharts setup.
 - `src/app/guards/`: route guards for authentication, terms/NDA acceptance, and studio guide onboarding.
-- `src/app/services/`: auth/session, experiment orchestration, dashboard data access, algorithm rules, labeling, runtime env, theme, errors, and PDF/CSV exports.
-- `src/app/models/`: frontend and backend DTOs/interfaces for users, algorithms, experiments, filters, and data models.
+- `src/app/services/`: auth/session, analysis orchestration, dashboard data access, algorithm rules, labeling, runtime env, theme, errors, and PDF/CSV exports.
+- `src/app/models/`: frontend and backend DTOs/interfaces for users, algorithms, analyses, filters, and data models.
 - `src/app/core/`: algorithm mapping, result enum mapping, constants, and result utility logic.
-- `src/app/pages/experiment-studio/`: step views switched via a sticky horizontal stepper — `experiment-studio.component` shows one step view at a time (Datasets & Variables · Data review & preprocessing · Algorithm); all views stay mounted (hidden via CSS) so state is preserved. On the Data review step the stepper expands a sub-step row (Filtering, Raw Summary, Preprocessing, Processed Summary, Transformation) that drives the `statistic-analysis-panel` sections (`goToSection`). In-panel section targets use `scroll-margin-top` so `scrollIntoView` clears sticky chrome. Also contains variable/filter selection, QueryBuilder filter UI, algorithm configuration with variable role assignment (outcome y / covariates x on the algorithm panel), run/edit flows, statistics, visualizations, and result rendering.
-- `src/app/pages/experiments-dashboard/`: experiment list/search/pagination, detail view, compare mode, sharing, delete/edit/name updates, and result export.
+- `src/app/pages/analysis-studio/`: step views switched via a sticky horizontal stepper — `analysis-studio.component` shows one step view at a time (Datasets & Variables · Data review & preprocessing · Algorithm); all views stay mounted (hidden via CSS) so state is preserved. On the Data review step the stepper expands a sub-step row (Filtering, Raw Summary, Preprocessing, Processed Summary, Transformation) that drives the `statistic-analysis-panel` sections (`goToSection`). In-panel section targets use `scroll-margin-top` so `scrollIntoView` clears sticky chrome. Also contains variable/filter selection, QueryBuilder filter UI, algorithm configuration with variable role assignment (outcome y / covariates x on the algorithm panel), run/edit flows, statistics, visualizations, and result rendering.
+- `src/app/pages/analyses-dashboard/`: analysis list/search/pagination, detail view, compare mode, sharing, delete/edit/name updates, and result export.
 - `src/app/pages/terms-page/`: NDA/TOS display and acceptance flow.
 - `src/app/pages/account-page/`: account/profile view and logout entry.
 - `src/app/pages/notebook/`: optional notebook route gated by runtime env.
@@ -77,7 +77,7 @@ npm run e2e
 ```
 Runs the Playwright flows in `e2e/` against a mocked `/services` API (starts `ng serve` itself; a few minutes). See `docs/context/testing.md` (E2E Tests).
 
-Manual browser QA is required for authenticated experiment workflows and backend-dependent chart/result rendering. The checklist lives in `docs/context/testing.md` (Frontend Manual QA).
+Manual browser QA is required for authenticated analysis workflows and backend-dependent chart/result rendering. The checklist lives in `docs/context/testing.md` (Frontend Manual QA).
 
 ## Lint / Format / Typecheck
 No ESLint/Prettier setup; `npm run build` remains the template/type check that matters. Static checks that need no browser:
@@ -114,11 +114,11 @@ When a high-output command is justified, announce why it is needed, say it may c
 - Keep cross-feature orchestration and backend calls in Angular services under `src/app/services/`.
 - Keep backend DTOs and frontend-facing interfaces in `src/app/models/`; map backend shapes before rendering when needed.
 - Keep algorithm/result schema mapping in `src/app/core/algorithm-mappers.ts` and result enum label logic in `src/app/core/algorithm-result-enum-mapper.ts`.
-- Keep chart and table rendering logic in the existing visualization registries under `src/app/pages/experiment-studio/visualisations/`.
+- Keep chart and table rendering logic in the existing visualization registries under `src/app/pages/analysis-studio/visualisations/`.
 - Keep route protection in guards; do not duplicate auth or NDA checks inside unrelated components.
 - Read runtime configuration through the existing runtime env pattern (`window.__env` and `RuntimeEnvService`) rather than scattered direct environment reads.
 - Use the `/services` same-origin API boundary; the credentials interceptor adds `withCredentials` to same-origin API calls.
-- Preserve the session/local storage keys used for auth redirects, terms redirects, and experiment studio state unless a migration is explicitly planned.
+- Preserve the session/local storage keys used for auth redirects, terms redirects, and analysis studio state unless a migration is explicitly planned.
 
 ## Coding Conventions
 - Prefer standalone Angular components and `imports` arrays over NgModules.
@@ -137,16 +137,16 @@ When a high-output command is justified, announce why it is needed, say it may c
 - Do not introduce global mutable state outside established Angular services or runtime env bootstrapping.
 - Do not read or write runtime environment values outside the existing config/runtime env layer without a documented reason.
 - Do not bypass `AuthGuard`, `TermsGuard`, or the credentials interceptor for authenticated flows.
-- Do not change `/services` API contracts, experiment payload shapes, or algorithm result mappings without documenting compatibility impact.
-- Do not remove legacy algorithm aliases unless stored historical experiment compatibility has been reviewed.
+- Do not change `/services` API contracts, analysis payload shapes, or algorithm result mappings without documenting compatibility impact.
+- Do not remove legacy algorithm aliases unless stored historical analysis compatibility has been reviewed.
 - Do not introduce new dependencies without explaining why the existing stack is insufficient.
 - Do not reformat unrelated files or rewrite unrelated feature structure.
 - Do not modify Docker, nginx, CI, auth, sharing, deletion, or runtime env behavior without focused validation and human review.
 
 ## Security and Privacy Rules
 - Never commit secrets, tokens, cookies, credentials, or private environment values.
-- Never print secrets or sensitive experiment/user data in logs.
-- Treat authentication, authorization, terms/NDA gating, experiment sharing, experiment deletion, Docker/CI secrets, runtime proxying, and notebook access as human-review areas.
+- Never print secrets or sensitive analysis/user data in logs.
+- Treat authentication, authorization, terms/NDA gating, analysis sharing, analysis deletion, Docker/CI secrets, runtime proxying, and notebook access as human-review areas.
 - Preserve same-origin credential and XSRF behavior unless the backend contract is being intentionally changed.
 - Validate redirect, share, delete, and notebook behavior carefully because they affect access boundaries.
 

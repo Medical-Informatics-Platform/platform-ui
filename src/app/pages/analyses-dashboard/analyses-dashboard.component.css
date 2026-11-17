@@ -1,0 +1,558 @@
+/* Fills the leftover the shell gives this route; the bar is sticky and already paid for. */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.analyses-dashboard {
+  box-sizing: border-box;
+  height: calc(100dvh - var(--header-height));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px var(--studio-page-gutter) 24px;
+  background: transparent; /* Use global background */
+  position: relative;
+}
+
+/* Compact page toolbar: title, total and the one primary action. */
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.toolbar-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.toolbar-heading h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--text-main);
+  letter-spacing: 0.01em;
+}
+
+.toolbar-count {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.dashboard-error-banner,
+.pathology-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+}
+
+.dashboard-error-banner {
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, white);
+  color: #7f1d1d;
+  box-shadow: none;
+}
+
+.pathology-warning-banner {
+  position: relative;
+  width: 100%;
+  z-index: 10;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 35%, transparent);
+  background: color-mix(in srgb, var(--accent-color) 12%, white);
+  color: #7c2d12;
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+  box-sizing: border-box;
+  padding: 12px 14px;
+}
+
+/* Removed bannerPulse to reduce 'too much' feel */
+
+.dashboard-error-banner .banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.pathology-warning-banner .banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pathology-warning-banner .fa-exclamation-triangle {
+  color: #b45309;
+  font-size: 1rem;
+  margin-top: 2px;
+}
+
+.warning-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warning-title {
+  font-weight: 700;
+}
+
+.warning-copy p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.warning-email {
+  color: #9a3412;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.banner-retry {
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: #7f1d1d;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.banner-retry:hover {
+  background: color-mix(in srgb, var(--danger) 10%, white);
+}
+
+.banner-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.banner-close:hover {
+  background: rgba(127, 29, 29, 0.08);
+}
+
+.banner-close:focus-visible {
+  background: rgba(127, 29, 29, 0.08);
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .pathology-warning-banner {
+    left: 12px;
+    right: 12px;
+  }
+
+  .pathology-warning-banner .warning-title {
+  font-weight: 800;
+  margin-bottom: 2px;
+  color: #9a3412;
+  font-size: 0.95rem;
+}
+}
+
+.studio-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--studio-inner-max, 1320px);
+  min-height: 0;
+  margin: 0 auto;
+  padding-left: 0;
+  flex: 1 1 auto;
+}
+
+/* REBALANCED DASHBOARD LAYOUT */
+.command-center-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 30%) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.btn-new-analysis.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(43, 51, 233, 0.18);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-new-analysis.primary i {
+  font-size: 0.75rem;
+}
+
+.btn-new-analysis.primary:hover {
+  background: var(--primary-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+.side-pane {
+  min-height: 0;
+  height: 100%;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  box-shadow: var(--studio-card-shadow);
+  z-index: 10;
+}
+
+.main-pane {
+  min-height: 0;
+  height: 100%;
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  overflow-y: auto;
+  box-shadow: var(--studio-card-shadow);
+  z-index: 10;
+  position: relative;
+}
+
+/* The compare workspace holds the pane's full height so the columns strip — not the pane —
+   scrolls tall results, which is what lets the sticky column headers pin. On the mobile
+   layout the pane is auto-height, so this resolves to natural flow. */
+.compare-workspace {
+  height: 100%;
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.btn-back {
+  background: var(--bg-neutral);
+  border-color: var(--border-color);
+  color: var(--text-main);
+}
+
+.btn-back:hover {
+  background: #e0f2fe;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+@media (max-width: 768px) {
+
+  .btn-action {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.pane-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: none;
+}
+
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 1000;
+}
+
+.modal-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: 90%;
+  max-width: 420px;
+  padding: 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg);
+  z-index: 1100;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal-body {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: var(--danger);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.btn-create.danger {
+  background: var(--danger);
+}
+
+.btn-create.danger:hover {
+  background: #b91c1c;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Responsive: a master/detail flow instead of two stacked panes. */
+@media (max-width: 1100px) {
+  .analyses-dashboard {
+    height: auto;
+    min-height: calc(100dvh - var(--header-height));
+    padding: 14px 16px 18px;
+  }
+
+  .dashboard-toolbar {
+    align-items: flex-start;
+  }
+
+  .toolbar-heading h1 {
+    font-size: 1.2rem;
+  }
+
+  .command-center-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    gap: 12px;
+  }
+
+  .command-center-layout:not(.command-center-layout--detail) .main-pane {
+    display: none;
+  }
+
+  .command-center-layout--detail .side-pane {
+    display: none;
+  }
+
+  .side-pane,
+  .main-pane {
+    height: auto;
+    min-height: 0;
+  }
+
+  .pane-content {
+    max-height: none;
+    overflow: visible;
+  }
+
+
+  .mobile-back-btn {
+    display: inline-flex;
+  }
+
+  .main-pane {
+    min-height: calc(100dvh - var(--header-height) - 86px);
+  }
+}
+
+@media (max-width: 640px) {
+  .dashboard-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-new-analysis.primary {
+    justify-content: center;
+  }
+
+  .side-pane,
+  .main-pane {
+    border-radius: 10px;
+  }
+}
+
+.mobile-back-btn {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 12px 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(127, 156, 232, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mobile-back-btn i {
+  color: var(--primary-color);
+  font-size: 0.78rem;
+}
+
+.mobile-back-btn:hover {
+  border-color: rgba(43, 51, 233, 0.45);
+  background: rgba(43, 51, 233, 0.06);
+  color: var(--primary-color);
+}
+
+.compare-diff-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.compare-diff-header h2 {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  color: var(--text-main);
+}
+
+.compare-diff-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.compare-diff {
+  display: grid;
+  gap: 8px 12px;
+  align-items: start;
+}
+
+.compare-diff-head,
+.compare-diff-key,
+.compare-diff-val {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.compare-diff-name {
+  display: block;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.compare-diff-algo,
+.compare-diff-key,
+.compare-diff-note,
+.compare-short p {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.compare-diff-val {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.compare-diff-val--same {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.compare-diff-note {
+  margin: 10px 0 16px;
+}
+
+.compare-short-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

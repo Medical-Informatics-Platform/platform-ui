@@ -10,13 +10,13 @@ const notebookEnabledMatch: CanMatchFn = () => {
 
 export const appRoutes: Routes = [
   {
-    path: 'experiments-dashboard',
-    loadComponent: () => import('./pages/experiments-dashboard/experiments-dashboard.component').then(m => m.ExperimentsDashboardComponent),
+    path: 'analyses-dashboard',
+    loadComponent: () => import('./pages/analyses-dashboard/analyses-dashboard.component').then(m => m.AnalysesDashboardComponent),
     canActivate: [AuthGuard, TermsGuard],
   },
   {
     path: '',
-    redirectTo: 'experiments-dashboard',
+    redirectTo: 'analyses-dashboard',
     pathMatch: 'full'
   },
   {
@@ -35,8 +35,8 @@ export const appRoutes: Routes = [
     canActivate: [AuthGuard, TermsGuard],
   },
   {
-    path: 'experiment-studio',
-    loadComponent: () => import('./pages/experiment-studio/experiment-studio.component').then(m => m.ExperimentStudioComponent),
+    path: 'analysis-studio',
+    loadComponent: () => import('./pages/analysis-studio/analysis-studio.component').then(m => m.AnalysisStudioComponent),
     canActivate: [AuthGuard, TermsGuard],
   },
   {
@@ -45,5 +45,7 @@ export const appRoutes: Routes = [
     canMatch: [notebookEnabledMatch],
     canActivate: [AuthGuard, TermsGuard],
   },
-  { path: '**', redirectTo: 'experiments-dashboard' }
+  { path: 'experiments-dashboard', redirectTo: 'analyses-dashboard', pathMatch: 'full' },
+  { path: 'experiment-studio', redirectTo: 'analysis-studio', pathMatch: 'full' },
+  { path: '**', redirectTo: 'analyses-dashboard' }
 ];

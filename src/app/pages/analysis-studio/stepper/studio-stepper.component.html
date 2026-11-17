@@ -1,0 +1,30 @@
+<nav class="studio-stepper-header" aria-label="Analysis Studio wizard" data-guide="studio-navigation">
+  <ol class="stepper-track">
+    @for (step of parentSteps; track step.id; let isLast = $last) {
+      <li class="stepper-track-item">
+        <button
+          type="button"
+          class="stepper-step-btn"
+          [class.is-active]="activeSection() === step.id"
+          [class.is-complete]="stepState(step.id) === 'complete'"
+          [class.is-locked]="stepState(step.id) === 'locked'"
+          [disabled]="!isStepClickable(step.id)"
+          [attr.aria-current]="activeSection() === step.id ? 'step' : null"
+          [attr.aria-disabled]="!isStepClickable(step.id)"
+          [attr.data-guide]="step.guide"
+          [title]="stepTitle(step)"
+          (click)="onStepClick(step.id)"
+        >
+          <span class="stepper-node" [class.is-complete]="stepState(step.id) === 'complete'" [class.is-active]="activeSection() === step.id">
+            <span class="stepper-node-index">{{ step.index }}</span>
+          </span>
+          <span class="stepper-step-label">{{ step.label }}</span>
+        </button>
+
+        @if (!isLast) {
+          <span class="stepper-connector" [class.is-complete]="stepState(step.id) === 'complete'" aria-hidden="true"></span>
+        }
+      </li>
+    }
+  </ol>
+</nav>

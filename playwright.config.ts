@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 /**
  * Headless e2e flows. The Angular dev server is the only process;
- * backend calls are intercepted in the browser (see e2e/experiment-studio-api.ts).
+ * backend calls are intercepted in the browser (see e2e/analysis-studio-api.ts).
  * Every test owns its page and its mock store, so tests run in parallel.
  */
 export default defineConfig({

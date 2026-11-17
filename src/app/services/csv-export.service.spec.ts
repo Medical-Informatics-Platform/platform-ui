@@ -34,10 +34,10 @@ describe('CsvExportService', () => {
     let saved: { blob: Blob; name: string } | null = null;
     vi.spyOn(service as any, 'download').mockImplementation((blob: any, name: any) => (saved = { blob, name }));
 
-    await service.exportExperimentZip({
-      filename: 'My experiment',
+    await service.exportAnalysisZip({
+      filename: 'My analysis',
       details: {
-        experimentName: 'My experiment',
+        analysisName: 'My analysis',
         algorithm: 'Logistic Regression',
         datasets: ['IST'],
         filters: [],
@@ -48,7 +48,7 @@ describe('CsvExportService', () => {
       result: { coefficients: [0.123456789] },
     });
 
-    expect(saved!.name).toBe('My_experiment.zip');
+    expect(saved!.name).toBe('My_analysis.zip');
     const zip = await JSZip.loadAsync(saved!.blob);
     expect(Object.keys(zip.files).sort()).toEqual(['README.txt', 'result.json', 'tables/', 'tables/01_coefficients.csv']);
 
@@ -71,9 +71,9 @@ describe('CsvExportService', () => {
     let saved: { blob: Blob; name: string } | null = null;
     vi.spyOn(service as any, 'download').mockImplementation((blob: any, name: any) => (saved = { blob, name }));
 
-    await service.exportExperimentZip({
+    await service.exportAnalysisZip({
       filename: 'run',
-      details: { experimentName: 'run', algorithm: 'T-test', datasets: [], filters: [], preprocessing: '', mipVersion: null } as any,
+      details: { analysisName: 'run', algorithm: 'T-test', datasets: [], filters: [], preprocessing: '', mipVersion: null } as any,
       tables: [
         { title: 'Summary', columns: ['Metric', 'Value'], rows: [['p-value', { text: '< 0.001', value: 1.2e-9 }]] },
         { title: 'Merged', columns: ['Category', 'A'], rows: [['x', '3 · 50.0%']], export: { columns: ['Category', 'A count', 'A share'], rows: [['x', 3, 0.5]] } },

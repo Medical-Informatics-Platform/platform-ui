@@ -15,9 +15,9 @@ Backend calls use relative `/services/...` URLs.
 | Concern | Likely service |
 |---|---|
 | user/session/login/logout | `auth.service.ts` |
-| studio data/runs/previews | `experiment-studio.service.ts` |
-| dashboard list/detail/update/delete | `experiments-dashboard.service.ts` |
-| folders, sets, membership | `experiment-folders.service.ts` |
+| studio data/runs/previews | `analysis-studio.service.ts` |
+| dashboard list/detail/update/delete | `analyses-dashboard.service.ts` |
+| studies, groups, membership | `studies.service.ts` |
 | algorithm availability/rules | `algorithm-rules.service.ts` |
 | PDF/CSV export | export services |
 | error display | `error.service.ts` |

@@ -1,0 +1,169 @@
+<div class="analyses-dashboard full-bleed">
+
+  <div class="studio-main full-width">
+    @if (visiblePathologyAccessWarning(); as warning) {
+    <div class="pathology-warning-banner" role="status" aria-live="polite" aria-atomic="true">
+      <div class="banner-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div class="warning-copy">
+          <div class="warning-title">{{ warning.title }}</div>
+          <p>
+            {{ warning.message }}
+            Please contact us at
+            <a class="warning-email" href="mailto:mip@chuv.ch">mip@chuv.ch</a>.
+          </p>
+        </div>
+      </div>
+      <button type="button" class="banner-close" (click)="dismissPathologyWarning()" aria-label="Dismiss warning">
+        &times;
+      </button>
+    </div>
+    }
+
+    @if (errorMessage()) {
+    <div class="dashboard-error-banner" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="banner-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorMessage() }}</span>
+      </div>
+      <div class="banner-actions">
+        <button type="button" class="banner-retry" (click)="analysesService.retryLastRequest()">
+          Retry
+        </button>
+        <button type="button" class="banner-close" (click)="dismissError()">
+          &times;
+        </button>
+      </div>
+    </div>
+    }
+
+    <!-- TOP: Compact page toolbar -->
+    <header class="dashboard-toolbar">
+      <div class="toolbar-heading">
+        <h1>Analyses</h1>
+        <span class="toolbar-count">{{ analysesService.totalAnalyses() }}</span>
+      </div>
+
+      <button class="btn-new-analysis primary" (click)="goToNewAnalysis()" title="New Analysis"
+        data-guide="dashboard-new">
+        <i class="fas fa-plus"></i>
+        <span>New analysis</span>
+      </button>
+    </header>
+
+    <!-- MAIN TRIPLE PANE CONTENT (now integrated actions) -->
+    <div class="command-center-layout" [class.command-center-layout--detail]="mobileDetailOpen()" data-guide="dashboard-overview">
+      <!-- LEFT: NAVIGATION & SELECTION -->
+      <aside class="side-pane analyses-pane" data-guide="dashboard-workspace">
+        <div class="pane-content">
+          <app-analyses-list [selectedAnalysisId]="selectedAnalysis()?.id ?? null"
+            [selectedStudyId]="selectedStudyId()" [currentUserEmail]="currentUserEmail()"
+            [compareIds]="compareIds()" [initialOnlyMine]="!hasDeepLink()"
+            (analysisSelected)="onAnalysisSelected($event)" (studySelected)="onStudySelected($event)"
+            (clearCompareSelection)="clearCompareSelection()"
+            (compareToggled)="onCompareToggled($event)" (compareOpened)="openCompare()" />
+        </div>
+      </aside>
+
+      <!-- CENTER: MAIN WORKSPACE -->
+      <section class="main-pane" aria-label="Analysis workbench">
+        @if (mobileDetailOpen()) {
+        <button type="button" class="mobile-back-btn" (click)="closeMobileDetail()">
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          Back to analyses
+        </button>
+        }
+
+        @if (selectedStudyId(); as studyId) {
+        <app-study [studyId]="studyId" (back)="onStudySelected(null)"
+          (openAnalysis)="onAnalysisSelected($event)" (compareRequested)="onStudyCompare($event)" />
+        } @else if (!compareMode()) {
+        <app-analysis-details [selectedAnalysis]="selectedAnalysis()" [currentUserEmail]="currentUserEmail()"
+          (run)="onRunAnalysis($event)" (deleteAnalysis)="onDeleteRequested()"
+          (nameUpdated)="onNameUpdated($event)" />
+        } @else {
+        <div class="compare-workspace" data-guide="dashboard-compare-workspace">
+          @if (analysesForCompare().length < 2) {
+          <div class="compare-short">
+            <p>Select at least two analyses.</p>
+            <div class="compare-short-actions">
+              @if (compareOriginStudyName(); as originName) {
+              <button type="button" class="btn-action btn-back" (click)="onBackToOriginStudy()">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                Back to {{ originName }}
+              </button>
+              }
+              <button type="button" class="btn-action" (click)="closeCompare()">Done</button>
+            </div>
+          </div>
+          } @else {
+          <header class="compare-diff-header">
+            <div>
+              <span class="compare-diff-kicker">Compare</span>
+              <h2>{{ analysesForCompare().length }} analyses side by side</h2>
+            </div>
+            <button type="button" class="btn-action" (click)="closeCompare()">Done</button>
+          </header>
+
+          <div class="compare-diff"
+            [style.grid-template-columns]="'140px repeat(' + analysesForCompare().length + ', minmax(0, 1fr))'">
+            <span></span>
+            @for (analysis of analysesForCompare(); track analysis.id) {
+            <div class="compare-diff-head">
+              <span class="compare-diff-name">{{ analysis.name || "Untitled Investigation" }}</span>
+              <span class="compare-diff-algo">{{ getAlgorithmLabel(analysis.algorithmName) }}</span>
+            </div>
+            }
+            @for (row of compareDiffRows(); track row.k) {
+            <span class="compare-diff-key">{{ row.k }}</span>
+            @for (value of row.vals; track $index) {
+            <span class="compare-diff-val" [class.compare-diff-val--same]="row.same">{{ value }}</span>
+            }
+            }
+          </div>
+          <p class="compare-diff-note">Rows that differ are in ink, and rows that match are muted.</p>
+
+          <app-analyses-compare [analyses]="analysesForCompare()" [originStudyId]="compareOriginStudyId()"
+            (backToStudy)="onBackToOriginStudy()" />
+          }
+        </div>
+        }
+    </section>
+
+  </div>
+
+  <!-- Delete Modal -->
+  <!-- Delete Confirmation Modal -->
+  @if (isConfirmingDelete) {
+  <div class="modal-overlay" (click)="cancelDelete()">
+    <div class="modal-container" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Delete analysis?</h3>
+        <button class="close-btn" type="button" (click)="cancelDelete()">
+          &times;
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p>
+          Permanently delete “{{ deleteTargetName() }}”? This action cannot be undone.
+        </p>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn-cancel" (click)="cancelDelete()">
+          Cancel
+        </button>
+        <button type="button" class="btn-create danger" (click)="
+                  confirmDelete(analysisToDeleteId ?? '')
+                ">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</div>
+</div>
+
+<app-analyses-dashboard-guide></app-analyses-dashboard-guide>

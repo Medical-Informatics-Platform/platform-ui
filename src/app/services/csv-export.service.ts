@@ -1,17 +1,17 @@
 import { Injectable } from '@angular/core';
 import {
-  experimentContextRows,
-  ExperimentExportDetails,
+  analysisContextRows,
+  AnalysisExportDetails,
   filledContextRows,
   fileSlug,
   formatExportDate,
 } from '../core/export.utils';
-import { exportTable, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import { exportTable, TableSpec } from '../pages/analysis-studio/visualisations/auto-renderer/algorithm-table-registry';
 import {
   HISTOGRAM_RESIDUAL_LABEL,
   HistogramGroupSeries,
   residualCount,
-} from '../pages/experiment-studio/visualisations/histogram/histogram-data';
+} from '../pages/analysis-studio/visualisations/histogram/histogram-data';
 
 /** Excel only reads UTF-8 (accented labels, "≥") when the file starts with a BOM. */
 const BOM = '\uFEFF';
@@ -26,9 +26,9 @@ export function toCsv(columns: unknown[], rows: unknown[][]): string {
   return [columns, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
 
-interface ExperimentZipPayload {
+interface AnalysisZipPayload {
   filename: string;
-  details: ExperimentExportDetails;
+  details: AnalysisExportDetails;
   tables: TableSpec[];
   /** The raw engine result, kept at full precision next to the rounded tables. */
   result: unknown;
@@ -78,12 +78,12 @@ export class CsvExportService {
 
   /**
    * Every result table as its own CSV, the raw result as JSON, and a README that
-   * says which experiment, data and setup produced them, all in one ZIP.
+   * says which analysis, data and setup produced them, all in one ZIP.
    */
-  async exportExperimentZip(payload: ExperimentZipPayload): Promise<void> {
+  async exportAnalysisZip(payload: AnalysisZipPayload): Promise<void> {
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
-    const base = fileSlug(payload.filename || payload.details.experimentName, 'experiment');
+    const base = fileSlug(payload.filename || payload.details.analysisName, 'analysis');
 
     const tableFiles = payload.tables.map((table, index) => {
       const title = table.title || `Results table ${index + 1}`;
@@ -93,7 +93,7 @@ export class CsvExportService {
       return { name, title, table: exported };
     });
     zip.file('result.json', JSON.stringify(payload.result ?? null, null, 2));
-    zip.file('README.txt', this.experimentReadme(payload.details, tableFiles));
+    zip.file('README.txt', this.analysisReadme(payload.details, tableFiles));
 
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
     this.download(blob, `${base}.zip`);
@@ -103,11 +103,11 @@ export class CsvExportService {
     this.download(new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' }), filename);
   }
 
-  private experimentReadme(
-    details: ExperimentExportDetails,
+  private analysisReadme(
+    details: AnalysisExportDetails,
     tableFiles: Array<{ name: string; title: string; table: { columns: string[]; rows: unknown[][] } }>,
   ): string {
-    const setup = filledContextRows(experimentContextRows(details)).flatMap(([label, values]) =>
+    const setup = filledContextRows(analysisContextRows(details)).flatMap(([label, values]) =>
       values.length > 1 ? [`${label}:`, ...values.map((value) => `  - ${value}`)] : [`${label}: ${values[0]}`]
     );
     const files = [
@@ -117,8 +117,8 @@ export class CsvExportService {
       'result.json\n    The full result returned by the engine, unrounded. The tables round most values for reading; p-values, shares and probabilities in them are exact.',
     ];
     return [
-      details.experimentName,
-      '='.repeat(Math.min(details.experimentName.length, 80)),
+      details.analysisName,
+      '='.repeat(Math.min(details.analysisName.length, 80)),
       '',
       'Setup',
       '-----',

@@ -1,0 +1,259 @@
+@if (study(); as activeStudy) {
+<div class="study-canvas" [class.study-canvas--receiving]="isReceiving()" (dragover)="onDragOver($event)"
+  (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+  <header class="study-canvas-header">
+    <div class="study-heading">
+      <button type="button" class="study-back-btn" (click)="back.emit()" title="Clear study selection">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        <span>All</span>
+      </button>
+
+      @if (!isEditingName()) {
+      <div class="study-title-row">
+        <h2 class="study-title" [title]="activeStudy.name">{{ activeStudy.name }}</h2>
+        <span class="count-badge">{{ memberCount() }}</span>
+      </div>
+      } @else {
+      <div class="study-rename-form">
+        <input class="study-rename-input" [value]="nameDraft()" (input)="nameDraft.set($any($event.target).value)"
+          (keydown.enter)="saveRename()" (keydown.escape)="cancelRename()" aria-label="Study name" />
+        <button type="button" class="study-form-action" [disabled]="busy()" (click)="saveRename()">Save</button>
+        <button type="button" class="study-form-action cancel" (click)="cancelRename()">Cancel</button>
+      </div>
+      }
+
+      @if (summary(); as summaryLine) {
+      <p class="study-summary">{{ summaryLine }}</p>
+      }
+
+      @if (nameError(); as nameError) {
+      <p class="study-form-error">{{ nameError }}</p>
+      }
+
+      @if (actionError(); as actionError) {
+      <p class="study-form-error" role="alert">{{ actionError }}</p>
+      }
+
+      @if (dropNotice(); as notice) {
+      <p class="study-drop-notice" [class.study-drop-notice--duplicate]="notice.kind === 'duplicate'" role="status"
+        aria-live="polite">
+        <i class="fas fa-arrow-down-to-line" aria-hidden="true"></i>{{ notice.text }}
+      </p>
+      }
+    </div>
+
+    <div class="study-actions">
+      <button type="button" class="study-compare-btn" (click)="onCompare()" [disabled]="!canCompare()"
+        [title]="canCompare() ? 'Compare these runs side by side' : 'Add at least two runs to compare'">
+        <i class="fas fa-columns" aria-hidden="true"></i>
+        Compare in workspace
+      </button>
+
+      @if (!isEditingName()) {
+      <button type="button" class="study-form-action" title="Rename study" (click)="startRename()">
+        <i class="far fa-edit" aria-hidden="true"></i>
+        Rename
+      </button>
+      }
+
+      @if (!isConfirmingDelete()) {
+      <button type="button" class="study-form-action delete" title="Delete study" (click)="askDelete()">
+        <i class="far fa-trash-alt" aria-hidden="true"></i>
+        Delete
+      </button>
+      } @else {
+      <div class="study-delete-confirm">
+        <span>Delete study? Runs stay in your history.</span>
+        <button type="button" class="study-form-action danger" [disabled]="busy()" (click)="confirmDelete()">Delete</button>
+        <button type="button" class="study-form-action cancel" (click)="cancelDelete()">Cancel</button>
+      </div>
+      }
+    </div>
+  </header>
+
+  @if (isEmpty()) {
+  <div class="study-empty" [class.study-empty--receiving]="isReceiving()">
+    <div class="study-empty-icon">
+      <i class="far fa-folder-open"></i>
+    </div>
+    <h3>{{ isReceiving() ? "Drop it here" : "Nothing in this study yet" }}</h3>
+    <p>
+      Drag a run from the list on the left and let go here, or press its study icon and pick this
+      study. Runs you add here can be compared side by side.
+    </p>
+  </div>
+  } @else {
+  <!-- One heading per group, Ungrouped last: the canvas reads in the order the compare will. -->
+  <div class="study-groups">
+    @for (group of groups(); track group.id) {
+    <section class="member-group" [class.member-group--collapsed]="isGroupCollapsed(group)">
+      <header class="member-group-header">
+        <button type="button" class="member-group-toggle" (click)="toggleGroup(group)"
+          [attr.aria-expanded]="!isGroupCollapsed(group)"
+          [title]="isGroupCollapsed(group) ? 'Expand ' + group.name : 'Collapse ' + group.name">
+          <i class="fas" [class.fa-chevron-down]="isGroupCollapsed(group)" [class.fa-chevron-up]="!isGroupCollapsed(group)"
+            aria-hidden="true"></i>
+        </button>
+
+        @if (renamingGroupId() === group.id) {
+        <div class="member-group-rename">
+          <input class="member-group-rename-input" [value]="groupRenameDraft()"
+            (input)="groupRenameDraft.set($any($event.target).value)" (keydown.enter)="saveGroupRename()"
+            (keydown.escape)="cancelGroupRename()" aria-label="Group name" />
+          <button type="button" class="study-form-action" [disabled]="busy()" (click)="saveGroupRename()">Save</button>
+          <button type="button" class="study-form-action cancel" (click)="cancelGroupRename()">Cancel</button>
+        </div>
+        } @else {
+        <h3 class="member-group-name" [title]="group.name">{{ group.name }}</h3>
+        <span class="count-badge">{{ group.rows.length }}</span>
+        }
+
+        @if (renamingGroupId() !== group.id && !group.isUngrouped) {
+        <div class="member-group-actions">
+          @if (confirmingGroupDeleteId() !== group.id) {
+          <button type="button" class="icon-btn" title="Rename group" (click)="startGroupRename(group)">
+            <i class="far fa-edit" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-btn danger" title="Delete group" (click)="askGroupDelete(group)">
+            <i class="far fa-trash-alt" aria-hidden="true"></i>
+          </button>
+          } @else {
+          <div class="member-group-confirm">
+            <span>Delete group? Its runs stay in the study.</span>
+            <button type="button" class="study-form-action danger" [disabled]="busy()" (click)="confirmGroupDelete()">Delete</button>
+            <button type="button" class="study-form-action cancel" (click)="cancelGroupDelete()">Cancel</button>
+          </div>
+          }
+        </div>
+        }
+      </header>
+
+      @if (renamingGroupId() === group.id && groupRenameError(); as groupRenameError) {
+      <p class="study-form-error">{{ groupRenameError }}</p>
+      }
+
+      @if (!isGroupCollapsed(group)) {
+      @if (!group.rows.length) {
+      <p class="member-group-empty">Nothing moved here yet — press the group icon on a run to move it in.</p>
+      } @else {
+      <ul class="study-members">
+        @for (row of group.rows; track row.id; let position = $index) {
+        <li class="member-row" [class.member-row--gone]="isUnavailable(row.id)"
+          [class.member-row--landed]="dropNotice()?.landedId === row.id" (click)="onRowClick(row)">
+          <span class="member-index" aria-hidden="true">{{ group.start + position + 1 }}</span>
+          <div class="row-main">
+            <div class="row-title-line">
+              @if (row.analysis) {
+              <span class="member-name" [title]="row.analysis.name">
+                {{ row.analysis.name || "Untitled Investigation" }}
+              </span>
+              <app-analysis-status [status]="row.analysis.status" [compact]="true" />
+              } @else if (isUnavailable(row.id)) {
+              <span class="member-name member-name--gone">No longer available</span>
+              } @else if (memberError(row.id); as loadError) {
+              <span class="member-name member-name--gone">{{ loadError }}</span>
+              } @else if (isLoading(row)) {
+              <span class="member-skeleton member-skeleton--title" aria-hidden="true"></span>
+              }
+            </div>
+
+            <div class="row-meta-line">
+              @if (row.analysis) {
+              <span class="meta-item">
+                <i class="far fa-calendar"></i>
+                {{ row.analysis.dateCreated | date : "mediumDate" }}
+              </span>
+              <span class="meta-item algo-item">
+                <i class="fas fa-flask"></i>
+                {{ getAlgorithmLabel(row.analysis.algorithmName) }}
+              </span>
+              } @else if (isUnavailable(row.id)) {
+              <span class="meta-item">Removed from this study</span>
+              } @else if (memberError(row.id)) {
+              <span class="meta-item">Check your connection and try again.</span>
+              } @else if (isLoading(row)) {
+              <span class="member-skeleton member-skeleton--meta" aria-hidden="true"></span>
+              }
+            </div>
+          </div>
+
+          <div class="row-actions">
+            @if (!isUnavailable(row.id)) {
+            <!-- Move to group: the same membership menu the list rows already carry. -->
+            <span class="group-menu-anchor">
+              <button type="button" class="icon-btn" [class.active]="groupMenuRowId() === row.id" title="Move to group"
+                aria-haspopup="menu" [attr.aria-expanded]="groupMenuRowId() === row.id"
+                (click)="toggleGroupMenu(row); $event.stopPropagation()">
+                <i class="fas fa-object-group" aria-hidden="true"></i>
+              </button>
+            </span>
+            }
+
+            <button type="button" class="icon-btn"
+              [title]="isUnavailable(row.id) ? 'Dismiss this row' : 'Remove from study'"
+              (click)="onRemoveMember(row); $event.stopPropagation()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <!-- The panel belongs to the row, not to the trigger: the centre pane clips horizontal
+               overflow, and a trigger-anchored menu runs off its left edge. -->
+          @if (groupMenuRowId() === row.id) {
+          <div class="group-menu" cdkMenu (keydown.escape)="closeGroupMenu()"
+            (click)="$event.stopPropagation()">
+            @if (activeStudy.groups.length) {
+            <p class="group-menu__hint">Move to</p>
+            }
+
+            @for (group of activeStudy.groups; track group.id) {
+            <button type="button" class="group-menu__item" cdkMenuItem role="menuitemradio"
+              [attr.aria-checked]="group.id === currentGroupId(row)" (cdkMenuItemTriggered)="onGroupMenuPick(group, row)">
+              <i class="fas fa-check group-menu__check" [class.group-menu__check--off]="group.id !== currentGroupId(row)"
+                aria-hidden="true"></i>
+              <span class="group-menu__name">{{ group.name }}</span>
+              <span class="count-badge">{{ group.analysisIds.length }}</span>
+            </button>
+            }
+
+            @if (currentGroupId(row)) {
+            <button type="button" class="group-menu__item group-menu__item--unset" cdkMenuItem
+              (cdkMenuItemTriggered)="onGroupMenuUnset(row)">
+              <i class="fas fa-ellipsis-h group-menu__check" aria-hidden="true"></i>
+              <span class="group-menu__name">Leave the group</span>
+            </button>
+            }
+
+            @if (groupMenuNewOpen()) {
+            <div class="group-menu__form">
+              <input class="group-menu__input" [value]="groupMenuDraft()" placeholder="Group name" aria-label="New group name"
+                (input)="groupMenuDraft.set($any($event.target).value)" (keydown.enter)="commitGroupMenuNew(row)" />
+              <button type="button" class="group-menu__form-action" [disabled]="busy()"
+                (click)="commitGroupMenuNew(row)">Add</button>
+            </div>
+            @if (groupMenuError(); as groupMenuError) {
+            <p class="group-menu__error">{{ groupMenuError }}</p>
+            }
+            } @else {
+            <button type="button" class="group-menu__item group-menu__item--new" cdkMenuItem
+              (cdkMenuItemTriggered)="openGroupMenuNew()">
+              <i class="fas fa-plus group-menu__check" aria-hidden="true"></i>
+              <span class="group-menu__name">New group…</span>
+            </button>
+            }
+
+            @if (!activeStudy.groups.length && !groupMenuNewOpen()) {
+            <p class="group-menu__hint">No groups yet. Create one to group these runs.</p>
+            }
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      }
+      }
+    </section>
+    }
+  </div>
+  }
+</div>
+}

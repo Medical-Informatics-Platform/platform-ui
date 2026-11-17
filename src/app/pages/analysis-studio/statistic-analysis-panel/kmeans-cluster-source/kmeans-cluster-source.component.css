@@ -1,0 +1,367 @@
+:host {
+  display: block;
+}
+
+.kmeans-cluster-source {
+  display: grid;
+  gap: 10px;
+}
+
+.kmeans-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+}
+
+.kmeans-mode-btn {
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: calc(var(--radius-md, 8px) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kmeans-mode-btn:hover {
+  color: var(--text-main);
+}
+
+.kmeans-mode-btn.active {
+  background: var(--card-bg, #ffffff);
+  color: var(--primary-dark, #1b21a3);
+  box-shadow: var(--studio-card-shadow, 0 1px 2px rgba(43, 51, 233, 0.06));
+}
+
+
+.kmeans-cluster-source-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+/* Look comes from the global `.analysis-studio-page` control styles. There is no
+   global box-sizing reset, so keep the control inside its grid column. */
+.kmeans-cluster-source-field select,
+.kmeans-cluster-source-field input {
+  box-sizing: border-box;
+}
+
+.kmeans-cluster-source-applied {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 22%, transparent);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in srgb, var(--primary-color) 4%, white);
+  font-size: 0.8rem;
+}
+
+.kmeans-cluster-source-applied-code {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kmeans-cluster-source-applied-detail {
+  color: var(--text-muted);
+}
+
+/* Parameters disclosure: a quiet full-width row between the variables and Run. Closed,
+   it says "All defaults" or lists what changed; open, the fields grid hangs off it. */
+.kmeans-cluster-source-advanced {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-advanced:hover {
+  border-color: rgba(43, 51, 233, 0.3);
+}
+
+.kmeans-cluster-source-advanced[aria-expanded='true'] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.kmeans-params-label {
+  flex: none;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.kmeans-params-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kmeans-params-chevron {
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: var(--primary-color);
+}
+
+.kmeans-cluster-source-params {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px 12px;
+  margin-top: -8px;
+  padding: 10px 12px;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+}
+
+.kmeans-cluster-source-apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(43, 51, 233, 0.05);
+}
+
+.kmeans-cluster-source-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.kmeans-cluster-source-remove {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kmeans-cluster-source-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger, #ef4444);
+}
+
+.kmeans-cluster-source-note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* In-place K-means report run, for when there is no finished compatible run yet:
+   three numbered steps (choose variables, check clusters, name the column). */
+.kmeans-cluster-source {
+  gap: 16px;
+}
+
+.kmeans-step {
+  display: grid;
+  gap: 8px;
+}
+
+.kmeans-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.kmeans-step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #ffffff;
+  font-size: 0.68rem;
+}
+
+.kmeans-step-meta {
+  margin-left: auto;
+}
+
+.kmeans-step-meta {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.kmeans-step-run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.kmeans-step-code {
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.84rem;
+}
+
+.kmeans-cluster-source-note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--primary-dark, #1b21a3);
+}
+
+
+.kmeans-cluster-source-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.kmeans-cluster-source-var {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card-bg, #ffffff);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.18);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+
+.kmeans-cluster-source-var i {
+  font-size: 0.66rem;
+}
+
+/* Tonal, not solid: Run is the one filled primary in the step, so a chosen variable
+   must not read as a second button to press. */
+.kmeans-cluster-source-var.is-selected {
+  background: color-mix(in srgb, var(--primary-color) 8%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 55%, transparent);
+  color: var(--primary-dark, #1b21a3);
+}
+
+.kmeans-cluster-source-var:hover:not(.is-selected) {
+  background: rgba(43, 51, 233, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(43, 51, 233, 0.45);
+}
+
+.kmeans-cluster-report {
+  display: grid;
+  border: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+
+
+
+.kmeans-cluster-report-row {
+  display: grid;
+  grid-template-columns: 110px 190px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid rgba(43, 51, 233, 0.06);
+  font-size: 0.8rem;
+}
+
+.kmeans-cluster-report-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.kmeans-cluster-report-profile {
+  color: #334155;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.kmeans-cluster-report-header {
+  border-top: 0;
+  padding: 8px 12px;
+  background: var(--studio-card-header-bg, #f8fbff);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+}
+
+.kmeans-cluster-report-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, white);
+  overflow: hidden;
+}
+
+.kmeans-cluster-report-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.kmeans-cluster-report-size > span:last-child {
+  min-width: 64px;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .kmeans-cluster-report-row {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+
+  .kmeans-cluster-report-profile,
+  .kmeans-cluster-report-header > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}

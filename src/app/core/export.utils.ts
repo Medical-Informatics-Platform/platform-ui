@@ -126,9 +126,9 @@ export function fileSlug(value: string, fallback: string): string {
 /** Label + value row of an export's "About this export" block; arrays render as bullets. */
 export type ContextRow = [label: string, value: string | string[] | null | undefined];
 
-/** What an experiment export describes: the setup the result came from. */
-export interface ExperimentExportDetails {
-  experimentName: string;
+/** What an analysis export describes: the setup the result came from. */
+export interface AnalysisExportDetails {
+  analysisName: string;
   createdBy?: string | null;
   createdAt?: Date | string | null;
   algorithm?: string | null;
@@ -144,8 +144,8 @@ export interface ExperimentExportDetails {
   mipVersion?: string | null;
 }
 
-/** The experiment's setup as context rows, shared by the PDF report and the ZIP README. */
-export function experimentContextRows(details: ExperimentExportDetails): ContextRow[] {
+/** The analysis's setup as context rows, shared by the PDF report and the ZIP README. */
+export function analysisContextRows(details: AnalysisExportDetails): ContextRow[] {
   const created = [details.createdBy, formatExportDate(details.createdAt)].filter(Boolean).join(', ');
   return [
     ['Algorithm', details.algorithm],

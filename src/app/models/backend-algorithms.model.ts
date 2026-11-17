@@ -124,7 +124,7 @@ export interface AnalysisRequest {
   flags?: Record<string, unknown> | null;
 }
 
-export interface ExperimentCreateRequest {
+export interface AnalysisCreateRequest {
   name: string;
   analysisRequest: AnalysisRequest;
 }

@@ -3,7 +3,7 @@ import { CdkMenu, CdkMenuItem } from '@angular/cdk/menu';
 import { AuthService } from '../../../services/auth.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { NotebookNavService } from '../../../services/notebook-nav.service';
-import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
+import { AnalysisStudioNavigationService } from '../../../services/analysis-studio-navigation.service';
 import { GuideLauncherService } from '../../../services/guide-launcher.service';
 import { isRoutePath } from '../../../core/route-path.utils';
 import {
@@ -44,10 +44,10 @@ export class HeaderComponent {
   authService = inject(AuthService);
   readonly runtimeEnv = inject(RuntimeEnvService);
   readonly notebookNav = inject(NotebookNavService);
-  readonly studioNav = inject(ExperimentStudioNavigationService);
+  readonly studioNav = inject(AnalysisStudioNavigationService);
 
   readonly notebookRouteActive = this.trackRouteActive(() => this.isNotebookRoute());
-  readonly isStudioRoute = this.trackRouteActive(() => this.isExperimentStudioRoute());
+  readonly isStudioRoute = this.trackRouteActive(() => this.isAnalysisStudioRoute());
   readonly isDashboardRoute = this.trackRouteActive(() => this.isDashboardPath());
 
   /** Which guide (if any) owns the current page. The guide registers itself and the bar
@@ -176,25 +176,25 @@ export class HeaderComponent {
     event?.preventDefault();
     if (this.isStudioRoute()) {
       // The studio host owns its own exit path: it may need to block navigation while an
-      // experiment is running and it already resets studio state before routing away.
+      // analysis is running and it already resets studio state before routing away.
       this.studioNav.backToDashboard();
       return;
     }
-    void this.router.navigate(['/experiments-dashboard']);
+    void this.router.navigate(['/analyses-dashboard']);
   }
 
   private isNotebookRoute(): boolean {
     return this.onPath('/notebook');
   }
 
-  private isExperimentStudioRoute(): boolean {
+  private isAnalysisStudioRoute(): boolean {
     // Same shape as the notebook check: a nested studio path must keep the nav's current
     // state and the state-preserving back action, not silently drop out of them.
-    return this.onPath('/experiment-studio');
+    return this.onPath('/analysis-studio');
   }
 
   private isDashboardPath(): boolean {
-    return this.onPath('/experiments-dashboard');
+    return this.onPath('/analyses-dashboard');
   }
 
   private onPath(prefix: string): boolean {

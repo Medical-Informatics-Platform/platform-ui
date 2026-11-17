@@ -21,7 +21,7 @@
 ## Security and Privacy
 - [ ] No secrets, tokens, cookies, credentials, or private env values are committed.
 - [ ] Auth, NDA, sharing, deletion, and notebook access behavior is preserved or explicitly reviewed.
-- [ ] Sensitive user or experiment data is not logged.
+- [ ] Sensitive user or analysis data is not logged.
 - [ ] Redirect behavior remains same-origin and intentional.
 
 ## UI and Accessibility

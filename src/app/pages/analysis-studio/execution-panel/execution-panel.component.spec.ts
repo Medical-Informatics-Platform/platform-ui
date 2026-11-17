@@ -1,0 +1,183 @@
+import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+
+import { AnalysisStudioService } from '../../../services/analysis-studio.service';
+import { AnalysisStudioNavigationService } from '../../../services/analysis-studio-navigation.service';
+import { RuntimeEnvService } from '../../../services/runtime-env.service';
+import { AlgorithmResultComponent } from '../algorithm-panel/algorithm-result/algorithm-result.component';
+import { ExecutionPanelComponent } from './execution-panel.component';
+
+/** The result view has its own suite; here it only needs to exist so the shell renders. */
+@Component({
+  standalone: true,
+  selector: 'app-algorithm-result',
+  template: '<div class="fake-result"></div>',
+  inputs: ['result', 'schema', 'algorithm', 'enumMaps', 'yVar', 'xVar', 'labelMap', 'algorithmLabel', 'parameters'],
+})
+class FakeResultComponent {}
+
+describe('ExecutionPanelComponent', () => {
+  let fixture: ComponentFixture<ExecutionPanelComponent>;
+  const studio = {
+    isRunning: signal(false),
+    isSaving: signal(false),
+    saveRun: vi.fn(),
+    runResult: signal<Record<string, unknown> | null>(null),
+    runSetup: signal(null),
+    runError: signal<string | null>(null),
+    lastRunSchema: signal<unknown>(null),
+    runStatusText: signal('Running the analysis…'),
+    saveSucceeded: signal(false),
+    saveError: signal<string | null>(null),
+    lastUsedAlgorithm: signal('flat_algo'),
+    backendAlgorithms: signal<Record<string, { label: string }>>({ flat_algo: { label: 'Flat Algo' } }),
+    algorithmY: signal<never[]>([]),
+    algorithmX: signal<never[]>([]),
+    variableLabelMap: signal<Record<string, string>>({}),
+    getCategoricalEnumMaps: () => ({}),
+  };
+  const studioNavigation = { navigateToSection: vi.fn() };
+
+  /** Zoneless: every state is a signal write, so rendering is driven through the stub. */
+  function render(state: Partial<{ running: boolean; result: Record<string, unknown> | null; error: string | null }> = {}): HTMLElement {
+    studio.isRunning.set(state.running ?? false);
+    studio.runResult.set(state.result ?? null);
+    studio.runError.set(state.error ?? null);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  beforeEach(async () => {
+    studio.isRunning.set(false);
+    studio.isSaving.set(false);
+    studio.runResult.set(null);
+    studio.runError.set(null);
+    studio.saveError.set(null);
+    studio.saveSucceeded.set(false);
+    studio.saveRun.mockClear();
+    studioNavigation.navigateToSection.mockClear();
+
+    await TestBed.configureTestingModule({
+      imports: [ExecutionPanelComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AnalysisStudioService, useValue: studio },
+        { provide: AnalysisStudioNavigationService, useValue: studioNavigation },
+        { provide: RuntimeEnvService, useValue: { mipVersion: 'test' } },
+      ],
+    }).compileComponents();
+    TestBed.overrideComponent(ExecutionPanelComponent, {
+      remove: { imports: [AlgorithmResultComponent] },
+      add: { imports: [FakeResultComponent] },
+    });
+
+    fixture = TestBed.createComponent(ExecutionPanelComponent);
+  });
+
+  it('shows why the last save failed next to the result', () => {
+    studio.saveError.set('Engine crashed');
+    const html = render({ result: { title: 'Saved run' } });
+
+    expect(html.querySelector('[role="alert"].result-save-error')?.textContent).toContain('Saving failed: Engine crashed');
+  });
+
+  it('asks for a run while there is no result', () => {
+    const html = render();
+
+    expect(html.querySelector('.execution-empty')).toBeTruthy();
+    expect(html.querySelector('.fake-result')).toBeFalsy();
+  });
+
+  it('shows the run skeleton with its status text instead of the empty state', () => {
+    const html = render({ running: true, result: { title: 'Ignored while running' } });
+
+    expect(html.querySelector('.panel-loader')).toBeTruthy();
+    expect(html.querySelector('.panel-loader p')?.textContent?.trim()).toBe('Running the analysis…');
+    expect(html.querySelector('.execution-empty')).toBeFalsy();
+  });
+
+  it('reports a failed run and returns to the algorithm step', () => {
+    const html = render({ error: 'Backend exploded' });
+
+    expect(html.querySelector('.execution-error')?.textContent).toContain('Backend exploded');
+
+    html.querySelector<HTMLButtonElement>('.execution-error-action')!.click();
+    expect(studioNavigation.navigateToSection).toHaveBeenCalledWith('algorithm-section');
+  });
+
+  it('keeps the setup rail out of the result workspace until a run captured one', () => {
+    const html = render({ result: {} });
+
+    expect(html.querySelector('.analysis-panel-aside')).toBeFalsy();
+  });
+
+  it('names an untitled result after its algorithm and keeps the result actions', () => {
+    const html = render({ result: {} });
+
+    expect(html.querySelector('.fake-result')).toBeTruthy();
+    expect(html.querySelector('.result-section-title')?.textContent?.trim()).toBe('Result Flat Algo');
+    expect(html.querySelector('[data-guide="save-as-action"]')).toBeTruthy();
+    expect(html.querySelector('[data-guide="result-export"]')).toBeTruthy();
+  });
+
+  it('prefers an explicit result title', () => {
+    const html = render({ result: { title: '  My run  ' } });
+
+    expect(html.querySelector('.result-section-title')?.textContent?.trim()).toBe('My run');
+  });
+
+  it('saves the shown run under the trimmed name and refuses a blank one', () => {
+    render({ result: {} });
+
+    fixture.componentInstance.toggleSaveAsMode();
+    fixture.detectChanges();
+    expect(htmlOf().querySelector('[data-guide="save-as-form"]')).toBeTruthy();
+    expect(fixture.componentInstance.saveAsName()).toBe('Analysis for Flat Algo');
+
+    fixture.componentInstance.saveAsName.set('   ');
+    fixture.componentInstance.onSaveAs();
+    expect(studio.saveRun).not.toHaveBeenCalled();
+
+    fixture.componentInstance.saveAsName.set('  My copy  ');
+    fixture.componentInstance.onSaveAs();
+    expect(studio.saveRun).toHaveBeenCalledExactlyOnceWith('My copy');
+  });
+
+  it('keeps the result and its run time on screen while saving', () => {
+    render({ result: {} });
+    const runAt = fixture.componentInstance.runAt();
+    fixture.componentInstance.toggleSaveAsMode();
+    fixture.componentInstance.saveAsName.set('My run');
+    fixture.detectChanges();
+
+    studio.isSaving.set(true);
+    fixture.detectChanges();
+    const saveButton = htmlOf().querySelector<HTMLButtonElement>('[data-guide="save-as-form"] .result-action--primary');
+    expect(saveButton?.disabled).toBe(true);
+    expect(saveButton?.textContent?.trim()).toBe('Saving…');
+    expect(htmlOf().querySelector('[data-guide="analysis-result"]')).toBeTruthy();
+
+    studio.isSaving.set(false);
+    studio.saveSucceeded.set(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.savedText()).toBe('Saved as “My run”');
+    expect(fixture.componentInstance.runAt()).toBe(runAt);
+  });
+
+  it('leaves save-as mode when going back to the algorithm step', () => {
+    render({ result: {} });
+    fixture.componentInstance.toggleSaveAsMode();
+    fixture.detectChanges();
+
+    fixture.componentInstance.backToAlgorithm();
+
+    expect(fixture.componentInstance.saveAsMode()).toBe(false);
+    expect(studioNavigation.navigateToSection).toHaveBeenCalledWith('algorithm-section');
+  });
+
+  function htmlOf(): HTMLElement {
+    return fixture.nativeElement as HTMLElement;
+  }
+});

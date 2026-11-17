@@ -1,0 +1,938 @@
+import type { MockedObject, Mock } from 'vitest';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
+import { AnalysisStudioGuideComponent } from './analysis-studio-guide.component';
+import { ANALYSIS_STUDIO_GUIDE_STEPS } from './analysis-studio-guide.content';
+import { AnalysisStudioService } from '../../../services/analysis-studio.service';
+import { GuideOnboardingService } from '../../../services/guide-onboarding.service';
+import { AnalysisStudioGuideStateService } from './analysis-studio-guide-state.service';
+import { createSpyObj } from '../../../testing/spy-obj.testing';
+
+describe('AnalysisStudioGuideComponent', () => {
+  let component: AnalysisStudioGuideComponent;
+  let router: MockedObject<Router>;
+  let guideOnboarding: MockedObject<GuideOnboardingService>;
+  let analysisStudioService: {
+    resetStudioState: Mock;
+    resetStudioStateForGuide: Mock;
+    hasPersistedStudioWork: Mock;
+    pathologyAccessWarning: ReturnType<typeof signal>;
+    selectedVariables: ReturnType<typeof signal>;
+    algorithmY: ReturnType<typeof signal>;
+    algorithmX: ReturnType<typeof signal>;
+    selectedAlgorithm: ReturnType<typeof signal>;
+    runResult: ReturnType<typeof signal>;
+    currentAnalysisUUID: ReturnType<typeof signal>;
+  };
+
+  beforeEach(() => {
+    router = createSpyObj<Router>('Router', ['navigate']);
+    router.navigate.mockReturnValue(Promise.resolve(true));
+
+    guideOnboarding = createSpyObj<GuideOnboardingService>(
+      'GuideOnboardingService',
+      ['hasSeenStudioGuide', 'markStudioGuideSeen'],
+    );
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(false);
+    guideOnboarding.markStudioGuideSeen.mockReturnValue(undefined);
+
+    analysisStudioService = {
+      resetStudioState: vi.fn(),
+      resetStudioStateForGuide: vi.fn(),
+      hasPersistedStudioWork: vi.fn().mockReturnValue(false),
+      pathologyAccessWarning: signal(null),
+      selectedVariables: signal([]),
+      algorithmY: signal([]),
+      algorithmX: signal([]),
+      selectedAlgorithm: signal(null),
+      runResult: signal<unknown | null>(null),
+      currentAnalysisUUID: signal<string | null>(null),
+    };
+
+    TestBed.configureTestingModule({
+      imports: [AnalysisStudioGuideComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        { provide: Router, useValue: router },
+        { provide: AnalysisStudioService, useValue: analysisStudioService },
+        { provide: GuideOnboardingService, useValue: guideOnboarding },
+        AnalysisStudioGuideStateService,
+      ],
+    });
+
+    component = TestBed.createComponent(AnalysisStudioGuideComponent).componentInstance;
+  });
+
+  afterEach(() => {
+    document.querySelectorAll('.studio-stepper').forEach((element) => element.remove());
+    document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+  });
+
+  it('does not auto-open the guide on first visit', () => {
+    expect(component.isOpen()).toBe(false);
+
+    component.startGuide();
+
+    expect(component.isOpen()).toBe(true);
+    component.closeGuide();
+  });
+
+  it('does not reset studio state on the first guide visit', () => {
+    component.startGuide();
+
+    expect(analysisStudioService.resetStudioState).not.toHaveBeenCalled();
+
+    component.closeGuide();
+  });
+
+  it('does not reset studio state until the user continues past the launcher step', () => {
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(true);
+    analysisStudioService.hasPersistedStudioWork.mockReturnValue(true);
+
+    component.startGuide();
+    component.currentIndex.set(1);
+
+    expect(analysisStudioService.resetStudioStateForGuide).not.toHaveBeenCalled();
+
+    component.goToNextStep();
+
+    expect(analysisStudioService.resetStudioStateForGuide).toHaveBeenCalled();
+    component.closeGuide();
+  });
+
+  it('shows a reset warning on the launcher step when an existing session would be cleared', () => {
+    guideOnboarding.hasSeenStudioGuide.mockReturnValue(true);
+    analysisStudioService.hasPersistedStudioWork.mockReturnValue(true);
+
+    component.startGuide();
+    component.currentIndex.set(1);
+
+    expect(component.studioResetWarning()).toContain('continuing past this step will reset');
+    component.closeGuide();
+  });
+
+  it('explains blue-panel interaction on the welcome and launcher steps', () => {
+    const steps = (component as any).resolveSteps();
+    const welcomeStep = steps.find((step: any) => step.id === 'welcome');
+    const launcherStep = steps.find((step: any) => step.id === 'launcher');
+
+    expect(welcomeStep?.body).toContain('blue panel');
+    expect(launcherStep?.body).toContain('highlighted blue panel');
+  });
+
+  it('does not steal focus from inputs during passive layout refresh', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const guideFocus = vi.fn();
+    (component as any).guideCard = { nativeElement: { focus: guideFocus } };
+    component.activeSteps.set([
+      {
+        id: 'select-sex-variable',
+        section: 'Explore',
+        title: 'Select Sex',
+        body: '',
+        selector: '[data-guide="variable-browser"]',
+        allowTargetInteraction: true,
+        requirement: 'selected-sex',
+      },
+    ] as any);
+
+    (component as any).updateLayout(false);
+
+    expect(guideFocus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('tracks the highlighted target rectangle for the active step', () => {
+    const target = document.createElement('section');
+    target.setAttribute('data-guide', 'variable-selection');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
+      top: 140,
+      right: 760,
+      bottom: 540,
+      left: 220,
+      width: 540,
+      height: 400,
+      x: 220,
+      y: 140,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(target);
+
+    component.activeSteps.set([
+      {
+        id: 'variable-selection',
+        section: 'Explore',
+        title: 'Variables Selection',
+        body: '',
+        selector: '[data-guide="variable-selection"]',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
+      top: 130,
+      left: 210,
+    }));
+    expect(component.highlightRect()?.right).toBeGreaterThan(component.highlightRect()!.left);
+    expect(component.highlightRect()?.bottom).toBeGreaterThan(component.highlightRect()!.top);
+  });
+
+  it('keeps the highlight aligned when the target scrolls above the viewport', () => {
+    const target = document.createElement('section');
+    target.setAttribute('data-guide', 'analysis-section');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
+      top: -24,
+      right: 760,
+      bottom: 140,
+      left: 220,
+      width: 540,
+      height: 164,
+      x: 220,
+      y: -24,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(target);
+
+    component.activeSteps.set([
+      {
+        id: 'analysis-intro',
+        section: 'Analysis',
+        title: 'Analysis Section',
+        body: '',
+        selector: '[data-guide="analysis-section"]',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
+      top: -34,
+      left: 210,
+      bottom: 150,
+      right: 770,
+    }));
+  });
+
+  it('clears the highlight when the active step target is missing', () => {
+    component.highlightRect.set({
+      top: 40,
+      right: 160,
+      bottom: 120,
+      left: 24,
+      width: 136,
+      height: 80,
+    });
+    component.activeSteps.set([
+      {
+        id: 'missing-target',
+        section: 'Explore',
+        title: 'Missing',
+        body: '',
+        selector: '[data-guide="missing-target"]',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.highlightRect()).toBeNull();
+  });
+
+  it('scrolls the analysis section guide step to the top of the viewport', () => {
+    const analysisSection = document.createElement('section');
+    analysisSection.setAttribute('data-guide', 'analysis-section');
+    vi.spyOn(analysisSection, 'getBoundingClientRect').mockReturnValue({
+      top: 320,
+      right: 920,
+      bottom: 880,
+      left: 260,
+      width: 660,
+      height: 560,
+      x: 260,
+      y: 320,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const scrollSpy = vi.spyOn(analysisSection, 'scrollIntoView').mockReturnValue(undefined);
+    document.body.appendChild(analysisSection);
+    vi.spyOn(component as any, 'scheduleLayoutUpdate').mockReturnValue(undefined);
+
+    component.activeSteps.set([
+      {
+        id: 'analysis-intro',
+        section: 'Analysis',
+        title: 'Analysis Section',
+        body: '',
+        selector: '[data-guide="analysis-section"]',
+      },
+    ] as any);
+
+    (component as any).syncStepLayout();
+
+    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    }));
+  });
+
+  it('keeps the guide collapsed when navigating to the next step from collapsed mode', () => {
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
+    component.activeSteps.set([
+      { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
+      { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+    component.isCollapsed.set(true);
+
+    component.goToNextStep();
+
+    expect(component.currentIndex()).toBe(1);
+    expect(component.isCollapsed()).toBe(true);
+  });
+
+  it('disables Back when the previous step requires action', () => {
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
+    component.activeSteps.set([
+      { id: 'step-1', section: 'Explore', title: 'Step 1', body: '', requirement: 'selected-sex' },
+      { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+    component.currentIndex.set(1);
+
+    expect(component.canGoToPrevious()).toBe(false);
+
+    component.goToPreviousStep();
+
+    expect(component.currentIndex()).toBe(1);
+  });
+
+  it('keeps Back available when the previous step is informational', () => {
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
+    component.activeSteps.set([
+      { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
+      { id: 'step-2', section: 'Explore', title: 'Step 2', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+    component.currentIndex.set(1);
+
+    expect(component.canGoToPrevious()).toBe(true);
+
+    component.goToPreviousStep();
+
+    expect(component.currentIndex()).toBe(0);
+  });
+
+  it('keeps the guide expanded when navigating onto compact-title steps', () => {
+    vi.spyOn(component as any, 'syncStepLayout').mockReturnValue(undefined);
+    component.activeSteps.set([
+      { id: 'step-1', section: 'Explore', title: 'Step 1', body: '' },
+      { id: 'step-2', section: 'Explore', title: 'Step 2', body: '', compactTitle: true },
+      { id: 'step-3', section: 'Explore', title: 'Step 3', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+
+    component.goToNextStep();
+
+    expect(component.currentIndex()).toBe(1);
+    expect(component.isCollapsed()).toBe(false);
+
+    component.isCollapsed.set(true);
+    component.goToNextStep();
+
+    expect(component.currentIndex()).toBe(2);
+    expect(component.isCollapsed()).toBe(true);
+  });
+
+  it('replaces exact Sex and Age guide copy with the configured guide labels', () => {
+    (component as any).guideCovariateLabel = 'Biological Sex';
+    (component as any).guideVariableLabel = 'Age Years';
+
+    const replaced = (component as any).replaceGuideTargets('Use Sex as Covariate and Age as Variable.');
+    const steps = (component as any).resolveSteps();
+
+    expect(replaced).toBe('Use Biological Sex as Covariate and Age Years as Variable.');
+    expect(steps.find((step: any) => step.id === 'add-sex-covariate')?.title).toBe('Add Biological Sex as Variable');
+    expect(steps.find((step: any) => step.id === 'add-age-variable')?.title).toBe('Add Age Years as Variable');
+  });
+
+  it('treats the Age guide step as complete only when both targets are added to the variables pool', () => {
+    analysisStudioService.selectedVariables.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
+
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'variable-age' })).toBe(true);
+  });
+
+  it('unlocks the algorithm selection guide step when any algorithm is selected', () => {
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBe(false);
+
+    analysisStudioService.selectedAlgorithm.set({ name: 'linear_regression', label: 'Linear Regression' });
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'algorithm-selected' })).toBe(true);
+  });
+
+  it('marks the add-sex and add-age guide steps as requiring action until the variables are added', () => {
+    component.activeSteps.set([
+      { id: 'add-sex-covariate', section: 'Explore', title: 'Add Sex', body: '', requirement: 'variable-sex' },
+      { id: 'add-age-variable', section: 'Explore', title: 'Add Age', body: '', requirement: 'variable-age' },
+    ] as any);
+
+    component.currentIndex.set(0);
+    expect(component.stepNeedsAction()).toBe(true);
+    expect(component.nextButtonLabel()).toBe('Action required');
+
+    analysisStudioService.selectedVariables.set([{ code: 'sex', label: 'Sex' }]);
+    expect(component.stepNeedsAction()).toBe(false);
+
+    component.currentIndex.set(1);
+    expect(component.stepNeedsAction()).toBe(true);
+    expect(component.nextButtonLabel()).toBe('Action required');
+
+    analysisStudioService.selectedVariables.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
+    expect(component.stepNeedsAction()).toBe(false);
+  });
+
+  it('requires the guide variable (Age) in y and the guide covariate (Sex) in x', () => {
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
+
+    // Guide covariate (Sex) in x only; Age not yet assigned.
+    analysisStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
+
+    // Both targets in y (wrong mix) does not satisfy the requirement.
+    analysisStudioService.algorithmY.set([
+      { code: 'age', label: 'Age' },
+      { code: 'sex', label: 'Sex' },
+    ]);
+    analysisStudioService.algorithmX.set([]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
+
+    // Guide variable (Age) in x (wrong mix) does not satisfy the requirement.
+    analysisStudioService.algorithmY.set([]);
+    analysisStudioService.algorithmX.set([
+      { code: 'sex', label: 'Sex' },
+      { code: 'age', label: 'Age' },
+    ]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(false);
+
+    // Guide variable (Age) in y and guide covariate (Sex) in x satisfies it.
+    analysisStudioService.algorithmY.set([{ code: 'age', label: 'Age' }]);
+    analysisStudioService.algorithmX.set([{ code: 'sex', label: 'Sex' }]);
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'roles-assigned' })).toBe(true);
+  });
+
+  it('keeps future analysis steps in the guide flow even before the save flow is opened', () => {
+    const steps = (component as any).resolveSteps();
+
+    expect(steps.some((step: any) => step.id === 'analysis-set-parameters')).toBe(false);
+    expect(steps.some((step: any) => step.id === 'analysis-wait-for-save')).toBe(true);
+    expect(steps.some((step: any) => step.id === 'analysis-finish')).toBe(true);
+  });
+
+  it('lets the algorithm selection step interact with the algorithm catalog', () => {
+    const steps = (component as any).resolveSteps();
+    const algorithmStep = steps.find((step: any) => step.id === 'analysis-select-algorithm');
+
+    expect(algorithmStep?.selector).toBe('[data-guide="algorithm-selection"]');
+    expect(algorithmStep?.allowTargetInteraction).toBe(true);
+  });
+
+  it('marks the Save as step as requiring action until the save form is opened', () => {
+    component.activeSteps.set([
+      {
+        id: 'analysis-save-as-action',
+        section: 'Analysis',
+        title: 'Save as',
+        body: '',
+        selector: '[data-guide="save-as-action"]',
+        allowTargetInteraction: true,
+        advanceOnTargetClick: true,
+        requirement: 'save-as-opened',
+      },
+    ] as any);
+
+    expect(component.stepNeedsAction()).toBe(true);
+    expect(component.nextButtonLabel()).toBe('Action required');
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBe(false);
+
+    const saveForm = document.createElement('div');
+    saveForm.setAttribute('data-guide', 'save-as-form');
+    vi.spyOn(saveForm, 'getBoundingClientRect').mockReturnValue({
+      top: 240,
+      right: 420,
+      bottom: 320,
+      left: 240,
+      width: 180,
+      height: 80,
+      x: 240,
+      y: 240,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(saveForm);
+
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'save-as-opened' })).toBe(true);
+  });
+
+  it('moves to the next step after clicking the Save as target', () => new Promise<void>((done) => {
+    const saveButton = document.createElement('button');
+    saveButton.setAttribute('data-guide', 'save-as-action');
+    vi.spyOn(saveButton, 'getBoundingClientRect').mockReturnValue({
+      top: 240,
+      right: 360,
+      bottom: 280,
+      left: 240,
+      width: 120,
+      height: 40,
+      x: 240,
+      y: 240,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(saveButton);
+
+    const saveForm = document.createElement('div');
+    saveForm.setAttribute('data-guide', 'save-as-form');
+    vi.spyOn(saveForm, 'getBoundingClientRect').mockReturnValue({
+      top: 240,
+      right: 460,
+      bottom: 330,
+      left: 240,
+      width: 220,
+      height: 90,
+      x: 240,
+      y: 240,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(saveForm);
+
+    vi.spyOn(component as any, 'syncStepLayout').mockImplementation(() => undefined);
+    component.isOpen.set(true);
+    component.activeSteps.set([
+      {
+        id: 'analysis-save-as-action',
+        section: 'Analysis',
+        title: 'Save as',
+        body: '',
+        selector: '[data-guide="save-as-action"]',
+        allowTargetInteraction: true,
+        advanceOnTargetClick: true,
+        requirement: 'save-as-opened',
+      },
+      {
+        id: 'analysis-wait-for-save',
+        section: 'Analysis',
+        title: 'Save Analysis',
+        body: '',
+        selector: '[data-guide="save-as-flow"]',
+        allowTargetInteraction: true,
+        requirement: 'analysis-saved-as',
+      },
+    ] as any);
+
+    component.onDocumentClick({ target: saveButton } as unknown as MouseEvent);
+
+    setTimeout(() => {
+      expect(component.currentIndex()).toBe(1);
+      done();
+    }, 320);
+  }));
+
+  it('places the result action familiarization steps before the save-complete waiting step', () => {
+    const steps = (component as any).resolveSteps();
+    const runIndex = steps.findIndex((step: any) => step.id === 'analysis-run');
+    const exploreIndex = steps.findIndex((step: any) => step.id === 'analysis-explore-result');
+    const editIndex = steps.findIndex((step: any) => step.id === 'analysis-edit-parameters');
+    const summaryActionIndex = steps.findIndex((step: any) => step.id === 'analysis-result-actions');
+    const saveActionIndex = steps.findIndex((step: any) => step.id === 'analysis-save-as-action');
+    const saveWaitIndex = steps.findIndex((step: any) => step.id === 'analysis-wait-for-save');
+
+    expect(runIndex).toBeGreaterThan(-1);
+    expect(exploreIndex).toBe(runIndex + 1);
+    expect(editIndex).toBe(exploreIndex + 1);
+    expect(summaryActionIndex).toBe(editIndex + 1);
+    expect(saveActionIndex).toBe(summaryActionIndex + 1);
+    expect(saveWaitIndex).toBe(saveActionIndex + 1);
+  });
+
+  it('keeps the Edit parameters familiarization step non-interactive', () => {
+    const steps = (component as any).resolveSteps();
+    const editStep = steps.find((step: any) => step.id === 'analysis-edit-parameters');
+
+    expect(editStep?.allowTargetInteraction).toBe(false);
+  });
+
+  it('keeps the Analysis filtering step interactive and optional', () => {
+    const steps = (component as any).resolveSteps();
+    const filteringStep = steps.find((step: any) => step.id === 'analysis-filtering');
+
+    expect(filteringStep?.allowTargetInteraction).toBe(true);
+    expect(filteringStep?.body).toContain('Optional');
+    expect(filteringStep?.body).toContain('Add condition');
+  });
+
+  it('keeps the Analysis preprocessing step interactive and optional', () => {
+    const steps = (component as any).resolveSteps();
+    const preprocessingStep = steps.find((step: any) => step.id === 'analysis-preprocessing');
+
+    expect(preprocessingStep?.allowTargetInteraction).toBe(true);
+    expect(preprocessingStep?.body).toContain('Optional');
+    expect(preprocessingStep?.body).toContain('missing values are already dropped');
+  });
+
+  it('keeps the raw and processed summary guide steps interactive across the full section', () => {
+    const steps = (component as any).resolveSteps();
+    const rawStatisticsStep = steps.find((step: any) => step.id === 'analysis-raw-statistics');
+    const processedStep = steps.find((step: any) => step.id === 'analysis-processed-summary');
+
+    expect(rawStatisticsStep?.selector).toBe('[data-guide="analysis-raw-summary"]');
+    expect(processedStep?.selector).toBe('[data-guide="analysis-processed-summary"]');
+    expect(rawStatisticsStep?.allowTargetInteraction).toBe(true);
+    expect(processedStep?.allowTargetInteraction).toBe(true);
+    expect(steps.some((step: any) => step.id === 'analysis-raw-charts')).toBe(false);
+  });
+
+  it('points the analysis summary step at the visible summary panel', () => {
+    const steps = (component as any).resolveSteps();
+    const summaryStep = steps.find((step: any) => step.id === 'analysis-result-actions');
+
+    expect(summaryStep?.selector).toBe('[data-guide="save-as-flow"]');
+    expect(summaryStep?.allowTargetInteraction).toBe(true);
+  });
+
+  it('keeps the final analysis step open to page interaction', () => {
+    const steps = (component as any).resolveSteps();
+    const finishStep = steps.find((step: any) => step.id === 'analysis-finish');
+
+    expect(finishStep?.allowTargetInteraction).toBe(true);
+    expect(finishStep?.selector).toBe('[data-guide="dashboard-nav"]');
+    expect(finishStep?.body).toContain('header compass');
+    expect(finishStep?.body).not.toContain('the tour moves');
+  });
+
+  it('labels the final analysis step action as Move to dashboard', () => {
+    component.activeSteps.set([
+      { id: 'analysis-finish', section: 'Analysis', title: 'Done', body: '', allowTargetInteraction: true },
+    ] as any);
+
+    expect(component.nextButtonLabel()).toBe('Move to dashboard');
+  });
+
+  it('navigates to the dashboard from the final analysis step', () => {
+    component.activeSteps.set([
+      { id: 'analysis-finish', section: 'Analysis', title: 'Done', body: '', allowTargetInteraction: true },
+    ] as any);
+    component.isOpen.set(true);
+
+    component.goToNextStep();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/analyses-dashboard']);
+    expect(component.isOpen()).toBe(false);
+  });
+
+  it('keeps the run step locked until an analysis result is rendered', () => {
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'analysis-result-ready' })).toBe(false);
+
+    // Service state, not DOM: the Execution view can be display:none while the Run step
+    // still owns Algorithm Selection, so a target-size check would miss a finished run.
+    analysisStudioService.runResult.set({ algorithm: 'chi-square' });
+
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'analysis-result-ready' })).toBe(true);
+  });
+
+  it('keeps the save-wait step locked until Save as creates a new analysis', () => {
+    component.isOpen.set(true);
+    component.activeSteps.set([
+      {
+        id: 'analysis-wait-for-save',
+        section: 'Analysis',
+        title: 'Save Analysis',
+        body: '',
+        requirement: 'analysis-saved-as',
+      },
+    ] as any);
+    (component as any).analysisSaveBaselineUuid.set(null);
+
+    // Saving does not re-run the analysis, so the result stays on screen throughout.
+    const resultSection = document.createElement('section');
+    resultSection.setAttribute('data-guide', 'analysis-result');
+    document.body.appendChild(resultSection);
+
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'analysis-saved-as' })).toBe(false);
+
+    analysisStudioService.currentAnalysisUUID.set('saved-analysis-uuid');
+
+    expect((component as any).isStepRequirementSatisfied({ requirement: 'analysis-saved-as' })).toBe(true);
+
+    resultSection.remove();
+  });
+
+  it('auto-advances after an algorithm is selected', () => {
+    expect((component as any).shouldAutoAdvance({ requirement: 'algorithm-selected' })).toBe(true);
+  });
+
+  it('auto-advances after the analysis result becomes available', () => {
+    expect((component as any).shouldAutoAdvance({ requirement: 'analysis-result-ready' })).toBe(true);
+  });
+
+  it('auto-advances after Save as opens the save form', () => {
+    expect((component as any).shouldAutoAdvance({ requirement: 'save-as-opened' })).toBe(true);
+  });
+
+  it('auto-advances after Save as creates a new analysis', () => {
+    expect((component as any).shouldAutoAdvance({ requirement: 'analysis-saved-as' })).toBe(true);
+  });
+
+  it('tracks interaction cutouts for variable selection and details panels', () => {
+    const browser = document.createElement('div');
+    browser.setAttribute('data-guide', 'variable-browser');
+    vi.spyOn(browser, 'getBoundingClientRect').mockReturnValue({
+      top: 120,
+      right: 620,
+      bottom: 640,
+      left: 80,
+      width: 540,
+      height: 520,
+      x: 80,
+      y: 120,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    const details = document.createElement('section');
+    details.setAttribute('data-guide', 'variable-details');
+    vi.spyOn(details, 'getBoundingClientRect').mockReturnValue({
+      top: 360,
+      right: 1180,
+      bottom: 760,
+      left: 660,
+      width: 520,
+      height: 400,
+      x: 660,
+      y: 360,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    document.body.appendChild(browser);
+    document.body.appendChild(details);
+
+    component.activeSteps.set([
+      {
+        id: 'select-age-variable',
+        section: 'Explore',
+        title: 'Select Age',
+        body: '',
+        selector: '[data-guide="variable-browser"]',
+        interactionSelectors: ['[data-guide="variable-details"]'],
+        allowTargetInteraction: true,
+        requirement: 'selected-age',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.interactionCutouts().length).toBe(2);
+    expect(component.blockingMaskRects().length).toBeGreaterThan(0);
+  });
+
+  it('keeps the Explore Variable Views step interactive and optional', () => {
+    const steps = (component as any).resolveSteps();
+    const exploreStep = steps.find((step: any) => step.id === 'variable-selection');
+
+    expect(exploreStep?.title).toBe('Explore Variable Views');
+    expect(exploreStep?.selector).toBe('[data-guide="variable-selection"]');
+    expect(exploreStep?.allowTargetInteraction).toBe(true);
+    expect(exploreStep?.body).toContain('Map');
+    expect(exploreStep?.body).toContain('List');
+    expect(exploreStep?.body).toContain('Tree');
+    expect(exploreStep?.body).not.toContain('Graph');
+    expect(exploreStep?.body).toContain('Next');
+    expect(exploreStep?.interactionSelectors).toBeUndefined();
+    expect(steps.some((step: any) => step.id === 'explore-variable-visualizations')).toBe(false);
+  });
+
+  it('builds click-through blockers around interactive guide targets', () => {
+    const target = document.createElement('div');
+    target.setAttribute('data-guide', 'variable-selection');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
+      top: 180,
+      right: 620,
+      bottom: 640,
+      left: 80,
+      width: 540,
+      height: 460,
+      x: 80,
+      y: 180,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(target);
+
+    component.activeSteps.set([
+      {
+        id: 'variable-selection',
+        section: 'Explore',
+        title: 'Explore Variable Views',
+        body: '',
+        selector: '[data-guide="variable-selection"]',
+        allowTargetInteraction: true,
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.blockingMaskRects().length).toBeGreaterThan(0);
+    expect(component.blockingMaskRects().some((rect) => rect.top === 0 && rect.bottom === 170)).toBe(true);
+  });
+
+  it('keeps the Sex selection step interactive without highlighting variable details', () => {
+    const steps = (component as any).resolveSteps();
+    const selectSexStep = steps.find((step: any) => step.id === 'select-sex-variable');
+
+    expect(selectSexStep?.allowTargetInteraction).toBe(true);
+    expect(selectSexStep?.selector).toBe('[data-guide="variable-selection"]');
+    expect(selectSexStep?.interactionSelectors).toBeUndefined();
+  });
+
+  it('places variable preview steps after each guided variable selection', () => {
+    const steps = (component as any).resolveSteps();
+    const selectSexIndex = steps.findIndex((step: any) => step.id === 'select-sex-variable');
+    const previewSexIndex = steps.findIndex((step: any) => step.id === 'preview-sex-variable-details');
+    const addSexIndex = steps.findIndex((step: any) => step.id === 'add-sex-covariate');
+    const selectAgeIndex = steps.findIndex((step: any) => step.id === 'select-age-variable');
+    const previewAgeIndex = steps.findIndex((step: any) => step.id === 'preview-age-variable-details');
+    const addAgeIndex = steps.findIndex((step: any) => step.id === 'add-age-variable');
+
+    expect(previewSexIndex).toBe(selectSexIndex + 1);
+    expect(addSexIndex).toBe(previewSexIndex + 1);
+    expect(previewAgeIndex).toBe(selectAgeIndex + 1);
+    expect(addAgeIndex).toBe(previewAgeIndex + 1);
+    expect(steps[previewSexIndex].selector).toBe('[data-guide="variable-details"]');
+    expect(steps[previewAgeIndex].allowTargetInteraction).toBe(true);
+  });
+
+  it('points every content step with a selector at its data-guide target', () => {
+    const stepsWithSelectors = ANALYSIS_STUDIO_GUIDE_STEPS.filter((step) => !!step.selector);
+    expect(stepsWithSelectors.length).toBeGreaterThan(0);
+
+    for (const step of stepsWithSelectors) {
+      document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+
+      const target = document.createElement('div');
+      const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
+      expect(guideValue, step.id).toBeTruthy();
+      target.setAttribute('data-guide', guideValue!);
+      Object.defineProperty(target, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          top: 120,
+          right: 420,
+          bottom: 200,
+          left: 40,
+          width: 380,
+          height: 80,
+          x: 40,
+          y: 120,
+          toJSON: () => ({}),
+        }),
+      });
+      document.body.appendChild(target);
+
+      component.activeSteps.set([...ANALYSIS_STUDIO_GUIDE_STEPS] as any);
+      component.currentIndex.set(ANALYSIS_STUDIO_GUIDE_STEPS.findIndex((entry) => entry.id === step.id));
+      (component as any).updateLayout();
+
+      const highlight = component.highlightRect();
+      expect(highlight, step.id).not.toBeNull();
+      expect(highlight!.width, step.id).toBeGreaterThan(0);
+      expect(highlight!.height, step.id).toBeGreaterThan(0);
+      // Pathology & Datasets contract: target center sits inside the spotlight.
+      const centerX = 230;
+      const centerY = 160;
+      expect(highlight!.left <= centerX && centerX <= highlight!.right, step.id).toBe(true);
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom, step.id).toBe(true);
+    }
+  });
+
+  it('documents that the guide host stacks above the app header', () => {
+    // app-header uses z-index 10000; guide :host must stay above that (see component CSS).
+    // This keeps the Account menu / launcher spotlight visible on chrome targets.
+    const guideHostZIndex = 11000;
+    const appHeaderZIndex = 10000;
+    expect(guideHostZIndex).toBeGreaterThan(appHeaderZIndex);
+  });
+
+  it('ignores arrow keys while a text field is focused', () => {
+    component.activeSteps.set([
+      { id: 'one', section: 'Explore', title: 'One', body: '' },
+      { id: 'two', section: 'Explore', title: 'Two', body: '' },
+    ] as any);
+    component.isOpen.set(true);
+    component.currentIndex.set(0);
+
+    const input = document.createElement('input');
+    const preventDefault = vi.fn();
+    const typingEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(typingEvent, 'target', { configurable: true, value: input });
+    typingEvent.preventDefault = preventDefault;
+
+    component.onWindowKeydown(typingEvent);
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(component.currentIndex()).toBe(0);
+
+    const bodyEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(bodyEvent, 'target', { configurable: true, value: document.body });
+
+    component.onWindowKeydown(bodyEvent);
+
+    expect(component.currentIndex()).toBe(1);
+
+    component.closeGuide();
+  });
+
+  it('spots a target that renders after the step and bounds its retries', () => {
+    vi.useFakeTimers();
+    const late = document.createElement('div');
+    late.setAttribute('data-guide', 'late-target');
+    late.style.cssText = 'position:fixed;top:0;left:0;width:120px;height:40px;';
+
+    try {
+      component.activeSteps.set([
+        { id: 'late', section: 'Explore', title: 'Late', body: '', selector: '[data-guide="late-target"]' },
+      ] as any);
+      component.isOpen.set(true);
+      component.currentIndex.set(0);
+
+      (component as any).syncStepLayout();
+      vi.advanceTimersByTime(1);
+      expect(component.highlightRect()).toBeNull();
+
+      // The owning view rendered late: the pending retry must pick the target up.
+      document.body.appendChild(late);
+      vi.advanceTimersByTime(150);
+      vi.advanceTimersByTime(260);
+      expect(component.highlightRect()).not.toBeNull();
+
+      // Attempts are bounded: an unreachable target stops polling.
+      component.activeSteps.set([
+        { id: 'never', section: 'Explore', title: 'Gone', body: '', selector: '[data-guide="never"]' },
+      ] as any);
+      (component as any).syncStepLayout();
+      vi.advanceTimersByTime(150 * 12);
+
+      expect((component as any).targetRetryTimer).toBeNull();
+      expect(component.highlightRect()).toBeNull();
+      expect(component.canGoToNext()).toBe(true);
+    } finally {
+      late.remove();
+      vi.useRealTimers();
+    }
+
+    component.closeGuide();
+  });
+
+});

@@ -1,0 +1,120 @@
+@if (mode() === 'inline') {
+<section class="pool-card" aria-label="Variables in this analysis">
+  <header class="pool-card-header">
+    <div class="pool-card-title">
+      <span>Variables in this analysis</span>
+      <span class="count-badge">{{ variables().length }}</span>
+    </div>
+    @if (variables().length > 0) {
+    <button type="button" class="parameter-clear-btn" (click)="clearList()">
+      <i class="fas fa-trash-alt" aria-hidden="true"></i><span>Clear all</span>
+    </button>
+    }
+  </header>
+  <div class="pool-card-body">
+    @if (variables().length === 0) {
+    <p class="parameter-empty">No variables yet. Select a variable in the browser, then choose <strong>Add</strong>.</p>
+    } @else {
+    <div class="studio-chip-row">
+      @for (variable of variables(); track variable.code ?? variable.label) {
+      @let unavailable = unavailableTooltip(variable);
+      <span class="studio-chip pool-chip"
+            [class.is-current]="selectedNode()?.code === variable.code"
+            [class.is-unavailable]="!!unavailable"
+            [attr.title]="unavailable || null"
+            (click)="onVariableClick(variable)">
+        <!-- The dot is the role colour: every chip in this card is a data-model variable,
+             so the colour says "variable". DESIGN.md: a role colour never carries the role
+             alone, so the role is spelled out for the mouse (title) and for the screen
+             reader (sr-only text). The type text beside it is the data type, not the role. -->
+        <span class="pool-chip-dot" aria-hidden="true" title="Role: variable"></span>
+        <span class="sr-only">Role: variable</span>
+        <span>{{ variable.label }}</span>
+        <span class="pool-chip-type">{{ variable.type }}</span>
+        <button type="button" class="parameter-remove-btn"
+                [attr.aria-label]="'Remove ' + variable.label"
+                (click)="removeItem(variable); $event.stopPropagation()">
+          <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+      </span>
+      }
+    </div>
+    }
+  </div>
+</section>
+} @else {
+<button
+  type="button"
+  class="selected-variables-trigger"
+  [attr.aria-expanded]="isOpen()"
+  aria-controls="selected-variables-popover"
+  [attr.aria-label]="'Selected variables: ' + variables().length"
+  (click)="toggle(); $event.stopPropagation()"
+>
+  <span class="selected-variables-trigger-count">{{ variables().length }}</span>
+</button>
+
+@if (isOpen()) {
+<div class="selected-variables-popover" id="selected-variables-popover" role="dialog" aria-label="Selected variables">
+  <div class="selected-variables-popover-header">
+    <span class="selected-variables-popover-title">Selected variables</span>
+    @if (variables().length > 0) {
+    <button
+      type="button"
+      class="panel-secondary-btn parameter-clear-btn"
+      aria-label="Clear all variables"
+      (click)="clearList()"
+    >
+      <i class="fas fa-trash-alt" aria-hidden="true"></i>
+      <span>Clear all</span>
+    </button>
+    }
+  </div>
+
+  <table class="selected-vars-table">
+    <thead>
+      <tr>
+        <th scope="col">Variable</th>
+        <th scope="col">Type</th>
+        <th scope="col" class="selected-vars-th-actions" aria-label="Actions"></th>
+      </tr>
+    </thead>
+    <tbody>
+      @if (variables().length === 0) {
+      <tr>
+        <td class="parameter-empty" colspan="3">No variables in this analysis yet.</td>
+      </tr>
+      }
+      @for (variable of variables(); track variable.code ?? variable.label) {
+      @let rowUnavailable = unavailableTooltip(variable);
+      <tr
+        class="selected-vars-row"
+        [class.is-selected]="selectedNode()?.code === variable.code"
+        [class.is-unavailable]="!!rowUnavailable"
+        [attr.title]="rowUnavailable || null"
+        (click)="onVariableClick(variable)"
+      >
+        <td class="selected-var-name">
+          <span class="selected-var-label">{{ variable.label }}</span>
+          @if (variable.code) {
+          <span class="selected-var-code">{{ variable.code }}</span>
+          }
+        </td>
+        <td class="selected-var-type">{{ variable.type }}</td>
+        <td class="selected-var-td-actions">
+          <button
+            type="button"
+            class="parameter-remove-btn"
+            [attr.aria-label]="'Remove ' + variable.label"
+            (click)="removeItem(variable); $event.stopPropagation()"
+          >
+            <i class="fas fa-times" aria-hidden="true"></i>
+          </button>
+        </td>
+      </tr>
+      }
+    </tbody>
+  </table>
+</div>
+}
+}

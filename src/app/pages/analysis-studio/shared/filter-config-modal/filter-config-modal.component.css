@@ -1,0 +1,575 @@
+.inline-filter-builder {
+  display: block;
+  width: 100%;
+}
+
+.inline-filter-builder .filter-modal {
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  animation: none;
+}
+
+.inline-filter-builder .filter-modal-body {
+  padding: 0;
+  background: transparent;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Base modal body fallback */
+.filter-modal-body {
+  padding: 16px;
+  background: #ffffff;
+}
+
+.where-error {
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 42%, transparent);
+  border-radius: var(--radius-md, 8px);
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 10px 14px;
+  margin-top: 10px;
+}
+
+/* ===== STREAMLINED TREE GROUP ===== */
+.filter-block-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.filter-block-group.is-root {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.filter-block-group.is-nested {
+  position: relative;
+  margin: 0;
+  padding: 4px 0 6px;
+  background: var(--card-bg);
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+}
+
+.filter-tree-node:has(> .filter-block-group.is-nested) {
+  padding: 10px 12px 10px 66px;
+  background: var(--studio-card-header-bg);
+}
+
+.filter-block-group.is-nested .filter-group-header {
+  padding: 6px 12px 4px;
+}
+
+.filter-block-group.is-nested .filter-tree-rail {
+  border: 0;
+}
+
+/* Header & Scope Line */
+.filter-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.filter-group-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: #334155;
+}
+
+.scope-text {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+/* Per-row AND/OR segmented control: joins a row (condition or group) to the one above it. */
+.connector-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 0 0 1px var(--border-color);
+}
+
+.connector-toggle button {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.connector-toggle button.active {
+  background: var(--card-bg);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.connector-toggle button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Leading flex child of the expanded row, in front of the condition fields. */
+.expanded-row .connector-toggle {
+  flex: 0 0 auto;
+  margin-right: 8px;
+}
+
+.filter-group-remove {
+  border: 0;
+  background: transparent;
+  min-height: 0;
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.filter-group-remove:hover {
+  color: var(--primary-color);
+  background: transparent;
+  box-shadow: none;
+}
+
+.filter-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== GUIDE RAIL & TREE NODES ===== */
+.filter-tree-rail {
+  position: relative;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--studio-card-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.filter-tree-rail::before,
+.filter-tree-node::before {
+  display: none;
+}
+
+.filter-tree-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-tree-node + .filter-tree-node {
+  border-top: 1px solid color-mix(in srgb, var(--primary-color) 6%, transparent);
+}
+
+/* ===== RESTING ROW: the <summary> of a .condition-row disclosure ===== */
+.compact-condition-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1.3fr) 150px minmax(0, 1.2fr) 36px;
+  gap: 10px;
+  align-items: center;
+  list-style: none;
+  min-height: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.compact-condition-row:hover {
+  border: 0;
+  background: rgba(43, 51, 233, 0.03);
+  box-shadow: none;
+}
+
+.compact-condition-row::-webkit-details-marker {
+  display: none;
+}
+
+.compact-condition-row:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.compact-join {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.compact-variable {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Variable missing from a selected dataset: grayed out, never resolved as the condition field. */
+.compact-variable.is-unavailable {
+  color: var(--unavailable-text);
+  cursor: not-allowed;
+}
+
+/* .field-col: outranks the page-wide `.analysis-studio-page input:not(...)` reset. */
+.field-col .filter-field-input.is-unavailable {
+  color: var(--unavailable-text);
+  border-style: dashed;
+}
+
+.field-col.field-variable:has(.filter-unavailable-note) {
+  flex-wrap: wrap;
+}
+
+.filter-unavailable-note {
+  display: block;
+  flex-basis: 100%;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.compact-operator {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  white-space: nowrap;
+}
+
+.compact-value {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-badge {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1.4;
+}
+
+.compact-delete-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  transition: all 0.15s ease;
+}
+
+.compact-delete-btn:hover {
+  background: color-mix(in srgb, var(--danger) 8%, white);
+  color: #991b1b;
+}
+
+.compact-delete-btn.is-expanded-action {
+  align-self: flex-end;
+}
+
+/* ===== EXPANDED EDIT STATE: the open side of the same disclosure ===== */
+.expanded-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 6px 6px;
+  background: var(--studio-card-bg, #ffffff);
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--primary-color), 0 0 0 3px rgba(127, 156, 232, 0.24);
+  padding: 10px;
+}
+
+.expanded-row-fields {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Condition fields horizontal row */
+.condition-fields {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(180px, 1.4fr);
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+}
+
+.field-col {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.field-col.is-multi {
+  flex-direction: column;
+}
+
+.filter-field-input {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid rgba(43, 51, 233, 0.16);
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  color: var(--text-main);
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filter-field-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(43, 51, 233, 0.1);
+}
+
+.type-badge.is-inline {
+  position: absolute;
+  right: 8px;
+  top: 7px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.filter-field-input.unary-disabled {
+  background: var(--bg-neutral, #f8fafc);
+  color: var(--text-muted);
+  border-style: dashed;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+  user-select: none;
+}
+
+.value-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.value-chip-more {
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* Multi-value Category Chip Picker */
+.value-chip-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.value-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.value-chip {
+  background: #ffffff;
+  border: 1px solid rgba(43, 51, 233, 0.18);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.value-chip:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-color, #f3f8ff);
+}
+
+.value-chip.is-selected {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.value-chip-count {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Action Buttons & Footers */
+.filter-group-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 0;
+  margin-top: 4px;
+}
+
+.builder-token-btn {
+  height: 30px;
+  min-height: 0;
+  padding: 0 14px;
+  border: 1px dashed rgba(43, 51, 233, 0.3);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.builder-token-btn:hover {
+  border-color: var(--primary-color);
+  background: rgba(43, 51, 233, 0.04);
+  box-shadow: none;
+}
+
+.builder-token-btn.muted {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
+
+.builder-token-btn.muted:hover {
+  color: var(--text-main);
+  border-color: var(--text-muted);
+}
+
+.filter-block-group.is-nested .filter-group-foot {
+  padding-left: 54px;
+}
+
+/* Empty group state */
+.empty-filter-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px dashed rgba(43, 51, 233, 0.22);
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-muted);
+  padding: 12px 16px;
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.empty-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Preview Expression */
+.block-preview {
+  margin-top: 12px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.block-preview summary {
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.block-preview code {
+  display: block;
+  margin-top: 6px;
+  border: 0;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-neutral, #f8fafc);
+  color: var(--text-main);
+  box-shadow: inset 0 0 0 1px var(--studio-card-border);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  padding: 10px 14px;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .condition-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}

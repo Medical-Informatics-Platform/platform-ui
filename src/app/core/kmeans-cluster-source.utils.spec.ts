@@ -1,4 +1,4 @@
-import { BackendExperiment } from '../models/backend-experiment.model';
+import { BackendAnalysis } from '../models/backend-analysis.model';
 import { BackendFilter } from '../models/filters.model';
 import {
   KMEANS_CLUSTER_CREATOR,
@@ -21,13 +21,13 @@ function group(condition: 'AND' | 'OR', rules: unknown[]): BackendFilter {
   return { condition, rules: rules as BackendFilter['rules'] };
 }
 
-function experiment(overrides: {
+function analysis(overrides: {
   algorithm?: string;
   status?: string;
   dataModel?: string;
   datasets?: string[];
   filters?: BackendFilter | null;
-}): BackendExperiment {
+}): BackendAnalysis {
   return {
     uuid: 'uuid-1',
     name: 'K-means run',
@@ -52,7 +52,7 @@ function experiment(overrides: {
       subjectId: 's',
       agreeNDA: false,
     },
-  } as BackendExperiment;
+  } as BackendAnalysis;
 }
 
 const current: KMeansSourceContext = {
@@ -83,8 +83,8 @@ describe('kmeans-cluster-source.utils', () => {
   });
 
   describe('analysisSourceIsReusable', () => {
-    it('accepts a matching experiment regardless of dataset and filter key order', () => {
-      const source = experiment({
+    it('accepts a matching analysis regardless of dataset and filter key order', () => {
+      const source = analysis({
         datasets: ['diabetes', 'hypertension'],
         filters: { rules: [rule('age', 'greater_or_equal', 18)], condition: 'AND' } as BackendFilter,
       });
@@ -92,49 +92,49 @@ describe('kmeans-cluster-source.utils', () => {
       expect(analysisSourceIsReusable(source, 'kmeans', current)).toBe(true);
     });
 
-    it('accepts a matching PCA experiment when algorithmName is pca', () => {
+    it('accepts a matching PCA analysis when algorithmName is pca', () => {
       expect(analysisSourceIsReusable(
-        experiment({ algorithm: 'pca' }),
+        analysis({ algorithm: 'pca' }),
         'pca',
         { ...current, filters: null },
       )).toBe(true);
-      expect(analysisSourceIsReusable(experiment({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
+      expect(analysisSourceIsReusable(analysis({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects a non-matching algorithm', () => {
-      expect(analysisSourceIsReusable(experiment({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
+      expect(analysisSourceIsReusable(analysis({ algorithm: 'pca' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects a run that did not finish successfully', () => {
-      expect(analysisSourceIsReusable(experiment({ status: 'error' }), 'kmeans', { ...current, filters: null }))
+      expect(analysisSourceIsReusable(analysis({ status: 'error' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects a different data model', () => {
-      expect(analysisSourceIsReusable(experiment({ dataModel: 'MIP:1.0' }), 'kmeans', { ...current, filters: null }))
+      expect(analysisSourceIsReusable(analysis({ dataModel: 'MIP:1.0' }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects different datasets', () => {
-      expect(analysisSourceIsReusable(experiment({ datasets: ['diabetes'] }), 'kmeans', { ...current, filters: null }))
+      expect(analysisSourceIsReusable(analysis({ datasets: ['diabetes'] }), 'kmeans', { ...current, filters: null }))
         .toBe(false);
     });
 
     it('rejects different filters, including no source filters at all', () => {
-      expect(analysisSourceIsReusable(experiment({ filters: null }), 'kmeans', current)).toBe(false);
+      expect(analysisSourceIsReusable(analysis({ filters: null }), 'kmeans', current)).toBe(false);
       expect(analysisSourceIsReusable(
-        experiment({ filters: group('OR', [rule('sex', 'equal', '1')]) }),
+        analysis({ filters: group('OR', [rule('sex', 'equal', '1')]) }),
         'kmeans',
         current,
       )).toBe(false);
     });
 
     it('does not throw when the analysis is incomplete', () => {
-      expect(analysisSourceIsReusable({ status: 'success' } as BackendExperiment, 'kmeans', current)).toBe(false);
+      expect(analysisSourceIsReusable({ status: 'success' } as BackendAnalysis, 'kmeans', current)).toBe(false);
       expect(analysisSourceIsReusable(
-        { status: 'success', analysisRequest: { algorithm: { name: 'kmeans' } } } as BackendExperiment,
+        { status: 'success', analysisRequest: { algorithm: { name: 'kmeans' } } } as BackendAnalysis,
         'kmeans',
         current,
       )).toBe(false);

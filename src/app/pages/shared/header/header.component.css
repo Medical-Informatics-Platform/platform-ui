@@ -118,7 +118,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   /* A nav label is one line. Without it the tight mobile track shrinks a pill to its
-     longest word and "My experiments" stacks into two lines inside a 36px pill. */
+     longest word and "My analyses" stacks into two lines inside a 36px pill. */
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;

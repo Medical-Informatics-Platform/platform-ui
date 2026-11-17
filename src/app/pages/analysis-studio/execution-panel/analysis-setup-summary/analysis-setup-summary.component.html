@@ -1,0 +1,110 @@
+@if (setup()) {
+<section class="setup-summary" aria-label="Analysis setup" data-guide="analysis-setup-summary">
+  <header class="setup-summary-header">
+    <h3 class="setup-summary-title">Analysis setup</h3>
+    <p class="setup-summary-subtitle">What this result was built from</p>
+  </header>
+
+  <div class="setup-summary-body">
+    <section class="setup-summary-section">
+      <div class="setup-section-head">
+        <h4 class="setup-field-label setup-micro-label">Data</h4>
+        <button type="button" class="setup-field-action" (click)="goToDatasets()"
+          title="Change datasets and variables">Edit</button>
+      </div>
+      <p class="setup-field-value">{{ dataLine() }}</p>
+      @if (datasetLine()) {
+      <p class="setup-field-text">{{ datasetLine() }}</p>
+      }
+    </section>
+
+    @if (hasVariables()) {
+    <section class="setup-summary-section">
+      <div class="setup-section-head">
+        <h4 class="setup-field-label setup-micro-label">Variables</h4>
+        <button type="button" class="setup-field-action" (click)="goToDatasets()"
+          title="Change the selected variables">Edit</button>
+      </div>
+
+      <div class="setup-role-matrix">
+        @if (outcome().length) {
+        <span class="setup-role-marker setup-role-marker--y" aria-hidden="true">y</span>
+        <div class="setup-role-values">
+          @for (item of outcome(); track item.code) {
+          <span class="setup-role-value">{{ item.label }}</span>
+          }
+        </div>
+        }
+        @if (covariates().length) {
+        <span class="setup-role-marker setup-role-marker--x" aria-hidden="true">x</span>
+        <div class="setup-role-values">
+          @for (item of covariates(); track item.code) {
+          <span class="setup-role-value">{{ item.label }}</span>
+          }
+        </div>
+        }
+      </div>
+    </section>
+    }
+
+    <section class="setup-summary-section">
+      <div class="setup-section-head">
+        <h4 class="setup-field-label setup-micro-label">Cohort &amp; handling</h4>
+        <div class="setup-section-actions">
+          <button type="button" class="setup-field-action" (click)="goToFilters()"
+            title="Change the cohort filters">Filters</button>
+          <button type="button" class="setup-field-action" (click)="goToDataHandling()"
+            title="Change preprocessing and transformations">Handling</button>
+        </div>
+      </div>
+
+      <dl class="setup-compact-list">
+        <div class="setup-compact-row">
+          <dt>Filters</dt>
+          <dd>{{ filterSummary() }}</dd>
+        </div>
+        <div class="setup-compact-row">
+          <dt>Missing values</dt>
+          <dd>{{ missingValuesSummary() }}</dd>
+        </div>
+        @if (transformSummary()) {
+        <div class="setup-compact-row">
+          <dt>Transform</dt>
+          <dd>{{ transformSummary() }}</dd>
+        </div>
+        }
+        @if (rowsUsedSummary()) {
+        <div class="setup-compact-row">
+          <dt>Rows used</dt>
+          <dd>{{ rowsUsedSummary() }}</dd>
+        </div>
+        }
+      </dl>
+    </section>
+
+    @if (algorithmLabel()) {
+    <section class="setup-summary-section">
+      <div class="setup-section-head">
+        <h4 class="setup-field-label setup-micro-label">Algorithm</h4>
+        <button type="button" class="setup-field-action" (click)="goToAlgorithm()"
+          title="Edit the algorithm and its parameters">Edit</button>
+      </div>
+      <p class="setup-field-value">{{ algorithmLabel() }}</p>
+
+      @if (parameters().length) {
+      <dl class="setup-detail-list">
+        @for (param of parameters(); track param.key) {
+        <div class="setup-detail-row">
+          <dt class="setup-detail-name">{{ param.label }}</dt>
+          <dd class="setup-detail-value">{{ param.value }}</dd>
+        </div>
+        }
+      </dl>
+      } @else {
+      <p class="setup-field-text">No parameters</p>
+      }
+    </section>
+    }
+  </div>
+</section>
+}

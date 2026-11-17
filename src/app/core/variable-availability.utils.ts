@@ -1,6 +1,6 @@
 import { DataModel, Group, Variable } from '../models/data-model.interface';
 
-/** Code → label for the datasets the user can pick, e.g. ExperimentStudioService.availableDatasets(). */
+/** Code → label for the datasets the user can pick, e.g. AnalysisStudioService.availableDatasets(). */
 export type DatasetLabelSource = ReadonlyArray<{ code: string; label?: string | null }>;
 
 /** Variable code → human labels of the selected datasets that do not contain it. */

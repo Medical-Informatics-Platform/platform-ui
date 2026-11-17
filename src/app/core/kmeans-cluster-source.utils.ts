@@ -1,4 +1,4 @@
-import { BackendExperiment } from '../models/backend-experiment.model';
+import { BackendAnalysis } from '../models/backend-analysis.model';
 import { BackendFilter } from '../models/filters.model';
 
 /** Name the backend puts in reusable_preprocessing.preprocessing_name for K-means clusters. */
@@ -61,7 +61,7 @@ export function kmeansCreatorClusterChoices(
   });
 }
 
-/** Source of the data the current draft experiment runs on. */
+/** Source of the data the current draft analysis runs on. */
 export interface KMeansSourceContext {
   dataModel: string | null;
   datasets: string[];
@@ -96,15 +96,15 @@ function sortKeys(value: unknown): unknown {
  * matching algorithm, same data model, same datasets, same cohort filters.
  */
 export function analysisSourceIsReusable(
-  experiment: BackendExperiment,
+  analysis: BackendAnalysis,
   algorithmName: string,
   current: KMeansSourceContext,
 ): boolean {
-  const analysis = experiment?.analysisRequest as unknown as
+  const request = analysis?.analysisRequest as unknown as
     | { algorithm?: { name?: unknown }; inputdata?: Record<string, unknown> }
     | undefined;
-  const inputdata = analysis?.inputdata;
-  if (analysis?.algorithm?.name !== algorithmName || experiment?.status !== 'success') return false;
+  const inputdata = request?.inputdata;
+  if (request?.algorithm?.name !== algorithmName || analysis?.status !== 'success') return false;
   if (!inputdata || inputdata['data_model'] !== current.dataModel) return false;
 
   const sourceDatasets = (Array.isArray(inputdata['datasets']) ? inputdata['datasets'] : [])

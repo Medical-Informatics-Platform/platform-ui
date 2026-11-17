@@ -2,9 +2,9 @@
 
 Use this page to choose the smallest feature context.
 
-## Experiment Studio
+## Analysis Studio
 
-Path: `src/app/pages/experiment-studio/`
+Path: `src/app/pages/analysis-studio/`
 
 One step view at a time behind a sticky stepper (`activeSection`); the views stay
 mounted and are hidden with CSS, so open editors and in-flight runs survive a step
@@ -16,8 +16,8 @@ previews, charts, tables, histograms, and metadata views.
 
 Start with:
 
-- `ExperimentStudioComponent` (step shell) and `StudioStepperComponent` (step rail)
-- `ExperimentStudioService` (selection, algorithm roles, run state)
+- `AnalysisStudioComponent` (step shell) and `StudioStepperComponent` (step rail)
+- `AnalysisStudioService` (selection, algorithm roles, run state)
 - `execution-panel/` for run status/results and
   `algorithm-panel/algorithm-role-assignment/` for the y/x slots
 - `shared/station-card`, `shared/station-action-bar` for the cards and footers
@@ -29,21 +29,21 @@ Search keys: `activeSection`, `selectedDataModel`, `dataset`, `variable`,
 `algorithmY`, `algorithmX`, `algorithmAssignableVariables`, `filter`, `transient`,
 `histogram`, `describe`, `runResult`, algorithm name.
 
-## Experiments Dashboard
+## Analyses Dashboard
 
-Path: `src/app/pages/experiments-dashboard/`
+Path: `src/app/pages/analyses-dashboard/`
 
-Owns experiment list/search/pagination, detail view, compare, metadata updates,
+Owns analysis list/search/pagination, detail view, compare, metadata updates,
 sharing, delete, and exports.
 
 Start with:
 
-- `ExperimentsDashboardComponent`
-- `ExperimentsDashboardService`
+- `AnalysesDashboardComponent`
+- `AnalysesDashboardService`
 - dashboard model/mapper
 
 Search keys: `compare`, `export`, `shared`, `description`, `delete`, `PATCH`,
-experiment id, result key.
+analysis id, result key.
 
 ## Smaller Pages
 

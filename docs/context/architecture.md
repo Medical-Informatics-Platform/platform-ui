@@ -1,20 +1,20 @@
 # Architecture
 
 ## App Type
-This repository is a single Angular 22 standalone frontend application named `fl-platform`. It is the Platform UI for the Medical Informatics Platform (MIP), used to compose experiments, configure algorithms, access optional notebooks, and review/export results from a backend available under `/services`.
+This repository is a single Angular 22 standalone frontend application named `fl-platform`. It is the Platform UI for the Medical Informatics Platform (MIP), used to compose analyses, configure algorithms, access optional notebooks, and review/export results from a backend available under `/services`.
 
 ## High-Level Structure
 ```mermaid
 flowchart TD
   Browser[Browser] --> Angular[Angular standalone app]
   Angular --> Router[Angular Router + Guards]
-  Router --> Studio[Experiment Studio]
-  Router --> Dashboard[Experiments Dashboard]
+  Router --> Studio[Analysis Studio]
+  Router --> Dashboard[Analyses Dashboard]
   Router --> Terms[Terms/NDA Page]
   Router --> Account[Account Page]
   Router --> Notebook[Notebook Page]
-  Studio --> StudioService[ExperimentStudioService]
-  Dashboard --> DashboardService[ExperimentsDashboardService]
+  Studio --> StudioService[AnalysisStudioService]
+  Dashboard --> DashboardService[AnalysesDashboardService]
   StudioService --> API[Same-origin /services API]
   DashboardService --> API
   API --> Backend[MIP backend]
@@ -22,8 +22,8 @@ flowchart TD
 ```
 
 ## UI Flow
-- Default route redirects to `/experiments-dashboard`.
-- Main routes are `/experiments-dashboard`, `/experiment-studio`, `/account`, `/terms`, and optional `/notebook`.
+- Default route redirects to `/analyses-dashboard`.
+- Main routes are `/analyses-dashboard`, `/analysis-studio`, `/account`, `/terms`, and optional `/notebook`.
 - Most routes use `AuthGuard` and `TermsGuard`; `/terms` uses `AuthGuard`; `/notebook` is additionally gated by a runtime `NOTEBOOK_ENABLED` match check.
 - The app shell lives in `app.component.*` and wraps pages with shared header/footer components.
 
@@ -41,7 +41,7 @@ flowchart TD
   - `GET /services/specifications/algorithms`
   - `GET /services/analyses`
   - `GET /services/analyses/:id`
-  - `POST /services/analyses` (`{ runId, name }`: Save experiment from a kept run, without re-running)
+  - `POST /services/analyses` (`{ runId, name }`: Save analysis from a kept run, without re-running)
   - `POST /services/analyses/preview` (stateless previews; nothing is stored)
   - `POST /services/analyses/runs` (studio Run; keeps the result for saving)
   - `PATCH /services/analyses/:id`
@@ -62,22 +62,22 @@ flowchart TD
 - Services under `src/app/services` own cross-component state, backend calls, orchestration, and persistence to browser storage.
 - Models under `src/app/models` define backend/frontend DTOs and interfaces.
 - Core mapping and constants live under `src/app/core`.
-- Visualization registries and renderers live under `src/app/pages/experiment-studio/visualisations`.
+- Visualization registries and renderers live under `src/app/pages/analysis-studio/visualisations`.
 - Shared app chrome and generic helpers live under `src/app/pages/shared`.
 
 ## State Management
 - The app uses Angular Signals heavily for feature state.
-- `ExperimentStudioService` is the main orchestration layer for selected data models, datasets, variables, covariates, filters, algorithm configuration, run/save flows, preview calls, edit hydration, and sessionStorage persistence.
+- `AnalysisStudioService` is the main orchestration layer for selected data models, datasets, variables, covariates, filters, algorithm configuration, run/save flows, preview calls, edit hydration, and sessionStorage persistence.
 - Transformation (derived-column) state is an ordered `appliedTransformations: TransformationStep[]` signal on that service — not a keyed map. Singletons (`missing_values_handler`, outlier, longitudinal) stay in the preprocessing config; column creators (`categorical_column_creator`, `kmeans_cluster_creator`, `pca_column_creator`) live only in the ordered list and emit in list order after the singletons. Creator output codes come from `new_column_names` (never a legacy `code` field). There is no `pca_with_transformation` algorithm; PCA component scores are created with `pca_column_creator`.
-- `ExperimentsDashboardService` owns paged experiment list state, filtering, sharing, renaming, deletion, and result fetches.
+- `AnalysesDashboardService` owns paged analysis list state, filtering, sharing, renaming, deletion, and result fetches.
 - `ErrorService` shares global feature errors through a `BehaviorSubject`.
 
 ## Visualization and Export
 - Algorithm result table rendering is driven by `AlgorithmTableRegistry`.
 - Chart rendering is driven by `AlgorithmChartRegistry` and renderer files under `visualisations/charts/renderers`.
 - Backend algorithm definitions are mapped in `src/app/core/algorithm-mappers.ts`.
-- Result labels and enum mappings are handled by `ExperimentLabelService` and `algorithm-result-enum-mapper`.
-- Exports: `PdfExportService` builds the experiment report, the descriptive statistics PDF and the variable chart PDF on one flowing layout (setup block, contents list, then tables and charts, two charts per page). Charts are captured as JPEG through `core/export.utils.ts` (the ECharts instance's own export, then SVG, then an html2canvas screenshot as a last resort); PDFs are compressed and embed the logo once. `CsvExportService` writes single-table CSVs with a UTF-8 BOM and the result ZIP (`tables/NN_*.csv`, unrounded `result.json`, `README.txt` with the setup). JSZip is loaded on demand.
+- Result labels and enum mappings are handled by `AnalysisLabelService` and `algorithm-result-enum-mapper`.
+- Exports: `PdfExportService` builds the analysis report, the descriptive statistics PDF and the variable chart PDF on one flowing layout (setup block, contents list, then tables and charts, two charts per page). Charts are captured as JPEG through `core/export.utils.ts` (the ECharts instance's own export, then SVG, then an html2canvas screenshot as a last resort); PDFs are compressed and embed the logo once. `CsvExportService` writes single-table CSVs with a UTF-8 BOM and the result ZIP (`tables/NN_*.csv`, unrounded `result.json`, `README.txt` with the setup). JSZip is loaded on demand.
 
 ## Runtime and Deployment
 - The Dockerfile builds with Node 22 and serves the Angular output with nginx.
@@ -88,4 +88,4 @@ flowchart TD
 ## Known Gaps
 - No lint or format scripts are defined. `npm run typecheck` and `npm run check:dead-code` cover types and dead code.
 - E2E flows (Playwright, `e2e/`) run against a mocked `/services` API; no e2e run exercises a real backend.
-- Many authenticated experiment flows require a running backend and Keycloak-compatible environment for full validation.
+- Many authenticated analysis flows require a running backend and Keycloak-compatible environment for full validation.

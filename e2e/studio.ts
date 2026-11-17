@@ -1,11 +1,11 @@
 import { expect, Locator, Page } from '@playwright/test';
 
-/** Page steps shared by the experiment studio and dashboard specs. */
+/** Page steps shared by the analysis studio and dashboard specs. */
 
 export async function openNewStudio(page: Page) {
-  await page.goto('/experiments-dashboard');
-  await page.getByRole('button', { name: 'New experiment' }).click();
-  await expect(page).toHaveURL(/\/experiment-studio\/?$/);
+  await page.goto('/analyses-dashboard');
+  await page.getByRole('button', { name: 'New analysis' }).click();
+  await expect(page).toHaveURL(/\/analysis-studio\/?$/);
   await expect(page.getByRole('button', { name: /Dementia/ })).toBeVisible();
 }
 
@@ -106,13 +106,13 @@ export async function prepareLinearRun(page: Page) {
   await expectAlgorithm(page, 'Linear regression', 'Regression');
 }
 
-export async function runExperiment(page: Page) {
-  await page.locator('.sub-header-cta', { hasText: 'Run experiment' }).click();
+export async function runAnalysis(page: Page) {
+  await page.locator('.sub-header-cta', { hasText: 'Run analysis' }).click();
 }
 
 /** Save the run under `name`. Resolves once the save request has been sent. */
-export async function saveExperiment(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Save experiment' }).click();
+export async function saveAnalysis(page: Page, name: string) {
+  await page.getByRole('button', { name: 'Save analysis' }).click();
   await page.locator('#save-as-name-input').fill(name);
   await page.locator('.result-save-form').getByRole('button', { name: 'Save', exact: true }).click();
 }

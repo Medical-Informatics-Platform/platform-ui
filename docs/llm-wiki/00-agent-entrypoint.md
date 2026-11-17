@@ -36,7 +36,7 @@ opening source files.
 - Backend boundary: relative `/services` requests.
 - Bootstrap: `src/main.ts` -> `src/app/app.config.ts`.
 - Routes: `src/app/app.routes.ts`.
-- Main areas: Experiment Studio, Experiments Dashboard, Account, Terms,
+- Main areas: Analysis Studio, Analyses Dashboard, Account, Terms,
   optional Notebook.
 - UI decisions: `DESIGN.md`, then the live tokens in `src/styles.css` `:root`.
 
@@ -45,8 +45,8 @@ opening source files.
 Open only after a targeted lookup:
 
 - `src/app/core/algorithm-mappers.ts`
-- `src/app/pages/experiment-studio/**`
-- `src/app/pages/experiments-dashboard/**`
+- `src/app/pages/analysis-studio/**`
+- `src/app/pages/analyses-dashboard/**`
 - component templates/styles unrelated to UI work
 - `src/assets/**`, `public/**`, `package-lock.json`, generated output
 

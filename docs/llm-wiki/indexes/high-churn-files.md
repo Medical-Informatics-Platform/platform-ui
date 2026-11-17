@@ -3,9 +3,9 @@
 Read these only after a targeted search identifies the relevant range:
 
 - `src/app/core/algorithm-mappers.ts`
-- `src/app/pages/experiment-studio/experiment-studio.component.ts`
-- `src/app/pages/experiment-studio/visualisations/**`
-- `src/app/pages/experiments-dashboard/**`
+- `src/app/pages/analysis-studio/analysis-studio.component.ts`
+- `src/app/pages/analysis-studio/visualisations/**`
+- `src/app/pages/analyses-dashboard/**`
 - large component `.html` / `.css`
 - `src/styles.css`
 - `package-lock.json`

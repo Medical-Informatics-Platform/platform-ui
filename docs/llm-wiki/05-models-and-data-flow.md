@@ -9,14 +9,14 @@ or result rendering.
 |---|---|
 | algorithm definitions | `algorithm-definition.model.ts`, `backend-algorithms.model.ts` |
 | algorithm results | `algorithm-results.model.ts` |
-| backend experiments | `backend-experiment.model.ts` |
-| dashboard | `experiments-dashboard.model.ts` |
+| backend analyses | `backend-analysis.model.ts` |
+| dashboard | `analyses-dashboard.model.ts` |
 | filters | `filters.model.ts` |
 
 ## Flows
 
 ```text
-/services/data-models -> ExperimentStudioService -> data model/dataset/variable UI
+/services/data-models -> AnalysisStudioService -> data model/dataset/variable UI
 /services/specifications/algorithms -> algorithm mapper -> algorithm panel config
 /services/analyses -> result model -> visualisations/tables/exports
 /services/analyses/:id -> dashboard service -> detail/compare/export UI

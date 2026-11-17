@@ -1,0 +1,64 @@
+import { ChangeDetectionStrategy, Component, computed, output, inject, input, signal, ElementRef } from '@angular/core';
+import { AnalysisStudioService } from '../../../../services/analysis-studio.service';
+import { D3HierarchyNode } from '../../../../models/data-model.interface';
+import { unavailableTooltipFor } from '../../../../core/variable-availability.utils';
+
+
+@Component({
+  selector: 'app-selected-variables',
+  templateUrl: './selected-variables.component.html',
+  styleUrl: './selected-variables.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:click)': 'onOutsideClick($event)',
+    '(document:keydown.escape)': 'close()',
+  },
+})
+export class SelectedVariablesComponent {
+  private analysisStudioService = inject(AnalysisStudioService);
+  private elementRef = inject(ElementRef);
+
+  readonly selectedNode = input<any>();
+  readonly mode = input<'popover' | 'inline'>('popover');
+  readonly variableClicked = output<any>();
+
+  readonly isOpen = signal(false);
+
+  /** The single assignable pool (data-model variables only). */
+  readonly variables = computed(() => this.analysisStudioService.selectedVariables());
+
+  onVariableClick(node: D3HierarchyNode): void {
+    // Picked before a dataset change made it unavailable: kept in the pool, but inert.
+    if (this.unavailableTooltip(node)) return;
+    this.variableClicked.emit(node);
+  }
+
+  /** "Not available in: …" for a pooled variable missing from a selected dataset, '' otherwise. */
+  unavailableTooltip(node: D3HierarchyNode): string {
+    return unavailableTooltipFor(this.analysisStudioService.unavailableVariables(), { code: node?.code });
+  }
+
+  toggle(): void {
+    this.isOpen.update((open) => !open);
+  }
+
+  close(): void {
+    this.isOpen.set(false);
+  }
+
+  onOutsideClick(event: Event): void {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.close();
+    }
+  }
+
+  removeItem(item: any): void {
+    this.analysisStudioService.setVariables(
+      this.variables().filter((v) => v.code !== item.code)
+    );
+  }
+
+  clearList(): void {
+    this.analysisStudioService.setVariables([]);
+  }
+}

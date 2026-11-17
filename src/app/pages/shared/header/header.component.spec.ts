@@ -7,7 +7,7 @@ import { AuthService } from '../../../services/auth.service';
 import { GuideLauncherService } from '../../../services/guide-launcher.service';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { NotebookNavService } from '../../../services/notebook-nav.service';
-import { ExperimentStudioNavigationService } from '../../../services/experiment-studio-navigation.service';
+import { AnalysisStudioNavigationService } from '../../../services/analysis-studio-navigation.service';
 import { User } from '../../../models/user.interface';
 import { createSpyObj } from '../../../testing/spy-obj.testing';
 
@@ -44,16 +44,16 @@ describe('HeaderComponent', () => {
       imports: [HeaderComponent],
       providers: [
         provideRouter([
-          { path: 'experiments-dashboard', component: StubStudioComponent },
+          { path: 'analyses-dashboard', component: StubStudioComponent },
           { path: 'terms', component: StubStudioComponent },
           { path: 'account', component: StubStudioComponent },
-          { path: 'experiment-studio', component: StubStudioComponent },
+          { path: 'analysis-studio', component: StubStudioComponent },
           { path: 'notebook', component: StubStudioComponent },
         ]),
         { provide: AuthService, useValue: authService },
         { provide: NotebookNavService, useValue: notebookNav },
         { provide: RuntimeEnvService, useValue: runtimeEnv },
-        ExperimentStudioNavigationService,
+        AnalysisStudioNavigationService,
       ],
     })
       .compileComponents();
@@ -76,7 +76,7 @@ describe('HeaderComponent', () => {
   });
 
   it('keeps one three-slot bar on every route: branding, nav, account', async () => {
-    for (const path of ['/notebook', '/experiment-studio']) {
+    for (const path of ['/notebook', '/analysis-studio']) {
       await router.navigateByUrl(path);
       fixture.detectChanges();
 
@@ -91,7 +91,7 @@ describe('HeaderComponent', () => {
 
   /**
    * The header charter, as one assertion: one component, one box, one surface, one logo
-   * AND one set of navigation items on every route. Height, indent, surface and the nav
+   * AND one group of navigation items on every route. Height, indent, surface and the nav
    * labels all ride in the signature, so a bar that re-indents or swaps its items for a
    * route — the old studio behaviour — fails here instead of in review comments.
    */
@@ -116,7 +116,7 @@ describe('HeaderComponent', () => {
     };
 
     let baseline: string | undefined;
-    for (const path of ['/experiments-dashboard', '/terms', '/account', '/notebook', '/experiment-studio']) {
+    for (const path of ['/analyses-dashboard', '/terms', '/account', '/notebook', '/analysis-studio']) {
       await router.navigateByUrl(path);
       fixture.detectChanges();
       expect((fixture.nativeElement as HTMLElement).querySelector('.header')).toBeTruthy();
@@ -129,7 +129,7 @@ describe('HeaderComponent', () => {
     }
 
     // Same items is not the same as same page: exactly one of them is current.
-    await router.navigateByUrl('/experiment-studio');
+    await router.navigateByUrl('/analysis-studio');
     fixture.detectChanges();
     const current = (fixture.nativeElement as HTMLElement).querySelectorAll('[aria-current="page"]');
     expect(current.length).toBe(1);
@@ -238,15 +238,15 @@ describe('HeaderComponent', () => {
     }
   });
 
-  it('marks Studio as current and keeps My experiments on the studio route', async () => {
-    await router.navigateByUrl('/experiment-studio');
+  it('marks Studio as current and keeps My analyses on the studio route', async () => {
+    await router.navigateByUrl('/analysis-studio');
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(component.isStudioRoute()).toBe(true);
     expect(compiled.querySelector('app-studio-stepper')).toBeNull();
     const myExpBtn = compiled.querySelector<HTMLAnchorElement>('.header-nav-link--dashboard');
-    expect(myExpBtn?.textContent).toContain('My experiments');
+    expect(myExpBtn?.textContent).toContain('My analyses');
     expect(myExpBtn?.getAttribute('data-guide')).toBe('dashboard-nav');
     expect(compiled.querySelector('.header-nav-link--studio')?.getAttribute('aria-current')).toBe('page');
     expect(compiled.querySelector('.sign-in-btn__label')?.textContent?.trim()).toBe('Marie Curie');
@@ -258,7 +258,7 @@ describe('HeaderComponent', () => {
    * layers of chrome — and is now marked only by aria-current, which nothing here styles.
    */
   it('draws nav chrome on hover and first visit, never on the current page', async () => {
-    await router.navigateByUrl('/experiment-studio');
+    await router.navigateByUrl('/analysis-studio');
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
@@ -307,11 +307,11 @@ describe('HeaderComponent', () => {
     expect(compiled.querySelector('.header-guide')).toBeNull();
   });
 
-  it('delegates to studio navigation when clicking My experiments', async () => {
-    const studioNav = TestBed.inject(ExperimentStudioNavigationService);
+  it('delegates to studio navigation when clicking My analyses', async () => {
+    const studioNav = TestBed.inject(AnalysisStudioNavigationService);
     vi.spyOn(studioNav, 'backToDashboard').mockReturnValue(undefined);
 
-    await router.navigateByUrl('/experiment-studio');
+    await router.navigateByUrl('/analysis-studio');
     fixture.detectChanges();
 
     const myExpBtn = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.header-nav-link--dashboard');
@@ -323,14 +323,14 @@ describe('HeaderComponent', () => {
     await fixture.whenStable();
     // The host is the one that owns the exit path; the header must not race it with a
     // second navigation or bypass the studio's running guard.
-    expect(router.url).toBe('/experiment-studio');
+    expect(router.url).toBe('/analysis-studio');
   });
 
   it('leaves modifier and middle clicks to the browser', async () => {
-    const studioNav = TestBed.inject(ExperimentStudioNavigationService);
+    const studioNav = TestBed.inject(AnalysisStudioNavigationService);
     const back = vi.spyOn(studioNav, 'backToDashboard').mockReturnValue(undefined);
 
-    await router.navigateByUrl('/experiment-studio');
+    await router.navigateByUrl('/analysis-studio');
     fixture.detectChanges();
 
     const pill = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.header-nav-link--dashboard');

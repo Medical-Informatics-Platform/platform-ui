@@ -1,0 +1,163 @@
+import { provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { AnalysesDashboardGuideComponent } from './analyses-dashboard-guide.component';
+import { ANALYSES_DASHBOARD_GUIDE_STEPS } from './analyses-dashboard-guide.content';
+
+describe('AnalysesDashboardGuideComponent', () => {
+  let component: AnalysesDashboardGuideComponent;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [AnalysesDashboardGuideComponent],
+      providers: [provideZonelessChangeDetection()],
+    });
+
+    component = TestBed.createComponent(AnalysesDashboardGuideComponent).componentInstance;
+  });
+
+  afterEach(() => {
+    document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+  });
+
+  it('keeps Guide Complete as the last content step', () => {
+    expect(ANALYSES_DASHBOARD_GUIDE_STEPS.at(-1)?.id).toBe('dashboard-guide-complete');
+    const compareIdx = ANALYSES_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'compare-workspace');
+    const completeIdx = ANALYSES_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'dashboard-guide-complete');
+    expect(compareIdx).toBeGreaterThanOrEqual(0);
+    expect(completeIdx).toBeGreaterThan(compareIdx);
+  });
+
+  it('freezes totalSteps to the full tour length', () => {
+    component.startGuide(true);
+    expect(component.totalSteps()).toBe(ANALYSES_DASHBOARD_GUIDE_STEPS.length);
+    expect(component.currentStepNumber()).toBe(1);
+  });
+
+  it('advances step ordinal by one per forward navigation', () => {
+    component.startGuide(true);
+    const before = component.currentStepNumber();
+    component.goToNextStep(true);
+    expect(component.currentStepNumber()).toBe(before + 1);
+    expect(component.totalSteps()).toBe(ANALYSES_DASHBOARD_GUIDE_STEPS.length);
+  });
+
+  it('uses Skip for optional steps that are not last', () => {
+    component.activeSteps.set([...ANALYSES_DASHBOARD_GUIDE_STEPS]);
+    const compareIdx = ANALYSES_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'compare-workspace');
+    component.currentIndex.set(compareIdx);
+    (component as any).recountProgress();
+    expect(component.nextButtonLabel()).toBe('Skip');
+  });
+
+  it('prefers workbench over compare-workspace when both targets exist', () => {
+    const detail = document.createElement('div');
+    detail.setAttribute('data-guide', 'dashboard-detail-card');
+    Object.defineProperty(detail, 'getBoundingClientRect', {
+      value: () => ({ top: 10, right: 100, bottom: 50, left: 10, width: 90, height: 40, x: 10, y: 10, toJSON: () => ({}) }),
+    });
+    document.body.appendChild(detail);
+
+    const compare = document.createElement('div');
+    compare.setAttribute('data-guide', 'dashboard-compare-workspace');
+    Object.defineProperty(compare, 'getBoundingClientRect', {
+      value: () => ({ top: 10, right: 100, bottom: 50, left: 10, width: 90, height: 40, x: 10, y: 10, toJSON: () => ({}) }),
+    });
+    document.body.appendChild(compare);
+
+    component.activeSteps.set([...ANALYSES_DASHBOARD_GUIDE_STEPS]);
+    const tutorialIdx = ANALYSES_DASHBOARD_GUIDE_STEPS.findIndex((s) => s.id === 'tutorial-analysis');
+    component.currentIndex.set(tutorialIdx);
+
+    const next = (component as any).getNavigableStepIndex(tutorialIdx + 1, 1);
+    expect(ANALYSES_DASHBOARD_GUIDE_STEPS[next].id).toBe('workbench');
+  });
+
+  it('keeps the highlight aligned when the target scrolls above the viewport', () => {
+    const target = document.createElement('section');
+    target.setAttribute('data-guide', 'dashboard-workspace');
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue({
+      top: -18,
+      right: 680,
+      bottom: 212,
+      left: 48,
+      width: 632,
+      height: 230,
+      x: 48,
+      y: -18,
+      toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(target);
+
+    component.activeSteps.set([
+      {
+        id: 'workspace',
+        section: 'Explore',
+        title: 'Analysis List',
+        body: '',
+        selector: '[data-guide="dashboard-workspace"]',
+      },
+    ] as any);
+
+    (component as any).updateLayout();
+
+    expect(component.highlightRect()).toEqual(expect.objectContaining({
+      top: -28,
+      left: 38,
+      bottom: 222,
+      right: 690,
+    }));
+  });
+
+  it('points every content step with a selector at its data-guide target', () => {
+    const stepsWithSelectors = ANALYSES_DASHBOARD_GUIDE_STEPS.filter((step) => !!step.selector);
+    expect(stepsWithSelectors.length).toBeGreaterThan(0);
+
+    for (const step of stepsWithSelectors) {
+      document.querySelectorAll('[data-guide]').forEach((element) => element.remove());
+
+      const target = document.createElement('div');
+      const guideValue = step.selector!.match(/data-guide="([^"]+)"/)?.[1];
+      expect(guideValue, step.id).toBeTruthy();
+      target.setAttribute('data-guide', guideValue!);
+      Object.defineProperty(target, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          top: 120,
+          right: 420,
+          bottom: 200,
+          left: 40,
+          width: 380,
+          height: 80,
+          x: 40,
+          y: 120,
+          toJSON: () => ({}),
+        }),
+      });
+      document.body.appendChild(target);
+
+      component.activeSteps.set([...ANALYSES_DASHBOARD_GUIDE_STEPS] as any);
+      component.currentIndex.set(ANALYSES_DASHBOARD_GUIDE_STEPS.findIndex((entry) => entry.id === step.id));
+      (component as any).updateLayout();
+
+      const highlight = component.highlightRect();
+      expect(highlight, step.id).not.toBeNull();
+      const centerX = 230;
+      const centerY = 160;
+      expect(highlight!.left <= centerX && centerX <= highlight!.right, step.id).toBe(true);
+      expect(highlight!.top <= centerY && centerY <= highlight!.bottom, step.id).toBe(true);
+    }
+  });
+
+  it('ignores arrow keys while a text field is focused', () => {
+    component.activeSteps.set([{ id: 'one', section: 'Explore', title: 'One', body: '' }]);
+    component.isOpen.set(true);
+
+    const typing = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+    Object.defineProperty(typing, 'target', { configurable: true, value: document.createElement('input') });
+    component.onWindowKeydown(typing);
+
+    expect(component.currentIndex()).toBe(0);
+    component.closeGuide();
+  });
+
+});

@@ -4,11 +4,11 @@ Routes live in `src/app/app.routes.ts`.
 
 | Route | Guards / matchers | Purpose |
 |---|---|---|
-| `/` | redirect | `/experiments-dashboard` |
-| `/experiments-dashboard` | `AuthGuard`, `TermsGuard` | default app area |
+| `/` | redirect | `/analyses-dashboard` |
+| `/analyses-dashboard` | `AuthGuard`, `TermsGuard` | default app area |
 | `/terms` | `AuthGuard` | terms acceptance |
 | `/account` | `AuthGuard`, `TermsGuard` | account page |
-| `/experiment-studio` | `AuthGuard`, `TermsGuard` | experiment creation/results |
+| `/analysis-studio` | `AuthGuard`, `TermsGuard` | analysis creation/results |
 | `/notebook` | `NOTEBOOK_ENABLED` canMatch, `AuthGuard`, `TermsGuard` | optional notebook |
 | `**` | redirect | fallback to dashboard |
 

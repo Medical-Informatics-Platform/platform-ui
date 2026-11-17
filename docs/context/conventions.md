@@ -12,8 +12,8 @@
 ### State and Services
 - Signals are the dominant state primitive for feature state.
 - Services use `inject()` heavily for dependencies.
-- `ExperimentStudioService` owns experiment composition state and persistence to sessionStorage.
-- `ExperimentsDashboardService` owns paged dashboard state and experiment list mutations.
+- `AnalysisStudioService` owns analysis composition state and persistence to sessionStorage.
+- `AnalysesDashboardService` owns paged dashboard state and analysis list mutations.
 - `ErrorService` is used for global feature errors.
 
 ### Routing and Access
@@ -36,8 +36,8 @@
 
 ### Visualization and Algorithm Results
 - Backend algorithm definitions are mapped in `src/app/core/algorithm-mappers.ts`.
-- Result table and chart rendering use registry patterns under `src/app/pages/experiment-studio/visualisations`.
-- Legacy algorithm keys may exist for historical stored experiment compatibility.
+- Result table and chart rendering use registry patterns under `src/app/pages/analysis-studio/visualisations`.
+- Legacy algorithm keys may exist for historical stored analysis compatibility.
 
 ### Testing Patterns
 - Specs are colocated with source files.
@@ -47,6 +47,6 @@
 ## Recommended Conventions To Verify
 - Add dedicated `lint`, `format`, and `typecheck` scripts if the team wants separate quality gates.
 - Add a pull-request CI workflow that runs at least `npm ci`, `npm run build`, and `npm test`.
-- Establish shared fixture builders for repeated backend experiment/result payloads.
+- Establish shared fixture builders for repeated backend analysis/result payloads.
 - Prefer typed interfaces over `any` in new code where existing backend payload uncertainty does not require flexibility.
 - Add e2e coverage for login-protected flows if a stable test identity/backend environment is available.

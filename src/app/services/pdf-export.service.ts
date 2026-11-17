@@ -6,17 +6,17 @@ import {
   captureCharts,
   ChartImage,
   ContextRow,
-  experimentContextRows,
-  ExperimentExportDetails,
+  analysisContextRows,
+  AnalysisExportDetails,
   filledContextRows,
   fileSlug,
   formatExportDate,
 } from '../core/export.utils';
-import { exportTable, getAlgorithmTableBuilder, TableSpec } from '../pages/experiment-studio/visualisations/auto-renderer/algorithm-table-registry';
+import { exportTable, getAlgorithmTableBuilder, TableSpec } from '../pages/analysis-studio/visualisations/auto-renderer/algorithm-table-registry';
 
-interface ExperimentPdfPayload {
+interface AnalysisPdfPayload {
   filename: string;
-  details: ExperimentExportDetails;
+  details: AnalysisExportDetails;
   algorithmKey?: string | null;
   result?: unknown;
   chartContainer?: HTMLElement | null;
@@ -277,29 +277,29 @@ function plural(count: number, noun: string): string {
 
 @Injectable({ providedIn: 'root' })
 export class PdfExportService {
-  /** Experiment report: setup, contents, every result table, then every result chart. */
-  async exportExperimentPdf(payload: ExperimentPdfPayload): Promise<void> {
+  /** Analysis report: setup, contents, every result table, then every result chart. */
+  async exportAnalysisPdf(payload: AnalysisPdfPayload): Promise<void> {
     const { details } = payload;
-    if (!details?.experimentName) {
-      console.warn('PdfExportService: missing experiment details.');
+    if (!details?.analysisName) {
+      console.warn('PdfExportService: missing analysis details.');
       return;
     }
 
-    const tables = experimentTables(payload.algorithmKey, payload.result);
+    const tables = analysisTables(payload.algorithmKey, payload.result);
     const charts = payload.chartContainer ? await captureCharts(payload.chartContainer) : [];
     const chartTitles = charts.map((chart, index) => chart.title || `Figure ${index + 1}`);
 
     const report = new PdfReport();
-    report.title(details.experimentName, 'Experiment report');
-    report.heading('About this experiment');
-    report.context(experimentContextRows(details));
+    report.title(details.analysisName, 'Analysis report');
+    report.heading('About this analysis');
+    report.context(analysisContextRows(details));
     report.contents(
       tables.length || charts.length
         ? [
           ...tables.map((table, index) => `Table: ${table.title || `Results table ${index + 1}`}`),
           ...chartTitles.map((title) => `Figure: ${title}`),
         ]
-        : ['No result data available for this experiment.'],
+        : ['No result data available for this analysis.'],
     );
 
     if (tables.length || charts.length) {
@@ -309,7 +309,7 @@ export class PdfExportService {
       charts.forEach((chart, index) => report.chart(chart, chartTitles[index]));
     }
 
-    await report.save(payload.filename || details.experimentName || 'experiment-report', details.mipVersion);
+    await report.save(payload.filename || details.analysisName || 'analysis-report', details.mipVersion);
   }
 
   /** Descriptive statistics: setup, one table per variable, then box plots and frequency charts. */
@@ -399,7 +399,7 @@ export class PdfExportService {
 }
 
 /** Result tables through the same registry the result view uses. */
-export function experimentTables(algorithmKey?: string | null, result?: unknown): TableSpec[] {
+export function analysisTables(algorithmKey?: string | null, result?: unknown): TableSpec[] {
   if (!algorithmKey || !result) return [];
   const builder = getAlgorithmTableBuilder(algorithmKey);
   if (!builder) return [];
