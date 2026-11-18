@@ -343,7 +343,7 @@ export class AlgorithmPanelComponent {
 
   private variableOptionsForRoles(
     roles: string[],
-    variableStattypes: readonly string[] = []
+    variableTypes: readonly string[] = []
   ): Array<{ code: string; label: string }> {
     const roleList = roles.length ? roles : ['x'];
     return roleList.flatMap((role) => {
@@ -355,7 +355,7 @@ export class AlgorithmPanelComponent {
             : [];
 
       return selected
-        .filter((item: any) => (variableStattypes.length === 0 || specificationAcceptsVariableType({ stattypes: variableStattypes }, item?.type)))
+        .filter((item: any) => (variableTypes.length === 0 || specificationAcceptsVariableType({ types: variableTypes }, item?.type)))
         .map((item: any) => {
           const code = item?.code;
           if (code === null || code === undefined || code === '') return null;
@@ -701,7 +701,7 @@ export class AlgorithmPanelComponent {
       const enumSource = Array.isArray(field.enumSource) ? field.enumSource : [];
 
       if (field.enumType === 'input_var_names') {
-        options = this.variableOptionsForRoles(enumSource, field.variableStattypes ?? []);
+        options = this.variableOptionsForRoles(enumSource, field.variableTypes ?? []);
       } else if (field.enumType === 'input_var_CDE_enums') {
         options = this.enumOptionsForRole(enumSource[0]);
       } else if (field.key === 'category_order' && yVar?.enumerations?.length) {

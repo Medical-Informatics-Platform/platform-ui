@@ -8,7 +8,7 @@ describe('algorithm mappers', () => {
     });
   });
 
-  it('carries variable_stattypes of a variable-picking parameter into its config field', () => {
+  it('carries variable_types of a variable-picking parameter into its config field', () => {
     const field = { label: '', desc: '', types: ['text'] };
     const configs = mapSpecificationsToAlgorithmConfigs(
       { data_model: field, datasets: field, filters: field, variables: field },
@@ -18,8 +18,8 @@ describe('algorithm mappers', () => {
           name: 'cox_regression_classical',
           label: 'Cox',
           desc: '',
-          y: { label: 'y', desc: '', types: ['real'], stattypes: ['numerical'] },
-          x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'ordinal', 'binary'] },
+          y: { label: 'y', desc: '', types: ['numerical'] },
+          x: { label: 'x', desc: '', types: ['numerical', 'nominal', 'ordinal', 'binary'] },
           requires_validation_datasets: false,
           required_preprocessing: [],
           parameters: {
@@ -28,7 +28,7 @@ describe('algorithm mappers', () => {
               desc: '',
               types: ['text'],
               enums: { type: 'input_var_names', source: ['x'] },
-              variable_stattypes: ['binary'],
+              variable_types: ['binary'],
             },
           },
         },
@@ -36,7 +36,7 @@ describe('algorithm mappers', () => {
     );
 
     const eventVar = configs['cox_regression_classical'].configSchema.find((entry) => entry.key === 'event_var');
-    expect(eventVar.variableStattypes).toEqual(['binary']);
-    expect(configs['cox_regression_classical'].inputdata?.x?.stattypes).toEqual(['numerical', 'nominal', 'ordinal', 'binary']);
+    expect(eventVar.variableTypes).toEqual(['binary']);
+    expect(configs['cox_regression_classical'].inputdata?.x?.types).toEqual(['numerical', 'nominal', 'ordinal', 'binary']);
   });
 });

@@ -20,70 +20,60 @@ describe('CDE variable types', () => {
   });
 
   describe('algorithm input slots', () => {
-    const slot = (types: string[], stattypes?: string[]) => ({ types, ...(stattypes ? { stattypes } : {}) });
+    const slot = (types: string[]) => ({ types });
 
-    it('matches categorical stattypes one-to-one', () => {
-      const binaryOnly = slot(['int', 'text'], ['binary']);
+    it('matches categorical slot types one-to-one', () => {
+      const binaryOnly = slot(['binary']);
       expect(specificationAcceptsVariableType(binaryOnly, 'binary')).toBe(true);
       expect(specificationAcceptsVariableType(binaryOnly, 'nominal')).toBe(false);
       expect(specificationAcceptsVariableType(binaryOnly, 'ordinal')).toBe(false);
       expect(specificationAcceptsVariableType(binaryOnly, 'continuous')).toBe(false);
 
-      const ordinalOnly = slot(['int', 'text'], ['ordinal']);
+      const ordinalOnly = slot(['ordinal']);
       expect(specificationAcceptsVariableType(ordinalOnly, 'ordinal')).toBe(true);
       expect(specificationAcceptsVariableType(ordinalOnly, 'nominal')).toBe(false);
       expect(specificationAcceptsVariableType(ordinalOnly, 'binary')).toBe(false);
 
-      const nominalOnly = slot(['int', 'text'], ['nominal']);
+      const nominalOnly = slot(['nominal']);
       expect(specificationAcceptsVariableType(nominalOnly, 'nominal')).toBe(true);
       expect(specificationAcceptsVariableType(nominalOnly, 'binary')).toBe(false);
     });
 
     it('accepts every categorical type only when the slot lists them all', () => {
-      const anyCategorical = slot(['int', 'text'], ['nominal', 'ordinal', 'binary']);
+      const anyCategorical = slot(['nominal', 'ordinal', 'binary']);
       for (const type of ['nominal', 'ordinal', 'binary']) {
         expect(specificationAcceptsVariableType(anyCategorical, type)).toBe(true);
       }
       expect(specificationAcceptsVariableType(anyCategorical, 'continuous')).toBe(false);
-      expect(specificationAcceptsVariableType(slot(['int', 'text'], ['nominal', 'binary']), 'ordinal')).toBe(false);
+      expect(specificationAcceptsVariableType(slot(['nominal', 'binary']), 'ordinal')).toBe(false);
     });
 
-    it('lets numerical stattypes take continuous and discrete, subject to the value types', () => {
-      const numerical = slot(['real', 'int'], ['numerical']);
+    it('lets a numerical slot take continuous and discrete', () => {
+      const numerical = slot(['numerical']);
       expect(specificationAcceptsVariableType(numerical, 'continuous')).toBe(true);
       expect(specificationAcceptsVariableType(numerical, 'discrete')).toBe(true);
       expect(specificationAcceptsVariableType(numerical, 'binary')).toBe(false);
-      expect(specificationAcceptsVariableType(slot(['real'], ['numerical']), 'discrete')).toBe(true);
-      expect(specificationAcceptsVariableType(slot(['int'], ['numerical']), 'discrete')).toBe(true);
-      expect(specificationAcceptsVariableType(slot(['int'], ['numerical']), 'continuous')).toBe(false);
     });
 
-    it('reads a slot without stattypes by its value types, where text meant any categorical', () => {
-      expect(specificationAcceptsVariableType(slot(['real']), 'continuous')).toBe(true);
-      expect(specificationAcceptsVariableType(slot(['real']), 'discrete')).toBe(true);
-      expect(specificationAcceptsVariableType(slot(['int']), 'continuous')).toBe(false);
-      for (const type of ['nominal', 'ordinal', 'binary']) {
-        expect(specificationAcceptsVariableType(slot(['text']), type)).toBe(true);
-      }
-      expect(specificationAcceptsVariableType(slot(['real', 'int']), 'nominal')).toBe(false);
-      expect(acceptedSlotStatTypes(slot(['real', 'int', 'text']))).toEqual(['numerical', 'nominal', 'ordinal', 'binary']);
+    it('ignores storage types that are not statistical types', () => {
+      expect(acceptedSlotStatTypes(slot(['real', 'int', 'text']))).toEqual([]);
     });
 
     it('rejects legacy and unknown types', () => {
       for (const legacy of ['real', 'integer', 'int', 'text', 'boolean', '', undefined]) {
-        expect(specificationAcceptsVariableType(slot(['real', 'text'], ['numerical', 'nominal']), legacy)).toBe(false);
+        expect(specificationAcceptsVariableType(slot(['numerical', 'nominal']), legacy)).toBe(false);
       }
     });
 
     it('names what a slot takes in requirement messages', () => {
-      expect(acceptedVariableTypes(slot(['int', 'text'], ['binary']))).toEqual(['binary']);
-      expect(acceptedVariableTypes(slot(['real', 'int', 'text'], ['numerical', 'nominal', 'ordinal', 'binary']))).toEqual([
+      expect(acceptedVariableTypes(slot(['binary']))).toEqual(['binary']);
+      expect(acceptedVariableTypes(slot(['numerical', 'nominal', 'ordinal', 'binary']))).toEqual([
         'numerical',
         'nominal',
         'ordinal',
         'binary',
       ]);
-      expect(acceptedVariableTypes(slot(['int'], ['numerical']))).toEqual(['discrete']);
+      expect(acceptedVariableTypes(slot(['numerical']))).toEqual(['numerical']);
       expect(acceptedVariableTypes(slot([]))).toEqual([]);
       expect(formatSlotStatTypes(['binary'])).toBe('binary');
       expect(formatSlotStatTypes(['nominal', 'binary'])).toBe('nominal or binary');
@@ -129,8 +119,8 @@ describe('datasetLabelsOf', () => {
 
 describe('Exaflow PR 674 categorical slots', () => {
   // Categorical slots now list both value types (`text`, `int`): codes are integers, stored as text.
-  const binaryOutcome = { types: ['text', 'int'], stattypes: ['binary'] };
-  const ordinalOutcome = { types: ['text', 'int'], stattypes: ['ordinal'] };
+  const binaryOutcome = { types: ['binary'] };
+  const ordinalOutcome = { types: ['ordinal'] };
 
   it('keeps an int value type from letting numerical CDEs into a binary or ordinal slot', () => {
     expect(specificationAcceptsVariableType(binaryOutcome, 'binary')).toBe(true);

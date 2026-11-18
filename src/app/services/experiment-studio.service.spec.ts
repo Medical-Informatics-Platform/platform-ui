@@ -26,8 +26,8 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true, max_count: 1 },
-      x: { label: '', desc: '', types: ['real'] },
+      y: { label: '', desc: '', types: ['numerical'], required: true, max_count: 1 },
+      x: { label: '', desc: '', types: ['numerical'] },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 }
     },
     parameters: {
@@ -49,8 +49,8 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['text'], required: true },
-      x: { label: '', desc: '', types: ['text'] },
+      y: { label: '', desc: '', types: ['nominal', 'ordinal', 'binary'], required: true },
+      x: { label: '', desc: '', types: ['nominal', 'ordinal', 'binary'] },
       filter: { label: '', desc: '', types: [] }
     },
     parameters: {}
@@ -64,8 +64,8 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'] },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'] },
       filter: { label: '', desc: '', types: [] }
     },
     parameters: {},
@@ -88,8 +88,8 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'], required: false },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'], required: false },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
     },
     parameters: {},
@@ -103,8 +103,8 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: '', desc: '', types: ['real'], required: true },
-      x: { label: '', desc: '', types: ['real'], required: true },
+      y: { label: '', desc: '', types: ['numerical'], required: true },
+      x: { label: '', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [], required: false, max_count: 1 },
     },
     parameters: {},
@@ -118,7 +118,7 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      y: { label: 'Variables', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [] },
     },
     parameters: {
@@ -143,7 +143,7 @@ describe('ExperimentStudioService', () => {
     inputdata: {
       data_model: { label: '', desc: '', types: [] },
       datasets: { label: '', desc: '', types: [] },
-      y: { label: 'Variables', desc: '', types: ['real', 'int'], required: true },
+      y: { label: 'Variables', desc: '', types: ['numerical'], required: true },
       filter: { label: '', desc: '', types: [] },
     },
     parameters: {},
@@ -514,8 +514,8 @@ describe('ExperimentStudioService', () => {
           data_model: { label: '', desc: '', types: [] },
           datasets: { label: '', desc: '', types: [] },
           validation_datasets: { label: '', desc: '', types: [] },
-          y: { label: '', desc: '', types: ['real'], max_count: 1 },
-          x: { label: '', desc: '', types: ['real'] },
+          y: { label: '', desc: '', types: ['numerical'], max_count: 1 },
+          x: { label: '', desc: '', types: ['numerical'] },
           filter: { label: '', desc: '', types: [] },
         },
       } as any,
@@ -1283,8 +1283,8 @@ describe('ExperimentStudioService', () => {
         label: 'Binned Mann-Whitney U Test',
         description: '',
         inputdata: {
-          y: { label: 'Outcome', desc: '', types: ['real', 'int'], required: true, max_count: 1 },
-          x: { label: 'Grouping variable', desc: '', types: ['text'], stattypes: ['nominal'], required: true, max_count: 1 },
+          y: { label: 'Outcome', desc: '', types: ['numerical'], required: true, max_count: 1 },
+          x: { label: 'Grouping variable', desc: '', types: ['nominal'], required: true, max_count: 1 },
         },
         configSchema: [
           { key: 'alt_hypothesis', label: 'Alternative hypothesis', type: 'select', options: ['two-sided', 'less', 'greater'], required: true },
@@ -2481,7 +2481,7 @@ describe('ExperimentStudioService', () => {
   describe('algorithmEnabled', () => {
     it('matches categorical variables to slots one-to-one', () => {
       const field = { label: '', desc: '', types: ['text'] };
-      const slot = (stattypes: string[]) => ({ label: '', desc: '', types: ['int', 'text'], stattypes, required: true });
+      const slot = (types: string[]) => ({ label: '', desc: '', types, required: true });
       const spec = (name: string, y: any) => ({
         name, label: name, desc: '', y, requires_validation_datasets: false, parameters: {}, required_preprocessing: [],
       });

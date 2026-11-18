@@ -82,7 +82,6 @@ export class AlgorithmRulesService {
         const minCount = resolveInputMinCount(field, role, algo.name);
         const maxCount = resolveInputMaxCount(field, role, algo.name);
         const types = this.normalizeStringList(field?.types);
-        const stattypes = this.normalizeStringList(field?.stattypes);
         const messages: string[] = [];
 
         if (selected.length < minCount) {
@@ -126,7 +125,6 @@ export class AlgorithmRulesService {
             maxCount,
             required: minCount > 0 || this.isFieldRequired(field),
             types,
-            stattypes,
             acceptedTypes,
             messages,
             satisfied: messages.length === 0,
@@ -146,7 +144,6 @@ export class AlgorithmRulesService {
             maxCount: 0,
             required: false,
             types: [],
-            stattypes: [],
             acceptedTypes: [],
             messages: [label + ' is not accepted by this algorithm.'],
             satisfied: false,

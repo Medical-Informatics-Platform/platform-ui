@@ -236,8 +236,7 @@ describe('AlgorithmPanelComponent', () => {
       minCount: 1,
       maxCount: null,
       required: false,
-      types: ['real'],
-      stattypes: [],
+      types: ['numerical'],
       acceptedTypes: ['numerical'],
       messages: [],
       satisfied: true,
@@ -246,7 +245,7 @@ describe('AlgorithmPanelComponent', () => {
       ...algorithm,
       name: 'kmeans_like',
       label: 'K-means',
-      inputdata: { x: { types: ['real'], required: true, min_count: 1 } } as any,
+      inputdata: { x: { types: ['numerical'], required: true, min_count: 1 } } as any,
       availability: { available: true, summary: '', details: [xDetail] },
       configSchema: [
         { key: 'k', label: 'Number of clusters (k)', type: 'number', default: 4, required: true },
@@ -312,8 +311,7 @@ describe('AlgorithmPanelComponent', () => {
             minCount: 2,
             maxCount: 3,
             required: true,
-            types: ['int', 'text'],
-            stattypes: ['binary'],
+            types: ['binary'],
             acceptedTypes: ['binary'],
             messages: [
               'Outcome needs at least 2, selected 1.',
@@ -348,7 +346,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(nativeElement.textContent).toContain('type: binary');
     expect(nativeElement.querySelector('.tooltip')?.textContent).toContain('Outcome must be binary (Stage is nominal).');
     expect(nativeElement.textContent).not.toContain('type: nominal');
-    expect(nativeElement.textContent).not.toContain('stattypes: binary');
+    expect(nativeElement.textContent).not.toContain('types: binary');
   });
 
   it('lists the exact accepted CDE types in requirement tips, never the value types', () => {
@@ -359,8 +357,7 @@ describe('AlgorithmPanelComponent', () => {
       minCount: 1,
       maxCount: null,
       required: true,
-      types: ['real', 'int', 'text'],
-      stattypes: ['numerical', 'nominal', 'binary'],
+      types: ['numerical', 'nominal', 'binary'],
       acceptedTypes: ['numerical', 'nominal', 'binary'],
       messages: [],
       satisfied: true,
@@ -388,8 +385,7 @@ describe('AlgorithmPanelComponent', () => {
             minCount: 1,
             maxCount: 1,
             required: true,
-            types: ['real'],
-            stattypes: [],
+            types: ['numerical'],
             acceptedTypes: [],
             messages: ['Outcome must be numerical (Stage is binary).'],
             satisfied: false,
@@ -528,7 +524,7 @@ describe('AlgorithmPanelComponent', () => {
     expect(select.textContent).toContain('Age');
   });
 
-  it('offers only binary variables for an event_var that requires variable_stattypes binary', async () => {
+  it('offers only binary variables for an event_var that requires variable_types binary', async () => {
     const coxAlgorithm: AlgorithmConfig = {
       name: 'cox_regression_classical',
       label: 'Cox Regression Classical',
@@ -544,7 +540,7 @@ describe('AlgorithmPanelComponent', () => {
           type: 'select',
           enumType: 'input_var_names',
           enumSource: ['x'],
-          variableStattypes: ['binary'],
+          variableTypes: ['binary'],
           required: true,
           options: [],
         },
@@ -901,7 +897,6 @@ describe('AlgorithmPanelComponent', () => {
           maxCount: 1,
           required: true,
           types: [],
-          stattypes: [],
           acceptedTypes: [],
           messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,
@@ -949,7 +944,6 @@ describe('AlgorithmPanelComponent', () => {
           maxCount: 1,
           required: true,
           types: [],
-          stattypes: [],
           acceptedTypes: [],
           messages: ['Outcome needs at least 1, selected 0.'],
           satisfied: false,

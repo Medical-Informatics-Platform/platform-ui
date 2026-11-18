@@ -11,7 +11,6 @@ export interface AlgorithmAvailabilityDetail {
   maxCount: number | null;
   required: boolean;
   types: string[];
-  stattypes: string[];
   /** The CDE types the slot takes, exactly (`binary`, `nominal`, `numerical`, ...); empty when unconstrained. */
   acceptedTypes: string[];
   messages: string[];

@@ -29,8 +29,8 @@ describe('AlgorithmRulesService', () => {
 
   it('validates required roles from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
-      x: { label: 'x', desc: '', types: ['text'], required: false },
+      y: { label: 'y', desc: '', types: ['numerical'], required: true, max_count: 1 },
+      x: { label: 'x', desc: '', types: ['nominal', 'ordinal', 'binary'], required: false },
     });
 
     expect(service.isAlgorithmAvailable(algo, { y: [], x: [] })).toBe(false);
@@ -44,7 +44,7 @@ describe('AlgorithmRulesService', () => {
 
   it('validates max_count from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['numerical'], required: true, max_count: 1 },
     });
 
     const available = service.isAlgorithmAvailable(algo, {
@@ -60,7 +60,7 @@ describe('AlgorithmRulesService', () => {
 
   it('validates selected variable types from the JSON specification', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['numerical'], required: true, max_count: 1 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
@@ -76,7 +76,7 @@ describe('AlgorithmRulesService', () => {
 
   it('uses normalized metadata type aliases only for matching specification types', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['text'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['nominal', 'ordinal', 'binary'], required: true, max_count: 1 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
@@ -87,7 +87,7 @@ describe('AlgorithmRulesService', () => {
 
   it('rejects a free-text CDE (categorical without enumerations) but not a derived column', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['text'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['nominal', 'ordinal', 'binary'], required: true, max_count: 1 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
@@ -103,8 +103,8 @@ describe('AlgorithmRulesService', () => {
   it('does not apply algorithm-name-specific restrictions beyond the JSON specification for unspecified algorithms', () => {
     const algo = {
       ...buildAlgo({
-        y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
-        x: { label: 'x', desc: '', types: ['text'], required: true },
+        y: { label: 'y', desc: '', types: ['numerical'], required: true, max_count: 1 },
+        x: { label: 'x', desc: '', types: ['nominal', 'ordinal', 'binary'], required: true },
       }),
       name: 'mock_algo',
     } as AlgorithmConfig;
@@ -120,8 +120,8 @@ describe('AlgorithmRulesService', () => {
   it('limits linear regression to one target variable when backend omits max_count', () => {
     const algo = {
       ...buildAlgo({
-        y: { label: 'y', desc: '', types: ['real', 'int'], required: true },
-        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: false },
+        y: { label: 'y', desc: '', types: ['numerical'], required: true },
+        x: { label: 'x', desc: '', types: ['numerical', 'nominal', 'ordinal', 'binary'], required: false },
       }),
       name: 'linear_regression',
     } as AlgorithmConfig;
@@ -145,7 +145,7 @@ describe('AlgorithmRulesService', () => {
 
   it('ignores filter input declarations when evaluating availability', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['numerical'], required: true, max_count: 1 },
       filter: { label: 'filter', desc: '', types: ['json'], required: true, max_count: 1 },
     });
 
@@ -160,7 +160,7 @@ describe('AlgorithmRulesService', () => {
 
   it('validates canonical min_count and max_count limits', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], min_count: 2, max_count: 3 },
+      y: { label: 'y', desc: '', types: ['numerical'], min_count: 2, max_count: 3 },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
@@ -180,8 +180,8 @@ describe('AlgorithmRulesService', () => {
   it('requires at least two covariates for Binary GLMM when min_count is omitted', () => {
     const algo = {
       ...buildAlgo({
-        y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['binary'], required: true },
-        x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'ordinal', 'binary'], required: true },
+        y: { label: 'y', desc: '', types: ['binary'], required: true },
+        x: { label: 'x', desc: '', types: ['numerical', 'nominal', 'ordinal', 'binary'], required: true },
       }),
       name: 'glmm_binary',
     } as AlgorithmConfig;
@@ -205,8 +205,8 @@ describe('AlgorithmRulesService', () => {
 
   it('rejects duplicate selections and y/x overlap', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['real'], required: true },
-      x: { label: 'x', desc: '', types: ['real'], required: false },
+      y: { label: 'y', desc: '', types: ['numerical'], required: true },
+      x: { label: 'x', desc: '', types: ['numerical'], required: false },
     });
 
     expect(service.isAlgorithmAvailable(algo, {
@@ -225,7 +225,7 @@ describe('AlgorithmRulesService', () => {
 
   it('requires a binary outcome to be binary, naming what was selected', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['binary'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['binary'], required: true, max_count: 1 },
     });
     const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
 
@@ -251,7 +251,7 @@ describe('AlgorithmRulesService', () => {
 
   it('requires an ordinal outcome to be ordinal, not nominal or binary', () => {
     const algo = buildAlgo({
-      y: { label: 'y', desc: '', types: ['int', 'text'], stattypes: ['ordinal'], required: true, max_count: 1 },
+      y: { label: 'y', desc: '', types: ['ordinal'], required: true, max_count: 1 },
     });
     const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
     const accepts = (type: string) =>
@@ -264,7 +264,7 @@ describe('AlgorithmRulesService', () => {
 
   it('lists every accepted type when a slot takes several', () => {
     const algo = buildAlgo({
-      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], stattypes: ['numerical', 'nominal', 'binary'], required: true },
+      x: { label: 'x', desc: '', types: ['numerical', 'nominal', 'binary'], required: true },
     });
     const result = service.evaluateAlgorithmAvailability(algo, {
       y: [],
@@ -278,8 +278,7 @@ describe('AlgorithmRulesService', () => {
   it('keeps accepting every categorical type for a slot that lists all of them', () => {
     const algo = buildAlgo({
       x: {
-        label: 'x', desc: '', types: ['real', 'int', 'text'],
-        stattypes: ['numerical', 'nominal', 'ordinal', 'binary'], required: true,
+        label: 'x', desc: '', types: ['numerical', 'nominal', 'ordinal', 'binary'], required: true,
       },
     });
     const enumerations = [{ code: '1', label: 'A' }, { code: '2', label: 'B' }];
@@ -288,26 +287,21 @@ describe('AlgorithmRulesService', () => {
     }
   });
 
-  it('reads a spec without stattypes by its value types so older specs keep working', () => {
+  it('names the accepted statistical types when a variable does not fit', () => {
     const algo = buildAlgo({
-      x: { label: 'x', desc: '', types: ['real', 'int', 'text'], required: true },
+      x: { label: 'x', desc: '', types: ['numerical', 'nominal', 'ordinal', 'binary'], required: true },
     });
-    const enumerations = [{ code: '1', label: 'A' }];
-    expect(service.isAlgorithmAvailable(algo, { y: [], x: [{ code: 'v', label: 'V', type: 'binary', enumerations } as any] })).toBe(true);
-    expect(service.isAlgorithmAvailable(algo, { y: [], x: [{ code: 'v', label: 'V', type: 'ordinal', enumerations } as any] })).toBe(true);
-
     const result = service.evaluateAlgorithmAvailability(algo, {
       y: [],
       x: [{ code: 'v1', label: 'var1', type: 'boolean' } as any],
     });
     expect(result.available).toBe(false);
     expect(result.summary).toBe('Predictor must be numerical, nominal, ordinal or binary (var1 is boolean).');
-    expect(result.summary).not.toContain('text');
   });
 
   it('returns structured details for optional covariate max_count failures', () => {
     const algo = buildAlgo({
-      x: { label: 'x', desc: '', types: ['real'], required: false, max_count: 1 },
+      x: { label: 'x', desc: '', types: ['numerical'], required: false, max_count: 1 },
     });
 
     const result = service.evaluateAlgorithmAvailability(algo, {
