@@ -85,14 +85,18 @@ describe('VariablesPanelComponent columns', () => {
     expect(pool.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('keeps a large pool from pushing the inspector down the page', () => {
+  it('keeps a large pool inside the column, with no scrollbar of its own', () => {
     selectedVariables.set(
       Array.from({ length: 40 }, (_, index) => ({ code: `var_${index}`, label: `Variable number ${index}`, type: 'real' }))
     );
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelectorAll('.pool-chip').length).toBe(40);
-    expect(query('.pool-card').getBoundingClientRect().height).toBeLessThanOrEqual(220);
+    const browser = query('.bubble-chart-section').getBoundingClientRect();
+    const column = query('.right-column');
+    expect(column.getBoundingClientRect().height).toBeLessThanOrEqual(browser.height + 1); // the page does not grow
+    expect(column.scrollHeight).toBeGreaterThan(column.clientHeight); // the column scrolls instead
+    expect(getComputedStyle(query('.pool-card-body')).overflowY).toBe('visible');
   });
 
   it('ends the browser card and the details column on the same line', () => {
@@ -103,12 +107,11 @@ describe('VariablesPanelComponent columns', () => {
     expect(Math.abs(browser.bottom - details.bottom)).toBeLessThanOrEqual(1);
   });
 
-  it('keeps the inspector inside the canvas height once details fill it', () => {
+  it('keeps the inspector inside the canvas height', () => {
     select({
       label: 'Sex',
       code: 'sex',
       type: 'nominal',
-      methodology: 'Collected at every visit. '.repeat(24),
       enumerations: Array.from({ length: 24 }, (_, index) => ({ code: `enum_${index}`, label: `Option ${index}` })),
     });
 
@@ -119,9 +122,8 @@ describe('VariablesPanelComponent columns', () => {
     expect(details.height).toBeLessThanOrEqual(browser.height + 1); // never grows past the canvas
     expect(Math.abs(browser.bottom - details.bottom)).toBeLessThanOrEqual(1);
 
-    const body = query('.details-panel-body') as HTMLElement;
-    expect(getComputedStyle(body).overflowY).toBe('auto'); // the body scrolls inside the card
-    expect(body.scrollHeight).toBeGreaterThan(body.clientHeight); // the details actually overflow it
+    // One scroller: the column, not the inspector body inside it.
+    expect(getComputedStyle(query('.details-panel-body')).overflowY).toBe('visible');
   });
 
   it('draws attention to Add for a variable, not for a whole group', () => {

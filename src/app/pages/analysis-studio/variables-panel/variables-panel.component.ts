@@ -8,7 +8,6 @@ import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.co
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { SelectedVariablesComponent } from './selected-variables/selected-variables.component';
 import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
-import { MetadataInfoPanelComponent } from './metadata-info-panel/metadata-info-panel.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -55,7 +54,6 @@ const GROUP_OF_VARIABLES_ONLY_MESSAGE =
     OntologyTreeBrowserComponent,
     CollapsibleTreeBrowserComponent,
     HistogramGraphComponent,
-    MetadataInfoPanelComponent,
     DataModelSelectorComponent,
     DatasetSelectorComponent,
     SearchBarComponent,
@@ -149,8 +147,6 @@ export class VariablesPanelComponent implements OnDestroy {
   emptyChartMessage = signal<string | null>(null);
   isExporting = signal(false);
   exportMenuOpen = signal(false);
-  /** Collapsed/expanded state of the inspector "Details" section; kept across node selections. */
-  detailsOpen = signal(true);
   metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
   readonly metadataBrowserModeIndex = computed(() => {
     const index = this.metadataBrowserModes.findIndex(
@@ -862,6 +858,43 @@ export class VariablesPanelComponent implements OnDestroy {
     return 'Distribution';
   }
 
+  /** Ancestors of the selected node, root first; the node's own label is the title. */
+  detailsPanelPath(): string {
+    if (!this.selectedNode) {
+      return '';
+    }
+    return this.getPathNodes(this.selectedNode).slice(0, -1).map((node) => node.label).join(' › ');
+  }
+
+  /**
+   * The facts needed to read the chart, on one line under the title: what a group
+   * holds, or a variable's type, units and range.
+   */
+  detailsPanelFacts(): string {
+    const node = this.selectedNode;
+    if (!node) {
+      return '';
+    }
+    const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    if (this.isSelectedNodeGroup()) {
+      const groups = node.children.filter((child: any) => child.children?.length).length;
+      const variables = this.getLeafNodes(node).length;
+      return [groups ? plural(groups, 'group') : '', plural(variables, 'variable')].filter(Boolean).join(' · ');
+    }
+    const text = (value: unknown) => (value === null || value === undefined ? '' : String(value).trim());
+    // An integer variable: show its bounds as the integers they allow ("1.0" -> "1").
+    const bound = (value: unknown, round: (n: number) => number) => {
+      const raw = text(value);
+      const n = Number(raw);
+      return node.type === 'integer' && raw && Number.isFinite(n) ? String(round(n)) : raw;
+    };
+    const min = bound(node.minValue, Math.ceil);
+    const max = bound(node.maxValue, Math.floor);
+    const range = min && max ? `${min}–${max}` : min ? `≥ ${min}` : max ? `≤ ${max}` : '';
+    return [text(node.type), text(node.units), range].filter(Boolean).join(' · ');
+  }
+
+  /** Under the title: a group's counts, or a variable's description. */
   detailsPanelSubtitle(): string {
     if (!this.selectedNode) {
       return '';
@@ -875,20 +908,6 @@ export class VariablesPanelComponent implements OnDestroy {
       }
     }
     return String(this.selectedNode.description ?? '').trim();
-  }
-
-  /** The heading row is the control: sync the signal the moment the row is activated. */
-  onInspectorDetailsClick(event: Event): void {
-    const row = event.currentTarget as HTMLElement;
-    this.detailsOpen.set(!(row.parentElement as HTMLDetailsElement).open);
-  }
-
-  /** Keep the signal in sync when the state changes by keyboard, script, or the `open` attribute. */
-  onInspectorDetailsToggle(event: Event): void {
-    const open = (event.target as HTMLDetailsElement).open;
-    if (this.detailsOpen() !== open) {
-      this.detailsOpen.set(open);
-    }
   }
 
   toggleExportMenu(): void {

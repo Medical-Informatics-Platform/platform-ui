@@ -301,18 +301,24 @@
   container-name: bubble-column;
 }
 
+/* The column is the one scroller: the pool card and the inspector keep their
+   natural heights inside the shared row height, so there is never a scrollbar
+   inside a scrollbar. The inspector header sticks to the column's top edge. */
 .right-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
   width: 100%;
   align-self: stretch;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(127, 156, 232, 0.45) transparent;
 }
 
-/* The pool card keeps its natural height; the inspector absorbs what is left
-   of the shared column height and scrolls inside itself. */
 .right-column > app-selected-variables {
   flex-shrink: 0;
 }
@@ -516,15 +522,15 @@
   box-sizing: border-box;
 }
 
+/* `clip`, not `hidden`: it rounds the corners without becoming a scroll
+   container, so the sticky header pins to the column instead of to this card. */
 .histogram-panel {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   position: relative;
   display: flex;
   flex-direction: column;
-  align-self: stretch;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  overflow: clip;
   padding: 0;
 }
 
@@ -683,6 +689,27 @@
   color: #6b5a2e;
 }
 
+.details-panel-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-panel-path {
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: none;
+}
+
+.details-panel-facts {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
 .details-panel-title {
   margin: 0;
   color: var(--text-main);
@@ -702,8 +729,9 @@
   font-size: 0.78rem;
   line-height: 1.35;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 @property --segment-active-index {
@@ -735,27 +763,9 @@
 }
 
 .details-panel-body {
-  flex: 1 1 auto;
   min-width: 0;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-}
-
-/* "More content" cue: pins to the bottom of the scrollport while the body can
-   scroll further down; at the end of the scroll it comes to rest on its own
-   empty flow space, so the tint disappears exactly when nothing is left. No
-   animation is involved, and it never captures a click. */
-.details-panel-fade {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  flex: 0 0 auto;
-  height: 28px;
-  background: linear-gradient(to top, var(--studio-card-bg), transparent);
-  pointer-events: none;
 }
 
 .inspector-section {
@@ -784,11 +794,9 @@
   margin: 0;
   min-width: 0;
   flex: 1 1 auto;
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .histogram-graph-area {
@@ -1186,6 +1194,11 @@
     min-height: 480px;
     height: auto;
   }
+
+  /* Stacked, the row has no height cap: the page scrolls, not the column. */
+  .right-column {
+    overflow-y: visible;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1208,66 +1221,5 @@
 
   .histogram-graph {
     min-height: 210px;
-  }
-}
-
-/* Collapsible inspector "Details": the summary row is the control, the chevron shows its state. */
-.inspector-collapse {
-  display: block;
-  min-width: 0;
-}
-
-.inspector-collapse-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  margin: -6px -8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  list-style: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.inspector-collapse-summary::-webkit-details-marker {
-  display: none;
-}
-
-.inspector-collapse-summary:hover,
-.inspector-collapse-summary:focus-visible {
-  background: rgba(43, 51, 233, 0.06);
-}
-
-.inspector-collapse-summary:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-.inspector-collapse-chevron {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 0.62rem;
-  transition: transform 0.2s var(--ease-standard);
-}
-
-.inspector-collapse:not([open]) .inspector-collapse-chevron {
-  transform: rotate(-90deg);
-}
-
-.inspector-collapse-body {
-  min-width: 0;
-  margin-top: 12px;
-}
-
-.inspector-collapse:not([open]) .inspector-collapse-body {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .inspector-collapse-summary,
-  .inspector-collapse-chevron {
-    transition: none;
   }
 }

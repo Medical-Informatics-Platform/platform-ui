@@ -256,10 +256,10 @@
   text-transform: uppercase;
 }
 
+/* No inner scroll: the right column is the one scroller, so a long list pushes
+   the inspector down instead of hiding chips behind a second scrollbar. */
 .pool-card-body {
   padding: 12px 16px 14px;
-  max-height: 120px;
-  overflow-y: auto;
 }
 
 .pool-chip {
