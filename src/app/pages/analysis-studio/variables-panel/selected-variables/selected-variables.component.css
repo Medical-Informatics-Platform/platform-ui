@@ -256,10 +256,45 @@
   text-transform: uppercase;
 }
 
+.pool-card.is-empty .pool-card-header {
+  border-bottom: 0;
+}
+
+.pool-card-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: right;
+}
+
 /* No inner scroll: the right column is the one scroller, so a long list pushes
    the inspector down instead of hiding chips behind a second scrollbar. */
 .pool-card-body {
   padding: 12px 16px 14px;
+}
+
+.pool-chip-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pool-chip-select:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.pool-chip.is-unavailable .pool-chip-select {
+  cursor: not-allowed;
 }
 
 .pool-chip {

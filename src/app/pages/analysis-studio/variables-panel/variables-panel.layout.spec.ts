@@ -208,11 +208,10 @@ describe('VariablesPanelComponent data exploration layout', () => {
   });
 
   it('tells the user how to add a first variable without naming one view', () => {
-    const empty = fixture.nativeElement.querySelector('.pool-card .parameter-empty') as HTMLElement;
+    const hint = fixture.nativeElement.querySelector('.pool-card .pool-card-hint') as HTMLElement;
 
-    expect(empty.textContent).toContain('No variables yet');
-    expect(empty.textContent).toContain('Add');
-    expect(empty.textContent?.toLowerCase()).not.toContain('map');
+    expect(hint.textContent).toContain('Add');
+    expect(hint.textContent?.toLowerCase()).not.toContain('map');
   });
 
   describe('Split by', () => {
