@@ -1098,7 +1098,6 @@ function createHorizontalBarChart(
   } = {}
 ): void {
   const textColor = '#475569';
-  const mutedTextColor = '#64748b';
   const gridColor = '#e2e8f0';
   const barColor = config.color || '#2b33e9';
   const containerWidth = container.clientWidth || 640;
@@ -1117,10 +1116,14 @@ function createHorizontalBarChart(
     return;
   }
 
-  const yLabelWidth = 200;
-  const margin = { top: 40, right: 44, bottom: 40, left: yLabelWidth };
+  // The label column fits the longest wrapped line (~6.5px a character at 12px),
+  // capped at 35% of the width so the bars keep most of a narrow inspector.
+  const longestLine = d3.max(bins.flatMap((bin) => wrapCategoryLabel(bin).map((line) => line.length))) ?? 0;
+  const yLabelWidth = Math.round(Math.min(Math.max(containerWidth, 360) * 0.35, Math.max(96, longestLine * 6.5 + 16)));
+  // No top axis, so no top margin beyond breathing room; the bottom holds ticks and title.
+  const margin = { top: 8, right: 44, bottom: 44, left: yLabelWidth };
 
-  const rowHeight = 42;
+  const rowHeight = 30;
   const innerHeight = Math.max(120, bins.length * rowHeight);
   const containerHeight = margin.top + innerHeight + margin.bottom;
   const desiredWidth = Math.max(containerWidth, 360);
@@ -1278,11 +1281,7 @@ function createHorizontalBarChart(
     .attr('y', innerHeight + 30)
     .attr('text-anchor', 'middle')
     .text('Count')
-    .style('font-size', '12px')
-    .style('font-weight', '700')
-    .style('fill', mutedTextColor)
-    .style('letter-spacing', '0.08em')
-    .style('text-transform', 'uppercase');
+    .call(styleAxisTitle);
 
   container.style.height = `${containerHeight}px`;
 }
