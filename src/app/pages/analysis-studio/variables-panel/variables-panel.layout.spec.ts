@@ -2,7 +2,6 @@ import { ChangeDetectorRef, provideZonelessChangeDetection, signal } from '@angu
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { of } from 'rxjs';
-import { page, userEvent } from 'vitest/browser';
 import { ErrorService } from '../../../services/error.service';
 import { AnalysisStudioService } from '../../../services/analysis-studio.service';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -16,17 +15,14 @@ describe('VariablesPanelComponent data exploration layout', () => {
   let fixture: ComponentFixture<VariablesPanelComponent>;
   let component: VariablesPanelComponent;
 
-  // Groups and the leaf carry methodology, so Details (long text only) renders for them.
   const tree = {
     label: 'IST',
     code: 'ist',
-    methodology: 'International Stroke Trial.',
     children: [
       {
         label: 'Demographics',
         code: 'demographics',
-        methodology: 'Recorded at randomisation.',
-        children: [{ label: 'Sex', code: 'sex', type: 'nominal', methodology: 'Self-reported.' }],
+        children: [{ label: 'Sex', code: 'sex', type: 'nominal' }],
       },
     ],
   };
@@ -107,7 +103,7 @@ describe('VariablesPanelComponent data exploration layout', () => {
     expect((chart.componentInstance as HistogramGraphComponent).horizontal()).toBe(true);
   });
 
-  it('shows the chart and details together with no tablist', () => {
+  it('shows the chart with no tablist and no Details section', () => {
     component.onSelectedNodeChange(tree);
     fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
     fixture.detectChanges();
@@ -115,8 +111,8 @@ describe('VariablesPanelComponent data exploration layout', () => {
     const inspector = fixture.nativeElement.querySelector('#histogram-graph') as HTMLElement;
     expect(inspector.querySelector('#histogram-section')).not.toBeNull();
     expect(inspector.querySelector('#inspector-distribution-title')?.textContent?.trim()).toBe('Variables per group');
-    expect(inspector.querySelector('#inspector-details-title')?.textContent?.trim()).toBe('Details');
-    expect(inspector.querySelector('app-metadata-info-panel')).not.toBeNull();
+    expect(inspector.querySelector('#inspector-details-title')).toBeNull();
+    expect(inspector.querySelector('details')).toBeNull();
     expect(inspector.querySelector('[role="tablist"]')).toBeNull();
   });
 
@@ -128,27 +124,11 @@ describe('VariablesPanelComponent data exploration layout', () => {
       return fixture.nativeElement as HTMLElement;
     }
 
-    it('keeps real headings in order: h2 panel title, h3 sections, h4 block labels', () => {
+    it('keeps real headings in order: h2 panel title, h3 sections', () => {
       const host = selectNode();
 
       expect(host.querySelector('.details-panel-title')?.tagName).toBe('H2');
       expect(host.querySelector('#inspector-distribution-title')?.tagName).toBe('H3');
-      // No heading inside <summary>: its button role would hide it from heading navigation.
-      expect(host.querySelector('summary h3')).toBeNull();
-      const blockLabel = host.querySelector('app-metadata-info-panel h4');
-      expect(blockLabel?.tagName).toBe('H4');
-      expect(blockLabel?.textContent?.trim()).toBe('Methodology');
-    });
-
-    it('renders block labels one visible level under the section titles', () => {
-      const host = selectNode();
-
-      const sectionTitle = host.querySelector<HTMLElement>('#inspector-details-title')!;
-      const blockLabel = host.querySelector<HTMLElement>('app-metadata-info-panel h4')!;
-      expect(getComputedStyle(sectionTitle).textTransform).toBe('none');
-      expect(parseFloat(getComputedStyle(sectionTitle).fontSize)).toBeGreaterThan(
-        parseFloat(getComputedStyle(blockLabel).fontSize)
-      );
     });
 
     it('scrolls the column only, never the inspector body inside it', () => {
@@ -217,14 +197,6 @@ describe('VariablesPanelComponent data exploration layout', () => {
 
       expect(host.querySelector('.bulk-add-undo')).toBeNull();
     });
-
-    it('leaves Details out when a node has no long text to show', () => {
-      component.onSelectedNodeChange({ label: 'Age', code: 'age', type: 'real' });
-      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
-      fixture.detectChanges();
-
-      expect(fixture.nativeElement.querySelector('details.inspector-collapse')).toBeNull();
-    });
   });
 
   it('tells the user how to add a first variable without naming one view', () => {
@@ -275,88 +247,6 @@ describe('VariablesPanelComponent data exploration layout', () => {
       const host = fixture.nativeElement as HTMLElement;
       expect(host.querySelector('#histogram-split-select')).not.toBeNull();
       expect(host.querySelector('.split-pill')).toBeNull();
-    });
-  });
-
-  describe('Details collapsible', () => {
-    const select = (node: any): void => {
-      component.onSelectedNodeChange(node);
-      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
-      fixture.detectChanges();
-    };
-    const details = (): HTMLDetailsElement =>
-      fixture.nativeElement.querySelector('details.inspector-collapse') as HTMLDetailsElement;
-    const row = (): HTMLElement => details().querySelector('summary') as HTMLElement;
-    const body = (): HTMLElement => details().querySelector('.inspector-collapse-body') as HTMLElement;
-
-    it('renders Details open, with the metadata visible', () => {
-      select(tree.children[0]);
-
-      expect(row().textContent).toContain('Details');
-      expect(getComputedStyle(row().querySelector('#inspector-details-title')!).display).not.toBe('none');
-      expect(row().querySelector('.inspector-collapse-chevron')!.getAttribute('aria-hidden')).toBe('true');
-      expect(details().open).toBe(true);
-      expect(component.detailsOpen()).toBe(true);
-      expect(getComputedStyle(body()).display).not.toBe('none');
-      expect(body().querySelector('app-metadata-info-panel')).not.toBeNull();
-    });
-
-    it('collapses Details when the heading row is clicked anywhere', () => {
-      select(tree.children[0]);
-
-      (row().querySelector('#inspector-details-title') as HTMLElement).click();
-      fixture.detectChanges();
-
-      expect(details().open).toBe(false);
-      expect(component.detailsOpen()).toBe(false);
-      expect(getComputedStyle(body()).display).toBe('none');
-    });
-
-    it('collapses Details with the keyboard when the heading row has focus', async () => {
-      select(tree.children[0]);
-
-      row().focus();
-      await userEvent.keyboard('{Enter}');
-
-      expect(details().open).toBe(false);
-      expect(component.detailsOpen()).toBe(false);
-    });
-
-    it('keeps the collapsed state when another node is selected, and stays open if left open', () => {
-      select(tree.children[0]);
-      row().click();
-      fixture.detectChanges();
-
-      select(tree);
-      expect(details().open).toBe(false);
-      expect(component.detailsOpen()).toBe(false);
-
-      row().click();
-      fixture.detectChanges();
-      select(tree.children[0]);
-      expect(details().open).toBe(true);
-      expect(getComputedStyle(body()).display).not.toBe('none');
-    });
-
-    it('does not render Details while no node is selected', () => {
-      expect(fixture.nativeElement.querySelector('details.inspector-collapse')).toBeNull();
-    });
-
-    it('keeps the chevron on the Details row at 330px with no horizontal overflow', async () => {
-      await page.viewport(330, 900);
-      select(tree.children[0]);
-
-      const inspector = fixture.nativeElement.querySelector('#histogram-graph') as HTMLElement;
-      const rowBox = row().getBoundingClientRect();
-      const chevron = row().querySelector('.inspector-collapse-chevron')!.getBoundingClientRect();
-
-      expect(chevron.left).toBeGreaterThanOrEqual(rowBox.left);
-      expect(chevron.right).toBeLessThanOrEqual(rowBox.right);
-      expect(chevron.top).toBeGreaterThanOrEqual(rowBox.top - 1);
-      expect(chevron.bottom).toBeLessThanOrEqual(rowBox.bottom + 1);
-      expect(inspector.scrollWidth).toBeLessThanOrEqual(inspector.clientWidth + 1);
-
-      await page.viewport(1400, 900);
     });
   });
 });

@@ -332,22 +332,6 @@
                 }
               </div>
             </section>
-            @if (hasInspectorDetails()) {
-            <section class="inspector-section" aria-labelledby="inspector-details-title">
-              <details
-                class="inspector-collapse"
-                [open]="detailsOpen()"
-                (toggle)="onInspectorDetailsToggle($event)">
-                <summary class="inspector-collapse-summary" (click)="onInspectorDetailsClick($event)">
-                  <span id="inspector-details-title" class="inspector-section-title">Details</span>
-                  <i class="fas fa-chevron-down inspector-collapse-chevron" aria-hidden="true"></i>
-                </summary>
-                <div class="inspector-collapse-body">
-                  <app-metadata-info-panel [selectedNode]="selectedNode"></app-metadata-info-panel>
-                </div>
-              </details>
-            </section>
-            }
           </div>
 
           @if (isExporting()) {

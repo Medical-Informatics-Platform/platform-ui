@@ -8,7 +8,6 @@ import { DatasetSelectorComponent } from './dataset-selector/dataset-selector.co
 import { SearchBarComponent } from './search-bar/search-bar.component';
 import { SelectedVariablesComponent } from './selected-variables/selected-variables.component';
 import { HistogramGraphComponent } from './histogram-graph/histogram-graph.component';
-import { MetadataInfoPanelComponent } from './metadata-info-panel/metadata-info-panel.component';
 import { catchError, map, of, Subject, switchMap, takeUntil } from 'rxjs';
 import { PdfExportService } from '../../../services/pdf-export.service';
 import { CsvExportService } from '../../../services/csv-export.service';
@@ -60,7 +59,6 @@ const BULK_ADD_UNDO_MS = 10_000;
     OntologyTreeBrowserComponent,
     CollapsibleTreeBrowserComponent,
     HistogramGraphComponent,
-    MetadataInfoPanelComponent,
     DataModelSelectorComponent,
     DatasetSelectorComponent,
     SearchBarComponent,
@@ -154,8 +152,6 @@ export class VariablesPanelComponent implements OnDestroy {
   emptyChartMessage = signal<string | null>(null);
   isExporting = signal(false);
   exportMenuOpen = signal(false);
-  /** Collapsed/expanded state of the inspector "Details" section; kept across node selections. */
-  detailsOpen = signal(true);
   /** The last large add, kept for a few seconds so it can be undone exactly. */
   bulkAddUndo = signal<{ count: number; previous: any[] } | null>(null);
   private bulkAddUndoTimer: ReturnType<typeof setTimeout> | undefined;
@@ -956,12 +952,7 @@ export class VariablesPanelComponent implements OnDestroy {
     return [text(node.type), text(node.units), range].filter(Boolean).join(' · ');
   }
 
-  /** Details holds only the long text; the header already carries path, counts and range. */
-  hasInspectorDetails(): boolean {
-    const node = this.selectedNode;
-    return !!node && (!!String(node.methodology ?? '').trim() || !!node.enumerations?.length);
-  }
-
+  /** Under the title: a group's counts, or a variable's description. */
   detailsPanelSubtitle(): string {
     if (!this.selectedNode) {
       return '';
@@ -975,20 +966,6 @@ export class VariablesPanelComponent implements OnDestroy {
       }
     }
     return String(this.selectedNode.description ?? '').trim();
-  }
-
-  /** The heading row is the control: sync the signal the moment the row is activated. */
-  onInspectorDetailsClick(event: Event): void {
-    const row = event.currentTarget as HTMLElement;
-    this.detailsOpen.set(!(row.parentElement as HTMLDetailsElement).open);
-  }
-
-  /** Keep the signal in sync when the state changes by keyboard, script, or the `open` attribute. */
-  onInspectorDetailsToggle(event: Event): void {
-    const open = (event.target as HTMLDetailsElement).open;
-    if (this.detailsOpen() !== open) {
-      this.detailsOpen.set(open);
-    }
   }
 
   toggleExportMenu(): void {
