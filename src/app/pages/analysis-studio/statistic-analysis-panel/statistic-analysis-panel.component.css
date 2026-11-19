@@ -378,7 +378,7 @@
 }
 
 .pipeline-source-band .workflow-section-body {
-  padding: 0;
+  --workflow-body-pad: 0;
   background: var(--card-bg);
 }
 
@@ -1005,11 +1005,6 @@
   overflow: visible;
   transition: background-color 0.25s ease;
   margin-bottom: 0;
-}
-
-.workflow-section-body {
-  display: none;
-  padding: 14px 0 16px;
 }
 
 /* Inside a pipeline node the station card draws its own frame; without an inset
