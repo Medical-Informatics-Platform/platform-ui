@@ -44,6 +44,11 @@ import {
 const GROUP_OF_VARIABLES_ONLY_MESSAGE =
   'Please select one of the variables in the representation on the left to see its histogram in the selected centers.';
 
+/** Adds above this many variables get an Undo; one variable or a small group does not. */
+const BULK_ADD_UNDO_THRESHOLD = 20;
+/** How long Undo stays offered after a large add. */
+const BULK_ADD_UNDO_MS = 10_000;
+
 @Component({
   selector: 'app-variables-panel',
   templateUrl: './variables-panel.component.html',
@@ -147,6 +152,9 @@ export class VariablesPanelComponent implements OnDestroy {
   emptyChartMessage = signal<string | null>(null);
   isExporting = signal(false);
   exportMenuOpen = signal(false);
+  /** The last large add, kept for a few seconds so it can be undone exactly. */
+  bulkAddUndo = signal<{ count: number; previous: any[] } | null>(null);
+  private bulkAddUndoTimer: ReturnType<typeof setTimeout> | undefined;
   metadataBrowserMode = signal<MetadataBrowserMode>(this.loadMetadataBrowserMode());
   readonly metadataBrowserModeIndex = computed(() => {
     const index = this.metadataBrowserModes.findIndex(
@@ -362,7 +370,28 @@ export class VariablesPanelComponent implements OnDestroy {
   }
 
   selectionToggleLabel(): string {
-    return this.isSelectedNodeInPool() ? 'Remove' : 'Add';
+    const inPool = this.isSelectedNodeInPool();
+    if (!this.isSelectedNodeGroup()) {
+      return inPool ? 'Remove' : 'Add';
+    }
+    // A group adds or removes every variable under it, so the button says how many.
+    if (inPool) {
+      return `Remove ${this.pooledTargets().length}`;
+    }
+    const missing = this.missingTargets().length;
+    return missing < this.addableTargets().length ? `Add ${missing} more` : `Add ${missing}`;
+  }
+
+  /** Variables under the selected node that are already in the experiment. */
+  private pooledTargets(): any[] {
+    const selected = new Set(this.analysisStudioService.selectedVariables().map((variable) => variable.code));
+    return this.selectionTargets().filter((item) => selected.has(item.code));
+  }
+
+  /** Addable variables under the selected node that are not in the experiment yet. */
+  private missingTargets(): any[] {
+    const selected = new Set(this.analysisStudioService.selectedVariables().map((variable) => variable.code));
+    return this.addableTargets().filter((item) => !selected.has(item.code));
   }
 
   selectionToggleTitle(): string {
@@ -374,6 +403,11 @@ export class VariablesPanelComponent implements OnDestroy {
     }
     if (this.selectedNodeOnlyUnavailable() && !this.isSelectedNodeInPool()) {
       return 'Not available in the selected datasets';
+    }
+    if (this.isSelectedNodeGroup()) {
+      return this.isSelectedNodeInPool()
+        ? `Remove the ${this.pooledTargets().length} variables in this group from this experiment`
+        : `Add the ${this.missingTargets().length} variables in this group to this experiment`;
     }
     return this.isSelectedNodeInPool()
       ? 'Remove the selected variable from this analysis'
@@ -388,20 +422,49 @@ export class VariablesPanelComponent implements OnDestroy {
       return;
     }
     if (this.isSelectedNodeInPool()) {
+      this.bulkAddUndo.set(null); // the list moved on; Undo would now restore the wrong one
       const removeCodes = new Set(this.selectionTargets().map((item) => item.code));
       this.analysisStudioService.setVariables(
         this.analysisStudioService.selectedVariables().filter((variable) => !removeCodes.has(variable.code))
       );
       return;
     }
-    this.addableTargets().forEach((item) => this.analysisStudioService.addVariableAndEnrich(item));
+    this.addSelectedNode();
   }
 
   addVariableFromBubble(): void {
     if (!this.hasSelectedDatasets || !this.selectedNode) {
       return;
     }
+    this.addSelectedNode();
+  }
+
+  /**
+   * Every add goes through here. A large one (a group) offers Undo for a while,
+   * restoring the list as it was before the click: unlike "Remove N", it keeps the
+   * variables of that group the user had already picked one by one.
+   */
+  private addSelectedNode(): void {
+    const previous = this.analysisStudioService.selectedVariables();
+    const added = this.missingTargets().length;
     this.addableTargets().forEach((item) => this.analysisStudioService.addVariableAndEnrich(item));
+    clearTimeout(this.bulkAddUndoTimer);
+    if (added <= BULK_ADD_UNDO_THRESHOLD) {
+      this.bulkAddUndo.set(null);
+      return;
+    }
+    this.bulkAddUndo.set({ count: added, previous });
+    this.bulkAddUndoTimer = setTimeout(() => this.bulkAddUndo.set(null), BULK_ADD_UNDO_MS);
+  }
+
+  undoBulkAdd(): void {
+    const undo = this.bulkAddUndo();
+    if (!undo) {
+      return;
+    }
+    clearTimeout(this.bulkAddUndoTimer);
+    this.analysisStudioService.setVariables(undo.previous);
+    this.bulkAddUndo.set(null);
   }
 
   /** Selection targets minus unavailable variables, so adding a group never pools one. */
@@ -649,6 +712,7 @@ export class VariablesPanelComponent implements OnDestroy {
 
 
   ngOnDestroy(): void {
+    clearTimeout(this.bulkAddUndoTimer);
     this.destroy$.next();
     this.destroy$.complete();
   }

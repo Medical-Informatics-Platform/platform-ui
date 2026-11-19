@@ -615,6 +615,58 @@
   background: rgba(43, 51, 233, 0.06);
 }
 
+/* A group's button moves many variables at once: outline weight, so it never
+   reads as the same one-variable action as the filled Add. */
+.selection-toggle-btn.is-bulk:not(.is-remove) {
+  background: var(--card-bg);
+  color: var(--primary-color);
+}
+
+.selection-toggle-btn.is-bulk:not(.is-remove):not(:disabled):hover,
+.selection-toggle-btn.is-bulk:not(.is-remove):not(:disabled):focus-visible {
+  background: rgba(43, 51, 233, 0.06);
+}
+
+.selection-toggle-btn span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Undo for a large add: sits in the pinned header, under the button that caused
+   it, so it stays in view wherever the column is scrolled. */
+.bulk-add-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-add-undo-btn {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--primary-color);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-add-undo-btn:hover,
+.bulk-add-undo-btn:focus-visible {
+  background: rgba(43, 51, 233, 0.08);
+}
+
+.bulk-add-undo-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 /* "Add this variable" hint: a soft halo in the page's selection blue, spreading outward
    from the button three times and then stopping. A spreading halo reads as an
    invitation, not as the tight 2px ring :focus-visible draws, and it never raises the

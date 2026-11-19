@@ -158,11 +158,52 @@ describe('VariablesPanelComponent data exploration layout', () => {
       expect(fixture.nativeElement.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('integer · years · 1–150');
     });
 
-    it('counts what a group holds', () => {
+    it('counts what a group holds and what its button will add', () => {
       const host = selectNode();
 
       expect(host.querySelector('.details-panel-path')).toBeNull(); // the root has no ancestors
       expect(host.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('1 group · 1 variable');
+      const button = host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!;
+      expect(button.textContent?.trim()).toBe('Add 1');
+      expect(button.classList).toContain('is-bulk');
+    });
+
+    it('offers Undo after a large group add, restoring the list from before the click', () => {
+      const service = TestBed.inject(AnalysisStudioService) as unknown as {
+        selectedVariables: ReturnType<typeof signal<any[]>>;
+        setVariables: ReturnType<typeof vi.fn>;
+      };
+      const picked = { code: 'v0', label: 'V0', type: 'real' };
+      service.selectedVariables.set([picked]);
+      const big = {
+        label: 'Big', code: 'big',
+        children: Array.from({ length: 25 }, (_, i) => ({ code: `v${i}`, label: `V${i}`, type: 'real' })),
+      };
+      component.onSelectedNodeChange(big);
+      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.selection-toggle-btn')?.textContent?.trim()).toBe('Add 24 more');
+      host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!.click();
+      fixture.detectChanges();
+
+      const undo = host.querySelector<HTMLElement>('.bulk-add-undo')!;
+      expect(undo.getAttribute('role')).toBe('status');
+      expect(undo.textContent).toContain('Added 24 variables');
+      undo.querySelector<HTMLButtonElement>('.bulk-add-undo-btn')!.click();
+      fixture.detectChanges();
+
+      expect(service.setVariables).toHaveBeenLastCalledWith([picked]); // the hand-picked one stays
+      expect(host.querySelector('.bulk-add-undo')).toBeNull();
+    });
+
+    it('offers no Undo for a small add', () => {
+      const host = selectNode();
+      host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!.click();
+      fixture.detectChanges();
+
+      expect(host.querySelector('.bulk-add-undo')).toBeNull();
     });
   });
 

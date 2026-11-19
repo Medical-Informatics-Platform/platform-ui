@@ -194,6 +194,7 @@
                 data-guide="guide-add-variable"
                 [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode && !isSelectedNodeGroup()"
                 [class.is-remove]="isSelectedNodeInPool()"
+                [class.is-bulk]="isSelectedNodeGroup()"
                 [disabled]="selectionToggleDisabled()"
                 [title]="selectionToggleTitle()"
                 (click)="toggleSelectedNodeInPool()">
@@ -201,6 +202,12 @@
                 <span>{{ selectionToggleLabel() }}</span>
               </button>
             </div>
+            @if (bulkAddUndo(); as undo) {
+            <div class="bulk-add-undo" role="status">
+              <span>Added {{ undo.count }} variables</span>
+              <button type="button" class="bulk-add-undo-btn" (click)="undoBulkAdd()">Undo</button>
+            </div>
+            }
           </div>
 
           <div class="details-panel-body">
