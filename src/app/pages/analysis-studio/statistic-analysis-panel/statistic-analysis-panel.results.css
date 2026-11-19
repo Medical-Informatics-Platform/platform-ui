@@ -392,7 +392,8 @@ button:disabled {
   }
 
   .workflow-section-body {
-    padding: 12px;
+    --workflow-body-pad: 12px;
+    padding-inline: 12px;
   }
 
 

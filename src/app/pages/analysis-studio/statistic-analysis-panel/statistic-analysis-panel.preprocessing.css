@@ -11,8 +11,53 @@
    Shared/one-off overrides that must win over styles.css live in the file that
    owns the rule's section, never duplicated. */
 
+/* Expand/collapse: height animates between 0 and auto (`interpolate-size`; browsers without
+   it simply snap). `display` and `overflow` are discrete: display holds the body rendered
+   until the collapse finishes, and overflow stays clipped while it moves, flipping to
+   visible only after the expand settles so menus and focus rings are not cut off. */
+.workflow-section-body {
+  --workflow-body-pad: 14px 16px;
+  display: none;
+  height: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  interpolate-size: allow-keywords;
+  transition:
+    height 0.28s var(--ease-standard),
+    padding-block 0.28s var(--ease-standard),
+    opacity 0.18s ease,
+    display 0.28s allow-discrete,
+    overflow 0s allow-discrete;
+}
+
 .workflow-section-body.open {
   display: block;
+  height: auto;
+  padding-block: var(--workflow-body-pad);
+  opacity: 1;
+  overflow: visible;
+  transition:
+    height 0.28s var(--ease-standard),
+    padding-block 0.28s var(--ease-standard),
+    opacity 0.24s ease 0.06s,
+    display 0.28s allow-discrete,
+    overflow 0s 0.28s allow-discrete;
+}
+
+@starting-style {
+  .workflow-section-body.open {
+    height: 0;
+    padding-block: 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workflow-section-body,
+  .workflow-section-body.open {
+    transition: none;
+  }
 }
 
 .station-preview-bar {

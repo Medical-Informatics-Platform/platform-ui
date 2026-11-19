@@ -292,7 +292,7 @@ export interface DescriptiveProgressState {
     './statistic-analysis-panel.results.css',
   ],
   host: {
-    '(document:click)': 'closeBatchMenuOnOutsideClick($event)',
+    '(document:click)': 'onDocumentClick($event)',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -2895,6 +2895,27 @@ export class StatisticAnalysisPanelComponent implements OnDestroy {
   toggleSummaryExportMenu(kind: SummaryKind): void {
     this.summaryExportMenuKind.update((open) => (open === kind ? null : kind));
     this.cdr.markForCheck();
+  }
+
+  /** A click outside an open step folds it, without the scroll a header toggle requests. Overlays and the tour are not "outside". */
+  private collapseStepsOnOutsideClick(event: MouseEvent): void {
+    const path = event.composedPath().filter((node): node is Element => node instanceof Element);
+    if (path.some((el) => el.matches('.cdk-overlay-container, app-experiment-studio-guide'))) return;
+    const inside = (selector: string) => path.some((el) => el.matches(selector));
+    const open = this.sectionOpen();
+    const next = { ...open };
+    if (open.source && !inside('.pipeline-source-band')) next.source = false;
+    if ((open.filters || open.raw) && !inside('[data-guide="analysis-filtering"]')) next.filters = next.raw = false;
+    if ((open.setup || open.processed) && !inside('[data-guide="analysis-preprocessing"]')) next.setup = next.processed = false;
+    if (open.transformation && !inside('[data-guide="analysis-transformation"]')) next.transformation = false;
+    if (Object.keys(next).every((k) => next[k as SectionKey] === open[k as SectionKey])) return;
+    this.sectionOpen.set(next);
+    this.cdr.markForCheck();
+  }
+
+  onDocumentClick(event: MouseEvent): void {
+    this.closeBatchMenuOnOutsideClick(event);
+    this.collapseStepsOnOutsideClick(event);
   }
 
   closeBatchMenuOnOutsideClick(event: MouseEvent): void {
