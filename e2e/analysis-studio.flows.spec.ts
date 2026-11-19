@@ -13,6 +13,7 @@ import {
   applyMeanImputationToAll,
   applyOutlierChoice,
   assignRole,
+  chooseAlgorithm,
   clearRole,
   collapsePreprocessing,
   expectAlgorithm,
@@ -337,6 +338,7 @@ test.describe('filters and transformations', () => {
     await collapsePreprocessing(page);
     await expect(page.getByText('Age: Median imputation')).toBeVisible();
     await goToAlgorithms(page);
+    await chooseAlgorithm(page, 'Linear regression');
     await assignRole(page, 'Age', 'Outcome');
     await assignRole(page, 'Sex', 'Predictor');
     await expectAlgorithm(page, 'Linear regression', 'Regression');
@@ -404,6 +406,7 @@ test.describe('filters and transformations', () => {
     await expect(page.locator('app-kmeans-cluster-source .kmeans-cluster-source-applied-code')).toHaveText('Column kmeans_cluster');
 
     await goToAlgorithms(page);
+    await chooseAlgorithm(page, 'Logistic regression');
     await assignRole(page, 'Sex', 'Outcome');
     await assignRole(page, 'pca_pc1', 'Predictor');
     await assignRole(page, 'kmeans_cluster', 'Predictor');

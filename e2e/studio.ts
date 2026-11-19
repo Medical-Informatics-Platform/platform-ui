@@ -101,6 +101,7 @@ export async function setAlpha(page: Page, value: string) {
 export async function prepareLinearRun(page: Page) {
   await openAgeAndSex(page);
   await goToAlgorithms(page);
+  await chooseAlgorithm(page, 'Linear regression');
   await assignRole(page, 'Age', 'Outcome');
   await assignRole(page, 'Sex', 'Predictor');
   await expectAlgorithm(page, 'Linear regression', 'Regression');

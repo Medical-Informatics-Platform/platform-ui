@@ -139,11 +139,32 @@ export function acceptedVariableTypes(slot: InputSlotSpec | null | undefined): s
   return acceptedSlotStatTypes(slot);
 }
 
-/** `numerical`, `nominal`, `ordinal`, `binary` as readable text: "numerical, nominal or binary". */
+/**
+ * Slot types as readable text, in the CDE words the variable rows show: `numerical` reads as
+ * the two CDE types it takes, so ['numerical', 'binary'] is "continuous, discrete or binary".
+ */
 export function formatSlotStatTypes(types: readonly string[]): string {
-  const list = [...types];
+  const list = types.flatMap((type) => (type === 'numerical' ? [...NUMERICAL_VARIABLE_TYPES] : [type]));
   if (list.length <= 1) return list.join('');
   return `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}`;
+}
+
+/**
+ * `binary`, `nominal or binary`, `nominal, ordinal or binary`: a slot's types in the words the
+ * variable rows show. '' when the slot takes every kind, so callers say "any kind" or drop it.
+ */
+export function slotTypesText(acceptedTypes: readonly string[] | null | undefined): string {
+  if (!Array.isArray(acceptedTypes) || acceptedTypes.length === 0) return '';
+  if (SLOT_STAT_TYPES.every((type) => acceptedTypes.includes(type))) return '';
+  return formatSlotStatTypes(acceptedTypes);
+}
+
+/** `a numerical outcome`, `2 binary outcomes`, `1 numerical or categorical predictor`. */
+export function slotPhrase(role: 'y' | 'x', count: number, typesText: string): string {
+  const noun = role === 'y' ? 'outcome' : 'predictor';
+  const typed = typesText ? `${typesText} ` : '';
+  if (role === 'y' && count === 1) return `${/^[aeiou]/i.test(typed || noun) ? 'an' : 'a'} ${typed}${noun}`;
+  return `${count} ${typed}${noun}${count === 1 ? '' : 's'}`;
 }
 
 /** What a variable of this type is called in a requirement message: its CDE type, or "unknown". */

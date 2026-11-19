@@ -8,6 +8,16 @@ import {
 } from './histogram-data';
 
 describe('histogram split helpers', () => {
+  it('does not offer a dataset split while the dataset variable itself is plotted', () => {
+    const options = buildHistogramSplitOptions({
+      plottedCode: 'dataset',
+      selectedVariables: [{ code: 'sex', label: 'Sex', type: 'nominal', enumerations: ['M', 'F'] }],
+      datasetLevelCount: 2,
+    });
+
+    expect(options.map((option) => option.code)).toEqual(['sex']);
+  });
+
   it('disables a split variable missing from a selected dataset and names the datasets', () => {
     const options = buildHistogramSplitOptions({
       plottedCode: 'age',

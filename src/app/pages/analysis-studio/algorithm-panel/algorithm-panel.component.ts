@@ -5,7 +5,7 @@ import { AnalysisStudioService } from '../../../services/analysis-studio.service
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { buildFormControl } from '../../shared/utils/form-control.factory';
 import { getOutputSchema, prettifyLabel as toHumanLabel } from '../../../core/algorithm-mappers';
-import { formatInputCountRange } from '../../../core/algorithm-input-counts';
+import { formatInputCountRange, resolveInputMinCount } from '../../../core/algorithm-input-counts';
 import {
   omitEmptyOptionalParameters,
   optionBindingValue,
@@ -18,7 +18,13 @@ import { formatFilterExpression } from '../../../core/filter-display.utils';
 import { ErrorService } from '../../../services/error.service';
 import { AuthService } from '../../../services/auth.service';
 import { AlgorithmNames } from '../../../core/constants/algorithm.constants';
-import { specificationAcceptsVariableType } from '../../../core/data-model.utils';
+import {
+  acceptedVariableTypes,
+  isFreeTextCde,
+  slotPhrase,
+  slotTypesText,
+  specificationAcceptsVariableType,
+} from '../../../core/data-model.utils';
 import { RuntimeEnvService } from '../../../services/runtime-env.service';
 import { AnalysisStudioNavigationService } from '../../../services/analysis-studio-navigation.service';
 import {
@@ -52,6 +58,8 @@ interface AlgorithmNeedItem {
   met: boolean;
   title: string;
   messages: string[];
+  /** The one action the run bar asks for next: "Pick a numerical outcome". */
+  next: string;
   action?: AlgorithmRunRequirement;
 }
 
@@ -116,6 +124,9 @@ export class AlgorithmPanelComponent {
           met: detail.messages.length === 0,
           title: this.needsRequirementText(detail),
           messages: [...detail.messages],
+          next: detail.selectedCount < detail.minCount
+            ? `Pick ${slotPhrase(role, detail.minCount - detail.selectedCount, slotTypesText(detail.acceptedTypes))}`
+            : (detail.messages[0] ?? this.needsRequirementText(detail)),
         });
       } else if (role === 'y' && !('y' in (algorithm.inputdata ?? {}))) {
         needs.push({
@@ -123,27 +134,37 @@ export class AlgorithmPanelComponent {
           met: true,
           title: 'No outcome needed',
           messages: this.analysisStudioService.algorithmY().length ? ['Your outcome is ignored'] : [],
+          next: 'No outcome needed',
         });
       }
     }
 
     const unavailable = this.unavailableRunVariablesReason();
     if (unavailable) {
-      needs.push({ key: 'unavailable-variables', met: false, title: unavailable, messages: [] });
+      needs.push({ key: 'unavailable-variables', met: false, title: unavailable, messages: [], next: unavailable });
     }
 
-    this.algorithmRunRequirements().forEach((requirement) => {
-      needs.push({
-        key: `run-${requirement.id}`,
-        met: false,
-        title: requirement.message,
-        messages: [],
-        action: requirement,
+    // Role problems are already listed on the outcome and predictor rails, so only
+    // requirements that live elsewhere (preprocessing) become their own need.
+    this.algorithmRunRequirements()
+      .filter((requirement) => requirement.id !== 'availability')
+      .forEach((requirement) => {
+        needs.push({
+          key: `run-${requirement.id}`,
+          met: false,
+          title: requirement.message,
+          messages: [],
+          next: requirement.message,
+          action: requirement,
+        });
       });
-    });
 
     return needs;
   });
+
+  /** Needs shown under the method header: role needs render on the rails instead. */
+  readonly otherNeeds = computed(() =>
+    this.algorithmNeeds().filter((need) => need.key !== 'needs-y' && need.key !== 'needs-x'));
 
   needsRequirementText(detail: AlgorithmAvailabilityDetail): string {
     const typeText = this.requirementTypeText(detail.acceptedTypes);
@@ -171,15 +192,8 @@ export class AlgorithmPanelComponent {
     return 'Predictors optional';
   }
 
-  /** `binary`, `nominal or binary`, `numerical or categorical`: the CDE types a slot takes, kept distinct. */
   private requirementTypeText(acceptedTypes: string[] | undefined | null): string {
-    if (!Array.isArray(acceptedTypes) || acceptedTypes.length === 0) return '';
-    const labels = [...acceptedTypes];
-    const allCategorical = ['nominal', 'ordinal', 'binary'].every((type) => labels.includes(type));
-    const display = allCategorical
-      ? [...labels.filter((type) => !['nominal', 'ordinal', 'binary'].includes(type)), 'categorical']
-      : labels;
-    return display.join(' or ');
+    return slotTypesText(acceptedTypes);
   }
 
   readonly readinessText = computed(() => {
@@ -187,12 +201,9 @@ export class AlgorithmPanelComponent {
     if (!algorithm) return 'Pick a method to continue';
 
     if (!this.canRun()) {
-      const reasons = this.algorithmNeeds()
-        .filter((need) => !need.met)
-        .flatMap((need) => (need.action ? [need.title] : need.messages))
-        .filter((message) => !!message);
-      if (!reasons.length) return 'Not ready to run yet';
-      return `${reasons.length} ${reasons.length === 1 ? 'thing' : 'things'} left — ${reasons.slice(0, 2).join(' · ')}${reasons.length > 2 ? ` +${reasons.length - 2}` : ''}`;
+      const pending = this.algorithmNeeds().filter((need) => !need.met);
+      if (!pending.length) return 'Not ready to run yet';
+      return `Next: ${pending[0].next}${pending.length > 1 ? ` · ${pending.length - 1} more` : ''}`;
     }
 
     const y = this.analysisStudioService.algorithmY();
@@ -203,7 +214,7 @@ export class AlgorithmPanelComponent {
   });
 
   categoryRunnableCount(category: { algorithms: AlgorithmConfig[] }): number {
-    return category.algorithms.filter((algorithm) => !algorithm.isDisabled).length;
+    return category.algorithms.filter((algorithm) => this.fitsVariables(algorithm)).length;
   }
 
   readonly selectedAlgorithmAvailabilitySummary = computed(() => {
@@ -843,13 +854,13 @@ export class AlgorithmPanelComponent {
     const entries = Object.entries(grouped ?? {}).map(([name, algorithms]) => {
       let filtered = (algorithms ?? []).filter(a => this.matchesAlgorithmSearch(a, query));
       if (onlyActive) {
-        filtered = filtered.filter(a => !a.isDisabled);
+        filtered = filtered.filter(a => this.fitsVariables(a));
       }
 
       // Runnable-first: when showing all methods, surface runnable ones before disabled ones.
       const ordered = onlyActive
         ? filtered
-        : [...filtered].sort((a, b) => Number(a.isDisabled) - Number(b.isDisabled));
+        : [...filtered].sort((a, b) => Number(!this.fitsVariables(a)) - Number(!this.fitsVariables(b)));
 
       return { name, algorithms: ordered };
     });
@@ -860,7 +871,7 @@ export class AlgorithmPanelComponent {
   readonly algoCounts = computed(() => {
     const grouped = this.analysisStudioService.availableGroupedAlgorithms();
     const all = Object.values(grouped ?? {}).flat();
-    const active = all.filter(a => !a.isDisabled);
+    const active = all.filter(a => this.fitsVariables(a));
     return { all: all.length, active: active.length };
   });
 
@@ -925,7 +936,7 @@ export class AlgorithmPanelComponent {
       if (this.matchCategoryUserToggles.has(category.name)) return;
       const shouldOpen =
         category.name === selectedCategory ||
-        category.algorithms.some((algorithm) => !algorithm.isDisabled);
+        category.algorithms.some((algorithm) => this.fitsVariables(algorithm));
       if (shouldOpen === !next.has(category.name)) return;
       if (shouldOpen) {
         next.delete(category.name);
@@ -940,6 +951,51 @@ export class AlgorithmPanelComponent {
     }
 
     if (changed) this.collapsedMatchCategories.set(next);
+  }
+
+  /**
+   * Why a method cannot use the selected variables ("Needs a binary outcome"), '' when the
+   * pool holds enough variables of the kinds each required slot takes. It ignores the
+   * current assignment, so the catalog answers "which methods fit my data" before roles exist.
+   */
+  readonly methodFitReasons = computed(() => {
+    const unavailable = this.analysisStudioService.unavailableVariables();
+    const pool = this.assignablePool.filter((node: any) =>
+      !unavailableDatasetsFor(unavailable, { code: node?.code }).length
+      && (node?.isCreatedColumn || !isFreeTextCde(node)));
+    const reasons = new Map<string, string>();
+    Object.values(this.analysisStudioService.availableGroupedAlgorithms() ?? {})
+      .flat()
+      .forEach((algorithm) => reasons.set(algorithm.name, this.computeMethodFitReason(algorithm, pool)));
+    return reasons;
+  });
+
+  fitsVariables(algorithm: AlgorithmConfig): boolean {
+    return !this.methodFitReasons().get(algorithm.name);
+  }
+
+  methodFitReason(algorithm: AlgorithmConfig): string {
+    return this.methodFitReasons().get(algorithm.name) ?? '';
+  }
+
+  // ponytail: per-slot counts plus a distinct-variable total; a variable that is the only fit
+  // for two slots still passes. Add a bipartite match if a real catalog trips on it.
+  private computeMethodFitReason(algorithm: AlgorithmConfig, pool: any[]): string {
+    const inputdata = (algorithm.inputdata ?? {}) as Record<string, any>;
+    let needed = 0;
+    const usable = new Set<string>();
+    for (const role of ['y', 'x'] as const) {
+      if (!(role in inputdata)) continue;
+      const slot = inputdata[role];
+      const min = resolveInputMinCount(slot, role, algorithm.name);
+      const fitting = pool.filter((node) => specificationAcceptsVariableType(slot, node?.type));
+      if (fitting.length < min) {
+        return `Needs ${slotPhrase(role, min, slotTypesText(acceptedVariableTypes(slot)))}`;
+      }
+      needed += min;
+      fitting.forEach((node) => usable.add(String(node.code)));
+    }
+    return usable.size < needed ? 'Needs more variables than you selected' : '';
   }
 
   algorithmUnavailableReason(algorithm: AlgorithmConfig): string {

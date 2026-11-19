@@ -1,22 +1,37 @@
 <section class="role-assignment" [class.is-expanded]="rolesExpanded()" aria-label="Assign variables and covariates"
   data-guide="guide-role-assignment" tabindex="-1">
   <div class="role-band">
-    <div class="step-kicker role-step-kicker"><span class="step-kicker-n">1</span> Roles</div>
+    <div class="step-kicker role-step-kicker"><span class="step-kicker-n">2</span> Variables</div>
 
     <div class="rails" [class.is-compact]="!rolesExpanded()">
-      <div class="rail rail--y" [class.rail--empty]="y().length === 0">
-        <div class="rail-label">Outcome <em>y</em><span>usually one</span></div>
+      @if (slots().y || y().length) {
+      <div class="rail rail--y" [class.rail--empty]="y().length === 0" [class.rail--met]="slots().y?.met && y().length > 0">
+        <div class="rail-label">Outcome <em>y</em>
+          @if (slots().y; as slot) {
+          <span class="rail-spec">{{ slot.types || 'any kind' }} · {{ slot.count }}</span>
+          } @else {
+          <span class="rail-spec">not used by this method</span>
+          }
+        </div>
         <div class="chips" cdkDropList #yList="cdkDropList" cdkDropListOrientation="mixed"
-          [cdkDropListConnectedTo]="[xList]" (cdkDropListDropped)="onChipDrop($event, 'y')">
+          [cdkDropListConnectedTo]="['role-x-list']" id="role-y-list" (cdkDropListDropped)="onChipDrop($event, 'y')">
           @if (y().length === 0) {
-          <p class="invite">No outcome yet — add one below</p>
+          @if (noneFit('y')) {
+          <p class="invite invite--blocked">
+            None of your variables is {{ slots().y?.types }}.
+            <button type="button" class="invite-action" (click)="goToVariables()">Add one in Data Exploration</button>
+          </p>
+          } @else {
+          <p class="invite">{{ invite('y') }}</p>
+          }
           }
           @for (node of y(); track node.code) {
           <span class="chip chip--y" cdkDrag [cdkDragData]="node"
             [cdkDragDisabled]="isUnavailable(node)"
             [class.is-unavailable]="isUnavailable(node)"
+            [class.is-misfit]="!fits(node, 'y')"
             [attr.aria-disabled]="isUnavailable(node) ? true : null"
-            [attr.title]="unavailableTooltip(node) || null">
+            [attr.title]="unavailableTooltip(node) || (fits(node, 'y') ? null : roleBlockedTitle(node, 'y'))">
             <span class="chip-name">{{ label(node) }}</span>
             <span class="chip-type">{{ node.type }}</span>
             @if (isCreated(node)) {
@@ -27,21 +42,40 @@
           </span>
           }
         </div>
+        @for (message of slots().y?.messages ?? []; track message) {
+        <p class="rail-message">{{ message }}</p>
+        }
       </div>
+      }
 
-      <div class="rail rail--x" [class.rail--empty]="x().length === 0">
-        <div class="rail-label">Predictors <em>x</em><span>zero to many</span></div>
+      @if (slots().x || x().length) {
+      <div class="rail rail--x" [class.rail--empty]="x().length === 0" [class.rail--met]="slots().x?.met && x().length > 0">
+        <div class="rail-label">Predictors <em>x</em>
+          @if (slots().x; as slot) {
+          <span class="rail-spec">{{ slot.types || 'any kind' }} · {{ slot.count }}</span>
+          } @else {
+          <span class="rail-spec">not used by this method</span>
+          }
+        </div>
         <div class="chips" cdkDropList #xList="cdkDropList" cdkDropListOrientation="mixed"
-          [cdkDropListConnectedTo]="[yList]" (cdkDropListDropped)="onChipDrop($event, 'x')">
+          [cdkDropListConnectedTo]="['role-y-list']" id="role-x-list" (cdkDropListDropped)="onChipDrop($event, 'x')">
           @if (x().length === 0) {
-          <p class="invite">No predictors yet — add from the list or leave empty</p>
+          @if (noneFit('x')) {
+          <p class="invite invite--blocked">
+            None of your variables is {{ slots().x?.types }}.
+            <button type="button" class="invite-action" (click)="goToVariables()">Add one in Data Exploration</button>
+          </p>
+          } @else {
+          <p class="invite">{{ invite('x') }}</p>
+          }
           }
           @for (node of x(); track node.code) {
           <span class="chip chip--x" cdkDrag [cdkDragData]="node"
             [cdkDragDisabled]="isUnavailable(node)"
             [class.is-unavailable]="isUnavailable(node)"
+            [class.is-misfit]="!fits(node, 'x')"
             [attr.aria-disabled]="isUnavailable(node) ? true : null"
-            [attr.title]="unavailableTooltip(node) || null">
+            [attr.title]="unavailableTooltip(node) || (fits(node, 'x') ? null : roleBlockedTitle(node, 'x'))">
             <span class="chip-name">{{ label(node) }}</span>
             <span class="chip-type">{{ node.type }}</span>
             @if (isCreated(node)) {
@@ -52,7 +86,11 @@
           </span>
           }
         </div>
+        @for (message of slots().x?.messages ?? []; track message) {
+        <p class="rail-message">{{ message }}</p>
+        }
       </div>
+      }
     </div>
 
     <div class="role-band-actions">
@@ -71,9 +109,9 @@
       [value]="poolFilter()" (input)="onFilter($event)">
   </div>
 
-  @if (filteredPool().length > 0) {
-  <ul class="roster" aria-label="Unassigned variables">
-    @for (node of filteredPool(); track node.code) {
+  @if (fittingPool().length > 0) {
+  <ul class="roster" aria-label="Variables this method can use">
+    @for (node of fittingPool(); track node.code) {
     @let unavailable = unavailableTooltip(node);
     <li class="row" [class.is-unavailable]="!!unavailable" [attr.aria-disabled]="unavailable ? true : null"
       [attr.title]="unavailable || null">
@@ -85,24 +123,49 @@
         }
       </div>
       <div class="roles modal-tabs role-tray" role="radiogroup" [attr.aria-label]="'Role for ' + label(node)"
-        [attr.aria-disabled]="unavailable ? true : null"
-        [title]="unavailable || 'Click Outcome or Predictor on a row. Drag a chip between the slots to move it; × returns it to this list.'">
+        [attr.aria-disabled]="unavailable ? true : null">
+        @if (slots().y) {
+        @let yBlocked = !fits(node, 'y');
         <button type="button" role="radio" data-role="y" [class.active]="roleOf(node) === 'y'"
-          [attr.aria-checked]="roleOf(node) === 'y'" [attr.aria-disabled]="unavailable ? true : null"
+          [class.is-blocked]="yBlocked"
+          [attr.aria-checked]="roleOf(node) === 'y'" [attr.aria-disabled]="unavailable || yBlocked ? true : null"
+          [attr.title]="unavailable || (yBlocked ? roleBlockedTitle(node, 'y') : null)"
           (click)="setRole(node, 'y')">
           <span class="role-btn-label">Outcome</span>
         </button>
+        }
+        @if (slots().x) {
+        @let xBlocked = !fits(node, 'x');
         <button type="button" role="radio" data-role="x" [class.active]="roleOf(node) === 'x'"
-          [attr.aria-checked]="roleOf(node) === 'x'" [attr.aria-disabled]="unavailable ? true : null"
+          [class.is-blocked]="xBlocked"
+          [attr.aria-checked]="roleOf(node) === 'x'" [attr.aria-disabled]="unavailable || xBlocked ? true : null"
+          [attr.title]="unavailable || (xBlocked ? roleBlockedTitle(node, 'x') : null)"
           (click)="setRole(node, 'x')">
           <span class="role-btn-label">Predictor</span>
         </button>
+        }
       </div>
     </li>
     }
   </ul>
-  } @else {
+  } @else if (misfitPool().length === 0) {
   <p class="hint">Nothing left to assign — clear the filter, or move a chip back with its ×.</p>
+  }
+
+  @if (misfitPool().length > 0) {
+  <details class="misfits">
+    <summary class="misfits-summary">{{ misfitPool().length }} {{ misfitPool().length === 1 ? 'variable does' : 'variables do' }} not fit {{ algorithm()?.label }}</summary>
+    <ul class="roster roster--misfit" aria-label="Variables this method cannot use">
+      @for (node of misfitPool(); track node.code) {
+      <li class="row is-misfit">
+        <div class="var-main">
+          <span class="var-name">{{ label(node) }}</span>
+          <span class="var-type">{{ misfitReason(node) }}</span>
+        </div>
+      </li>
+      }
+    </ul>
+  </details>
   }
   }
 </section>

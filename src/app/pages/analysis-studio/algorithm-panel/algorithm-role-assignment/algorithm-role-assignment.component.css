@@ -11,7 +11,7 @@
   gap: 10px;
   width: 100%;
   min-width: 0;
-  padding: 10px 14px 14px;
+  padding: 12px 16px 14px;
   box-sizing: border-box;
   scroll-margin-top: calc(
     var(--header-height, 64px) + var(--studio-sub-header-height, 44px) + var(--warning-banner-space, 0px) + 16px
@@ -95,8 +95,27 @@
   color: var(--primary-dark);
 }
 
-.rail-label span {
-  display: none;
+/* What the selected method takes in this slot: "numerical · exactly 1". */
+.rail-label .rail-spec {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.rail {
+  flex-wrap: wrap;
+}
+
+/* A problem with what is assigned now (wrong kind, too many, overlap). */
+.rail-message {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: #92400e;
 }
 
 .chips {
@@ -206,6 +225,45 @@
   line-height: 1.4;
   color: var(--text-muted);
   padding: 2px 0;
+}
+
+/* A required slot none of the selected variables can fill: say so and offer the way back. */
+.invite--blocked {
+  color: #92400e;
+}
+
+.invite-action {
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--primary-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.invite-action:hover {
+  color: var(--primary-dark);
+}
+
+.invite-action:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+/* Assigned to a slot whose kind it does not match (kept after a method switch). */
+.chip.is-misfit {
+  border-style: dashed;
+  border-color: rgba(146, 64, 14, 0.45);
+}
+
+.chip.is-misfit .chip-type {
+  color: #92400e;
+  opacity: 1;
 }
 
 .role-band-actions {
@@ -342,6 +400,53 @@
   font-weight: 700;
 }
 
+/* The method's slots do not take this variable's kind. */
+.role-tray button.is-blocked {
+  color: var(--unavailable-text, #94a3b8);
+  cursor: not-allowed;
+}
+
+.role-tray button.is-blocked:hover {
+  background: transparent;
+}
+
+.misfits {
+  margin-top: 4px;
+  border-top: 1px solid var(--studio-card-border, rgba(43, 51, 233, 0.1));
+}
+
+.misfits-summary {
+  padding: 10px 2px 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.misfits-summary:hover {
+  color: var(--text-main);
+}
+
+.misfits-summary:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.roster--misfit .row {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 36px;
+}
+
+.roster--misfit .var-name {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.roster--misfit .var-type {
+  opacity: 1;
+}
+
 .hint {
   margin: 0;
   font-size: 0.74rem;
@@ -379,5 +484,51 @@
 
   .role-tray button {
     min-width: 4.5rem;
+  }
+}
+
+/* Expanded, the rails sit on their own line under the band head: one row per slot,
+   a fixed label column (role, then its kind and count) beside the chips, so Outcome and
+   Predictors line up and the chips start on one edge. */
+.rails:not(.is-compact) {
+  flex-basis: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  order: 3;
+}
+
+.rails:not(.is-compact) .rail {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 16px;
+}
+
+.rails:not(.is-compact) .rail-label {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.rails:not(.is-compact) .rail-label .rail-spec {
+  display: block;
+  margin: 2px 0 0;
+}
+
+.rails:not(.is-compact) .chips {
+  min-height: 28px;
+}
+
+.rails:not(.is-compact) .rail-message {
+  grid-column: 2;
+}
+
+@media (max-width: 720px) {
+  .rails:not(.is-compact) .rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rails:not(.is-compact) .rail-message {
+    grid-column: 1;
   }
 }

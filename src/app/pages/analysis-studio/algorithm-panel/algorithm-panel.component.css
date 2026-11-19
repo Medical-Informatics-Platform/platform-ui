@@ -1543,3 +1543,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* The chosen method's inputs sit between its header and its parameters. */
+.algorithm-config-column > .algorithm-pool {
+  margin: 4px 0 12px;
+  border-top: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
+}

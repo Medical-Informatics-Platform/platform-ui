@@ -969,14 +969,6 @@ export class VariablesPanelComponent implements OnDestroy {
     if (!this.selectedNode) {
       return '';
     }
-    if (this.isSelectedNodeGroup()) {
-      const meta = this.groupHistogramMeta();
-      if (meta) {
-        return meta.hasGroups
-          ? `${meta.groupCount} groups in this view`
-          : `${meta.groupCount} variables in this group`;
-      }
-    }
     return String(this.selectedNode.description ?? '').trim();
   }
 

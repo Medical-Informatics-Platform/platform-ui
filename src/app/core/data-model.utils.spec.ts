@@ -77,7 +77,8 @@ describe('CDE variable types', () => {
       expect(acceptedVariableTypes(slot([]))).toEqual([]);
       expect(formatSlotStatTypes(['binary'])).toBe('binary');
       expect(formatSlotStatTypes(['nominal', 'binary'])).toBe('nominal or binary');
-      expect(formatSlotStatTypes(['numerical', 'nominal', 'binary'])).toBe('numerical, nominal or binary');
+      expect(formatSlotStatTypes(['numerical', 'nominal', 'binary'])).toBe('continuous, discrete, nominal or binary');
+      expect(formatSlotStatTypes(['numerical'])).toBe('continuous or discrete');
     });
   });
 

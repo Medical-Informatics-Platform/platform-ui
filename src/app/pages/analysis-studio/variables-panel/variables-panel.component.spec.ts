@@ -731,7 +731,7 @@ describe('VariablesPanelComponent bubble selection', () => {
       variableName: 'Stroke 3.7',
     });
     expect(component.groupHistogramMeta()?.groupCount).toBe(2);
-    expect(component.detailsPanelSubtitle()).toBe('2 groups in this view');
+    expect(component.detailsPanelSubtitle()).toBe('');
   });
 
   it('prompts to pick a variable when a group holds only variables', () => {
@@ -755,7 +755,7 @@ describe('VariablesPanelComponent bubble selection', () => {
     );
     expect(component.errorMessage()).toBeNull();
     expect(component.isLoadingHistogram()).toBe(false);
-    expect(component.detailsPanelSubtitle()).toBe('2 variables in this group');
+    expect(component.detailsPanelSubtitle()).toBe('');
     expect(component.isExportDisabled()).toBe(true);
   });
 
