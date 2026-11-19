@@ -193,12 +193,8 @@ export function createZoomableCirclePacking(
   const bounds = container.getBoundingClientRect();
   const width = Math.floor(bounds.width || 0) || 700;
   const height = Math.floor(bounds.height || 0) || 728;
-  const paddingLabel = 20;
-  const availableHeight = height - paddingLabel;
-  const size = Math.min(width, availableHeight);
-  // Calculate offset to center the square packing within the rectangle
-  const offsetX = (width - size) / 2;
-  const offsetY = paddingLabel + (availableHeight - size) / 2;
+  // Depth-1 labels sit inside their own circles, so no strip is reserved for them.
+  const size = Math.min(width, height);
   let groupColor = d3.scaleLinear<string>()
     .domain([0, 5])
     .range([colors.groupStart, colors.groupEnd])
@@ -265,19 +261,23 @@ export function createZoomableCirclePacking(
     tooltip.transition().duration(150).style('opacity', 0);
   }
 
-  // Create a perfectly square pack layout
-  const packSize = size;
-  const packHeight = packSize;
-
-  const root = d3.pack<any>().size([packSize, packHeight]).padding(3)(
+  // Padding shrinks with depth: a flat 3px at every level of a 4-5 level tree
+  // ate most of each leaf cluster and left the variables as specks. Gaps stay
+  // visible when zoomed in, because the zoom scales the padding with the circles.
+  const root = d3.pack<any>()
+    .size([size, size])
+    .padding((d: any) => (d.depth === 0 ? 4 : d.depth === 1 ? 1.5 : 0.4))(
     d3.hierarchy<any>(data, (d: any) => d.children)
       .sum((d: any) => d.value ?? 0)
       .sort((a: any, b: any) => (b.value ?? 0) - (a.value ?? 0))
   );
 
+  const rootView = fitTopLevelToViewport(root, width, height, size);
+  /** The view that frames a node: the fitted top-level box for the root, the circle otherwise. */
+  const viewFor = (d: any): [number, number, number] => (d === root ? rootView : [d.x, d.y, d.r * 2.05]);
+
   let focus = root;
-  // Use a 2.05x radius to reduce padding
-  let view: [number, number, number] = [focus.x, focus.y, focus.r * 2.05];
+  let view: [number, number, number] = rootView;
   /** The scale the drawing is at right now, so labels are rebuilt at the same size. */
   let currentK = size / view[2];
   let selectedDataNode: d3.HierarchyNode<any> | null = null;
@@ -392,7 +392,7 @@ export function createZoomableCirclePacking(
     .attr('transform', (d: any) => `translate(${d.x},${d.y})`)
     .style('display', (d: any) => (d.parent === focus ? 'inline' : 'none'));
 
-  zoomTo([focus.x, focus.y, focus.r * 2.05]);
+  zoomTo(viewFor(focus));
   emitFocusChange();
   container.appendChild(svg.node()!);
 
@@ -402,12 +402,14 @@ export function createZoomableCirclePacking(
     view = v;
     currentK = k;
 
-    node.attr('transform', (d: any) => `translate(${(d.x - v[0]) * k + size / 2 + offsetX}, ${(d.y - v[1]) * k + size / 2 + offsetY})`);
+    const cx = width / 2;
+    const cy = height / 2;
+    node.attr('transform', (d: any) => `translate(${(d.x - v[0]) * k + cx}, ${(d.y - v[1]) * k + cy})`);
     node.attr('r', (d: any) => d.r * k);
 
     labelNodes.attr('transform', (d: any) => {
-      const x = (d.x - v[0]) * k + size / 2 + offsetX;
-      const y = (d.y - v[1]) * k + size / 2 + offsetY;
+      const x = (d.x - v[0]) * k + cx;
+      const y = (d.y - v[1]) * k + cy;
       const topY = d.children ? y - d.r * k + 2 : y;
       return `translate(${x}, ${topY})`;
     });
@@ -467,7 +469,7 @@ export function createZoomableCirclePacking(
     svg.transition()
       .duration(isFast ? 7500 : 750)
       .tween('zoom', () => {
-        const i = d3.interpolateZoom(view, [d.x, d.y, d.r * 2.05]);
+        const i = d3.interpolateZoom(view, viewFor(d));
         return (t: number) => zoomTo(i(t));
       })
       .on('end', () => {
@@ -498,7 +500,7 @@ export function createZoomableCirclePacking(
       return;
     }
 
-    const zoomTarget: [number, number, number] = [group.x, group.y, group.r * 2.05];
+    const zoomTarget = viewFor(group);
 
     labelNodes.each(function (nd: any) {
       const el = d3.select(this as SVGGElement);
@@ -508,7 +510,7 @@ export function createZoomableCirclePacking(
       } else el.style('display', 'none').style('fill-opacity', 0);
     });
 
-    if (!view) view = [root.x, root.y, root.r * 2.05];
+    if (!view) view = viewFor(root);
 
     if (focus === root && !selectedDataNode) {
       focus = group;
@@ -632,4 +634,53 @@ export function createZoomableCirclePacking(
       tooltip.remove();
     }
   };
+}
+
+/** Gap kept between the top-level circles and the canvas edge, in canvas pixels. */
+const ROOT_VIEW_MARGIN = 10;
+
+/**
+ * Frames the root on the box around its top-level circles, not on the hidden root
+ * circle: a circle in a rectangle leaves the corners empty, and the pack inside it
+ * rarely reaches its edge. The cluster turns a quarter when that fits the canvas
+ * better (a tall cluster on a wide canvas); only 0° and 90° are tried, so a small
+ * resize never spins it to a new angle. Turning the whole tree moves no circle
+ * relative to another. Returns the root view [cx, cy, diameter] for `zoomTo`, where
+ * the scale is `size / diameter`.
+ */
+export function fitTopLevelToViewport(
+  root: d3.HierarchyCircularNode<any>,
+  width: number,
+  height: number,
+  size: number
+): [number, number, number] {
+  const top = root.children ?? [];
+  if (!top.length) {
+    return [root.x, root.y, root.r * 2.05];
+  }
+  const availableWidth = Math.max(1, width - ROOT_VIEW_MARGIN * 2);
+  const availableHeight = Math.max(1, height - ROOT_VIEW_MARGIN * 2);
+  const box = (turned: boolean) => {
+    // A quarter turn about the root centre: (dx, dy) -> (-dy, dx).
+    const xs = top.map((d) => (turned ? root.x - (d.y - root.y) : d.x));
+    const ys = top.map((d) => (turned ? root.y + (d.x - root.x) : d.y));
+    const minX = d3.min(top, (d, i) => xs[i] - d.r)!;
+    const maxX = d3.max(top, (d, i) => xs[i] + d.r)!;
+    const minY = d3.min(top, (d, i) => ys[i] - d.r)!;
+    const maxY = d3.max(top, (d, i) => ys[i] + d.r)!;
+    const scale = Math.min(availableWidth / (maxX - minX), availableHeight / (maxY - minY));
+    return { minX, maxX, minY, maxY, scale };
+  };
+  const upright = box(false);
+  const turned = box(true);
+  const best = turned.scale > upright.scale ? turned : upright;
+  if (best === turned) {
+    for (const d of root.descendants()) {
+      const dx = d.x - root.x;
+      const dy = d.y - root.y;
+      d.x = root.x - dy;
+      d.y = root.y + dx;
+    }
+  }
+  return [(best.minX + best.maxX) / 2, (best.minY + best.maxY) / 2, size / best.scale];
 }
