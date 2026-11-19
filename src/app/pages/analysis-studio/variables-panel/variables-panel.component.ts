@@ -946,8 +946,14 @@ export class VariablesPanelComponent implements OnDestroy {
       return [groups ? plural(groups, 'group') : '', plural(variables, 'variable')].filter(Boolean).join(' · ');
     }
     const text = (value: unknown) => (value === null || value === undefined ? '' : String(value).trim());
-    const min = text(node.minValue);
-    const max = text(node.maxValue);
+    // An integer variable: show its bounds as the integers they allow ("1.0" -> "1").
+    const bound = (value: unknown, round: (n: number) => number) => {
+      const raw = text(value);
+      const n = Number(raw);
+      return node.type === 'integer' && raw && Number.isFinite(n) ? String(round(n)) : raw;
+    };
+    const min = bound(node.minValue, Math.ceil);
+    const max = bound(node.maxValue, Math.floor);
     const range = min && max ? `${min}–${max}` : min ? `≥ ${min}` : max ? `≤ ${max}` : '';
     return [text(node.type), text(node.units), range].filter(Boolean).join(' · ');
   }
