@@ -3,66 +3,41 @@
   min-width: 0;
 }
 
+/* Blocks are label + content separated by hairlines: no card inside the inspector card. */
 .metadata-info-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  padding: 2px 2px 4px;
-}
-
-/* Flat rendering (inspector): blocks are label + content separated by
-   hairlines, so no card appears inside the card under the section heading. */
-.metadata-info-panel.is-flat {
   gap: 12px;
-  padding: 0;
+  min-width: 0;
 }
 
-.metadata-info-panel.is-flat .metadata-section + .metadata-section {
+.metadata-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.metadata-section + .metadata-section {
   padding-top: 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.22);
 }
 
-.metadata-info-panel.is-flat .metadata-block h4 {
+.metadata-section h4 {
+  margin: 0;
   color: var(--text-main);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  text-transform: none;
 }
 
-.metadata-empty {
-  display: grid;
-  gap: 10px;
-  place-items: center;
-  min-height: 180px;
-  color: #64748b;
-  text-align: center;
+.metadata-count {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
-.metadata-empty i {
-  color: var(--primary-color);
-  font-size: 1.4rem;
-}
-
-.metadata-info-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-.metadata-info-header h3 {
-  margin: 0;
-  color: var(--text-main);
-  font-size: 1.05rem;
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.metadata-description,
 .metadata-long-text {
   margin: 0;
   color: var(--chart-label-color);
@@ -70,140 +45,27 @@
   line-height: 1.5;
 }
 
-.metadata-kind {
-  width: fit-content;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: #eef2ff;
-  border: 1px solid rgba(43, 51, 233, 0.18);
+.metadata-more-btn {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
   color: var(--primary-color);
-}
-
-.metadata-section {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.metadata-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.metadata-block-card {
-  padding: 10px 12px;
-  border-radius: var(--radius-md, 8px);
-  background: var(--studio-card-header-bg);
-  border: 1px solid var(--studio-card-header-border, rgba(43, 51, 233, 0.08));
-}
-
-.metadata-block h4 {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* One breadcrumb line that wraps: the path flows as inline text with
-   separators, instead of chips stacking row by row. */
-.metadata-path {
-  min-width: 0;
-}
-
-.metadata-path span {
-  display: inline;
-  max-width: 100%;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  font-weight: 500;
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.metadata-path span.current {
-  color: var(--primary-color);
-  font-weight: 700;
-}
-
-.metadata-path i {
-  display: inline-block;
-  vertical-align: middle;
-  color: var(--primary-light);
-  font-size: 0.5rem;
-  opacity: 0.85;
-  margin: 0 5px;
-}
-
-.metadata-field-grid,
-.metadata-metric-grid {
-  display: grid;
-  grid-template-columns: minmax(88px, 34%) 1fr;
-  gap: 0;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-}
-
-.metadata-field-grid dt,
-.metadata-field-grid dd,
-.metadata-metric-grid dt,
-.metadata-metric-grid dd {
-  margin: 0;
-  min-width: 0;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.75);
-}
-
-.metadata-field-grid dt:last-of-type,
-.metadata-field-grid dd:last-of-type,
-.metadata-metric-grid dt:last-of-type,
-.metadata-metric-grid dd:last-of-type {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.metadata-field-grid dt:first-of-type,
-.metadata-field-grid dd:first-of-type,
-.metadata-metric-grid dt:first-of-type,
-.metadata-metric-grid dd:first-of-type {
-  padding-top: 0;
-}
-
-.metadata-field-grid dt,
-.metadata-metric-grid dt {
-  padding-right: 12px;
-  color: #64748b;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1.45;
-}
-
-.metadata-field-grid dd,
-.metadata-metric-grid dd {
-  overflow-wrap: anywhere;
-  color: var(--text-main);
-  font-size: 0.8rem;
+  font: inherit;
+  font-size: 0.78rem;
   font-weight: 600;
-  line-height: 1.45;
+  cursor: pointer;
 }
 
-.metadata-metric-grid dd {
-  font-variant-numeric: tabular-nums;
-  color: var(--primary-color);
-  font-weight: 700;
+.metadata-more-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.metadata-more-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .enumeration-list {

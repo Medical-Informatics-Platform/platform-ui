@@ -151,8 +151,10 @@ describe('SelectedVariablesComponent', () => {
     fixture.componentRef.setInput('mode', 'inline');
     fixture.detectChanges();
 
-    const empty = fixture.nativeElement.querySelector('.parameter-empty') as HTMLElement;
-    expect(empty.textContent).toContain('No variables yet');
+    // Empty, the card is only its header row: the hint rides it and no body is reserved.
+    const hint = fixture.nativeElement.querySelector('.pool-card-header .pool-card-hint') as HTMLElement;
+    expect(hint.textContent).toContain('Add');
+    expect(fixture.nativeElement.querySelector('.pool-card-body')).toBeNull();
     expect(fixture.nativeElement.querySelector('.pool-card .parameter-clear-btn')).toBeNull();
   });
 
@@ -195,7 +197,9 @@ describe('SelectedVariablesComponent', () => {
 
     const clicks: any[] = [];
     fixture.componentInstance.variableClicked.subscribe((node) => clicks.push(node));
-    (fixture.nativeElement.querySelector('.pool-chip') as HTMLElement).click();
+    const select = fixture.nativeElement.querySelector('.pool-chip .pool-chip-select') as HTMLButtonElement;
+    expect(select.tagName).toBe('BUTTON'); // reachable from the keyboard
+    select.click();
     expect(clicks[0]?.code).toBe('age_value');
 
     const remove = fixture.nativeElement.querySelector('.pool-chip .parameter-remove-btn') as HTMLElement;
@@ -219,7 +223,7 @@ describe('SelectedVariablesComponent', () => {
 
     const clicks: any[] = [];
     fixture.componentInstance.variableClicked.subscribe((node) => clicks.push(node));
-    chip.click();
+    (chip.querySelector('.pool-chip-select') as HTMLElement).click();
     expect(clicks).toEqual([]);
 
     (chip.querySelector('.parameter-remove-btn') as HTMLElement).click();

@@ -16,11 +16,18 @@ describe('VariablesPanelComponent data exploration layout', () => {
   let fixture: ComponentFixture<VariablesPanelComponent>;
   let component: VariablesPanelComponent;
 
+  // Groups and the leaf carry methodology, so Details (long text only) renders for them.
   const tree = {
     label: 'IST',
     code: 'ist',
+    methodology: 'International Stroke Trial.',
     children: [
-      { label: 'Demographics', code: 'demographics', children: [{ label: 'Sex', code: 'sex', type: 'nominal' }] },
+      {
+        label: 'Demographics',
+        code: 'demographics',
+        methodology: 'Recorded at randomisation.',
+        children: [{ label: 'Sex', code: 'sex', type: 'nominal', methodology: 'Self-reported.' }],
+      },
     ],
   };
 
@@ -125,10 +132,12 @@ describe('VariablesPanelComponent data exploration layout', () => {
       const host = selectNode();
 
       expect(host.querySelector('.details-panel-title')?.tagName).toBe('H2');
-      expect(host.querySelector('#inspector-details-title')?.tagName).toBe('H3');
+      expect(host.querySelector('#inspector-distribution-title')?.tagName).toBe('H3');
+      // No heading inside <summary>: its button role would hide it from heading navigation.
+      expect(host.querySelector('summary h3')).toBeNull();
       const blockLabel = host.querySelector('app-metadata-info-panel h4');
       expect(blockLabel?.tagName).toBe('H4');
-      expect(blockLabel?.textContent?.trim()).toBe('Path');
+      expect(blockLabel?.textContent?.trim()).toBe('Methodology');
     });
 
     it('renders block labels one visible level under the section titles', () => {
@@ -136,52 +145,93 @@ describe('VariablesPanelComponent data exploration layout', () => {
 
       const sectionTitle = host.querySelector<HTMLElement>('#inspector-details-title')!;
       const blockLabel = host.querySelector<HTMLElement>('app-metadata-info-panel h4')!;
-      expect(getComputedStyle(sectionTitle).textTransform).toBe('uppercase');
-      expect(getComputedStyle(blockLabel).textTransform).toBe('none');
+      expect(getComputedStyle(sectionTitle).textTransform).toBe('none');
       expect(parseFloat(getComputedStyle(sectionTitle).fontSize)).toBeGreaterThan(
         parseFloat(getComputedStyle(blockLabel).fontSize)
       );
     });
 
-    it('renders the inspector metadata blocks without the card surface', () => {
+    it('scrolls the column only, never the inspector body inside it', () => {
       const host = selectNode();
 
-      const blocks = Array.from(host.querySelectorAll<HTMLElement>('app-metadata-info-panel .metadata-block'));
-      expect(blocks.length).toBeGreaterThan(0);
-      for (const block of blocks) {
-        expect(block.classList.contains('metadata-block-card')).toBe(false);
-      }
+      expect(getComputedStyle(host.querySelector<HTMLElement>('.right-column')!).overflowY).toBe('auto');
+      expect(getComputedStyle(host.querySelector<HTMLElement>('.details-panel-body')!).overflowY).toBe('visible');
+      expect(getComputedStyle(host.querySelector<HTMLElement>('.details-panel-header')!).position).toBe('sticky');
+      expect(host.querySelector('.details-panel-fade')).toBeNull();
     });
 
-    it('hints at more content with a fade that never blocks clicks', () => {
-      const host = selectNode();
-
-      const body = host.querySelector<HTMLElement>('.details-panel-body')!;
-      const fade = body.querySelector<HTMLElement>('.details-panel-fade');
-      expect(fade).not.toBeNull();
-      expect(fade!.getAttribute('aria-hidden')).toBe('true');
-      expect(getComputedStyle(fade!).position).toBe('sticky');
-      expect(getComputedStyle(fade!).pointerEvents).toBe('none');
-    });
-
-    it('reads the hierarchy path as a wrapping breadcrumb', () => {
-      component.onSelectedNodeChange(tree.children[0].children[0]); // the Sex leaf
+    it('puts the path and the facts that read the chart in the header', () => {
+      component.onSelectedNodeChange({ ...tree.children[0].children[0], units: 'n/a', minValue: 0, maxValue: 1 });
       fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
       fixture.detectChanges();
 
       const host = fixture.nativeElement as HTMLElement;
-      const path = host.querySelector<HTMLElement>('app-metadata-info-panel .metadata-path')!;
-      const nodes = Array.from(path.querySelectorAll('span')).map((span) => span.textContent?.trim());
-      expect(nodes).toEqual(['IST', 'Demographics', 'Sex']);
+      expect(host.querySelector('.details-panel-path')?.textContent?.trim()).toBe('· IST › Demographics');
+      expect(host.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('nominal · n/a · 0–1');
+    });
+
+    it('counts what a group holds and what its button will add', () => {
+      const host = selectNode();
+
+      expect(host.querySelector('.details-panel-path')).toBeNull(); // the root has no ancestors
+      expect(host.querySelector('.details-panel-facts')?.textContent?.trim()).toBe('1 group · 1 variable');
+      const button = host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!;
+      expect(button.textContent?.trim()).toBe('Add 1');
+      expect(button.classList).toContain('is-bulk');
+    });
+
+    it('offers Undo after a large group add, restoring the list from before the click', () => {
+      const service = TestBed.inject(AnalysisStudioService) as unknown as {
+        selectedVariables: ReturnType<typeof signal<any[]>>;
+        setVariables: ReturnType<typeof vi.fn>;
+      };
+      const picked = { code: 'v0', label: 'V0', type: 'real' };
+      service.selectedVariables.set([picked]);
+      const big = {
+        label: 'Big', code: 'big',
+        children: Array.from({ length: 25 }, (_, i) => ({ code: `v${i}`, label: `V${i}`, type: 'real' })),
+      };
+      component.onSelectedNodeChange(big);
+      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      expect(host.querySelector('.selection-toggle-btn')?.textContent?.trim()).toBe('Add 24 more');
+      host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!.click();
+      fixture.detectChanges();
+
+      const undo = host.querySelector<HTMLElement>('.bulk-add-undo')!;
+      expect(undo.getAttribute('role')).toBe('status');
+      expect(undo.textContent).toContain('Added 24 variables');
+      undo.querySelector<HTMLButtonElement>('.bulk-add-undo-btn')!.click();
+      fixture.detectChanges();
+
+      expect(service.setVariables).toHaveBeenLastCalledWith([picked]); // the hand-picked one stays
+      expect(host.querySelector('.bulk-add-undo')).toBeNull();
+    });
+
+    it('offers no Undo for a small add', () => {
+      const host = selectNode();
+      host.querySelector<HTMLButtonElement>('.selection-toggle-btn')!.click();
+      fixture.detectChanges();
+
+      expect(host.querySelector('.bulk-add-undo')).toBeNull();
+    });
+
+    it('leaves Details out when a node has no long text to show', () => {
+      component.onSelectedNodeChange({ label: 'Age', code: 'age', type: 'real' });
+      fixture.debugElement.injector.get(ChangeDetectorRef).markForCheck();
+      fixture.detectChanges();
+
+      expect(fixture.nativeElement.querySelector('details.inspector-collapse')).toBeNull();
     });
   });
 
   it('tells the user how to add a first variable without naming one view', () => {
-    const empty = fixture.nativeElement.querySelector('.pool-card .parameter-empty') as HTMLElement;
+    const hint = fixture.nativeElement.querySelector('.pool-card .pool-card-hint') as HTMLElement;
 
-    expect(empty.textContent).toContain('No variables yet');
-    expect(empty.textContent).toContain('Add');
-    expect(empty.textContent?.toLowerCase()).not.toContain('map');
+    expect(hint.textContent).toContain('Add');
+    expect(hint.textContent?.toLowerCase()).not.toContain('map');
   });
 
   describe('Split by', () => {
@@ -243,7 +293,7 @@ describe('VariablesPanelComponent data exploration layout', () => {
       select(tree.children[0]);
 
       expect(row().textContent).toContain('Details');
-      expect(getComputedStyle(row().querySelector('h3')!).display).not.toBe('none');
+      expect(getComputedStyle(row().querySelector('#inspector-details-title')!).display).not.toBe('none');
       expect(row().querySelector('.inspector-collapse-chevron')!.getAttribute('aria-hidden')).toBe('true');
       expect(details().open).toBe(true);
       expect(component.detailsOpen()).toBe(true);

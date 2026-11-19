@@ -1,21 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
 import { D3HierarchyNode } from '../../../../models/data-model.interface';
-import { countLeafNodes } from '../../../../core/data-model.utils';
-
-interface MetadataPathNode {
-  code: string;
-  label: string;
-}
-
-interface MetadataGroupInfo {
-  groupCount: number;
-  hasGroups: boolean;
-}
-
-interface MetadataField {
-  label: string;
-  value: string;
-}
 
 interface EnumerationEntry {
   label: string;
@@ -30,33 +14,16 @@ interface EnumerationEntry {
 })
 export class MetadataInfoPanelComponent {
   readonly selectedNode = input<D3HierarchyNode | null>(null);
-  readonly pathNodes = input<MetadataPathNode[]>([]);
-  readonly groupInfo = input<MetadataGroupInfo | null>(null);
-  readonly hideHeader = input(false);
-  /** Flat inspector rendering: blocks are plain label + content, no card surface. */
-  readonly flat = input(false);
 
-  readonly isGroup = computed(() => !!this.selectedNode()?.children?.length);
-  readonly directGroupCount = computed(() => this.children().filter((child) => !!child.children?.length).length);
-  readonly directVariableCount = computed(() => this.children().filter((child) => !child.children?.length).length);
-  readonly totalVariableCount = computed(() => this.children().reduce((total, child) => total + countLeafNodes(child), 0));
+  /** Enumerations shown before "Show all": a long nominal list stays a glance, not a wall. */
+  readonly enumerationPreview = 8;
+  /** Resets to collapsed whenever a new node is selected. */
+  readonly showAllEnumerations = linkedSignal({ source: this.selectedNode, computation: () => false });
+
   readonly enumerations = computed(() => this.resolveEnumerationEntries(this.selectedNode()?.enumerations));
-  readonly fields = computed<MetadataField[]>(() => {
-    const node = this.selectedNode();
-    if (!node || this.isGroup()) return [];
-
-    return [
-      { label: 'Type', value: this.normalizeString(node.type) },
-      { label: 'Units', value: this.normalizeString(node.units) },
-      { label: 'Minimum', value: this.normalizeString(node.minValue) },
-      { label: 'Maximum', value: this.normalizeString(node.maxValue) },
-    ].filter((field) => field.value);
-  });
-
-  private children(): D3HierarchyNode[] {
-    return this.selectedNode()?.children ?? [];
-  }
-
+  readonly visibleEnumerations = computed(() =>
+    this.showAllEnumerations() ? this.enumerations() : this.enumerations().slice(0, this.enumerationPreview)
+  );
 
   private resolveEnumerationEntries(value: unknown): EnumerationEntry[] {
     if (!Array.isArray(value) || !value.length) {

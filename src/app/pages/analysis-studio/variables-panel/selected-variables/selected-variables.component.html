@@ -1,46 +1,52 @@
 @if (mode() === 'inline') {
-<section class="pool-card" aria-label="Variables in this analysis">
+<section class="pool-card" [class.is-empty]="variables().length === 0" aria-label="Variables in this analysis">
   <header class="pool-card-header">
     <div class="pool-card-title">
       <span>Variables in this analysis</span>
       <span class="count-badge">{{ variables().length }}</span>
     </div>
-    @if (variables().length > 0) {
+    <!-- Empty, the card is just this row: the hint rides the header instead of a
+         body that would reserve space above the inspector for an instruction. -->
+    @if (variables().length === 0) {
+    <p class="pool-card-hint">Select a variable, then choose <strong>Add</strong>.</p>
+    } @else {
     <button type="button" class="parameter-clear-btn" (click)="clearList()">
       <i class="fas fa-trash-alt" aria-hidden="true"></i><span>Clear all</span>
     </button>
     }
+    <span class="sr-only" aria-live="polite">{{ variables().length }} variables in this experiment</span>
   </header>
+  @if (variables().length > 0) {
   <div class="pool-card-body">
-    @if (variables().length === 0) {
-    <p class="parameter-empty">No variables yet. Select a variable in the browser, then choose <strong>Add</strong>.</p>
-    } @else {
     <div class="studio-chip-row">
       @for (variable of variables(); track variable.code ?? variable.label) {
       @let unavailable = unavailableTooltip(variable);
       <span class="studio-chip pool-chip"
             [class.is-current]="selectedNode()?.code === variable.code"
             [class.is-unavailable]="!!unavailable"
-            [attr.title]="unavailable || null"
-            (click)="onVariableClick(variable)">
-        <!-- The dot is the role colour: every chip in this card is a data-model variable,
-             so the colour says "variable". DESIGN.md: a role colour never carries the role
-             alone, so the role is spelled out for the mouse (title) and for the screen
-             reader (sr-only text). The type text beside it is the data type, not the role. -->
-        <span class="pool-chip-dot" aria-hidden="true" title="Role: variable"></span>
-        <span class="sr-only">Role: variable</span>
-        <span>{{ variable.label }}</span>
-        <span class="pool-chip-type">{{ variable.type }}</span>
+            [attr.title]="unavailable || null">
+        <!-- The chip's name is a button, so jumping to the variable works from the
+             keyboard; the remove button stays its sibling, never nested inside it. -->
+        <button type="button" class="pool-chip-select" (click)="onVariableClick(variable)">
+          <!-- The dot is the role colour: every chip in this card is a data-model variable,
+               so the colour says "variable". DESIGN.md: a role colour never carries the role
+               alone, so the role is spelled out for the mouse (title) and for the screen
+               reader (sr-only text). The type text beside it is the data type, not the role. -->
+          <span class="pool-chip-dot" aria-hidden="true" title="Role: variable"></span>
+          <span class="sr-only">Role: variable</span>
+          <span>{{ variable.label }}</span>
+          <span class="pool-chip-type">{{ variable.type }}</span>
+        </button>
         <button type="button" class="parameter-remove-btn"
                 [attr.aria-label]="'Remove ' + variable.label"
-                (click)="removeItem(variable); $event.stopPropagation()">
+                (click)="removeItem(variable)">
           <i class="fas fa-times" aria-hidden="true"></i>
         </button>
       </span>
       }
     </div>
-    }
   </div>
+  }
 </section>
 } @else {
 <button

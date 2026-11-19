@@ -301,18 +301,24 @@
   container-name: bubble-column;
 }
 
+/* The column is the one scroller: the pool card and the inspector keep their
+   natural heights inside the shared row height, so there is never a scrollbar
+   inside a scrollbar. The inspector header sticks to the column's top edge. */
 .right-column {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
   width: 100%;
   align-self: stretch;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(127, 156, 232, 0.45) transparent;
 }
 
-/* The pool card keeps its natural height; the inspector absorbs what is left
-   of the shared column height and scrolls inside itself. */
 .right-column > app-selected-variables {
   flex-shrink: 0;
 }
@@ -516,15 +522,15 @@
   box-sizing: border-box;
 }
 
+/* `clip`, not `hidden`: it rounds the corners without becoming a scroll
+   container, so the sticky header pins to the column instead of to this card. */
 .histogram-panel {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   position: relative;
   display: flex;
   flex-direction: column;
-  align-self: stretch;
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  overflow: clip;
   padding: 0;
 }
 
@@ -609,6 +615,58 @@
   background: rgba(43, 51, 233, 0.06);
 }
 
+/* A group's button moves many variables at once: outline weight, so it never
+   reads as the same one-variable action as the filled Add. */
+.selection-toggle-btn.is-bulk:not(.is-remove) {
+  background: var(--card-bg);
+  color: var(--primary-color);
+}
+
+.selection-toggle-btn.is-bulk:not(.is-remove):not(:disabled):hover,
+.selection-toggle-btn.is-bulk:not(.is-remove):not(:disabled):focus-visible {
+  background: rgba(43, 51, 233, 0.06);
+}
+
+.selection-toggle-btn span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Undo for a large add: sits in the pinned header, under the button that caused
+   it, so it stays in view wherever the column is scrolled. */
+.bulk-add-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary-color) 6%, var(--card-bg));
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-add-undo-btn {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--primary-color);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-add-undo-btn:hover,
+.bulk-add-undo-btn:focus-visible {
+  background: rgba(43, 51, 233, 0.08);
+}
+
+.bulk-add-undo-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 /* "Add this variable" hint: a soft halo in the page's selection blue, spreading outward
    from the button three times and then stopping. A spreading halo reads as an
    invitation, not as the tight 2px ring :focus-visible draws, and it never raises the
@@ -683,6 +741,27 @@
   color: #6b5a2e;
 }
 
+.details-panel-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-panel-path {
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: none;
+}
+
+.details-panel-facts {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
 .details-panel-title {
   margin: 0;
   color: var(--text-main);
@@ -702,8 +781,9 @@
   font-size: 0.78rem;
   line-height: 1.35;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 @property --segment-active-index {
@@ -735,27 +815,9 @@
 }
 
 .details-panel-body {
-  flex: 1 1 auto;
   min-width: 0;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-}
-
-/* "More content" cue: pins to the bottom of the scrollport while the body can
-   scroll further down; at the end of the scroll it comes to rest on its own
-   empty flow space, so the tint disappears exactly when nothing is left. No
-   animation is involved, and it never captures a click. */
-.details-panel-fade {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
-  flex: 0 0 auto;
-  height: 28px;
-  background: linear-gradient(to top, var(--studio-card-bg), transparent);
-  pointer-events: none;
 }
 
 .inspector-section {
@@ -784,11 +846,9 @@
   margin: 0;
   min-width: 0;
   flex: 1 1 auto;
-  color: #64748b;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .histogram-graph-area {
@@ -1185,6 +1245,11 @@
   .bubble-chart-section {
     min-height: 480px;
     height: auto;
+  }
+
+  /* Stacked, the row has no height cap: the page scrolls, not the column. */
+  .right-column {
+    overflow-y: visible;
   }
 }
 

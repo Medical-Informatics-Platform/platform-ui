@@ -168,8 +168,16 @@
                 @if (selectedNode) {
                 <div class="details-panel-identity" [class.is-group]="isSelectedNodeGroup()">
                   <div class="details-panel-heading">
-                    <span class="details-panel-eyebrow">{{ isSelectedNodeGroup() ? 'Group' : 'Variable' }}</span>
+                    <span class="details-panel-eyebrow">
+                      {{ isSelectedNodeGroup() ? 'Group' : 'Variable' }}
+                      @if (detailsPanelPath()) {
+                      <span class="details-panel-path">· {{ detailsPanelPath() }}</span>
+                      }
+                    </span>
                     <h2 class="details-panel-title" [title]="detailsPanelTitle()">{{ detailsPanelTitle() }}</h2>
+                    @if (detailsPanelFacts()) {
+                    <p class="details-panel-facts">{{ detailsPanelFacts() }}</p>
+                    }
                     @if (detailsPanelSubtitle()) {
                     <p class="details-panel-subtitle" [title]="detailsPanelSubtitle()">{{ detailsPanelSubtitle() }}</p>
                     }
@@ -186,6 +194,7 @@
                 data-guide="guide-add-variable"
                 [class.pulse-hint--variable]="!isSelectedNodeInPool() && !!selectedNode && !isSelectedNodeGroup()"
                 [class.is-remove]="isSelectedNodeInPool()"
+                [class.is-bulk]="isSelectedNodeGroup()"
                 [disabled]="selectionToggleDisabled()"
                 [title]="selectionToggleTitle()"
                 (click)="toggleSelectedNodeInPool()">
@@ -193,6 +202,12 @@
                 <span>{{ selectionToggleLabel() }}</span>
               </button>
             </div>
+            @if (bulkAddUndo(); as undo) {
+            <div class="bulk-add-undo" role="status">
+              <span>Added {{ undo.count }} variables</span>
+              <button type="button" class="bulk-add-undo-btn" (click)="undoBulkAdd()">Undo</button>
+            </div>
+            }
           </div>
 
           <div class="details-panel-body">
@@ -317,31 +332,22 @@
                 }
               </div>
             </section>
-            @if (selectedNode) {
+            @if (hasInspectorDetails()) {
             <section class="inspector-section" aria-labelledby="inspector-details-title">
               <details
                 class="inspector-collapse"
                 [open]="detailsOpen()"
                 (toggle)="onInspectorDetailsToggle($event)">
                 <summary class="inspector-collapse-summary" (click)="onInspectorDetailsClick($event)">
-                  <h3 id="inspector-details-title" class="inspector-section-title">Details</h3>
+                  <span id="inspector-details-title" class="inspector-section-title">Details</span>
                   <i class="fas fa-chevron-down inspector-collapse-chevron" aria-hidden="true"></i>
                 </summary>
                 <div class="inspector-collapse-body">
-                  <app-metadata-info-panel
-                    [selectedNode]="selectedNode"
-                    [pathNodes]="getPathNodes(selectedNode)"
-                    [groupInfo]="groupHistogramMeta()"
-                    [hideHeader]="true"
-                    [flat]="true">
-                  </app-metadata-info-panel>
+                  <app-metadata-info-panel [selectedNode]="selectedNode"></app-metadata-info-panel>
                 </div>
               </details>
             </section>
             }
-
-            <!-- More-content cue while the body can scroll further down. -->
-            <div class="details-panel-fade" aria-hidden="true"></div>
           </div>
 
           @if (isExporting()) {
