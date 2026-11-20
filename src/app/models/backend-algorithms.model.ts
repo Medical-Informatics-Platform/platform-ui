@@ -65,7 +65,6 @@ export interface AlgorithmSpecification {
   desc: string;
   documentation?: string;
   type?: string;
-  flags?: string[];
   y: RawIOField;
   x?: RawIOField | null;
   requires_validation_datasets: boolean;
@@ -121,7 +120,6 @@ export interface AnalysisRequest {
   inputdata: AnalysisInputData;
   preprocessing?: AnalysisPreprocessingStep[] | null;
   algorithm: AnalysisAlgorithm;
-  flags?: Record<string, unknown> | null;
 }
 
 export interface AnalysisCreateRequest {

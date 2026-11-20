@@ -161,7 +161,6 @@ describe('AnalysisStudioService', () => {
       label: mock.label,
       desc: mock.desc,
       type: mock.type,
-      flags: mock.flags,
       y: mock.inputdata.y,
       x: mock.inputdata.x,
       requires_validation_datasets: false,

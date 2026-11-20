@@ -331,7 +331,7 @@ export class AlgorithmPanelComponent {
   // UI toggle: the catalog defaults to runnable methods only — each group lists just the
   // available algorithms. Switching to All re-lists unavailable methods with their reason.
   readonly showOnlyActive = signal(true);
-  /** Instant text filter over label, name, description, documentation, category, and flags. */
+  /** Instant text filter over label, name, description, documentation, and category. */
   readonly algoSearchQuery = signal('');
   readonly hasAnyVisibleAlgorithms = computed(() => {
     return this.filteredAlgorithmCategories().some(c => c.algorithms?.length > 0);
@@ -827,7 +827,6 @@ export class AlgorithmPanelComponent {
       algorithm.description,
       algorithm.documentation ?? '',
       algorithm.category ?? '',
-      (algorithm.flags ?? []).join(' '),
     ].join(' ').toLowerCase();
     return query.split(/\s+/).every((term) => haystack.includes(term));
   }

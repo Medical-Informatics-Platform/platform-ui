@@ -313,7 +313,6 @@ export function mapSpecificationsToAlgorithmConfigs(
       description: raw.desc ?? '',
       documentation: sanitizeDocumentation(raw.documentation ?? '', algorithmDocumentationLabels),
       type: raw.type,
-      flags: raw.flags ?? [],
       inputdata,
       requiredVariable: inputdata?.y?.types || [],
       covariate: inputdata?.x?.types || [],
