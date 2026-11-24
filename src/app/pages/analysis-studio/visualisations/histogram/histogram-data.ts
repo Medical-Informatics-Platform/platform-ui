@@ -141,7 +141,8 @@ export function buildHistogramSplitOptions(input: {
     `Too many ${kind} (${count}). Split is limited to ${MAX_HISTOGRAM_SPLIT_LEVELS} categories.`;
 
   const datasetDisabled = input.datasetLevelCount > MAX_HISTOGRAM_SPLIT_LEVELS;
-  const options: HistogramSplitOption[] = [
+  // Splitting the dataset variable by dataset only repeats its own bars, so it is not offered.
+  const options: HistogramSplitOption[] = plotted.toLowerCase() === DATASET_VARIABLE_CODE ? [] : [
     {
       code: DATASET_VARIABLE_CODE,
       label: 'Dataset',
