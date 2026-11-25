@@ -667,6 +667,160 @@ describe('createHistogram numeric bins', () => {
   });
 });
 
+describe('createHistogram categorical bins fill the container', () => {
+  let container: HTMLDivElement;
+
+  afterEach(() => {
+    container?.remove();
+  });
+
+  function mount(width: string): HTMLDivElement {
+    const el = document.createElement('div');
+    el.style.width = width;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  it('fits 26 long labels in a 513px container without scrolling, truncated to the band', () => {
+    container = mount('513px');
+    const bins = [
+      'Should not have been readmitted', 'Refused treatment', 'Initial event not a stroke',
+      'Haemorrhagic stroke', 'Non complier', 'Discharged after 14 days',
+      'Discharged up to 14 days', 'Died prior to receiving treatment',
+      'Died after receiving treatment', 'Recurrent stroke / pulmonary embolism',
+      'Clinical decision', 'Clinical decision: suspected', 'Clinical decision: withheld',
+      'Clinical decision: prescribed', 'Clinical decision: started', 'Clinical decision: stopped',
+      'Clinical decision: stopped early', 'Administration problem', 'Missed out more than 3 doses',
+      'Side effect', 'Other reason', 'Unknown', 'Lost to follow-up',
+      'No further contact', 'Transferred to another hospital', 'Other outcome',
+    ];
+    createHistogram(
+      { bins, counts: bins.map((_, i) => 100 + i * 7), variableName: 'Outcome', variableType: 'nominal' },
+      container,
+      {},
+    );
+
+    const svg = container.querySelector('svg')!;
+    expect(Number(svg.getAttribute('width'))).toBeLessThanOrEqual(513);
+    expect(container.scrollWidth).toBeLessThanOrEqual(container.clientWidth);
+    expect(container.querySelectorAll('.bar')).toHaveLength(26);
+    // The tallest bar reaches the 240px categorical plot height.
+    const tallest = Math.max(
+      ...Array.from(container.querySelectorAll('.bar')).map((bar) => (bar as SVGGraphicsElement).getBBox().height),
+    );
+    expect(tallest).toBeGreaterThan(230);
+    const ticks = Array.from(container.querySelectorAll('.x-axis text'));
+    expect(ticks).toHaveLength(26);
+    ticks.forEach((tick, i) => {
+      // The tick text node only: the appended <title> holds the full name.
+      const shown = tick.firstChild?.textContent ?? '';
+      expect(shown.length).toBeLessThanOrEqual(8); // maxChars incl. ellipsis
+      if (bins[i].length > 8) expect(shown.endsWith('…')).toBe(true);
+    });
+  });
+
+  it('gives short categorical bins full-width bars like the split view', () => {
+    container = mount('447px');
+    createHistogram(
+      {
+        bins: ['No', 'Yes', 'Compliant for heparin'],
+        counts: [1100, 30, 18000],
+        variableName: 'Heparin',
+        variableType: 'nominal',
+      },
+      container,
+      {},
+    );
+
+    const bars = Array.from(container.querySelectorAll('.bar'));
+    expect(bars).toHaveLength(3);
+    for (const bar of bars) {
+      const d = bar.getAttribute('d') ?? '';
+      const right = Number(d.match(/H([\d.]+)/)?.[1] ?? 0);
+      const x = Number(d.match(/^M([\d.]+),/)?.[1] ?? 0);
+      // Band-based width across the full inner width.
+      expect(right - x).toBeGreaterThan(80);
+    }
+    // No centred strip: the first bar sits close to the plot's left edge, not
+    // behind an xOffset of (innerWidth - chartWidth) / 2.
+    const firstX = Number((bars[0].getAttribute('d') ?? '').match(/^M([\d.]+),/)?.[1] ?? Infinity);
+    expect(firstX).toBeLessThan(40);
+  });
+
+  it('keeps short labels unrotated and untruncated when their band fits them', () => {
+    container = mount('447px');
+    createHistogram({ bins: ['No', 'Yes'], counts: [12, 8], variableName: 'Sex', variableType: 'nominal' }, container, {});
+
+    const ticks = Array.from(container.querySelectorAll('.x-axis text'));
+    expect(ticks.map((tick) => tick.firstChild?.textContent)).toEqual(['No', 'Yes']);
+    expect(ticks.map((tick) => tick.querySelector('title')?.textContent)).toEqual(['No', 'Yes']);
+    for (const tick of ticks) {
+      expect(tick.getAttribute('transform')).toBeNull();
+    }
+  });
+
+  it('tiles dodged categorical sub-bars inside their bands', () => {
+    container = mount('447px');
+    createHistogram(
+      {
+        bins: ['No', 'Yes', 'Maybe', 'Not recorded'],
+        counts: [120, 80, 60, 40],
+        variableName: 'Flag',
+        variableType: 'real',
+        splitCode: 'dataset',
+        splitLabel: 'Dataset',
+        groups: [
+          { key: 'A', label: 'A', counts: [70, 45, 30, 20] },
+          { key: 'B', label: 'B', counts: [50, 35, 30, 20] },
+        ],
+      },
+      container,
+      {},
+    );
+
+    const bars = Array.from(container.querySelectorAll('.bar:not(.bar-privacy-stub)'));
+    expect(bars).toHaveLength(8);
+    // Every sub-bar sits inside the plot: no negative x, none past the inner width.
+    for (const bar of bars) {
+      const d = bar.getAttribute('d') ?? '';
+      const x = Number(d.match(/^M([\d.]+),/)?.[1] ?? -1);
+      const right = Number(d.match(/H([\d.]+)/)?.[1] ?? Infinity);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(right).toBeLessThanOrEqual(360); // innerWidth ≈ 447 − gutter − 8
+    }
+  });
+
+  it('leaves numeric bins on the old layout', () => {
+    container = mount('480px');
+    createHistogram({ bins: ['0', '10', '20'], counts: [10, 20, 30], variableName: 'Age', variableType: 'integer' }, container, {});
+
+    const tallest = Math.max(
+      ...Array.from(container.querySelectorAll('.bar')).map((bar) => (bar as SVGGraphicsElement).getBBox().height),
+    );
+    expect(tallest).toBeGreaterThan(250); // numeric plot height 260, not the categorical 240
+    expect(Number(container.querySelector('svg')!.getAttribute('width'))).toBeLessThanOrEqual(480);
+  });
+
+  it('keeps privacy stubs inside a full-width categorical chart', () => {
+    container = mount('447px');
+    createHistogram(
+      { bins: ['No', 'Yes', 'Other'], counts: [null, 12, 4], variableName: 'Flag', variableType: 'nominal' },
+      container,
+      { clipNullEdges: false },
+    );
+
+    const stubs = container.querySelectorAll('.bar-privacy-stub');
+    expect(stubs.length).toBeGreaterThanOrEqual(1);
+    const svgWidth = Number(container.querySelector('svg')!.getAttribute('width'));
+    for (const stub of stubs) {
+      const box = (stub as SVGGraphicsElement).getBBox();
+      expect(box.x + box.width).toBeLessThanOrEqual(svgWidth + 0.5);
+      // Band-sized like a bar, not a sliver: the stub occupies its bin's band.
+      expect(box.width).toBeGreaterThan(80);
+    }
+  });
+});
+
 describe('createHistogram privacy stubs', () => {
   let container: HTMLDivElement;
 

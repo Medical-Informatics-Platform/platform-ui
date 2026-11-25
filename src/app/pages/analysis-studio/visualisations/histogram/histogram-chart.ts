@@ -14,7 +14,7 @@ import {
   histogramSeriesEdgeColor,
   residualCount,
 } from './histogram-data';
-import { createGroupedCategoryChart } from './grouped-category-chart';
+import { categoryXLabelLayout, createGroupedCategoryChart, truncate } from './grouped-category-chart';
 
 export type { HistogramChartData, HistogramGroupSeries } from './histogram-data';
 
@@ -216,13 +216,6 @@ export function wrapCategoryLabel(label: string): string[] {
   if (!spaces.length) return [label];
   const cut = spaces.reduce((best, i) => (Math.abs(i - mid) < Math.abs(best - mid) ? i : best));
   return [label.slice(0, cut), label.slice(cut + 1)];
-}
-
-// Numeric bins are never rotated: their labels are formatted short, and dense
-// ones are thinned by selectXTickValues to ticks that fit side by side.
-function shouldRotateXLabels(binCount: number, hasStringBins: boolean, maxLabelLength: number): boolean {
-  const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / 10));
-  return hasStringBins && (estimatedLines > 1 || binCount > 8);
 }
 
 function formatNumber(d: any): string {
@@ -563,24 +556,43 @@ export function createHistogram(
     }
     return formatNumber(num);
   };
-  const binLabels = bins.map(formatBin);
+  // String bins are labels, not numbers: keep them raw so the unsplit view
+  // shows the same text as the split view (and as the tick <title> below).
+  const hasStringBins = !binsAreNumeric(bins);
+  const binLabels = hasStringBins ? bins : bins.map(formatBin);
 
   const baseMargins = { top: 18, right: 8, bottom: 44, left: 28 };
   const maxLabelLength = binLabels.reduce((max, label) => Math.max(max, label.length), 0);
   const estimatedLines = Math.max(1, Math.ceil(maxLabelLength / 10));
-  const hasStringBins = !binsAreNumeric(bins);
   const denseNumericLabels = !hasStringBins && bins.length > 8 && maxLabelLength >= 3;
-  const needsRotate = shouldRotateXLabels(bins.length, hasStringBins, maxLabelLength);
-  const bottomMargin = needsRotate
-    ? Math.max(72, 20 + Math.min(120, maxLabelLength * 3.2))
-    : Math.max(52, baseMargins.bottom + estimatedLines * 12);
-
-  // A -40° label hangs left of its bar by ~cos(40°) of its length (~6.5px a
-  // character at 12px), so the first one is clipped unless the margin covers it.
-  const firstLabelReach = needsRotate ? binLabels[0].length * 6.5 * Math.cos(Math.PI * 40 / 180) : 0;
 
   // Left margin = ticks + a tight slot for the rotated "COUNT" title.
   const yAxisGutter = baseMargins.left + measuredYLabelWidth + 4;
+
+  // Categorical bins fill the container width exactly like the split chart:
+  // no per-bin width floor, no centred strip, and the same label rule
+  // (categoryXLabelLayout) so "Split by None" uses the same space as its split
+  // counterpart. The variable title is added by the svg growth below, so the
+  // helper gets no axis title space.
+  const stringBandWidth = (left: number): number =>
+    d3
+      .scaleBand()
+      .domain(bins)
+      .range([0, Math.max(0, containerWidth - left - baseMargins.right)])
+      .padding(0.2)
+      .bandwidth();
+  const stringX = hasStringBins ? { layout: categoryXLabelLayout(binLabels, stringBandWidth(yAxisGutter)), labels: [] as string[] } : null;
+  if (stringX) {
+    stringX.labels = binLabels.map((label) => truncate(label, stringX.layout.maxChars));
+  }
+  // A -40° label hangs left of its bar by ~cos(40°) of its length (~6.5px a
+  // character at 12px), so the first one is clipped unless the margin covers it.
+  const needsRotate = stringX ? stringX.layout.rotate : false;
+  const firstLabelReach = needsRotate && stringX ? stringX.labels[0].length * 6.5 * Math.cos(Math.PI * 40 / 180) : 0;
+  const bottomMargin = stringX
+    ? stringX.layout.bottom
+    : Math.max(52, baseMargins.bottom + estimatedLines * 12);
+
   const margin = {
     top: baseMargins.top,
     right: baseMargins.right,
@@ -588,24 +600,14 @@ export function createHistogram(
     left: Math.max(yAxisGutter, Math.ceil(firstLabelReach)),
   };
 
-  const innerHeight = needsRotate
-    ? 240
-    : hasStringBins && bins.length <= 8
-      ? 200
-      : 260;
+  const innerHeight = hasStringBins ? 240 : 260;
   let containerHeight = margin.top + innerHeight + margin.bottom;
 
-  // Aesthetic: Limit max bar width for small number of bins
+  // Numeric bins only: cap the bar width so few bins do not stretch into
+  // off-centre slabs, and grow the plot so dense labels each keep a slot.
   const maxBarWidth = 100;
-
-  // Scale width by bin count to allow horizontal scrolling when needed. Dense
-  // numeric ticks are thinned, so their bins do not each need a label's width.
-  // Capped at maxBarWidth: a wider bin centres the plot off-screen in empty SVG.
-  const minPerBinWidth = Math.min(
-    maxBarWidth,
-    hasStringBins ? 30 : denseNumericLabels ? 12 : Math.max(24, maxLabelLength * 8),
-  );
-  const desiredWidth = Math.max(containerWidth, bins.length * minPerBinWidth);
+  const minPerBinWidth = Math.min(maxBarWidth, denseNumericLabels ? 12 : Math.max(24, maxLabelLength * 8));
+  const desiredWidth = hasStringBins ? containerWidth : Math.max(containerWidth, bins.length * minPerBinWidth);
   preventChartScrollbar(container, desiredWidth);
 
   svg
@@ -615,9 +617,8 @@ export function createHistogram(
     .style('overflow', 'hidden');
 
   const innerWidth = desiredWidth - margin.left - margin.right;
-  const optimalChartWidth = bins.length * maxBarWidth;
-  const chartWidth = Math.min(innerWidth, optimalChartWidth);
-  const xOffset = (innerWidth - chartWidth) / 2;
+  const chartWidth = hasStringBins ? innerWidth : Math.min(innerWidth, bins.length * maxBarWidth);
+  const xOffset = hasStringBins ? 0 : (innerWidth - chartWidth) / 2;
 
   // Scales
   const xScale = d3
@@ -625,6 +626,19 @@ export function createHistogram(
     .domain(bins)
     .range([0, chartWidth])
     .padding(hasStringBins ? 0.2 : 0);
+
+  // The left margin was sized from the provisional labels' rotated reach, so
+  // the drawn bands can be slightly narrower: re-truncate once against the
+  // final band width. Shorter labels never need more margin than was measured.
+  if (stringX) {
+    const finalLayout = categoryXLabelLayout(binLabels, xScale.bandwidth());
+    stringX.labels = binLabels.map((label) => truncate(label, finalLayout.maxChars));
+    if (finalLayout.bottom !== margin.bottom) {
+      margin.bottom = finalLayout.bottom;
+      containerHeight = margin.top + innerHeight + margin.bottom;
+      svg.attr('height', containerHeight);
+    }
+  }
 
   // Dodged bars split each bin band into one sub-slot per visible group. Colours
   // keep the full-group slot, so hiding a group leaves the others' colours.
@@ -685,7 +699,9 @@ export function createHistogram(
   const tooltipBinTitle = (bin: string, index: number): string =>
     !hasStringBins && index < bins.length - 1
       ? `${formatBin(bin)}–${formatBin(bins[index + 1])}`
-      : formatBin(bin);
+      : hasStringBins
+        ? bin
+        : formatBin(bin);
   const { showTooltip, showStackedTooltip, moveTooltip, hideTooltip } = attachChartTooltip(
     container,
     (binLabel) => `${data.variableName ? data.variableName + ' · ' : ''}${binLabel}`,
@@ -991,7 +1007,7 @@ export function createHistogram(
   const xAxis = d3
     .axisBottom(xScale)
     .tickValues(xTickValues)
-    .tickFormat((d: any) => formatBin(String(d)))
+    .tickFormat((d: any) => (stringX ? stringX.labels[bins.indexOf(String(d))] : formatBin(String(d))))
     .tickSize(0)
     .tickPadding(needsRotate ? 6 : 8);
 
@@ -1011,7 +1027,13 @@ export function createHistogram(
     .style('text-anchor', needsRotate ? 'end' : 'middle');
 
   if (needsRotate) {
+    // -40° about the tick anchor; the split view rotates -35° about the band
+    // centre. Both share the same bottom rule (categoryXLabelLayout).
     tickText.attr('transform', 'rotate(-40)').attr('dx', '-0.35em').attr('dy', '0.15em');
+  }
+  if (stringX) {
+    // Full name stays reachable on hover, matching the split view's tick <title>.
+    tickText.append('title').text((d: any) => String(d));
   }
 
   const xAxisBBox = (xAxisGroup.node() as SVGGElement | null)?.getBBox();

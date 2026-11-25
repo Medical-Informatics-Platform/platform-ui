@@ -65,10 +65,30 @@ const BAR_OPACITY = 0.9;
 const BAR_RADIUS = 4;
 
 /** Takes the largest leading slice of `bin` that fits `maxChars`, ending in one ellipsis. */
-function truncate(bin: string, maxChars: number): string {
+export function truncate(bin: string, maxChars: number): string {
   if (bin.length <= maxChars) return bin;
   if (maxChars <= 1) return ELLIPSIS;
   return `${bin.slice(0, maxChars - 1)}${ELLIPSIS}`;
+}
+
+/**
+ * Categorical x-axis layout shared by the split and unsplit charts: when the
+ * bin band is too narrow for the longest label, labels rotate and ellipsize so
+ * both renderers fill exactly the same space. `axisTitleSpace` reserves the
+ * variable title row below the ticks; the unsplit chart grows its svg for the
+ * title instead and passes 0.
+ */
+export function categoryXLabelLayout(
+  labels: string[],
+  bandWidth: number,
+  axisTitleSpace = 0,
+): { rotate: boolean; maxChars: number; bottom: number } {
+  const longestLabel = Math.max(...labels.map((label) => label.length), 1);
+  const rotate = longestLabel * 6.5 > bandWidth;
+  const maxChars = rotate ? Math.max(8, Math.min(longestLabel, Math.floor(bandWidth / 5))) : longestLabel;
+  const shownLen = Math.max(1, Math.min(longestLabel, maxChars));
+  const bottom = rotate ? Math.min(160, 24 + shownLen * 6 + 12 + axisTitleSpace) : 52 + axisTitleSpace;
+  return { rotate, maxChars, bottom };
 }
 
 /**
@@ -124,7 +144,6 @@ export function createGroupedCategoryChart(
     : UNMEASURED_LABEL_WIDTH_PX;
   const yAxisGutter = 28 + measuredYLabelWidth + 4;
 
-  const longestLabel = Math.max(...bins.map((bin) => bin.length), 1);
   const axisTitleSpace = data.variableName ? 22 : 0;
   const margin = {
     top: 18,
@@ -146,18 +165,13 @@ export function createGroupedCategoryChart(
 
   let { innerWidth, binBandScale, groupScale } = bandScales(margin.left);
   let binBandWidth = binBandScale.bandwidth();
-  const rotateLabels = longestLabel * 6.5 > binBandWidth;
-  const maxBinLabelChars = rotateLabels
-    ? Math.max(8, Math.min(longestLabel, Math.floor(binBandWidth / 5)))
-    : longestLabel;
-  const binLabels: BinLabel[] = bins.map((bin) => ({ bin, shown: truncate(bin, maxBinLabelChars) }));
+  const labelLayout = categoryXLabelLayout(bins, binBandWidth, axisTitleSpace);
+  const rotateLabels = labelLayout.rotate;
+  const binLabels: BinLabel[] = bins.map((bin) => ({ bin, shown: truncate(bin, labelLayout.maxChars) }));
   if (rotateLabels) {
     const firstLabelReach = binLabels[0].shown.length * 6.5 * Math.cos(Math.PI * 35 / 180);
     margin.left = Math.max(margin.left, Math.ceil(firstLabelReach));
-    margin.bottom = Math.min(
-      160,
-      24 + binLabels.reduce((len, label) => Math.max(len, label.shown.length), 1) * 6 + 12 + axisTitleSpace,
-    );
+    margin.bottom = labelLayout.bottom;
     ({ innerWidth, binBandScale, groupScale } = bandScales(margin.left));
     binBandWidth = binBandScale.bandwidth();
   }
